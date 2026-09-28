@@ -41,6 +41,7 @@ Not available yet. Releases will provide `.deb` and `.rpm` packages and plain bi
 - [Roadmap](docs/roadmap.md)
 - [Configuration reference](docs/config.md) and [example config](examples/config.toml)
 - [Decision records](docs/adr/)
+- [Testing](docs/testing.md)
 
 ## Contributing
 

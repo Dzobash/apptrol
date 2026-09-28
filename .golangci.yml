@@ -1,0 +1,37 @@
+# golangci-lint configuration (v2 format). Docs: https://golangci-lint.run/usage/configuration/
+version: "2"
+
+linters:
+  # "standard" = errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
+  enable:
+    - errorlint     # correct use of errors.Is / errors.As and %w
+    - gocritic      # common bugs and style issues
+    - misspell      # spelling mistakes in comments and strings
+    - nolintlint    # //nolint comments must be specific and explained
+    - revive        # exported names and doc comments
+    - unconvert     # unnecessary type conversions
+    - unparam       # unused function parameters and results
+  settings:
+    misspell:
+      locale: US
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      # Errors from writing to stdout/stderr in the CLI are not actionable.
+      - path: cmd/
+        linters: [errcheck]
+        text: "fmt.Fprint"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Dzobash/apptrol

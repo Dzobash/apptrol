@@ -20,16 +20,17 @@ Each phase ends with a tagged release. Detailed requirements live in
 
 - [x] Requirements, roadmap, configuration reference, decision records
 - [x] License (MIT), README, changelog, contributing guide
-- [ ] Public Git repository
-- [ ] Go module and project skeleton (`cmd/apptrol`, `internal/…`)
-- [ ] CI with GitHub Actions: build, test, lint (`golangci-lint`) on every push and pull request
+- [x] Git repository on GitHub (private until the first release)
+- [x] Go module and project skeleton (`cmd/apptrol`, `internal/…`)
+- [x] Testing strategy and QA requirements ([ADR 0012](adr/0012-testing-strategy.md), [testing.md](testing.md))
+- [ ] CI with GitHub Actions: lint, tests (race, coverage gate, two Go versions), `govulncheck`, build — written, waiting for the first green run
 - [ ] Release pipeline with GoReleaser on version tags: binaries (x86_64, arm64), .deb, .rpm, checksums
 - [ ] Dependabot for Go modules and GitHub Actions
 - [ ] Issue templates (bug report, feature request)
 
 ## Phase 1 — Core mixer (`0.1.0`)
 
-Requirement areas: HW, CTRL, PRIO, MUTE, SOLO, LED, BTN, STATE, CFG, LOG, SVC, NFR.
+Requirement areas: HW, CTRL, PRIO, MUTE, SOLO, LED, BTN, STATE, CFG, LOG, SVC, NFR, QA.
 
 - [ ] Read MIDI from the controller; handle plug / unplug
 - [ ] Connect to PipeWire (pulse protocol); track playback streams and capture devices; reconnect
@@ -42,7 +43,12 @@ Requirement areas: HW, CTRL, PRIO, MUTE, SOLO, LED, BTN, STATE, CFG, LOG, SVC, N
 - [ ] `apptrol list`, `apptrol check`, `apptrol --version`
 - [ ] Logging to journald and/or a rotating file
 - [ ] systemd user unit; packaged in .deb / .rpm
-- [ ] Tests for matching, mute/solo logic, config validation and state handling
+- [ ] Interfaces and fakes for the controller and audio server (QA-06)
+- [ ] Tests for matching, mute/solo logic, config validation and state handling, named after requirement IDs (QA-07)
+- [ ] Fuzz tests for config parsing and MIDI decoding, run briefly in CI (QA-08)
+- [ ] Integration tests against headless PipeWire in CI (QA-09)
+- [ ] Raise the coverage minimum as code grows (QA-04)
+- [ ] Manual hardware checklist completed ([testing.md](testing.md), QA-12)
 
 **Done when:** all Phase 1 MUST requirements are met, and Apptrol has run as the only
 volume control on the author's desktop for a week without problems.

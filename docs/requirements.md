@@ -212,6 +212,26 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | NFR-06 | The project MUST be published under the MIT license. | MUST | 0 |
 | NFR-07 | Documentation MUST NOT use Korg trademarks in the project name or logo, and MUST state that the project is not affiliated with Korg. | MUST | 0 |
 
+### 5.1 Quality assurance
+
+How these are met is described in [ADR 0012](adr/0012-testing-strategy.md) and
+[testing.md](testing.md).
+
+| ID | Requirement | Level | Phase |
+|---|---|---|---|
+| QA-01 | Every push and pull request MUST run CI: format check, `go vet`, `golangci-lint`, tests with the race detector, vulnerability scan, and a build with a smoke test. | MUST | 0 |
+| QA-02 | Changes SHOULD only reach `main` when CI passes. Once the repository is public, this MUST be enforced with branch protection. | SHOULD | 0 |
+| QA-03 | Tests MUST run against the minimum Go version from `go.mod` and against the latest stable Go release. | MUST | 0 |
+| QA-04 | CI MUST fail when total test coverage drops below the configured minimum (currently 70 %). Logic packages (matching, mixer state, config, saved state) SHOULD reach at least 85 %. | MUST | 0 |
+| QA-05 | Dependencies MUST be checked with `govulncheck`; a known vulnerability in code Apptrol actually calls MUST fail CI. | MUST | 0 |
+| QA-06 | Access to the controller and to the audio server MUST go through interfaces, so that all behaviour can be tested with fakes, without hardware or PipeWire. | MUST | 1 |
+| QA-07 | Every Phase 1 MUST requirement that can be tested without hardware MUST have at least one automated test. Test names SHOULD include the requirement ID. | MUST | 1 |
+| QA-08 | Configuration parsing and MIDI message decoding MUST have fuzz tests; CI SHOULD run each for a short time on every push. | MUST | 1 |
+| QA-09 | Integration tests against a real, headless PipeWire SHOULD run in CI (build tag `integration`). | SHOULD | 1 |
+| QA-10 | Automated tests (except integration tests) MUST NOT need network access, hardware or a desktop session. | MUST | 0 |
+| QA-11 | A bug fix SHOULD include a test that fails without the fix. | SHOULD | 1 |
+| QA-12 | Before each release, the manual hardware checklist in [testing.md](testing.md) MUST be completed on a real controller. | MUST | 1 |
+
 ## 6. Later phases (outline)
 
 These are agreed directions, not yet full requirements. They will be refined and given IDs

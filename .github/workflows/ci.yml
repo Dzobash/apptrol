@@ -1,0 +1,102 @@
+# Continuous integration: runs on every push and pull request.
+# What each job checks is described in docs/adr/0012-testing-strategy.md.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Minimum total test coverage in percent (QA-04). Raised as Phase 1 adds code.
+  COVERAGE_MIN: "70"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14
+
+  test:
+    name: Test (Go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The minimum version from go.mod, and the newest stable release.
+        include:
+          - go: minimum
+            go-version-file: go.mod
+          - go: stable
+            go-version: stable
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: ${{ matrix.go-version-file }}
+          go-version: ${{ matrix.go-version }}
+      - name: Vet
+        run: go vet ./...
+      - name: Test with race detector and coverage
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Coverage report and minimum
+        if: matrix.go == 'minimum'
+        run: |
+          total=$(go tool cover -func=coverage.out | awk '/^total:/ {sub("%","",$3); print $3}')
+          {
+            echo "### Test coverage: ${total}% (minimum ${COVERAGE_MIN}%)"
+            echo
+            echo '```'
+            go tool cover -func=coverage.out
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          awk -v t="$total" -v m="$COVERAGE_MIN" 'BEGIN { if (t+0 < m+0) { printf "Coverage %s%% is below the minimum of %s%%\n", t, m; exit 1 } }'
+      - name: Upload coverage profile
+        if: matrix.go == 'minimum'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: coverage.out
+          retention-days: 14
+
+  vulncheck:
+    name: Vulnerability check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # full history, so the version comes from git tags
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: make build
+      - name: Smoke test
+        run: ./bin/apptrol --version

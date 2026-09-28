@@ -20,3 +20,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0009](0009-mit-license.md) | MIT license | Accepted |
 | [0010](0010-project-name.md) | Project name "Apptrol" | Accepted |
 | [0011](0011-phased-delivery.md) | Deliver in phases; layouts and GUI later | Accepted |
+| [0012](0012-testing-strategy.md) | Testing strategy | Accepted |

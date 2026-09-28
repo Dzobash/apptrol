@@ -10,3 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Project documentation: requirements, roadmap, configuration reference, decision records.
 - Example configuration and systemd user unit.
+- Go project skeleton: `apptrol` command with `--version`, `--config` and placeholder
+  `run`, `list` and `check` commands; Makefile for building and testing.
+- Testing strategy (ADR 0012), QA requirements and manual hardware checklist (`docs/testing.md`).
+- CI workflow: lint, tests with race detector and coverage gate on two Go versions,
+  vulnerability scan, build and smoke test.
