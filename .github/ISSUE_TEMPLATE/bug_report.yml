@@ -1,0 +1,78 @@
+name: Bug report
+description: Something does not work as described in the documentation
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please fill in as much as you can — logs and versions
+        make it much faster to find the cause.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: |
+        1. Put Spotify on slider 1
+        2. Pressed S on column 1
+        3. Expected only Spotify to be audible, but Discord was still playing
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Apptrol version
+      description: Output of `apptrol --version`
+      placeholder: apptrol v0.1.0 (commit 1a2b3c4, built …)
+    validations:
+      required: true
+
+  - type: input
+    id: system
+    attributes:
+      label: Distribution and desktop
+      placeholder: Kubuntu 26.04, KDE Plasma 6.6, Wayland
+    validations:
+      required: true
+
+  - type: input
+    id: audio
+    attributes:
+      label: Audio server
+      description: The "Server Name" line from `pactl info`
+      placeholder: PulseAudio (on PipeWire 1.4.8)
+    validations:
+      required: true
+
+  - type: input
+    id: controller
+    attributes:
+      label: Controller
+      description: Model, and whether its LED mode is set to "External"
+      placeholder: Korg nanoKONTROL2, LED mode External
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Set `level = "debug"` in the config, reproduce the problem, then paste the output of
+        `journalctl --user -u apptrol --since "10 min ago"` (or the log file).
+      render: shell
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Your `~/.config/apptrol/config.toml`, or the relevant part
+      render: toml
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and this has not been reported yet
+          required: true

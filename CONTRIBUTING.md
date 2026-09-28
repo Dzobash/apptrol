@@ -7,6 +7,7 @@ Thanks for your interest! Apptrol is a small project; issues and pull requests a
 - Read the [requirements](docs/requirements.md) and the [roadmap](docs/roadmap.md).
   Features outside the current phase are welcome as ideas, but may wait for their phase.
 - For a larger change, open an issue first so we can agree on the approach.
+- Report security problems privately, see [SECURITY.md](SECURITY.md).
 - Decisions that affect the design are recorded as [ADRs](docs/adr/). If your change
   alters one, add a new record that supersedes it.
 
