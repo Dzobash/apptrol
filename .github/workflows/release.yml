@@ -1,0 +1,33 @@
+# Release: runs when a version tag (v*) is pushed.
+# Builds binaries, .deb/.rpm packages and checksums with GoReleaser
+# and publishes them as a GitHub Release. See docs/releasing.md.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write   # create the GitHub Release and upload files
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # full history for the version and release notes
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - name: Test before releasing
+        run: go test -race ./...
+      - name: GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

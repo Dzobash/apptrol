@@ -15,3 +15,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Testing strategy (ADR 0012), QA requirements and manual hardware checklist (`docs/testing.md`).
 - CI workflow: lint, tests with race detector and coverage gate on two Go versions,
   vulnerability scan, build and smoke test.
+- Release pipeline: GoReleaser builds binaries, .deb/.rpm packages and checksums for
+  amd64 and arm64 on every version tag (ADR 0013, `docs/releasing.md`).

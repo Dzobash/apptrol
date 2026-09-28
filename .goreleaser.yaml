@@ -1,0 +1,99 @@
+# GoReleaser configuration. Docs: https://goreleaser.com/customization/
+# Run by .github/workflows/release.yml when a version tag (v*) is pushed.
+# Local trial run without publishing: make snapshot
+version: 2
+
+project_name: apptrol
+
+builds:
+  - id: apptrol
+    main: ./cmd/apptrol
+    binary: apptrol
+    env:
+      - CGO_ENABLED=0
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/Dzobash/apptrol/internal/version.Version=v{{ .Version }}
+      - -X github.com/Dzobash/apptrol/internal/version.Commit={{ .FullCommit }}
+      - -X github.com/Dzobash/apptrol/internal/version.Date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: tarball
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_linux_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+      - examples/config.toml
+      - packaging/systemd/apptrol.service
+
+checksum:
+  name_template: checksums.txt
+
+nfpms:
+  - id: packages
+    package_name: apptrol
+    file_name_template: "{{ .ConventionalFileName }}"
+    maintainer: Dzobash <42670400+Dzobash@users.noreply.github.com>
+    homepage: https://github.com/Dzobash/apptrol
+    description: |-
+      Control each app's volume on Linux with a hardware MIDI controller.
+      A per-app volume mixer for PipeWire, built for the Korg nanoKONTROL2.
+    license: MIT
+    section: sound
+    formats: [deb, rpm]
+    bindir: /usr/bin
+    contents:
+      - src: packaging/systemd/apptrol.service
+        dst: /usr/lib/systemd/user/apptrol.service
+      - src: examples/config.toml
+        dst: /usr/share/doc/apptrol/examples/config.toml
+      - src: README.md
+        dst: /usr/share/doc/apptrol/README.md
+      - src: CHANGELOG.md
+        dst: /usr/share/doc/apptrol/CHANGELOG.md
+      - src: LICENSE
+        dst: /usr/share/doc/apptrol/copyright
+        packager: deb
+      - src: LICENSE
+        dst: /usr/share/licenses/apptrol/LICENSE
+        packager: rpm
+    scripts:
+      postinstall: packaging/scripts/postinstall.sh
+    overrides:
+      deb:
+        recommends: [pipewire-pulse]
+      rpm:
+        recommends: [pipewire-pulseaudio]
+
+snapshot:
+  version_template: "{{ incpatch .Version }}~snapshot.{{ .ShortCommit }}"
+
+release:
+  github:
+    owner: Dzobash
+    name: apptrol
+  name_template: "v{{ .Version }}"
+  prerelease: auto   # tags like v0.1.0-rc1 become pre-releases
+
+changelog:
+  use: git
+  sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Documentation
+      regexp: '^.*?docs(\(.+\))??!?:.+$'
+      order: 2
+    - title: Other changes
+      order: 999

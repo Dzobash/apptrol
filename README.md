@@ -33,7 +33,20 @@ Planned later: media buttons, on-screen volume display, multiple layouts (e.g. *
 
 ## Installation
 
-Not available yet. Releases will provide `.deb` and `.rpm` packages and plain binaries.
+No release yet. Once there is one, download the package for your system from the
+[Releases](https://github.com/Dzobash/apptrol/releases) page and install it:
+
+```bash
+sudo apt install ./apptrol_*_amd64.deb      # Debian, Ubuntu, Kubuntu
+sudo dnf install ./apptrol-*.x86_64.rpm     # Fedora
+```
+
+Then start it for your user:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now apptrol
+```
 
 ## Documentation
 
@@ -42,6 +55,7 @@ Not available yet. Releases will provide `.deb` and `.rpm` packages and plain bi
 - [Configuration reference](docs/config.md) and [example config](examples/config.toml)
 - [Decision records](docs/adr/)
 - [Testing](docs/testing.md)
+- [Releasing](docs/releasing.md)
 
 ## Contributing
 

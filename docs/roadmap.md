@@ -24,7 +24,7 @@ Each phase ends with a tagged release. Detailed requirements live in
 - [x] Go module and project skeleton (`cmd/apptrol`, `internal/…`)
 - [x] Testing strategy and QA requirements ([ADR 0012](adr/0012-testing-strategy.md), [testing.md](testing.md))
 - [x] CI with GitHub Actions: lint, tests (race, coverage gate, two Go versions), `govulncheck`, build
-- [ ] Release pipeline with GoReleaser on version tags: binaries (x86_64, arm64), .deb, .rpm, checksums
+- [ ] Release pipeline with GoReleaser on version tags: binaries (x86_64, arm64), .deb, .rpm, checksums ([ADR 0013](adr/0013-release-packaging.md), [releasing.md](releasing.md)) — written, waiting for the first release
 - [ ] Dependabot for Go modules and GitHub Actions
 - [ ] Issue templates (bug report, feature request)
 

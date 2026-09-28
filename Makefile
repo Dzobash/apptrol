@@ -13,7 +13,7 @@ LDFLAGS := -s -w \
 # Minimum total test coverage in percent; keep in sync with COVERAGE_MIN in ci.yml.
 COVERAGE_MIN ?= 70
 
-.PHONY: all check build test cover vet fmt lint vulncheck clean help
+.PHONY: all check build test cover vet fmt lint vulncheck snapshot release-check clean help
 
 all: check build ## Run all checks, then build
 
@@ -44,8 +44,14 @@ lint: ## Run golangci-lint (install: https://golangci-lint.run/welcome/install/)
 vulncheck: ## Check dependencies for known vulnerabilities
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
+snapshot: ## Trial release build into dist/, publishes nothing (needs goreleaser)
+	goreleaser release --snapshot --clean
+
+release-check: ## Validate .goreleaser.yaml (needs goreleaser)
+	goreleaser check
+
 clean: ## Remove build and coverage output
 	rm -rf bin dist coverage.out coverage.html
 
 help: ## List targets
-	@grep -E '^[a-z]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-10s %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
