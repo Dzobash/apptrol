@@ -1,0 +1,61 @@
+# Apptrol configuration
+# Location: ~/.config/apptrol/config.toml
+# The file is reloaded automatically when you save it.
+# Full reference: docs/config.md
+
+# ── Controller ────────────────────────────────────────────────────────────────
+[controller]
+# Part of the MIDI port name. Run `aseqdump -l` to see connected devices.
+port = "nanoKONTROL2"
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+[log]
+level   = "info"                   # debug | info | warn | error
+outputs = ["journald"]             # "journald", "file", or both
+
+[log.journald]
+format = "text"                    # text | logfmt
+
+[log.file]
+path      = "~/.local/state/apptrol/apptrol.log"
+format    = "json"                 # text | json | logfmt
+max_size  = "10MB"                 # rotate when the file reaches this size
+max_files = 5                      # rotated files to keep
+
+# ── Apps and inputs ───────────────────────────────────────────────────────────
+# Each entry is defined once and referred to by its id (the part after "apps.").
+# `match` is a list of case-insensitive name fragments.
+# Run `apptrol list` to see the names of everything that is currently playing.
+
+[apps.spotify]
+name  = "Spotify"
+match = ["spotify"]
+
+[apps.browser]
+name  = "Browser"
+match = ["vivaldi", "firefox", "chrome"]
+
+[apps.discord]
+name  = "Discord"
+match = ["discord", "vesktop"]
+
+[apps.games]
+name  = "Steam games"
+match = ["steam"]
+
+[apps.mic]
+name  = "Microphone"
+type  = "input"                    # "app" (default) or "input"
+match = ["GoXLR"]                  # part of the input device's name
+
+# ── Layouts ───────────────────────────────────────────────────────────────────
+# Phase 1 uses only the layout called "default".
+# Controls: slider1–slider8 and knob1–knob8 (numbered left to right).
+# S / M buttons belong to the slider in the same column.
+
+[layouts.default]
+slider1 = "spotify"
+slider2 = "browser"
+slider3 = "discord"
+slider4 = "games"
+slider8 = "mic"

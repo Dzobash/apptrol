@@ -1,0 +1,14 @@
+[Unit]
+Description=Apptrol - per-app volume control with a MIDI controller
+Documentation=https://github.com/Dzobash/apptrol
+After=pipewire-pulse.service
+Wants=pipewire-pulse.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/apptrol
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

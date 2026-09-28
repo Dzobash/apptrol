@@ -1,0 +1,15 @@
+# Build output
+/bin/
+/dist/
+/apptrol
+
+# Go
+*.test
+*.out
+coverage.*
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
