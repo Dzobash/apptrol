@@ -11,6 +11,36 @@ Thanks for your interest! Apptrol is a small project; issues and pull requests a
 - Decisions that affect the design are recorded as [ADRs](docs/adr/). If your change
   alters one, add a new record that supersedes it.
 
+## Branches and pull requests
+
+`main` must always build and pass CI, so a release can be tagged from it at any time.
+All changes go through a branch and a pull request (GitHub Flow):
+
+1. Start from an up-to-date `main` and create a branch:
+   ```bash
+   git switch main && git pull
+   git switch -c feat/config-loading
+   ```
+   Branch names use the commit type as prefix: `feat/`, `fix/`, `docs/`, `ci/`, `chore/`,
+   `refactor/`, `test/`.
+2. Commit and push the branch:
+   ```bash
+   git push -u origin feat/config-loading
+   ```
+3. Open a pull request into `main` on GitHub. CI runs on it; fill in the PR template.
+4. Merge with **Squash and merge** once CI is green. The PR title becomes the single commit
+   on `main`, so it must follow Conventional Commits (it feeds the release notes).
+5. Delete the branch, then update your local `main`:
+   ```bash
+   git switch main && git pull
+   git branch -d feat/config-loading
+   ```
+
+Repository settings that support this (**Settings → General → Pull Requests**): allow only
+*squash merging*, set the default commit message to *pull request title*, and enable
+*automatically delete head branches*. Once the repository is public, a branch rule for
+`main` requires pull requests and a green CI (QA-02).
+
 ## Commits and pull requests
 
 - Use [Conventional Commits](https://www.conventionalcommits.org/):

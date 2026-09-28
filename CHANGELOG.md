@@ -19,3 +19,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   amd64 and arm64 on every version tag (ADR 0013, `docs/releasing.md`).
 - Dependabot for Go modules and GitHub Actions; issue and pull request templates;
   security policy.
+- Branch and pull request workflow in the contributing guide.
