@@ -35,3 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   timestamps when started from a terminal), log file with size-based rotation, separate
   formats per output (text, JSON, logfmt), level and outputs changeable at runtime; falls
   back to the journal if the log file cannot be opened.
+- Mixer core (`internal/mixer`): matching streams and inputs to controls, volume, mute,
+  exclusive solo, LED states, new streams getting the control's position, saved state,
+  configuration changes. Tested per requirement against a simulated audio server and
+  controller, plus a fuzz test over random event sequences.
+- New requirement SVC-07: on shutdown, end solo so no app stays muted by it.

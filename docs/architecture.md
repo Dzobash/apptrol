@@ -81,6 +81,10 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   `application.process.binary`; some apps (Spotify) only report the name.
 - Volume is set per stream and per input; mute likewise.
 - On connection loss the backend reconnects and the service re-applies the current state.
+- PipeWire (WirePlumber) remembers each app's volume and mute and restores them when the
+  app starts again — also when Apptrol is not running. Apptrol therefore sets the mute of
+  every stream it controls explicitly, and ends solo on shutdown (SVC-07) so no app stays
+  silenced by it.
 
 ## Files at runtime
 

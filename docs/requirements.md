@@ -201,6 +201,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | SVC-04 | If the connection to the audio server is lost (e.g. PipeWire restart), Apptrol MUST reconnect and re-apply the current state. | MUST |
 | SVC-05 | Apptrol MUST shut down cleanly on SIGTERM/SIGINT, saving state first. | MUST |
 | SVC-06 | `apptrol --version` MUST print the version, commit and build date. | MUST |
+| SVC-07 | On shutdown, Apptrol MUST end solo and unmute every app it silenced by solo. The audio server remembers mutes per app, so otherwise those apps would stay muted after Apptrol exits. User mutes (M) stay, as they are saved and restored. | MUST |
 
 ## 5. Non-functional requirements
 
