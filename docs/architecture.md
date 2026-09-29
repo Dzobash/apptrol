@@ -54,7 +54,12 @@ nothing from the adapters.
    input "GoXLR"*, *LED M2 on*, *state changed*.
 4. The service executes them. Failures are logged; they never stop the loop.
 
-Bursts of slider events are coalesced before step 2 (CTRL-07).
+Bursts of slider events are coalesced before step 2 (CTRL-07): the loop reads every event
+already waiting, and of several positions of one control only the last is handled.
+
+The configuration file is checked once a second; after a change the loop reloads it
+(CFG-06). On SIGTERM or Ctrl+C the loop ends solo, saves the state and turns the LEDs off
+before the adapters are stopped (SVC-05, SVC-07, LED-08).
 
 ## Controller access
 
