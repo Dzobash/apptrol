@@ -17,7 +17,7 @@ concurrency:
 
 env:
   # Minimum total test coverage in percent (QA-04). Raised as Phase 1 adds code.
-  COVERAGE_MIN: "70"
+  COVERAGE_MIN: "75"
 
 jobs:
   lint:

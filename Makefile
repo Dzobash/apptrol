@@ -11,7 +11,7 @@ LDFLAGS := -s -w \
 	-X $(PKG)/internal/version.Date=$(DATE)
 
 # Minimum total test coverage in percent; keep in sync with COVERAGE_MIN in ci.yml.
-COVERAGE_MIN ?= 70
+COVERAGE_MIN ?= 75
 
 .PHONY: all check build test test-audio cover vet fmt lint vulncheck snapshot release-check clean help
 

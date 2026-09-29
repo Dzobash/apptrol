@@ -51,7 +51,7 @@ Design: [architecture.md](architecture.md), [ADR 0015](adr/0015-service-architec
 - [x] Tests for matching, mute/solo logic, config validation and state handling, named after requirement IDs (QA-07)
 - [x] Fuzz tests for config parsing and MIDI decoding, run briefly in CI (QA-08)
 - [x] Integration tests against headless PipeWire in CI (QA-09)
-- [ ] Raise the coverage minimum as code grows (QA-04)
+- [x] Raise the coverage minimum as code grows (QA-04): 75 %
 - [ ] Manual hardware checklist completed ([testing.md](testing.md), QA-12)
 
 **Done when:** all Phase 1 MUST requirements are met, and Apptrol has run as the only
