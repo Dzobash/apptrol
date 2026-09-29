@@ -38,18 +38,18 @@ Design: [architecture.md](architecture.md), [ADR 0015](adr/0015-service-architec
 
 - [ ] Read MIDI from the controller; handle plug / unplug
 - [ ] Connect to PipeWire (pulse protocol); track playback streams and capture devices; reconnect
-- [ ] Match streams and inputs against configured apps
-- [ ] Sliders and knobs set volume; new streams get the control's position
-- [ ] M (mute) and S (solo) with the agreed semantics
-- [ ] LED feedback, including the input-column style
+- [ ] Match streams and inputs against configured apps — mixer logic done; needs the audio adapter
+- [ ] Sliders and knobs set volume; new streams get the control's position — mixer logic done
+- [ ] M (mute) and S (solo) with the agreed semantics — mixer logic done
+- [ ] LED feedback, including the input-column style — mixer logic done; needs the controller adapter
 - [ ] State saving and restore
 - [ ] TOML config with layout structure, validation, automatic reload — loading and validation done; reload with `run`
 - [ ] `apptrol list`, `apptrol check`, `apptrol --version` — `check` and `--version` done
 - [ ] Logging to journald and/or a rotating file — package done; used by `run` once it exists
 - [ ] systemd user unit; packaged in .deb / .rpm
 - [ ] Interfaces and fakes for the controller and audio server (QA-06)
-- [ ] Tests for matching, mute/solo logic, config validation and state handling, named after requirement IDs (QA-07)
-- [ ] Fuzz tests for config parsing and MIDI decoding, run briefly in CI (QA-08) — config done, CI job in place
+- [ ] Tests for matching, mute/solo logic, config validation and state handling, named after requirement IDs (QA-07) — config and mixer done
+- [ ] Fuzz tests for config parsing and MIDI decoding, run briefly in CI (QA-08) — config and mixer done, CI job in place
 - [ ] Integration tests against headless PipeWire in CI (QA-09)
 - [ ] Raise the coverage minimum as code grows (QA-04)
 - [ ] Manual hardware checklist completed ([testing.md](testing.md), QA-12)
