@@ -21,7 +21,6 @@ func TestRun(t *testing.T) {
 		{"version flag", []string{"--version"}, 0, "apptrol ", ""},
 		{"version command", []string{"version"}, 0, "apptrol ", ""},
 		{"help", []string{"-h"}, 0, "", "Usage: apptrol"},
-		{"default is run", nil, 1, "", "not implemented yet"},
 		{"list without audio server", []string{"list"}, 1, "", "Is PipeWire"},
 		{"unknown command", []string{"frobnicate"}, 2, "", `unknown command "frobnicate"`},
 		{"extra arguments", []string{"list", "extra"}, 2, "", "unexpected arguments"},

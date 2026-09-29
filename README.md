@@ -86,12 +86,14 @@ sudo dnf install ./apptrol-*.x86_64.rpm     # Fedora
    `apptrol list` shows the names of the apps that are currently playing and of your input
    devices; `apptrol check` validates the file and shows which app is on which control.
    The [configuration reference](docs/config.md) explains every setting.
-2. **Start Apptrol** for your user, now and at every login:
+2. **Try it** in a terminal: run `apptrol`, move a slider, and watch the log. Ctrl+C stops
+   it. Without a configuration file, Apptrol creates the example for you.
+3. **Start Apptrol** for your user, now and at every login:
    ```bash
    systemctl --user daemon-reload
    systemctl --user enable --now apptrol
    ```
-3. **Check the log** if something does not respond:
+4. **Check the log** if something does not respond:
    ```bash
    journalctl --user -u apptrol -f
    ```

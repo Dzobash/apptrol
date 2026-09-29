@@ -72,7 +72,7 @@ Project layout:
 | `internal/` | All application code, not importable by other projects |
 | `internal/version/` | Build information (set at link time) |
 | `docs/` | Requirements, roadmap, configuration reference, ADRs |
-| `examples/` | Example configuration |
+| `examples/` | Example configuration (built into the binary for the first start) |
 | `packaging/` | systemd unit and other packaging files |
 
 Further packages under `internal/` are added in Phase 1 (MIDI, audio, config, state, logging).

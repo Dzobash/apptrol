@@ -31,11 +31,10 @@ import (
 	"github.com/Dzobash/apptrol/internal/config"
 	"github.com/Dzobash/apptrol/internal/controller/rawmidi"
 	"github.com/Dzobash/apptrol/internal/logging"
+	"github.com/Dzobash/apptrol/internal/service"
+	"github.com/Dzobash/apptrol/internal/state"
 	"github.com/Dzobash/apptrol/internal/version"
 )
-
-// errNotImplemented is returned by commands that are planned but not built yet.
-var errNotImplemented = errors.New("not implemented yet (planned for Phase 1)")
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -109,10 +108,41 @@ Flags:
 	return 0
 }
 
+// cmdRun runs the service until SIGTERM or Ctrl+C.
 func cmdRun(configPath string) error {
-	_ = configPath
-	return errNotImplemented
+	path, err := resolveConfigPath(configPath)
+	if err != nil {
+		return err
+	}
+	stateDir, err := config.DefaultStateDir()
+	if err != nil {
+		return err
+	}
+	// Log to the journal (or the terminal) until the configuration says otherwise.
+	logs, err := logging.New(defaultLog, logging.Options{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = logs.Close() }()
+	log := logs.Logger()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return service.Run(ctx, service.Options{
+		ConfigPath: path,
+		StatePath:  filepath.Join(stateDir, state.FileName),
+		Log:        log,
+		Logs:       logs,
+		Audio:      pulse.New(log, ""),
+		NewController: func(port string) service.Controller {
+			return rawmidi.New(log, port)
+		},
+	})
 }
+
+// defaultLog is used before a configuration is loaded, and by `apptrol test`.
+var defaultLog = config.Log{Level: "info", Outputs: []string{config.OutputJournald},
+	Journald: config.JournaldOutput{Format: "text"}}
 
 // cmdCheck validates the configuration file and prints what it assigns (CFG-11).
 func cmdCheck(configPath string, stdout io.Writer) error {
@@ -167,8 +197,7 @@ func resolveConfigPath(flagValue string) (string, error) {
 // Ctrl+C.
 func runTest(configPath string, stdout, stderr io.Writer) error {
 	terminal := false
-	logs, _ := logging.New(config.Log{Level: "info", Outputs: []string{config.OutputJournald},
-		Journald: config.JournaldOutput{Format: "text"}}, logging.Options{Stdout: stderr, Journal: &terminal})
+	logs, _ := logging.New(defaultLog, logging.Options{Stdout: stderr, Journal: &terminal})
 	defer func() { _ = logs.Close() }()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

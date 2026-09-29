@@ -57,6 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fuzz-tested.
 - `apptrol test` shows what the controller sends and toggles each button's LED, to check
   the controller and its LED mode. It says which buttons have no LED (Track and Marker).
+- `apptrol run` (the default command) runs the service: sliders and knobs set volumes,
+  M mutes, S solos, LEDs show the state, positions and mutes survive restarts. It creates
+  the example configuration on first start and reloads the configuration when the file
+  is saved; an invalid file is reported and the previous settings stay active. On stop it
+  ends solo, saves the state and turns the LEDs off.
+- New requirement LED-08: LEDs are turned off when Apptrol stops.
 
 ### Fixed
 - Example configuration and configuration reference: `[controller] port` is the ALSA
