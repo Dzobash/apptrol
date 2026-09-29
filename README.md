@@ -1,7 +1,14 @@
-# Apptrol
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/brand/apptrol-logo-dark.svg">
+    <img src="docs/assets/brand/apptrol-logo.svg" alt="Apptrol" height="72">
+  </picture>
+</p>
 
-**Control each app's volume on Linux with a hardware MIDI controller.**
-A per-app volume mixer for PipeWire, built for the Korg nanoKONTROL2.
+<p align="center">
+  <b>Control each app's volume on Linux with a hardware MIDI controller.</b><br>
+  A per-app volume mixer for PipeWire, built for the Korg nanoKONTROL2.
+</p>
 
 > **Status: planning.** Requirements are agreed for the first version; code has not been
 > written yet. See the [roadmap](docs/roadmap.md).
@@ -56,6 +63,7 @@ systemctl --user enable --now apptrol
 - [Decision records](docs/adr/)
 - [Testing](docs/testing.md)
 - [Releasing](docs/releasing.md)
+- [Brand guide](docs/brand.md) (logo, colours, type)
 
 ## Contributing
 
