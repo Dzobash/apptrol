@@ -34,3 +34,11 @@ sequencer bridge is not subscribed to it.
 - While Apptrol runs, no other program can use the controller; if one holds it, Apptrol
   reports it and retries. If this becomes a problem — for example PipeWire starting to
   claim the device — the sequencer backend is the planned answer.
+
+## Implementation notes (2026-09-30)
+
+- Hot-plug is detected by looking for the device once a second while it is away, not by
+  watching `/dev/snd`: simpler, and just as quick in practice. Unplugging ends the pending
+  read with an error.
+- The controller and audio interfaces live in `internal/service` (`Controller`, `Audio`),
+  next to the loop that uses them.

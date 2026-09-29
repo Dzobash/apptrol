@@ -22,9 +22,11 @@ microphone on the last one. Moving a slider or knob changes that app's volume di
 with no desktop mixer involved.
 
 - Every slider and knob can control one app or one input (e.g. your microphone)
+- Per app, the top of the slider can be up to 150 % (a boost) or less than 100 % (a cap)
 - **M** mutes the app on that slider, **S** solos it
 - The button LEDs show what is muted and soloed
 - Apps that start later get the slider's volume straight away
+- `apptrol list` shows the names to put in the config; `apptrol test` checks the controller
 - Settings live in a simple TOML file that is reloaded when you save it
 - Runs quietly in the background as a systemd user service
 - Works on any desktop (KDE Plasma, GNOME, …), Wayland or X11

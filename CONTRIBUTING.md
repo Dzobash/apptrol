@@ -68,14 +68,20 @@ Project layout:
 
 | Path | Contents |
 |---|---|
-| `cmd/apptrol/` | The `apptrol` command: argument parsing and wiring |
-| `internal/` | All application code, not importable by other projects |
+| `cmd/apptrol/` | The `apptrol` command: `run`, `list`, `check`, `test`, `version` |
+| `internal/service/` | The event loop that ties everything together |
+| `internal/mixer/` | All behaviour, without I/O: matching, volume, mute, solo, LEDs |
+| `internal/controller/`, `…/rawmidi/` | MIDI decoding and the nanoKONTROL2 map; the raw MIDI device |
+| `internal/audio/pulse/` | Connection to PipeWire through the PulseAudio protocol |
+| `internal/config/` | Loading, validating and watching the configuration file |
+| `internal/state/` | Saved positions and mutes |
+| `internal/logging/` | Log outputs and formats |
 | `internal/version/` | Build information (set at link time) |
-| `docs/` | Requirements, roadmap, configuration reference, ADRs |
+| `docs/` | Requirements, architecture, roadmap, configuration reference, ADRs |
 | `examples/` | Example configuration (built into the binary for the first start) |
-| `packaging/` | systemd unit and other packaging files |
+| `packaging/` | systemd unit and package scripts |
 
-Further packages under `internal/` are added in Phase 1 (MIDI, audio, config, state, logging).
+How the packages work together: [docs/architecture.md](docs/architecture.md).
 
 - Go, formatted with `gofmt`; CI runs `go vet`, `golangci-lint` and the tests.
 - New behaviour comes with tests; see [docs/testing.md](docs/testing.md).

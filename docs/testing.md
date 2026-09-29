@@ -23,6 +23,7 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](..
 |---|---|
 | **Lint** | `golangci-lint` with the rules in [`.golangci.yml`](../.golangci.yml) (includes `gofmt` and `goimports`) |
 | **Test** | Starts a headless PipeWire, then `go vet` and all tests including the audio integration tests, with the race detector, on the minimum Go version and the latest stable; coverage report in the job summary; fails below the minimum |
+| **Fuzz** | Runs every fuzz test (config, saved state, MIDI decoding, mixer) for 20 seconds |
 | **Vulnerability check** | `govulncheck` |
 | **Build** | Builds the binary and runs `apptrol --version` |
 

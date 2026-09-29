@@ -21,7 +21,8 @@ How the service is put together. Decisions and their reasons are in
   gets. It receives events and returns actions. It does no I/O, so it is tested completely
   with plain unit tests.
 - **Adapters** (`controller`, `audio`, `config`, `state`, `logging`) talk to the outside
-  world. Each sits behind a small interface; tests use in-memory fakes (QA-06).
+  world. The service uses the controller and the audio server through two small
+  interfaces (`service.Controller`, `service.Audio`); tests use in-memory fakes (QA-06).
 - **`service`** runs one event loop that owns all state: it takes events from the adapters,
   passes them to the mixer, and carries out the returned actions. One goroutine owns the
   state, so there are no data races by design.
@@ -31,16 +32,16 @@ How the service is put together. Decisions and their reasons are in
 | Package | Responsibility |
 |---|---|
 | `cmd/apptrol` | Command line: `run`, `list`, `check`, `test`, `version`; wires everything together |
-| `internal/service` | Event loop; turns mixer actions into adapter calls; state save timer; shutdown |
-| `internal/mixer` | Core logic (pure): layout, positions, user mutes, solo, LED computation |
-| `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map |
-| `internal/controller/rawmidi` | Linux raw MIDI backend: device discovery by name, hot-plug, read/write |
-| `internal/audio` | Audio interface and types: playback streams, capture devices |
-| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`) |
-| `internal/config` | TOML loading, validation, file watching and reload |
-| `internal/state` | Saved state: JSON, atomic writes |
+| `internal/service` | Event loop; the `Controller` and `Audio` interfaces; turns mixer actions into adapter calls; config reload; shutdown |
+| `internal/mixer` | Core logic (pure): matching, positions, `max_volume`, user mutes, solo, LED computation |
+| `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
+| `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write |
+| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`); reconnects; `apptrol list` data |
+| `internal/config` | TOML loading, validation (including overlap warnings), file watching |
+| `internal/state` | Saved state: JSON, atomic, batched writes |
 | `internal/logging` | Log outputs (journald, rotating file) and formats |
 | `internal/version` | Build information |
+| `examples` | The example configuration, built into the binary for the first start (CFG-09) |
 
 Dependencies point inwards: adapters and `service` import `mixer`'s types; `mixer` imports
 nothing from the adapters.
@@ -70,7 +71,8 @@ Raw MIDI (`/dev/snd/midiC<card>D<device>`), in pure Go:
 - **Hot-plug:** while the controller is away, look for it once a second (a few file reads;
   no measurable CPU). Unplugging ends the pending read with an error.
 - **Input:** read and decode MIDI Control Change messages (running status included).
-- **Output:** Control Change messages to set LEDs (LED mode *External*).
+- **Output:** Control Change messages to set LEDs (LED mode *External*), on the MIDI
+  channel the controller sends on. Track ◀ ▶ and the three Marker buttons have no LED.
 - **Exclusive:** raw MIDI allows one reader. While Apptrol runs, other programs cannot use
   the controller, and if another program holds it, Apptrol logs a clear error and retries.
 
@@ -86,8 +88,9 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
 - An app matches a stream when a configured fragment is found in `application.name` or
   `application.process.binary`; some apps (Spotify) only report the name.
 - Volume is set per stream and per input; mute likewise. The percentage is the one desktop
-  mixers (KDE, GNOME, pavucontrol) show, so a slider at 50 % shows 50 % there. All channels
-  get the same volume.
+  mixers (KDE, GNOME, pavucontrol) show, so a slider at 50 % shows 50 % there. The top of
+  a control is the app's `max_volume` (default 100 %, up to 150 %). All channels get the
+  same volume.
 - Monitors of outputs ("Monitor of GoXLR…") are not capture devices and are never matched.
 - WirePlumber restores an app's remembered volume shortly after the app starts. When that
   lands after Apptrol has set the slider's position, Apptrol sets it again: for 3 seconds
@@ -108,8 +111,11 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
 
 ## Testing
 
-- `mixer`: table-driven tests per requirement ID against fakes — the bulk of the tests.
-- `controller`: MIDI decoding and the CC map with byte-level tests and fuzzing; the device
-  layer is checked by hand on hardware (docs/testing.md).
+- `mixer`: table-driven tests per requirement ID against a simulated audio server and
+  controller, plus a fuzz test over random event sequences — the bulk of the tests.
+- `service`: the whole loop against fake adapters: config reload, state, shutdown.
+- `controller`: MIDI decoding and the CC map with byte-level tests and fuzzing.
+  `controller/rawmidi`: discovery, plug/unplug and busy devices against fake devices; the
+  real controller is checked by hand (`apptrol test`, docs/testing.md).
 - `audio/pulse`: integration tests against a headless PipeWire in CI.
 - `config`, `state`: unit tests and fuzzing on malformed input.

@@ -51,6 +51,20 @@ The service is **not** enabled automatically; each user runs
 4. Watch **Actions → Release** on GitHub. When it finishes, the release appears under
    **Releases**, with release notes generated from the commit messages.
 
+## Release candidates
+
+Before a new version, publish a release candidate and test the installed package:
+
+1. Tag `main` with a suffix; the changelog stays under `[Unreleased]`:
+   ```bash
+   git tag -a v0.1.0-rc1 -m "v0.1.0-rc1"
+   git push origin v0.1.0-rc1
+   ```
+2. GitHub publishes it as a **pre-release**. Install the package, enable the service and
+   complete the [hardware checklist](testing.md#manual-hardware-checklist).
+3. Fix what fails, merge, and tag `v0.1.0-rc2`. When a candidate passes, make the release
+   as described above, on the same commit.
+
 ## Trying it locally first
 
 `make snapshot` runs the whole release build without publishing anything and puts the
