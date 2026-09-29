@@ -63,6 +63,19 @@ Install a locally built package to try it:
 sudo apt install ./dist/apptrol_*_amd64.deb
 ```
 
+## Making the repository public
+
+Some GitHub features only work on public repositories. When the repository goes public:
+
+1. **Settings → General → Social preview → Edit**: upload
+   `docs/assets/brand/png/apptrol-social-preview.png`.
+2. **Settings → Rules → Rulesets → New branch ruleset** for `main`: require a pull request
+   and passing status checks (the CI jobs) before merging (QA-02).
+3. **Settings → General → Pull Requests**: enable *Allow auto-merge* (for Dependabot).
+4. **Settings → Code security**: check that Dependabot alerts, security updates and private
+   vulnerability reporting are on.
+5. Remove "private until the first release" from the roadmap.
+
 ## If a release goes wrong
 
 Delete the GitHub Release (web UI) and the tag, fix the problem, then tag again:

@@ -1,0 +1,99 @@
+# Apptrol — Architecture
+
+How the service is put together. Decisions and their reasons are in
+[ADR 0015](adr/0015-service-architecture.md); requirements in [requirements.md](requirements.md).
+
+## Overview
+
+```
+ nanoKONTROL2 ──► controller ──┐                          ┌──► audio ──────► PipeWire
+  (raw MIDI)      (decode MIDI,│       events   ┌───────┐ │    (volume, mute)
+                   drive LEDs) ├───────────────►│ mixer │─┤
+ config.toml ───► config ──────┤                │ (pure │ ├──► controller ─► LEDs
+                  (load,       │◄───────────────│ logic)│ │
+                   validate,   │     actions    └───────┘ └──► state ──────► state.json
+                   watch)      │
+ PipeWire ──────► audio ───────┘
+  (streams appear / disappear)
+```
+
+- **`mixer`** holds all behaviour: assignments, mute, solo, LED states, what a new stream
+  gets. It receives events and returns actions. It does no I/O, so it is tested completely
+  with plain unit tests.
+- **Adapters** (`controller`, `audio`, `config`, `state`, `logging`) talk to the outside
+  world. Each sits behind a small interface; tests use in-memory fakes (QA-06).
+- **`service`** runs one event loop that owns all state: it takes events from the adapters,
+  passes them to the mixer, and carries out the returned actions. One goroutine owns the
+  state, so there are no data races by design.
+
+## Packages
+
+| Package | Responsibility |
+|---|---|
+| `cmd/apptrol` | Command line: `run`, `list`, `check`, `version`; wires everything together |
+| `internal/service` | Event loop; turns mixer actions into adapter calls; state save timer; shutdown |
+| `internal/mixer` | Core logic (pure): layout, positions, user mutes, solo, LED computation |
+| `internal/controller` | Controller interface and event types; the nanoKONTROL2 CC/LED map |
+| `internal/controller/rawmidi` | Linux raw MIDI backend: device discovery by name, hot-plug, read/write |
+| `internal/audio` | Audio interface and types: playback streams, capture devices |
+| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`) |
+| `internal/config` | TOML loading, validation, file watching and reload |
+| `internal/state` | Saved state: JSON, atomic writes |
+| `internal/logging` | Log outputs (journald, rotating file) and formats |
+| `internal/version` | Build information |
+
+Dependencies point inwards: adapters and `service` import `mixer`'s types; `mixer` imports
+nothing from the adapters.
+
+## Event flow
+
+1. An adapter produces an event: *slider 3 moved to 90*, *M pressed on column 2*,
+   *stream 57 (Spotify) appeared*, *config reloaded*, *controller connected*.
+2. The service passes it to `mixer.Handle(event)`.
+3. The mixer updates its model and returns actions: *set stream 57 to 71 %*, *mute
+   input "GoXLR"*, *LED M2 on*, *state changed*.
+4. The service executes them. Failures are logged; they never stop the loop.
+
+Bursts of slider events are coalesced before step 2 (CTRL-07).
+
+## Controller access
+
+Raw MIDI (`/dev/snd/midiC<card>D<device>`), in pure Go:
+
+- **Discovery:** the card whose `/proc/asound/card<N>/id` matches `[controller] port`
+  (default `nanoKONTROL2`) — never a fixed card number, which can change.
+- **Hot-plug:** watch `/dev/snd` for `midiC*D*` appearing and disappearing.
+- **Input:** read and decode MIDI Control Change messages (running status included).
+- **Output:** Control Change messages to set LEDs (LED mode *External*).
+- **Exclusive:** raw MIDI allows one reader. While Apptrol runs, other programs cannot use
+  the controller, and if another program holds it, Apptrol logs a clear error and retries.
+
+Checked on the reference system (Kubuntu, PipeWire 1.6): the controller appears as card 1,
+`hw:1,0,0`, and is not held by PipeWire.
+
+## Audio access
+
+The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-Go client:
+
+- Playback streams ("sink inputs") and capture devices ("sources") are listed on connect
+  and tracked through subscription events.
+- An app matches a stream when a configured fragment is found in `application.name` or
+  `application.process.binary`; some apps (Spotify) only report the name.
+- Volume is set per stream and per input; mute likewise.
+- On connection loss the backend reconnects and the service re-applies the current state.
+
+## Files at runtime
+
+| Path | Contents |
+|---|---|
+| `~/.config/apptrol/config.toml` | Configuration (watched for changes) |
+| `~/.local/state/apptrol/state.json` | Positions and user mutes |
+| `~/.local/state/apptrol/apptrol.log` | Log file, when the file output is on |
+
+## Testing
+
+- `mixer`: table-driven tests per requirement ID against fakes — the bulk of the tests.
+- `controller`: MIDI decoding and the CC map with byte-level tests and fuzzing; the device
+  layer is checked by hand on hardware (docs/testing.md).
+- `audio/pulse`: integration tests against a headless PipeWire in CI.
+- `config`, `state`: unit tests and fuzzing on malformed input.

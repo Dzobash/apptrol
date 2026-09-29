@@ -22,3 +22,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Branch and pull request workflow in the contributing guide.
 - Logo and brand guide (`docs/brand.md`, ADR 0014): SVG mark, wordmark and lockups,
   PNG sizes from 16 to 512 px, GitHub social preview.
+- Architecture for Phase 1 (`docs/architecture.md`, ADR 0015); checklist for making the
+  repository public in the release guide.

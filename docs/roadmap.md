@@ -32,6 +32,9 @@ Each phase ends with a tagged release. Detailed requirements live in
 ## Phase 1 — Core mixer (`0.1.0`)
 
 Requirement areas: HW, CTRL, PRIO, MUTE, SOLO, LED, BTN, STATE, CFG, LOG, SVC, NFR, QA.
+Design: [architecture.md](architecture.md), [ADR 0015](adr/0015-service-architecture.md).
+
+- [x] Architecture and controller access decided
 
 - [ ] Read MIDI from the controller; handle plug / unplug
 - [ ] Connect to PipeWire (pulse protocol); track playback streams and capture devices; reconnect

@@ -71,6 +71,8 @@ moving apps between outputs (R), mic bleep. See section 5 and the [roadmap](road
 | HW-02 | LED feedback requires the controller's **LED mode set to "External"** (one-time setting in Korg's editor). Apptrol MUST work without LED feedback if this is not set. | MUST | 1 |
 | HW-03 | Apptrol SHOULD log a hint about the LED mode setting when it starts and LEDs are expected to be used. | SHOULD | 1 |
 | HW-04 | The controller mapping (CC numbers) SHOULD be defined in one place in the code so other controllers can be added later. | SHOULD | 1 |
+| HW-05 | The controller MUST be found by its ALSA card id (from `[controller] port`), not by a fixed card or device number. | MUST | 1 |
+| HW-06 | If the controller's MIDI device is busy (held by another program), Apptrol MUST log a clear error naming the device and retry. | MUST | 1 |
 
 Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on press and 0 on release.
 
