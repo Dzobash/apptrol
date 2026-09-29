@@ -67,9 +67,9 @@ moving apps between outputs (R), mic bleep. See section 5 and the [roadmap](road
 
 | ID | Requirement | Level | Phase |
 |---|---|---|---|
-| HW-01 | Apptrol MUST support the Korg nanoKONTROL2 in its factory **CC mode** (not a DAW mode). | MUST | 1 |
-| HW-02 | LED feedback requires the controller's **LED mode set to "External"** (one-time setting in Korg's editor). Apptrol MUST work without LED feedback if this is not set. | MUST | 1 |
-| HW-03 | Apptrol SHOULD log a hint about the LED mode setting when it starts and LEDs are expected to be used. | SHOULD | 1 |
+| HW-01 | Apptrol MUST support the Korg nanoKONTROL2 in its factory **CC mode** (not a DAW mode) with buttons set to **Momentary** (factory default). | MUST | 1 |
+| HW-02 | LED feedback requires the controller's **LED mode set to "External"** (a one-time setting, e.g. with SysEx Controls on Linux or KONTROL Editor on Windows/macOS). With LED mode "Internal", all controls MUST still work; the LEDs then only light while a button is held. | MUST | 1 |
+| HW-03 | When the controller connects, Apptrol MUST log an **info** message that LEDs show mute and solo only with LED mode "External", pointing to the README. It is not a warning, because Apptrol cannot yet tell which mode is set. | MUST | 1 |
 | HW-04 | The controller mapping (CC numbers) SHOULD be defined in one place in the code so other controllers can be added later. | SHOULD | 1 |
 | HW-05 | The controller MUST be found by its ALSA card id (from `[controller] port`), not by a fixed card or device number. | MUST | 1 |
 | HW-06 | If the controller's MIDI device is busy (held by another program), Apptrol MUST log a clear error naming the device and retry. | MUST | 1 |
@@ -260,6 +260,7 @@ before the phase starts. See the [roadmap](roadmap.md).
 - **R — move app to another output**: cycle an app through a per-app list of allowed output devices; R LED shows when the app is not on its home output. Needs further discussion.
 - **Bleep** on an input column's S button: replace the microphone signal with a tone while held.
 - Functions for the Marker buttons.
+- Read the controller's LED mode over SysEx (read-only) and log a **warning** only when it is "Internal", replacing the HW-03 hint.
 - Support for other MIDI controllers.
 
 ## 7. Open questions

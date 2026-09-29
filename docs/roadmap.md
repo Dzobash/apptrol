@@ -85,5 +85,6 @@ volume control on the author's desktop for a week without problems.
 - R: move an app between a per-app list of outputs (needs discussion; Q-2, Q-3)
 - Bleep on an input column's S button
 - Marker buttons
+- Read the controller's LED mode over SysEx and warn only when it is "Internal" (see HW-03)
 - Support for other MIDI controllers
 - Native journald protocol for structured log fields (Q-5)
