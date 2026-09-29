@@ -545,3 +545,16 @@ func TestSVC07_ShutdownEndsSolo(t *testing.T) {
 		t.Error("Shutdown without solo should do nothing")
 	}
 }
+
+func TestParseControl(t *testing.T) {
+	for s, want := range map[string]Control{"slider1": {Slider, 1}, "knob8": {Knob, 8}} {
+		if c, ok := ParseControl(s); !ok || c != want || c.String() != s {
+			t.Errorf("ParseControl(%q) = %v, %v", s, c, ok)
+		}
+	}
+	for _, s := range []string{"", "slider", "slider0", "slider9", "slider10", "knob-1", "fader1", "Slider1"} {
+		if _, ok := ParseControl(s); ok {
+			t.Errorf("ParseControl(%q) accepted", s)
+		}
+	}
+}

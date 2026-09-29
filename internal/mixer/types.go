@@ -6,7 +6,10 @@
 // PipeWire (QA-06, ADR 0015).
 package mixer
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // NumColumns is the number of controller columns (slider, knob, S/M/R).
 const NumColumns = 8
@@ -40,6 +43,25 @@ func (c Control) String() string { return fmt.Sprintf("%s%d", c.Kind, c.Column) 
 
 // Valid reports whether the column is in range.
 func (c Control) Valid() bool { return c.Column >= 1 && c.Column <= NumColumns }
+
+// ParseControl parses a control name such as "slider3" or "knob8".
+func ParseControl(s string) (Control, bool) {
+	var c Control
+	var rest string
+	switch {
+	case strings.HasPrefix(s, "slider"):
+		c.Kind, rest = Slider, s[len("slider"):]
+	case strings.HasPrefix(s, "knob"):
+		c.Kind, rest = Knob, s[len("knob"):]
+	default:
+		return Control{}, false
+	}
+	if len(rest) != 1 || rest[0] < '1' || rest[0] > '0'+NumColumns {
+		return Control{}, false
+	}
+	c.Column = int(rest[0] - '0')
+	return c, true
+}
 
 // ButtonKind is a column button.
 type ButtonKind int

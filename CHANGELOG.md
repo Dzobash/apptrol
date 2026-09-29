@@ -40,3 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   configuration changes. Tested per requirement against a simulated audio server and
   controller, plus a fuzz test over random event sequences.
 - New requirement SVC-07: on shutdown, end solo so no app stays muted by it.
+- Saved state (`internal/state`): positions and user mutes in
+  `~/.local/state/apptrol/state.json`, written atomically and at most once per second;
+  a missing or damaged file means starting fresh, single bad entries are skipped.
+
+### Fixed
+- Example configuration and configuration reference: `[controller] port` is the ALSA
+  card id from `/proc/asound/cards`, not a name from `aseqdump -l`.
