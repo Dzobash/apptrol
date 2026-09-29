@@ -58,6 +58,10 @@ To change a setting on Linux, use [SysEx Controls](https://github.com/soyersoyer
 Windows or macOS, Korg's KONTROL Editor does the same. The setting stays stored in the
 controller, so it is a one-time step.
 
+To check the controller and its settings, run `apptrol test`: it shows every slider, knob
+and button you touch, and turns a button's LED on and off with each press. If an LED
+lights only while you hold the button, the LED mode is still *Internal*.
+
 **Permissions.** Your normal desktop login can use the controller automatically. Only in
 unusual setups — such as running Apptrol from an SSH session — add your user to the
 `audio` group.

@@ -30,10 +30,10 @@ How the service is put together. Decisions and their reasons are in
 
 | Package | Responsibility |
 |---|---|
-| `cmd/apptrol` | Command line: `run`, `list`, `check`, `version`; wires everything together |
+| `cmd/apptrol` | Command line: `run`, `list`, `check`, `test`, `version`; wires everything together |
 | `internal/service` | Event loop; turns mixer actions into adapter calls; state save timer; shutdown |
 | `internal/mixer` | Core logic (pure): layout, positions, user mutes, solo, LED computation |
-| `internal/controller` | Controller interface and event types; the nanoKONTROL2 CC/LED map |
+| `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: device discovery by name, hot-plug, read/write |
 | `internal/audio` | Audio interface and types: playback streams, capture devices |
 | `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`) |
@@ -62,7 +62,8 @@ Raw MIDI (`/dev/snd/midiC<card>D<device>`), in pure Go:
 
 - **Discovery:** the card whose `/proc/asound/card<N>/id` matches `[controller] port`
   (default `nanoKONTROL2`) — never a fixed card number, which can change.
-- **Hot-plug:** watch `/dev/snd` for `midiC*D*` appearing and disappearing.
+- **Hot-plug:** while the controller is away, look for it once a second (a few file reads;
+  no measurable CPU). Unplugging ends the pending read with an error.
 - **Input:** read and decode MIDI Control Change messages (running status included).
 - **Output:** Control Change messages to set LEDs (LED mode *External*).
 - **Exclusive:** raw MIDI allows one reader. While Apptrol runs, other programs cannot use

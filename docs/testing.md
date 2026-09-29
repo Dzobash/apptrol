@@ -46,6 +46,7 @@ state file unless a step says otherwise.
 
 | # | Step | Expected | Req. |
 |---|---|---|---|
+| H-00 | `apptrol test`: move every slider and knob, press every button twice | Every control is shown with the right name and 0–127; each button's LED turns on, then off (Track and Marker buttons have no LED) | HW-01, HW-02, HW-07 |
 | H-01 | Start the service with the controller unplugged, then plug it in | Log says it is waiting, then connected; LEDs set | SVC-03, LED-07 |
 | H-02 | Unplug and replug while running | Disconnect and reconnect logged; LEDs restored | SVC-03 |
 | H-03 | Play music in an app assigned to slider 1; move slider 1 from bottom to top | Volume follows smoothly from 0 % to 100 % | CTRL-02 |

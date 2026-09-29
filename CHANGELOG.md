@@ -51,6 +51,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   their volume, and which control each one is on.
 - CI runs integration tests against a headless PipeWire; `make test-audio` runs them
   against your own.
+- Controller (`internal/controller`): reads the nanoKONTROL2 through raw MIDI, finds it by
+  its sound card id, waits for it and picks it up again after unplugging, drives the
+  button LEDs, and names the device if another program holds it. The MIDI decoder is
+  fuzz-tested.
+- `apptrol test` shows what the controller sends and toggles each button's LED, to check
+  the controller and its LED mode. It says which buttons have no LED (Track and Marker).
 
 ### Fixed
 - Example configuration and configuration reference: `[controller] port` is the ALSA
