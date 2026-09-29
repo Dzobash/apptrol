@@ -23,3 +23,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0012](0012-testing-strategy.md) | Testing strategy | Accepted |
 | [0013](0013-release-packaging.md) | Releases and packaging with GoReleaser | Accepted |
 | [0014](0014-logo-and-visual-identity.md) | Logo and visual identity | Accepted |
+| [0015](0015-service-architecture.md) | Service architecture and controller access | Accepted |

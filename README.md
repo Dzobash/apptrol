@@ -58,6 +58,7 @@ systemctl --user enable --now apptrol
 ## Documentation
 
 - [Requirements](docs/requirements.md)
+- [Architecture](docs/architecture.md)
 - [Roadmap](docs/roadmap.md)
 - [Configuration reference](docs/config.md) and [example config](examples/config.toml)
 - [Decision records](docs/adr/)
