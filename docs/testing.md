@@ -36,8 +36,9 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](..
 
 ## Manual hardware checklist
 
-Complete this on a real nanoKONTROL2 (LED mode *External*) before each release and note the
-result in the release description. Start from an empty state file unless a step says otherwise.
+Complete this on a real nanoKONTROL2 (CC mode, Momentary buttons, LED mode *External*)
+before each release and note the result in the release description. Start from an empty
+state file unless a step says otherwise.
 
 ### Phase 1
 

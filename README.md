@@ -10,8 +10,8 @@
   A per-app volume mixer for PipeWire, built for the Korg nanoKONTROL2.
 </p>
 
-> **Status: planning.** Requirements are agreed for the first version; code has not been
-> written yet. See the [roadmap](docs/roadmap.md).
+> **Status: in development — not usable yet.** Phase 1 (the core mixer) is being built;
+> configuration loading and `apptrol check` work. See the [roadmap](docs/roadmap.md).
 
 ## What it does
 
@@ -32,11 +32,35 @@ It works alongside an audio interface such as a GoXLR, or on its own with a norm
 Planned later: media buttons, on-screen volume display, multiple layouts (e.g. *Work* and
 *Gaming*) and a GUI.
 
-## Requirements
+## Before you install
 
-- Linux with PipeWire (`pipewire-pulse`) or PulseAudio
-- A Korg nanoKONTROL2 in its default CC mode. For LED feedback, set the LED mode to
-  **External** once in Korg's KONTROL Editor.
+**Your system needs** — every normal Linux desktop already has these:
+
+- PipeWire with `pipewire-pulse` (the default on Ubuntu, Kubuntu, Fedora, Mint), or PulseAudio
+- The kernel's USB audio/MIDI support, which makes the controller appear as a MIDI device
+- systemd, to run Apptrol in the background (you can also start `apptrol` by hand)
+
+**You do not need** any extra libraries: Apptrol is a single self-contained program.
+`alsa-utils` is optional but handy for troubleshooting — `amidi -l` shows whether the
+controller is detected.
+
+**Controller settings.** The nanoKONTROL2 stores these itself; the factory defaults are
+fine except for the LED mode:
+
+| Setting | Needed | Why |
+|---|---|---|
+| Mode: **CC** (not a DAW mode) | Yes — factory default | Apptrol understands the controller's CC messages |
+| Buttons: **Momentary** | Yes — factory default | Apptrol acts on the button press; with *Toggle*, every second press is ignored |
+| LED mode: **External** | Only for LED feedback | Without it, all controls work, but the button LEDs only light while held instead of showing mute and solo |
+
+To change a setting on Linux, use [SysEx Controls](https://github.com/soyersoyer/sysex-controls)
+(`flatpak install flathub hu.irl.sysex-controls`, or `sysex-controls` in the AUR). On
+Windows or macOS, Korg's KONTROL Editor does the same. The setting stays stored in the
+controller, so it is a one-time step.
+
+**Permissions.** Your normal desktop login can use the controller automatically. Only in
+unusual setups — such as running Apptrol from an SSH session — add your user to the
+`audio` group.
 
 ## Installation
 
@@ -48,12 +72,25 @@ sudo apt install ./apptrol_*_amd64.deb      # Debian, Ubuntu, Kubuntu
 sudo dnf install ./apptrol-*.x86_64.rpm     # Fedora
 ```
 
-Then start it for your user:
+## First steps
 
-```bash
-systemctl --user daemon-reload
-systemctl --user enable --now apptrol
-```
+1. **Write your configuration.** Start from the example and edit it:
+   ```bash
+   mkdir -p ~/.config/apptrol
+   cp /usr/share/doc/apptrol/examples/config.toml ~/.config/apptrol/
+   ```
+   `apptrol list` shows the names of the apps that are currently playing and of your input
+   devices; `apptrol check` validates the file and shows which app is on which control.
+   The [configuration reference](docs/config.md) explains every setting.
+2. **Start Apptrol** for your user, now and at every login:
+   ```bash
+   systemctl --user daemon-reload
+   systemctl --user enable --now apptrol
+   ```
+3. **Check the log** if something does not respond:
+   ```bash
+   journalctl --user -u apptrol -f
+   ```
 
 ## Documentation
 
@@ -72,8 +109,18 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## About this project
 
-Apptrol is developed with substantial help from AI coding assistants. Design decisions are
-made and reviewed by a human and documented in the [decision records](docs/adr/).
+Apptrol is a hobby project developed with substantial help from AI coding assistants
+("vibe coded"). Design decisions are made and reviewed by a human and documented in the
+[decision records](docs/adr/); the code is covered by automated tests and checks, but it
+has not been audited.
+
+## Disclaimer
+
+Apptrol is provided **as is, without warranty of any kind**, and you use it at your own
+risk. The authors are not responsible for any problems or damage that may result from using
+it — including changes to your audio setup or to your controller's settings (for example
+when using third-party tools such as SysEx Controls). The full terms are in the
+[MIT license](LICENSE).
 
 ## License
 

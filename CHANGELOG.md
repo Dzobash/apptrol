@@ -29,3 +29,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   messages explain wrong value types.
 - `apptrol check` validates the configuration and shows which app is on which control.
 - CI runs every fuzz test for 20 seconds on each push.
+- README: prerequisites, controller settings (with SysEx Controls for Linux), first
+  steps and a disclaimer.
