@@ -18,7 +18,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
+	"text/tabwriter"
 
+	"github.com/Dzobash/apptrol/internal/config"
 	"github.com/Dzobash/apptrol/internal/version"
 )
 
@@ -77,7 +81,7 @@ Flags:
 	case "list":
 		err = cmdList()
 	case "check":
-		err = cmdCheck(*configPath)
+		err = cmdCheck(*configPath, stdout)
 	case "version":
 		fmt.Fprintln(stdout, version.String())
 		return 0
@@ -103,7 +107,51 @@ func cmdList() error {
 	return errNotImplemented
 }
 
-func cmdCheck(configPath string) error {
-	_ = configPath
-	return errNotImplemented
+// cmdCheck validates the configuration file and prints what it assigns (CFG-11).
+func cmdCheck(configPath string, stdout io.Writer) error {
+	path, err := resolveConfigPath(configPath)
+	if err != nil {
+		return err
+	}
+	cfg, warnings, err := config.Load(path)
+	if errors.Is(err, config.ErrNotFound) {
+		return fmt.Errorf("no configuration file at %s\n"+
+			"  To start from the example:\n"+
+			"    mkdir -p %s && cp /usr/share/doc/apptrol/examples/config.toml %s",
+			path, filepath.Dir(path), path)
+	}
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(stdout, "%s: OK\n\n", path)
+	fmt.Fprintf(stdout, "Controller: %s\n", cfg.Controller.Port)
+	fmt.Fprintf(stdout, "Layout %q:\n", config.DefaultLayout)
+	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
+	for _, a := range cfg.Layout().Assignments {
+		app := cfg.Apps[a.AppID]
+		fmt.Fprintf(tw, "  %s\t%s\t%s: %s\n", a.Control, app.Name, app.Type, strings.Join(app.Match, ", "))
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	if len(cfg.Layout().Assignments) == 0 {
+		fmt.Fprintln(stdout, "  (no controls assigned)")
+	}
+	fmt.Fprintf(stdout, "Logging: %s to %s\n", cfg.Log.Level, strings.Join(cfg.Log.Outputs, " and "))
+	for _, w := range warnings {
+		fmt.Fprintf(stdout, "\nwarning: %s", w)
+	}
+	if len(warnings) > 0 {
+		fmt.Fprintln(stdout)
+	}
+	return nil
+}
+
+// resolveConfigPath returns the --config value, or the default location.
+func resolveConfigPath(flagValue string) (string, error) {
+	if flagValue != "" {
+		return flagValue, nil
+	}
+	return config.DefaultPath()
 }

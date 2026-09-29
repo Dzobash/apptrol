@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -19,7 +21,6 @@ func TestRun(t *testing.T) {
 		{"help", []string{"-h"}, 0, "", "Usage: apptrol"},
 		{"default is run", nil, 1, "", "not implemented yet"},
 		{"list", []string{"list"}, 1, "", "apptrol list: not implemented yet"},
-		{"check", []string{"check"}, 1, "", "apptrol check: not implemented yet"},
 		{"unknown command", []string{"frobnicate"}, 2, "", `unknown command "frobnicate"`},
 		{"extra arguments", []string{"list", "extra"}, 2, "", "unexpected arguments"},
 		{"unknown flag", []string{"--nope"}, 2, "", "flag provided but not defined"},
@@ -38,5 +39,80 @@ func TestRun(t *testing.T) {
 				t.Errorf("stderr = %q, want it to contain %q", stderr.String(), tt.wantStderr)
 			}
 		})
+	}
+}
+
+func writeConfig(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestCFG11_Check(t *testing.T) {
+	valid := writeConfig(t, `
+[apps.spotify]
+name  = "Spotify"
+match = ["spotify"]
+
+[apps.mic]
+type  = "input"
+match = ["GoXLR"]
+
+[apps.spare]
+match = ["spare"]
+
+[layouts.default]
+slider1 = "spotify"
+slider8 = "mic"
+`)
+	invalid := writeConfig(t, "[layouts.default]\nslider9 = \"ghost\"\n")
+	missing := filepath.Join(t.TempDir(), "none.toml")
+
+	tests := []struct {
+		name       string
+		args       []string
+		wantCode   int
+		wantStdout []string
+		wantStderr []string
+	}{
+		{"valid", []string{"--config", valid, "check"}, 0,
+			[]string{": OK", "Controller: nanoKONTROL2", "slider1  Spotify", "slider8  mic", "input: GoXLR",
+				"Logging: info to journald", "warning: apps.spare: not assigned"}, nil},
+		{"invalid", []string{"--config", invalid, "check"}, 1,
+			nil, []string{"apptrol check:", "slider9: unknown control", `app "ghost" is not defined`}},
+		{"missing", []string{"--config", missing, "check"}, 1,
+			nil, []string{"no configuration file at " + missing, "examples/config.toml"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := run(tt.args, &stdout, &stderr)
+			if code != tt.wantCode {
+				t.Errorf("exit code = %d, want %d\nstdout: %s\nstderr: %s", code, tt.wantCode, stdout.String(), stderr.String())
+			}
+			for _, want := range tt.wantStdout {
+				if !strings.Contains(stdout.String(), want) {
+					t.Errorf("stdout missing %q:\n%s", want, stdout.String())
+				}
+			}
+			for _, want := range tt.wantStderr {
+				if !strings.Contains(stderr.String(), want) {
+					t.Errorf("stderr missing %q:\n%s", want, stderr.String())
+				}
+			}
+		})
+	}
+}
+
+func TestCheck_DefaultPath(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"check"}, &stdout, &stderr); code != 1 ||
+		!strings.Contains(stderr.String(), filepath.Join(dir, "apptrol", "config.toml")) {
+		t.Errorf("code %d, stderr %q: want the default path in the message", code, stderr.String())
 	}
 }

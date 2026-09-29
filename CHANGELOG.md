@@ -24,3 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PNG sizes from 16 to 512 px, GitHub social preview.
 - Architecture for Phase 1 (`docs/architecture.md`, ADR 0015); checklist for making the
   repository public in the release guide.
+- Configuration loading and validation (`internal/config`): every problem in a file is
+  reported at once with its setting name, unknown settings are rejected, and friendly
+  messages explain wrong value types.
+- `apptrol check` validates the configuration and shows which app is on which control.
+- CI runs every fuzz test for 20 seconds on each push.
