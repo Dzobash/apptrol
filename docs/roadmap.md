@@ -6,7 +6,7 @@ Each phase ends with a tagged release. Detailed requirements live in
 | Phase | Goal | Version | Status |
 |---|---|---|---|
 | 0 | Project setup | 0.0.1 | ✅ Done |
-| 1 | Core mixer: sliders, knobs, M, S | 0.1.0 | ⚪ Planned |
+| 1 | Core mixer: sliders, knobs, M, S | 0.1.0 | 🟡 Built; in testing |
 | 1.5 | Media buttons and on-screen display | 0.2.0 | ⚪ Planned |
 | 2 | Layouts | 0.3.0 | ⚪ Planned |
 | 3 | GUI and tray | 0.4.0 | ⚪ Planned |
@@ -44,7 +44,8 @@ Design: [architecture.md](architecture.md), [ADR 0015](adr/0015-service-architec
 - [x] LED feedback, including the input-column style
 - [x] State saving and restore
 - [x] TOML config with layout structure, validation, automatic reload
-- [x] `apptrol list`, `apptrol check`, `apptrol --version`
+- [x] `apptrol list`, `apptrol check`, `apptrol test`, `apptrol --version`
+- [x] `max_volume` per app, up to 150 % (CTRL-03); warning for overlapping match lists (CFG-12)
 - [x] Logging to journald and/or a rotating file
 - [x] systemd user unit; packaged in .deb / .rpm
 - [x] Interfaces and fakes for the controller and audio server (QA-06)

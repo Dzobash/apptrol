@@ -53,6 +53,25 @@ Drawn on a **100 × 100 unit** grid:
 
 The fader positions are part of the logo. Do not move them.
 
+### Lockup (mark + wordmark)
+
+<p align="center"><img src="assets/brand/guide/lockup.svg" alt="Proportions of mark and wordmark in the logo" width="700"></p>
+
+Measured in the same units, with the mark 100 high:
+
+| Rule | Value |
+|---|---|
+| Gap between tile and the first letter | 33 — **one third** of the mark |
+| Lowercase height (x-height) | 46.6 — about **half** the mark |
+| Vertical position | the x-height is **centred on the mark's middle** (y = 50) |
+| Ascender ("l") and descenders ("p") | stay within the tile's height (4 to 96) |
+| Baseline | y = 72.9 |
+| Whole logo | 436.5 × 100, with 4 units of air on the right, matching the tile's inset |
+
+Use the supplied `apptrol-logo.svg` rather than rebuilding the lockup. When you need the
+mark and wordmark in a different arrangement (for example stacked), keep the wordmark's
+x-height at half the mark's height and the gap at a third.
+
 ### Small sizes
 
 Below 20 px the regular mark blurs. At **16 px** use `apptrol-mark-16.svg` (or
@@ -134,7 +153,24 @@ inkscape docs/assets/brand/apptrol-mark.svg -w 1024 -o apptrol-1024.png
 
 Always render 16 px from `apptrol-mark-16.svg`.
 
-## 10. Licence
+## 10. Editing and remaking the files
+
+- **The SVGs are the master files.** They are written by hand in plain SVG (no editor
+  metadata) and can be opened and edited in Inkscape or any vector editor. The geometry in
+  section 3 is the reference if something needs redrawing.
+- **The wordmark** is the word *apptrol* set in Space Grotesk at weight 600 (SemiBold) with
+  −2 % tracking, converted to outlines so no font is needed to display it. It was made by
+  creating a static SemiBold instance of the variable font with fontTools
+  (`fonttools varLib.instancer SpaceGrotesk[wght].ttf wght=600`), laying out the text with
+  HarfBuzz and writing the glyph outlines as one SVG path. In Inkscape the same result
+  comes from typing the word in Space Grotesk SemiBold, setting letter spacing to −2 % of
+  the font size, and using *Path → Object to Path*.
+- **The PNGs** are rendered from the SVGs (see section 9); regenerate them after any change
+  to a mark SVG, and the social preview after any change to the logo.
+- A change to the logo itself is a design decision: record it in a new ADR next to
+  [ADR 0014](adr/0014-logo-and-visual-identity.md).
+
+## 11. Licence
 
 The logo and these files are part of Apptrol and covered by its [MIT license](../LICENSE).
 The wordmark is Space Grotesk converted to outlines; the font itself is not included and is

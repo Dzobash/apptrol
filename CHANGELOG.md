@@ -66,9 +66,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `max_volume` per app (1–150 %, default 100): the control spans 0 to that value, for a
   boost above 100 % or a cap below it. Changing it in a running Apptrol applies at once.
 - CI requires at least 75 % test coverage (was 70 %).
+- Brand guide: lockup proportions (mark and wordmark) with a drawing, and how to edit and
+  remake the logo files; a README in the asset folder points to the guide.
 - Warning when two apps' match lists overlap, naming the app that gets the streams
   (CFG-12); the matching rule is documented in the configuration reference.
 
 ### Fixed
+- Documentation matches the Phase 1 code: architecture, contributing guide, testing,
+  requirements (CTRL-02, NFR-03), configuration reference; release candidates described
+  in the release guide; implementation notes added to ADR 0015.
 - Example configuration and configuration reference: `[controller] port` is the ALSA
   card id from `/proc/asound/cards`, not a name from `aseqdump -l`.

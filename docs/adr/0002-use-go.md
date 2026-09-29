@@ -26,4 +26,4 @@ toolkit is decided separately.
 - One static-ish binary, easy to package as .deb/.rpm and to install or remove.
 - Go's GUI options are weaker; this is acceptable because the GUI is a separate component.
 - MIDI access may need cgo and the ALSA library (`libasound2`), depending on the MIDI
-  library chosen during Phase 1.
+  library chosen during Phase 1. (Resolved by ADR 0015: raw MIDI in pure Go, no cgo.)

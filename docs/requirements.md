@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | Draft — Phase 1 requirements agreed, later phases outlined |
-| **Last updated** | 2026-09-28 |
+| **Status** | Phase 1 implemented (release candidate for 0.1.0); later phases outlined |
+| **Last updated** | 2026-09-30 |
 | **Related** | [Roadmap](roadmap.md) · [Configuration reference](config.md) · [Decision records](adr/) |
 
 ## 1. Purpose
@@ -92,7 +92,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | ID | Requirement | Level |
 |---|---|---|
 | CTRL-01 | Each slider and each knob MAY be assigned one target in the active layout. Unassigned controls MUST do nothing. | MUST |
-| CTRL-02 | Moving a control MUST set the volume of its target to the control's position, mapped linearly from 0–127 to 0–100 %. | MUST |
+| CTRL-02 | Moving a control MUST set the volume of its target to the control's position, mapped linearly from 0–127 to 0 % – the app's `max_volume` (CTRL-03). | MUST |
 | CTRL-03 | Volume MUST stay between 0 % and the app's `max_volume` (default 100 %). `max_volume` MAY be set per app from 1 to 150 %; the control then spans 0 to that value, so it also works as a cap below 100 %. | MUST |
 | CTRL-04 | For an **app** target, the volume MUST be applied to every playback stream that matches the app, including several streams of the same program (e.g. several browser tabs). | MUST |
 | CTRL-05 | For an **input** target, the volume MUST be applied to the matching capture device. | MUST |
@@ -212,7 +212,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 |---|---|---|---|
 | NFR-01 | Apptrol MUST run on Linux with PipeWire (through `pipewire-pulse`). It SHOULD also work on plain PulseAudio. | MUST | 1 |
 | NFR-02 | The service MUST NOT depend on a specific desktop environment. It MUST work on KDE Plasma and GNOME, on Wayland and X11. | MUST | 1 |
-| NFR-03 | Apptrol MUST be written in Go and ship as a single binary without runtime dependencies beyond the ALSA library. | MUST | 1 |
+| NFR-03 | Apptrol MUST be written in Go and ship as a single binary without runtime dependencies (no C libraries; the controller is read through the kernel's raw MIDI device). | MUST | 1 |
 | NFR-04 | CPU usage while idle SHOULD be close to 0 %; memory use SHOULD stay below 30 MB. | SHOULD | 1 |
 | NFR-05 | Releases MUST be built by CI and published with binaries for x86_64 and arm64, .deb and .rpm packages (including the systemd user unit) and checksums. | MUST | 0 |
 | NFR-06 | The project MUST be published under the MIT license. | MUST | 0 |
@@ -275,4 +275,4 @@ before the phase starts. See the [roadmap](roadmap.md).
 | Q-2 | Should R also cycle an input column between input devices? | Backlog |
 | Q-3 | Should an output move made with R persist after the app restarts, and is it per layout or global? | Backlog |
 | Q-4 | How does the GUI talk to the service (D-Bus or a local socket)? To be decided in an ADR. | 3 |
-| Q-5 | Should the journald output use the native journal protocol (structured fields) instead of stdout with severity prefixes? | 1 |
+| Q-5 | Should the journald output use the native journal protocol (structured fields) instead of stdout with severity prefixes? Phase 1 uses severity prefixes. | Backlog |

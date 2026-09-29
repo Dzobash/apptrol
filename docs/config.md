@@ -4,6 +4,7 @@ Apptrol reads a single [TOML](https://toml.io) file:
 
 - Default location: `~/.config/apptrol/config.toml` (`$XDG_CONFIG_HOME/apptrol/config.toml`)
 - Other location: `apptrol --config /path/to/config.toml`
+- If there is no file, Apptrol creates it from the example on its first start.
 - The file is **reloaded automatically** when saved. If the new version is invalid, the
   error is logged and the previous configuration stays active.
 - `apptrol check` validates the file without starting the service and shows what is
@@ -121,6 +122,7 @@ Rules checked on load:
 - Every value must be the id of an app defined in `[apps]`.
 - An app may be assigned to only one control per layout.
 - Unassigned controls do nothing.
+- Apps whose match lists overlap get a warning (see "One app per stream" above).
 
 ---
 
