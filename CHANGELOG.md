@@ -20,3 +20,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependabot for Go modules and GitHub Actions; issue and pull request templates;
   security policy.
 - Branch and pull request workflow in the contributing guide.
+- Logo and brand guide (`docs/brand.md`, ADR 0014): SVG mark, wordmark and lockups,
+  PNG sizes from 16 to 512 px, GitHub social preview.

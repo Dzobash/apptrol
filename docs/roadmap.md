@@ -27,6 +27,7 @@ Each phase ends with a tagged release. Detailed requirements live in
 - [x] Release pipeline with GoReleaser on version tags: binaries (x86_64, arm64), .deb, .rpm, checksums ([ADR 0013](adr/0013-release-packaging.md), [releasing.md](releasing.md)); first test release `v0.0.1`
 - [x] Dependabot for Go modules and GitHub Actions
 - [x] Issue templates (bug report, feature request), pull request template, security policy
+- [x] Logo and brand guide: SVG mark and wordmark, PNG sizes, social preview ([brand.md](brand.md), [ADR 0014](adr/0014-logo-and-visual-identity.md))
 
 ## Phase 1 — Core mixer (`0.1.0`)
 
