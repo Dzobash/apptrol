@@ -57,6 +57,7 @@ func TestCFG11_Check(t *testing.T) {
 [apps.spotify]
 name  = "Spotify"
 match = ["spotify"]
+max_volume = 150
 
 [apps.mic]
 type  = "input"
@@ -80,7 +81,7 @@ slider8 = "mic"
 		wantStderr []string
 	}{
 		{"valid", []string{"--config", valid, "check"}, 0,
-			[]string{": OK", "Controller: nanoKONTROL2", "slider1  Spotify", "slider8  mic", "input: GoXLR",
+			[]string{": OK", "Controller: nanoKONTROL2", "slider1  Spotify", "app: spotify  max 150 %", "slider8  mic", "input: GoXLR",
 				"Logging: info to journald", "warning: apps.spare: not assigned"}, nil},
 		{"invalid", []string{"--config", invalid, "check"}, 1,
 			nil, []string{"apptrol check:", "slider9: unknown control", `app "ghost" is not defined`}},

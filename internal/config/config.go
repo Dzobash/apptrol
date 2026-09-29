@@ -73,6 +73,9 @@ type App struct {
 	Name  string   // display name
 	Type  string   // TypeApp or TypeInput
 	Match []string // case-insensitive fragments (CFG-04, CFG-05)
+	// MaxVolume is the volume in percent at the top of the control, 1–150
+	// (CTRL-03). Default 100.
+	MaxVolume int
 }
 
 // Layout assigns apps to controls.

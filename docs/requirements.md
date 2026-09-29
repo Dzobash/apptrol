@@ -93,7 +93,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 |---|---|---|
 | CTRL-01 | Each slider and each knob MAY be assigned one target in the active layout. Unassigned controls MUST do nothing. | MUST |
 | CTRL-02 | Moving a control MUST set the volume of its target to the control's position, mapped linearly from 0–127 to 0–100 %. | MUST |
-| CTRL-03 | Volume MUST stay within 0–100 %. Boosting above 100 % is not supported. | MUST |
+| CTRL-03 | Volume MUST stay between 0 % and the app's `max_volume` (default 100 %). `max_volume` MAY be set per app from 1 to 150 %; the control then spans 0 to that value, so it also works as a cap below 100 %. | MUST |
 | CTRL-04 | For an **app** target, the volume MUST be applied to every playback stream that matches the app, including several streams of the same program (e.g. several browser tabs). | MUST |
 | CTRL-05 | For an **input** target, the volume MUST be applied to the matching capture device. | MUST |
 | CTRL-06 | Apps and inputs that are not assigned to any control MUST NOT be touched. | MUST |
@@ -178,6 +178,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | CFG-09 | If no configuration file exists, Apptrol SHOULD create a commented example file and log where it is. | SHOULD |
 | CFG-10 | A command `apptrol list` SHOULD print the currently playing streams and capture devices with the names used for matching, to help write the config. | SHOULD |
 | CFG-11 | A command `apptrol check` SHOULD validate the configuration file and exit. | SHOULD |
+| CFG-12 | When two apps of the active layout can match the same streams (or input devices), because one match fragment contains another, Apptrol SHOULD warn and name the app that gets them: the one on the first control in the order slider1–slider8, knob1–knob8. | SHOULD |
 
 ### 4.9 Logging
 

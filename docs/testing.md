@@ -66,3 +66,5 @@ state file unless a step says otherwise.
 | H-17 | Mute an app, solo another, restart the service | Mute restored, solo off | STATE-03, STATE-04 |
 | H-18 | `systemctl --user restart pipewire pipewire-pulse` while running | Reconnect logged; volumes and mutes re-applied | SVC-04 |
 | H-19 | Check `journalctl --user -u apptrol` and the log file | Entries at the expected levels and formats | LOG-* |
+| H-20 | Set `max_volume = 150` for the app on slider 1, save, move slider 1 to the top | The desktop mixer shows 150 %; with the slider in the middle, 75 % | CTRL-03, CFG-06 |
+| H-21 | Assign two apps whose match lists overlap (`"fire"` and `"firefox"`); run `apptrol check` | Warning names both apps and which one gets the streams | CFG-12 |

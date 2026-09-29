@@ -14,8 +14,12 @@ import (
 // NumColumns is the number of controller columns (slider, knob, S/M/R).
 const NumColumns = 8
 
-// MaxValue is the highest MIDI control value; it maps to 100 % volume.
+// MaxValue is the highest MIDI control value; it maps to the target's
+// MaxVolume (100 % unless configured otherwise).
 const MaxValue = 127
+
+// MaxBoost is the highest volume a target may reach: 1.5 = 150 % (CTRL-03).
+const MaxBoost = 1.5
 
 // ControlKind is a kind of continuous control.
 type ControlKind int
@@ -137,6 +141,9 @@ type Target struct {
 	Name  string
 	Kind  TargetKind
 	Match []string // case-insensitive fragments
+	// MaxVolume is the volume at the top of the control: 1 = 100 %, up to
+	// MaxBoost. 0 means 1.
+	MaxVolume float64
 }
 
 // Setup is the part of the configuration the mixer needs.

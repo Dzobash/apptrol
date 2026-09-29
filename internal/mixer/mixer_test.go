@@ -580,3 +580,59 @@ func TestQueries(t *testing.T) {
 		t.Error("unassigned target has a control")
 	}
 }
+
+// boostSetup is testSetup with Spotify boosted to 150 % and the mic capped at 50 %.
+func boostSetup() Setup {
+	s := testSetup()
+	sp := s.Targets["spotify"]
+	sp.MaxVolume = 1.5
+	s.Targets["spotify"] = sp
+	mic := s.Targets["mic"]
+	mic.MaxVolume = 0.5
+	s.Targets["mic"] = mic
+	return s
+}
+
+func TestCTRL03_MaxVolumeScalesTheControl(t *testing.T) {
+	w := newWorld(t, boostSetup(), State{})
+	w.do(AudioSnapshot{Streams: []Stream{spotify, firefox}, Devices: []Device{goxlr}})
+	w.move(Slider, 1, 127)
+	w.wantVolume(spotify.ID, 1.5)
+	w.move(Slider, 1, 64)
+	w.wantVolume(spotify.ID, 64.0/127*1.5)
+	w.wantNotice(slog.LevelDebug, "volume")
+	if p := w.notices[len(w.notices)-1].Attrs; p[len(p)-1] != 76 {
+		t.Errorf("logged percent %v, want 76", p[len(p)-1])
+	}
+	// Other apps keep 100 % at the top.
+	w.move(Slider, 2, 127)
+	w.wantVolume(firefox.ID, 1)
+	// A cap works the same way, for inputs too.
+	w.move(Slider, 8, 127)
+	if !near(w.devVol[goxlr.Name], 0.5) {
+		t.Errorf("mic volume = %v, want 0.5", w.devVol[goxlr.Name])
+	}
+}
+
+func TestCTRL03_MaxVolumeForNewStreamsAndLimits(t *testing.T) {
+	s := boostSetup()
+	d := s.Targets["discord"]
+	d.MaxVolume = 7 // out of range: limited to MaxBoost
+	s.Targets["discord"] = d
+	w := newWorld(t, s, State{Positions: map[Control]int{{Slider, 1}: 127, {Slider, 3}: 127}})
+	w.do(AudioSnapshot{Streams: []Stream{spotify, discord}})
+	w.wantVolume(spotify.ID, 1.5) // PRIO-03 with the app's max_volume
+	w.wantVolume(discord.ID, MaxBoost)
+}
+
+func TestCFG06_MaxVolumeChangeIsApplied(t *testing.T) {
+	w := newWorld(t, testSetup(), State{Positions: map[Control]int{{Slider, 1}: 127, {Slider, 8}: 127}})
+	w.do(AudioSnapshot{Streams: []Stream{spotify, firefox}, Devices: []Device{goxlr}})
+	w.wantVolume(spotify.ID, 1)
+	w.do(ConfigChanged{Setup: boostSetup()})
+	w.wantVolume(spotify.ID, 1.5)
+	if !near(w.devVol[goxlr.Name], 0.5) {
+		t.Errorf("mic volume = %v, want 0.5 after the change", w.devVol[goxlr.Name])
+	}
+	w.noActionFor(firefox.ID) // unchanged apps are left alone
+}

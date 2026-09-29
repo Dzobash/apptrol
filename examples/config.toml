@@ -31,6 +31,7 @@ max_files = 5                      # rotated files to keep
 [apps.spotify]
 name  = "Spotify"
 match = ["spotify"]
+# max_volume = 150                 # % at the top of the control (1–150, default 100)
 
 [apps.browser]
 name  = "Browser"

@@ -73,7 +73,8 @@ func prop(p proto.PropList, key, def string) string {
 	return def
 }
 
-// channelVolumes sets every channel to v (0–1).
+// channelVolumes sets every channel to v (0–1, up to mixer.MaxBoost for apps
+// with a raised max_volume).
 //
 // The value is the one desktop mixers (KDE, GNOME, pavucontrol) show as a
 // percentage, so a slider at 50 % shows 50 % there too (CTRL-02). The audio
@@ -83,7 +84,7 @@ func channelVolumes(channels int, v float64) proto.ChannelVolumes {
 	if channels < 1 {
 		channels = 1
 	}
-	vol := proto.NormVolume(math.Max(0, math.Min(1, v))) // CTRL-03
+	vol := proto.NormVolume(math.Max(0, math.Min(mixer.MaxBoost, v))) // CTRL-03
 	cv := make(proto.ChannelVolumes, channels)
 	for i := range cv {
 		cv[i] = vol
