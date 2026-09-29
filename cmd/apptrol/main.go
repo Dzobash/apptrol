@@ -9,21 +9,28 @@
 //	run      run the service (default)
 //	list     show playing apps and input devices with the names used for matching
 //	check    validate the configuration file and exit
+//	test     show what the controller sends and light its buttons, to check it
 //	version  print version information
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"text/tabwriter"
 
 	"github.com/Dzobash/apptrol/internal/audio/pulse"
 	"github.com/Dzobash/apptrol/internal/config"
+	"github.com/Dzobash/apptrol/internal/controller/rawmidi"
+	"github.com/Dzobash/apptrol/internal/logging"
 	"github.com/Dzobash/apptrol/internal/version"
 )
 
@@ -47,6 +54,7 @@ Commands:
   run      run the service (default)
   list     show playing apps and input devices with the names used for matching
   check    validate the configuration file and exit
+  test     show what the controller sends and light its buttons, to check it
   version  print version information
 
 Flags:
@@ -83,6 +91,8 @@ Flags:
 		err = cmdList(*configPath, stdout, func() (*pulse.Listing, error) { return pulse.List("") })
 	case "check":
 		err = cmdCheck(*configPath, stdout)
+	case "test":
+		err = runTest(*configPath, stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, version.String())
 		return 0
@@ -151,4 +161,17 @@ func resolveConfigPath(flagValue string) (string, error) {
 		return flagValue, nil
 	}
 	return config.DefaultPath()
+}
+
+// runTest wires `apptrol test` to the real controller, a terminal logger and
+// Ctrl+C.
+func runTest(configPath string, stdout, stderr io.Writer) error {
+	terminal := false
+	logs, _ := logging.New(config.Log{Level: "info", Outputs: []string{config.OutputJournald},
+		Journald: config.JournaldOutput{Format: "text"}}, logging.Options{Stdout: stderr, Journal: &terminal})
+	defer func() { _ = logs.Close() }()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return cmdTest(ctx, testPort(configPath), stdout, logs.Logger(),
+		func(log *slog.Logger, port string) device { return rawmidi.New(log, port) })
 }

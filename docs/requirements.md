@@ -73,6 +73,7 @@ moving apps between outputs (R), mic bleep. See section 5 and the [roadmap](road
 | HW-04 | The controller mapping (CC numbers) SHOULD be defined in one place in the code so other controllers can be added later. | SHOULD | 1 |
 | HW-05 | The controller MUST be found by its ALSA card id (from `[controller] port`), not by a fixed card or device number. | MUST | 1 |
 | HW-06 | If the controller's MIDI device is busy (held by another program), Apptrol MUST log a clear error naming the device and retry. | MUST | 1 |
+| HW-07 | A command `apptrol test` SHOULD show what the controller sends and toggle the LED of each pressed button, so the controller and its settings can be checked without a configuration. | SHOULD | 1 |
 
 Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on press and 0 on release.
 
