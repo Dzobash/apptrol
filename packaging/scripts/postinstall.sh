@@ -8,8 +8,10 @@ Apptrol is installed. To start it for your user (run as your user, not root):
     systemctl --user daemon-reload
     systemctl --user enable --now apptrol
 
-Configuration: ~/.config/apptrol/config.toml
-Example:       /usr/share/doc/apptrol/examples/config.toml
+After an upgrade, restart it instead:  systemctl --user restart apptrol
+
+Configuration: ~/.config/apptrol/config.toml (created from the example on first start)
+Helpful:       apptrol list   (names to match)   apptrol test   (check the controller)
 
 MSG
 exit 0

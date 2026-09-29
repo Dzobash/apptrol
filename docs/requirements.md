@@ -228,7 +228,7 @@ How these are met is described in [ADR 0012](adr/0012-testing-strategy.md) and
 | QA-01 | Every push and pull request MUST run CI: format check, `go vet`, `golangci-lint`, tests with the race detector, vulnerability scan, and a build with a smoke test. | MUST | 0 |
 | QA-02 | Changes SHOULD only reach `main` when CI passes. Once the repository is public, this MUST be enforced with branch protection. | SHOULD | 0 |
 | QA-03 | Tests MUST run against the minimum Go version from `go.mod` and against the latest stable Go release. | MUST | 0 |
-| QA-04 | CI MUST fail when total test coverage drops below the configured minimum (currently 70 %). Logic packages (matching, mixer state, config, saved state) SHOULD reach at least 85 %. | MUST | 0 |
+| QA-04 | CI MUST fail when total test coverage drops below the configured minimum (currently 75 %). Logic packages (matching, mixer state, config, saved state) SHOULD reach at least 85 %. | MUST | 0 |
 | QA-05 | Dependencies MUST be checked with `govulncheck`; a known vulnerability in code Apptrol actually calls MUST fail CI. | MUST | 0 |
 | QA-06 | Access to the controller and to the audio server MUST go through interfaces, so that all behaviour can be tested with fakes, without hardware or PipeWire. | MUST | 1 |
 | QA-07 | Every Phase 1 MUST requirement that can be tested without hardware MUST have at least one automated test. Test names SHOULD include the requirement ID. | MUST | 1 |

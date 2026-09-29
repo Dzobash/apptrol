@@ -10,8 +10,10 @@
   A per-app volume mixer for PipeWire, built for the Korg nanoKONTROL2.
 </p>
 
-> **Status: in development — not usable yet.** Phase 1 (the core mixer) is being built;
-> configuration loading and `apptrol check` work. See the [roadmap](docs/roadmap.md).
+> **Status: first release.** Everything in Phase 1 works: sliders and knobs, mute, solo,
+> LED feedback, saved positions, automatic configuration reload. It is young software, so
+> please [report problems](https://github.com/Dzobash/apptrol/issues). See the
+> [roadmap](docs/roadmap.md) for what comes next.
 
 ## What it does
 
@@ -68,7 +70,7 @@ unusual setups — such as running Apptrol from an SSH session — add your user
 
 ## Installation
 
-No release yet. Once there is one, download the package for your system from the
+Download the package for your system from the
 [Releases](https://github.com/Dzobash/apptrol/releases) page and install it:
 
 ```bash
@@ -78,7 +80,8 @@ sudo dnf install ./apptrol-*.x86_64.rpm     # Fedora
 
 ## First steps
 
-1. **Write your configuration.** Start from the example and edit it:
+1. **Write your configuration** in `~/.config/apptrol/config.toml`. Apptrol creates it from
+   the example on its first start; to begin editing before that, copy the example:
    ```bash
    mkdir -p ~/.config/apptrol
    cp /usr/share/doc/apptrol/examples/config.toml ~/.config/apptrol/
@@ -87,7 +90,7 @@ sudo dnf install ./apptrol-*.x86_64.rpm     # Fedora
    devices; `apptrol check` validates the file and shows which app is on which control.
    The [configuration reference](docs/config.md) explains every setting.
 2. **Try it** in a terminal: run `apptrol`, move a slider, and watch the log. Ctrl+C stops
-   it. Without a configuration file, Apptrol creates the example for you.
+   it.
 3. **Start Apptrol** for your user, now and at every login:
    ```bash
    systemctl --user daemon-reload

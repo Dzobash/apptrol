@@ -65,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New requirement LED-08: LEDs are turned off when Apptrol stops.
 - `max_volume` per app (1–150 %, default 100): the control spans 0 to that value, for a
   boost above 100 % or a cap below it. Changing it in a running Apptrol applies at once.
+- CI requires at least 75 % test coverage (was 70 %).
 - Warning when two apps' match lists overlap, naming the app that gets the streams
   (CFG-12); the matching rule is documented in the configuration reference.
 
