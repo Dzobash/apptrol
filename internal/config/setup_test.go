@@ -12,6 +12,7 @@ func TestSetup(t *testing.T) {
 [apps.music]
 name  = "Music"
 match = ["spotify"]
+max_volume = 150
 
 [apps.mic]
 name  = "Mic"
@@ -31,9 +32,9 @@ knob8   = "mic"
 	}
 	want := mixer.Setup{
 		Targets: map[string]mixer.Target{
-			"music":  {ID: "music", Name: "Music", Kind: mixer.App, Match: []string{"spotify"}},
-			"mic":    {ID: "mic", Name: "Mic", Kind: mixer.Input, Match: []string{"GoXLR"}},
-			"unused": {ID: "unused", Name: "Unused", Kind: mixer.App, Match: []string{"x"}},
+			"music":  {ID: "music", Name: "Music", Kind: mixer.App, Match: []string{"spotify"}, MaxVolume: 1.5},
+			"mic":    {ID: "mic", Name: "Mic", Kind: mixer.Input, Match: []string{"GoXLR"}, MaxVolume: 1},
+			"unused": {ID: "unused", Name: "Unused", Kind: mixer.App, Match: []string{"x"}, MaxVolume: 1},
 		},
 		Assignments: map[mixer.Control]string{
 			{Kind: mixer.Slider, Column: 1}: "music",

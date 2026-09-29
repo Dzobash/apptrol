@@ -89,7 +89,7 @@ func (w *world) do(evs ...Event) *world {
 		for _, a := range acts {
 			switch a := a.(type) {
 			case SetStreamVolume:
-				if a.Volume < 0 || a.Volume > 1 {
+				if a.Volume < 0 || a.Volume > MaxBoost {
 					w.t.Fatalf("volume out of range: %v", a)
 				}
 				w.streamVol[a.StreamID] = a.Volume

@@ -85,9 +85,12 @@ func TestCTRL02_ChannelVolumes(t *testing.T) {
 	if v := fromChannelVolumes(cv); math.Abs(v-0.5) > 1e-9 {
 		t.Errorf("round trip = %v", v)
 	}
-	// CTRL-03: never above 100 %, never below 0.
-	if cv := channelVolumes(1, 1.7); cv[0] != proto.VolumeNorm {
-		t.Errorf("1.7 -> %v, want 100 %%", cv[0])
+	// CTRL-03: never above 150 %, never below 0.
+	if cv := channelVolumes(1, 1.7); cv[0] != proto.NormVolume(1.5) {
+		t.Errorf("1.7 -> %v, want 150 %%", cv[0])
+	}
+	if v := fromChannelVolumes(channelVolumes(2, 1.5)); math.Abs(v-1.5) > 1e-9 {
+		t.Errorf("150 %% round trip = %v", v)
 	}
 	if cv := channelVolumes(1, -1); cv[0] != proto.VolumeMuted {
 		t.Errorf("-1 -> %v, want 0", cv[0])

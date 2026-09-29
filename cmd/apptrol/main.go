@@ -167,7 +167,11 @@ func cmdCheck(configPath string, stdout io.Writer) error {
 	tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
 	for _, a := range cfg.Layout().Assignments {
 		app := cfg.Apps[a.AppID]
-		fmt.Fprintf(tw, "  %s\t%s\t%s: %s\n", a.Control, app.Name, app.Type, strings.Join(app.Match, ", "))
+		extra := ""
+		if app.MaxVolume != 100 {
+			extra = fmt.Sprintf("\tmax %d %%", app.MaxVolume)
+		}
+		fmt.Fprintf(tw, "  %s\t%s\t%s: %s%s\n", a.Control, app.Name, app.Type, strings.Join(app.Match, ", "), extra)
 	}
 	if err := tw.Flush(); err != nil {
 		return err

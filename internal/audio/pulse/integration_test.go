@@ -212,6 +212,11 @@ func TestIntegration_Backend(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitStream(t, name, func(s StreamInfo) bool { return near(s.Volume, 0.5) && s.Muted })
+	// Boost above 100 % (CTRL-03, max_volume).
+	if err := b.Apply(mixer.SetStreamVolume{StreamID: id, Volume: 1.5}); err != nil {
+		t.Fatal(err)
+	}
+	waitStream(t, name, func(s StreamInfo) bool { return near(s.Volume, 1.5) })
 	// Our own changes do not come back as StreamAdded.
 	time.Sleep(200 * time.Millisecond)
 	for len(events) > 0 {

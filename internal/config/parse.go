@@ -36,9 +36,10 @@ type rawConfig struct {
 }
 
 type rawApp struct {
-	Name  *string   `toml:"name"`
-	Type  *string   `toml:"type"`
-	Match *[]string `toml:"match"`
+	Name      *string   `toml:"name"`
+	Type      *string   `toml:"type"`
+	Match     *[]string `toml:"match"`
+	MaxVolume *int      `toml:"max_volume"`
 }
 
 // Defaults (docs/config.md).
@@ -49,7 +50,12 @@ const (
 	defaultFileFmt     = "json"
 	defaultMaxSize     = 10 << 20
 	defaultMaxFiles    = 5
+	defaultMaxVolume   = 100
 )
+
+// MaxVolumeLimit is the highest allowed max_volume in percent. Above it, the
+// software amplification distorts badly; desktop mixers stop there too.
+const MaxVolumeLimit = 150
 
 var (
 	idPattern      = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
@@ -106,7 +112,7 @@ func parse(path string, data []byte) (*Config, []string, error) {
 			errs.add("apps.%s: id may only contain letters, digits, - and _ (up to 64 characters)", id)
 			continue
 		}
-		app := App{ID: id, Name: id, Type: TypeApp}
+		app := App{ID: id, Name: id, Type: TypeApp, MaxVolume: defaultMaxVolume}
 		if ra.Name != nil && strings.TrimSpace(*ra.Name) != "" {
 			app.Name = strings.TrimSpace(*ra.Name)
 		}
@@ -129,6 +135,12 @@ func parse(path string, data []byte) (*Config, []string, error) {
 			}
 			if len(*ra.Match) == 0 {
 				errs.add("apps.%s.match: empty; list at least one name fragment", id)
+			}
+		}
+		if ra.MaxVolume != nil {
+			app.MaxVolume = *ra.MaxVolume
+			if app.MaxVolume < 1 || app.MaxVolume > MaxVolumeLimit {
+				errs.add("apps.%s.max_volume: %d is out of range (1–%d, in percent)", id, app.MaxVolume, MaxVolumeLimit)
 			}
 		}
 		cfg.Apps[id] = app
@@ -200,6 +212,7 @@ func parse(path string, data []byte) (*Config, []string, error) {
 		sort.Strings(errs)
 		return nil, nil, &ValidationError{Path: path, Problems: errs}
 	}
+	warnings = append(warnings, overlaps(cfg)...)
 	return cfg, warnings, nil
 }
 

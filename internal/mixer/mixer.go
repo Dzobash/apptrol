@@ -2,6 +2,7 @@ package mixer
 
 import (
 	"log/slog"
+	"math"
 	"sort"
 	"strings"
 )
@@ -181,7 +182,7 @@ func (m *Mixer) controlMoved(a *actions, e ControlMoved) {
 	if !ok {
 		return // CTRL-01: unassigned controls do nothing
 	}
-	vol := Volume(v)
+	vol := m.volume(id, v)
 	t := m.setup.Targets[id]
 	switch t.Kind {
 	case App:
@@ -195,12 +196,28 @@ func (m *Mixer) controlMoved(a *actions, e ControlMoved) {
 			a.add(SetDeviceVolume{Device: dev, Volume: vol}) // CTRL-05
 		}
 	}
-	a.notice(slog.LevelDebug, "volume", "control", e.Control.String(), "app", id, "percent", Percent(v))
+	a.notice(slog.LevelDebug, "volume", "control", e.Control.String(), "app", id, "percent", int(math.Round(vol*100)))
 	a.add(StateChanged{})
 }
 
-// Volume maps a control value (0–127) linearly to 0–1 (CTRL-02, CTRL-03).
+// Volume maps a control value (0–127) linearly to 0–1 (CTRL-02).
 func Volume(v int) float64 { return float64(clamp(v)) / MaxValue }
+
+// volume is the volume for a control value on the control of target id: 0 at
+// the bottom, the target's MaxVolume at the top (CTRL-02, CTRL-03).
+func (m *Mixer) volume(id string, v int) float64 { return Volume(v) * m.maxVolume(id) }
+
+// maxVolume returns a target's MaxVolume, 1 if unset, never above MaxBoost.
+func (m *Mixer) maxVolume(id string) float64 {
+	mv := m.setup.Targets[id].MaxVolume
+	switch {
+	case mv <= 0:
+		return 1
+	case mv > MaxBoost:
+		return MaxBoost
+	}
+	return mv
+}
 
 // Percent is Volume as a rounded percentage, for logs and display.
 func Percent(v int) int { return (clamp(v)*100 + MaxValue/2) / MaxValue }
@@ -402,7 +419,7 @@ func (m *Mixer) streamAdded(a *actions, s Stream) {
 func (m *Mixer) applyStream(a *actions, s *streamInfo) {
 	if s.target != "" {
 		if v, ok := m.positions[m.controlOf[s.target]]; ok {
-			a.add(SetStreamVolume{StreamID: s.ID, Volume: Volume(v)})
+			a.add(SetStreamVolume{StreamID: s.ID, Volume: m.volume(s.target, v)})
 		}
 	}
 	m.applyStreamMute(a, s)
@@ -489,7 +506,7 @@ func (m *Mixer) chooseDevices(a *actions) {
 					"using", pick, "matches", strings.Join(matches, ", "))
 			}
 			if v, ok := m.positions[m.controlOf[id]]; ok {
-				a.add(SetDeviceVolume{Device: pick, Volume: Volume(v)})
+				a.add(SetDeviceVolume{Device: pick, Volume: m.volume(id, v)})
 			}
 			m.applyDeviceMute(a, pick, m.effectiveMute(id))
 		}
@@ -526,7 +543,13 @@ func contains(m map[string]string, v string) bool {
 func (m *Mixer) configChanged(a *actions, s Setup) {
 	old := m.setup.Assignments
 	oldControlOf := m.controlOf
+	oldMax := map[string]float64{}
+	for id := range m.setup.Targets {
+		oldMax[id] = m.maxVolume(id)
+	}
 	m.setSetup(s)
+	// maxChanged: the target's max_volume changed, so its volume must be set again.
+	maxChanged := func(id string) bool { return id != "" && oldMax[id] != m.maxVolume(id) }
 	for c := range m.muted {
 		if old[c] != m.setup.Assignments[c] {
 			delete(m.muted, c)
@@ -542,8 +565,8 @@ func (m *Mixer) configChanged(a *actions, s Setup) {
 	for _, info := range m.sortedStreams() {
 		before, beforeControl := info.target, oldControlOf[info.target]
 		info.target = m.matchStream(info.Stream)
-		// Re-apply when the stream's app or the app's control changed.
-		if info.target != before || (info.target != "" && m.controlOf[info.target] != beforeControl) {
+		// Re-apply when the stream's app, the app's control or its max_volume changed.
+		if info.target != before || (info.target != "" && m.controlOf[info.target] != beforeControl) || maxChanged(info.target) {
 			if info.target != "" {
 				a.notice(slog.LevelInfo, "stream matched", "app", m.setup.Targets[info.target].Name,
 					"control", m.controlOf[info.target].String(), "stream", info.ID, "name", info.AppName)
@@ -556,12 +579,13 @@ func (m *Mixer) configChanged(a *actions, s Setup) {
 		devBefore[id] = dev
 	}
 	m.chooseDevices(a)
-	// An input that kept its device but moved to another control gets that control's position.
+	// An input that kept its device but moved to another control, or got
+	// another max_volume, gets its volume set again.
 	for id, dev := range m.deviceFor {
 		c := m.controlOf[id]
-		if devBefore[id] == dev && oldControlOf[id] != c {
+		if devBefore[id] == dev && (oldControlOf[id] != c || maxChanged(id)) {
 			if v, ok := m.positions[c]; ok {
-				a.add(SetDeviceVolume{Device: dev, Volume: Volume(v)})
+				a.add(SetDeviceVolume{Device: dev, Volume: m.volume(id, v)})
 			}
 		}
 	}
