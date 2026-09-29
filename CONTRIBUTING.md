@@ -78,6 +78,7 @@ Project layout:
 | `internal/logging/` | Log outputs and formats |
 | `internal/version/` | Build information (set at link time) |
 | `docs/` | Requirements, architecture, roadmap, configuration reference, ADRs |
+| `docs/assets/` | Logo files (`brand/`, MIT) and third-party photos (`photos/`, each with its own license) |
 | `examples/` | Example configuration (built into the binary for the first start) |
 | `packaging/` | systemd unit and package scripts |
 
@@ -85,6 +86,8 @@ How the packages work together: [docs/architecture.md](docs/architecture.md).
 
 - Go, formatted with `gofmt`; CI runs `go vet`, `golangci-lint` and the tests.
 - New behaviour comes with tests; see [docs/testing.md](docs/testing.md).
+- Images you did not make yourself go in `docs/assets/photos/`, only under a license that
+  allows it, with author, source, license and changes listed in its README.
 
 ## AI-assisted contributions
 

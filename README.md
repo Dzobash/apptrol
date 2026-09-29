@@ -17,6 +17,11 @@
 
 ## What it does
 
+<p align="center">
+  <img src="docs/assets/photos/nanokontrol2.png" alt="A Korg nanoKONTROL2: eight columns, each with a knob, a slider and S, M and R buttons, plus transport buttons on the left" width="800"><br>
+  <sub>The Korg nanoKONTROL2. Photo: jzohsuh / <a href="https://www.ifixit.com/Guide/Korg+nanoKONTROL2+Disassembly/117910">iFixit</a>, <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</a>, background removed.</sub>
+</p>
+
 Put Spotify on the first slider, your browser on the second, Discord on the third and your
 microphone on the last one. Moving a slider or knob changes that app's volume directly,
 with no desktop mixer involved.
@@ -35,6 +40,26 @@ It works alongside an audio interface such as a GoXLR, or on its own with a norm
 
 Planned later: media buttons, on-screen volume display, multiple layouts (e.g. *Work* and
 *Gaming*) and a GUI.
+
+
+## Why Apptrol exists
+
+I use a GoXLR Mini as my main audio deck. It has faders for a few fixed channels, but not
+for every app I use: music, browser, Discord, games and chat all compete for the same few
+sliders. So I bought a Korg nanoKONTROL2 (eight faders, eight knobs, lit buttons) hoping to
+find an open-source app that would turn each of its sliders into the volume control for one
+app, on Linux.
+
+I didn't find one. Windows has tools like this; on Linux, projects such as
+[deej](https://github.com/omriharel/deej) need a self-built Arduino mixer, and generic MIDI
+tools don't know about per-app volume in PipeWire. So Apptrol was built to fill that gap:
+it turns an off-the-shelf MIDI controller into a per-app mixer that runs quietly next to
+whatever else controls your audio.
+
+And there's a simpler reason, too: it's satisfying to reach out and pull a real fader
+down, instead of opening a mixer window and chasing a tiny slider with the mouse. Every app
+gets its own place under your fingers, and you can adjust it without looking away from
+what you're doing.
 
 ## Before you install
 
@@ -135,7 +160,8 @@ when using third-party tools such as SysEx Controls). The full terms are in the
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). The controller photo is not part of that: it is licensed under
+CC BY-NC-SA 3.0, see [docs/assets/photos](docs/assets/photos/README.md).
 
 ---
 
