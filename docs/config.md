@@ -6,7 +6,16 @@ Apptrol reads a single [TOML](https://toml.io) file:
 - Other location: `apptrol --config /path/to/config.toml`
 - The file is **reloaded automatically** when saved. If the new version is invalid, the
   error is logged and the previous configuration stays active.
-- `apptrol check` validates the file without starting the service.
+- `apptrol check` validates the file without starting the service and shows what is
+  assigned where. It lists every problem at once, for example:
+
+  ```
+  apptrol check: ~/.config/apptrol/config.toml: 2 problems
+    - layouts.default.slider9: unknown control (use slider1–slider8 or knob1–knob8)
+    - log.levle: unknown setting
+  ```
+
+  Unknown settings are rejected on purpose: they are almost always typos.
 
 A complete example is in [`examples/config.toml`](../examples/config.toml).
 

@@ -43,13 +43,13 @@ Design: [architecture.md](architecture.md), [ADR 0015](adr/0015-service-architec
 - [ ] M (mute) and S (solo) with the agreed semantics
 - [ ] LED feedback, including the input-column style
 - [ ] State saving and restore
-- [ ] TOML config with layout structure, validation, automatic reload
-- [ ] `apptrol list`, `apptrol check`, `apptrol --version`
+- [ ] TOML config with layout structure, validation, automatic reload — loading and validation done; reload with `run`
+- [ ] `apptrol list`, `apptrol check`, `apptrol --version` — `check` and `--version` done
 - [ ] Logging to journald and/or a rotating file
 - [ ] systemd user unit; packaged in .deb / .rpm
 - [ ] Interfaces and fakes for the controller and audio server (QA-06)
 - [ ] Tests for matching, mute/solo logic, config validation and state handling, named after requirement IDs (QA-07)
-- [ ] Fuzz tests for config parsing and MIDI decoding, run briefly in CI (QA-08)
+- [ ] Fuzz tests for config parsing and MIDI decoding, run briefly in CI (QA-08) — config done, CI job in place
 - [ ] Integration tests against headless PipeWire in CI (QA-09)
 - [ ] Raise the coverage minimum as code grows (QA-04)
 - [ ] Manual hardware checklist completed ([testing.md](testing.md), QA-12)
