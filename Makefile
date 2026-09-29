@@ -13,7 +13,7 @@ LDFLAGS := -s -w \
 # Minimum total test coverage in percent; keep in sync with COVERAGE_MIN in ci.yml.
 COVERAGE_MIN ?= 70
 
-.PHONY: all check build test cover vet fmt lint vulncheck snapshot release-check clean help
+.PHONY: all check build test test-audio cover vet fmt lint vulncheck snapshot release-check clean help
 
 all: check build ## Run all checks, then build
 
@@ -24,6 +24,9 @@ build: ## Build bin/apptrol
 
 test: ## Run tests with the race detector
 	go test -race ./...
+
+test-audio: ## Run the audio integration tests against your running PipeWire/PulseAudio
+	APPTROL_PULSE_TEST=1 go test -race -count=1 -run Integration -v ./internal/audio/pulse
 
 cover: ## Run tests with coverage, enforce COVERAGE_MIN, write coverage.html
 	go test -race -covermode=atomic -coverprofile=coverage.out ./...

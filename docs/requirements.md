@@ -230,7 +230,7 @@ How these are met is described in [ADR 0012](adr/0012-testing-strategy.md) and
 | QA-06 | Access to the controller and to the audio server MUST go through interfaces, so that all behaviour can be tested with fakes, without hardware or PipeWire. | MUST | 1 |
 | QA-07 | Every Phase 1 MUST requirement that can be tested without hardware MUST have at least one automated test. Test names SHOULD include the requirement ID. | MUST | 1 |
 | QA-08 | Configuration parsing and MIDI message decoding MUST have fuzz tests; CI SHOULD run each for a short time on every push. | MUST | 1 |
-| QA-09 | Integration tests against a real, headless PipeWire SHOULD run in CI (build tag `integration`). | SHOULD | 1 |
+| QA-09 | Integration tests against a real, headless PipeWire SHOULD run in CI. They run only when `APPTROL_PULSE_TEST=1` is set. | SHOULD | 1 |
 | QA-10 | Automated tests (except integration tests) MUST NOT need network access, hardware or a desktop session. | MUST | 0 |
 | QA-11 | A bug fix SHOULD include a test that fails without the fix. | SHOULD | 1 |
 | QA-12 | Before each release, the manual hardware checklist in [testing.md](testing.md) MUST be completed on a real controller. | MUST | 1 |

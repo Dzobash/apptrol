@@ -56,6 +56,7 @@ Requires Go 1.24 or newer.
 ```bash
 make check    # the same checks CI runs: format, vet, lint, tests
 make cover    # tests with coverage report (coverage.html)
+make test-audio  # integration tests against your running PipeWire
 make build    # bin/apptrol with version information
 make help     # all targets
 ```

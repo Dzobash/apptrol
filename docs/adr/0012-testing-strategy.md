@@ -19,8 +19,10 @@ Testing happens in layers:
    Table-driven tests; test names include requirement IDs where they apply.
 2. **Fuzz tests** — Go's built-in fuzzing for config parsing and MIDI decoding. CI runs them
    briefly on every push; longer runs locally.
-3. **Integration tests** — build tag `integration`; CI starts a headless PipeWire with
-   `pipewire-pulse`, plays dummy streams and checks that volumes and mutes arrive.
+3. **Integration tests** — CI starts a headless PipeWire with `pipewire-pulse`, plays dummy
+   streams and checks that volumes and mutes arrive. They run only when the environment
+   variable `APPTROL_PULSE_TEST=1` is set. (First planned as a build tag; changed in Phase 1
+   so that `go vet` and the linter check these tests like any other.)
 4. **Static checks** — `gofmt`, `go vet`, `golangci-lint` (config in `.golangci.yml`) and
    `govulncheck`.
 5. **Coverage gate** — CI fails below a minimum total coverage (70 % to start), raised as

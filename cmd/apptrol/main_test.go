@@ -9,6 +9,8 @@ import (
 )
 
 func TestRun(t *testing.T) {
+	// Make `list` fail the same way everywhere, with or without a running server.
+	t.Setenv("PULSE_SERVER", "unix:"+filepath.Join(t.TempDir(), "no-such-socket"))
 	tests := []struct {
 		name       string
 		args       []string
@@ -20,7 +22,7 @@ func TestRun(t *testing.T) {
 		{"version command", []string{"version"}, 0, "apptrol ", ""},
 		{"help", []string{"-h"}, 0, "", "Usage: apptrol"},
 		{"default is run", nil, 1, "", "not implemented yet"},
-		{"list", []string{"list"}, 1, "", "apptrol list: not implemented yet"},
+		{"list without audio server", []string{"list"}, 1, "", "Is PipeWire"},
 		{"unknown command", []string{"frobnicate"}, 2, "", `unknown command "frobnicate"`},
 		{"extra arguments", []string{"list", "extra"}, 2, "", "unexpected arguments"},
 		{"unknown flag", []string{"--nope"}, 2, "", "flag provided but not defined"},

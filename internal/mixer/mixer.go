@@ -96,6 +96,25 @@ func (m *Mixer) Snapshot() State {
 	return s
 }
 
+// StreamTarget returns the id of the target a known stream is matched to, or
+// "" if the stream is unknown or matches nothing.
+func (m *Mixer) StreamTarget(id uint32) string {
+	if s, ok := m.streams[id]; ok {
+		return s.target
+	}
+	return ""
+}
+
+// InputDevice returns the name of the capture device chosen for an input
+// target, or "" if none matches.
+func (m *Mixer) InputDevice(targetID string) string { return m.deviceFor[targetID] }
+
+// ControlOf returns the control a target is assigned to.
+func (m *Mixer) ControlOf(targetID string) (Control, bool) {
+	c, ok := m.controlOf[targetID]
+	return c, ok
+}
+
 // Shutdown ends solo and returns the actions that undo its silencing, so no app
 // stays muted by a solo that is never saved (SVC-07, STATE-04). The audio
 // server remembers mutes per app, so without this an app silenced by solo

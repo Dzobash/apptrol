@@ -88,7 +88,8 @@ Defines something a control can act on. `<id>` is your own short name (letters, 
   All matching streams are controlled together, so a browser with three playing tabs is
   one app. A match list can also cover several programs, e.g. `["vivaldi", "firefox"]`.
 - **`type = "input"`** — the capture device whose name or description contains a fragment.
-  If several devices match, the first one is used and a warning is logged.
+  If several devices match, the first one is used and a warning is logged. Monitors of
+  outputs are not input devices and are never matched.
 
 Run `apptrol list` to see the exact names of everything that is currently playing and every
 input device.
