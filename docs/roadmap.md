@@ -45,7 +45,7 @@ Design: [architecture.md](architecture.md), [ADR 0015](adr/0015-service-architec
 - [ ] State saving and restore
 - [ ] TOML config with layout structure, validation, automatic reload — loading and validation done; reload with `run`
 - [ ] `apptrol list`, `apptrol check`, `apptrol --version` — `check` and `--version` done
-- [ ] Logging to journald and/or a rotating file
+- [ ] Logging to journald and/or a rotating file — package done; used by `run` once it exists
 - [ ] systemd user unit; packaged in .deb / .rpm
 - [ ] Interfaces and fakes for the controller and audio server (QA-06)
 - [ ] Tests for matching, mute/solo logic, config validation and state handling, named after requirement IDs (QA-07)

@@ -31,3 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI runs every fuzz test for 20 seconds on each push.
 - README: prerequisites, controller settings (with SysEx Controls for Linux), first
   steps and a disclaimer.
+- Logging (`internal/logging`): journald output with priorities (coloured text with
+  timestamps when started from a terminal), log file with size-based rotation, separate
+  formats per output (text, JSON, logfmt), level and outputs changeable at runtime; falls
+  back to the journal if the log file cannot be opened.
