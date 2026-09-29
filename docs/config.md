@@ -28,7 +28,7 @@ A complete example is in [`examples/config.toml`](../examples/config.toml).
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `port` | string | `"nanoKONTROL2"` | Part of the MIDI port name to connect to (case-insensitive). `aseqdump -l` lists connected devices. |
+| `port` | string | `"nanoKONTROL2"` | ALSA card id of the controller (case-insensitive). It is the name in brackets in `cat /proc/asound/cards`. The card number can change between boots; the id does not. |
 
 ---
 

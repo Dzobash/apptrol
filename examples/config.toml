@@ -5,7 +5,8 @@
 
 # ── Controller ────────────────────────────────────────────────────────────────
 [controller]
-# Part of the MIDI port name. Run `aseqdump -l` to see connected devices.
+# ALSA card id of the controller (case-insensitive). It is the name in brackets
+# in `cat /proc/asound/cards`, e.g. " 1 [nanoKONTROL2   ]: USB-Audio - nanoKONTROL2".
 port = "nanoKONTROL2"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
