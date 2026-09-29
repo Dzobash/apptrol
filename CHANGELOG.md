@@ -43,6 +43,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Saved state (`internal/state`): positions and user mutes in
   `~/.local/state/apptrol/state.json`, written atomically and at most once per second;
   a missing or damaged file means starting fresh, single bad entries are skipped.
+- Audio server connection (`internal/audio/pulse`): tracks playing apps and input devices,
+  sets volume and mute, reconnects when PipeWire restarts. Volumes match the percentages
+  desktop mixers show. When PipeWire restores an app's old volume just after Apptrol set
+  it, Apptrol sets it again.
+- `apptrol list` shows playing apps and input devices with the names used for matching,
+  their volume, and which control each one is on.
+- CI runs integration tests against a headless PipeWire; `make test-audio` runs them
+  against your own.
 
 ### Fixed
 - Example configuration and configuration reference: `[controller] port` is the ALSA

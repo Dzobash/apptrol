@@ -79,7 +79,13 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   and tracked through subscription events.
 - An app matches a stream when a configured fragment is found in `application.name` or
   `application.process.binary`; some apps (Spotify) only report the name.
-- Volume is set per stream and per input; mute likewise.
+- Volume is set per stream and per input; mute likewise. The percentage is the one desktop
+  mixers (KDE, GNOME, pavucontrol) show, so a slider at 50 % shows 50 % there. All channels
+  get the same volume.
+- Monitors of outputs ("Monitor of GoXLR…") are not capture devices and are never matched.
+- WirePlumber restores an app's remembered volume shortly after the app starts. When that
+  lands after Apptrol has set the slider's position, Apptrol sets it again: for 3 seconds
+  after a stream or input appears, changes to what Apptrol set are undone (PRIO-03).
 - On connection loss the backend reconnects and the service re-applies the current state.
 - PipeWire (WirePlumber) remembers each app's volume and mute and restores them when the
   app starts again — also when Apptrol is not running. Apptrol therefore sets the mute of

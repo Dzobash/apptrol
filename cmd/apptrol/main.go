@@ -22,6 +22,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/Dzobash/apptrol/internal/audio/pulse"
 	"github.com/Dzobash/apptrol/internal/config"
 	"github.com/Dzobash/apptrol/internal/version"
 )
@@ -79,7 +80,7 @@ Flags:
 	case "run":
 		err = cmdRun(*configPath)
 	case "list":
-		err = cmdList()
+		err = cmdList(*configPath, stdout, func() (*pulse.Listing, error) { return pulse.List("") })
 	case "check":
 		err = cmdCheck(*configPath, stdout)
 	case "version":
@@ -100,10 +101,6 @@ Flags:
 
 func cmdRun(configPath string) error {
 	_ = configPath
-	return errNotImplemented
-}
-
-func cmdList() error {
 	return errNotImplemented
 }
 

@@ -51,6 +51,27 @@ jobs:
         with:
           go-version-file: ${{ matrix.go-version-file }}
           go-version: ${{ matrix.go-version }}
+      - name: Start a headless PipeWire for the integration tests (QA-09)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends \
+            pipewire pipewire-pulse wireplumber pulseaudio-utils dbus
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/xdg"
+          mkdir -p -m 700 "$XDG_RUNTIME_DIR"
+          export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+          dbus-daemon --session --address="$DBUS_SESSION_BUS_ADDRESS" --fork --nopidfile
+          pipewire >"$RUNNER_TEMP/pipewire.log" 2>&1 &
+          wireplumber >"$RUNNER_TEMP/wireplumber.log" 2>&1 &
+          pipewire-pulse >"$RUNNER_TEMP/pipewire-pulse.log" 2>&1 &
+          for _ in $(seq 50); do pactl info >/dev/null 2>&1 && break; sleep 0.2; done
+          # A silent output, as a desktop has one; streams on the dummy output fail.
+          pactl load-module module-null-sink sink_name=ci_out
+          pactl info
+          {
+            echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
+            echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS"
+            echo "APPTROL_PULSE_TEST=1"
+          } >> "$GITHUB_ENV"
       - name: Vet
         run: go vet ./...
       - name: Test with race detector and coverage

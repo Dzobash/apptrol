@@ -558,3 +558,25 @@ func TestParseControl(t *testing.T) {
 		}
 	}
 }
+
+func TestQueries(t *testing.T) {
+	w := started(t)
+	if got := w.m.StreamTarget(spotify.ID); got != "spotify" {
+		t.Errorf("StreamTarget(spotify) = %q", got)
+	}
+	if got := w.m.StreamTarget(viber.ID); got != "" {
+		t.Errorf("StreamTarget(viber) = %q, want none", got)
+	}
+	if got := w.m.StreamTarget(999); got != "" {
+		t.Errorf("StreamTarget(unknown) = %q", got)
+	}
+	if got := w.m.InputDevice("mic"); got != goxlr.Name {
+		t.Errorf("InputDevice(mic) = %q", got)
+	}
+	if c, ok := w.m.ControlOf("games"); !ok || c != (Control{Knob, 1}) {
+		t.Errorf("ControlOf(games) = %v %v", c, ok)
+	}
+	if _, ok := w.m.ControlOf("spare"); ok {
+		t.Error("unassigned target has a control")
+	}
+}

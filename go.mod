@@ -5,6 +5,7 @@ go 1.24
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/charmbracelet/log v0.4.2
+	github.com/jfreymuth/pulse v0.1.3
 	github.com/muesli/termenv v0.16.0
 )
 

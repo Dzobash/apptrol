@@ -10,6 +10,7 @@ of [requirements.md](requirements.md#51-quality-assurance).
 |---|---|
 | `make check` | Format check, `go vet`, `golangci-lint`, tests — the same checks CI runs |
 | `make test` | Tests with the race detector |
+| `make test-audio` | Integration tests against your running PipeWire (they add a silent test output and inputs and remove them afterwards) |
 | `make cover` | Tests with coverage; fails below the minimum; writes `coverage.html` to open in a browser |
 | `make vulncheck` | Scans dependencies for known vulnerabilities |
 | `make lint` | `golangci-lint` only ([install it](https://golangci-lint.run/welcome/install/) first) |
@@ -21,14 +22,15 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](..
 | Job | Checks |
 |---|---|
 | **Lint** | `golangci-lint` with the rules in [`.golangci.yml`](../.golangci.yml) (includes `gofmt` and `goimports`) |
-| **Test** | `go vet`, tests with the race detector, on the minimum Go version and the latest stable; coverage report in the job summary; fails below the minimum |
+| **Test** | Starts a headless PipeWire, then `go vet` and all tests including the audio integration tests, with the race detector, on the minimum Go version and the latest stable; coverage report in the job summary; fails below the minimum |
 | **Vulnerability check** | `govulncheck` |
 | **Build** | Builds the binary and runs `apptrol --version` |
 
 ## Writing tests
 
 - **No hardware, no network, no desktop.** Tests use fakes for the controller and the audio
-  server. Integration tests are the only exception and use the `integration` build tag.
+  server. Integration tests are the only exception: they talk to a real audio server and
+  run only when `APPTROL_PULSE_TEST=1` is set (see `internal/audio/pulse/integration_test.go`).
 - **Table-driven.** One test function, a table of cases — see `cmd/apptrol/main_test.go`.
 - **Name tests after requirements** where one applies, e.g. `TestSOLO05_PressingSoloAgainTurnsItOff`.
 - **Bug fixes** come with a test that fails without the fix.
