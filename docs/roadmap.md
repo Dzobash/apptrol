@@ -6,7 +6,7 @@ Each phase ends with a tagged release. Detailed requirements live in
 | Phase | Goal | Version | Status |
 |---|---|---|---|
 | 0 | Project setup | 0.0.1 | ✅ Done |
-| 1 | Core mixer: sliders, knobs, M, S | 0.1.0 | 🟡 Built; in testing |
+| 1 | Core mixer: sliders, knobs, M, S | 0.1.0 | ✅ Released 2026-09-30 |
 | 1.5 | Media buttons and on-screen display | 0.2.0 | ⚪ Planned |
 | 2 | Layouts | 0.3.0 | ⚪ Planned |
 | 3 | GUI and tray | 0.4.0 | ⚪ Planned |
@@ -53,10 +53,12 @@ Design: [architecture.md](architecture.md), [ADR 0015](adr/0015-service-architec
 - [x] Fuzz tests for config parsing and MIDI decoding, run briefly in CI (QA-08)
 - [x] Integration tests against headless PipeWire in CI (QA-09)
 - [x] Raise the coverage minimum as code grows (QA-04): 75 %
-- [ ] Manual hardware checklist completed ([testing.md](testing.md), QA-12)
+- [x] Manual hardware checklist completed ([testing.md](testing.md), QA-12): release candidates rc1 to rc3
 
-**Done when:** all Phase 1 MUST requirements are met, and Apptrol has run as the only
-volume control on the author's desktop for a week without problems.
+**Done when:** all Phase 1 MUST requirements are met, and the hardware checklist passes on
+an installed release candidate. (The original goal of a week as the only volume control
+was dropped: three release candidates were tested on hardware and daily use showed no
+problems. Anything found later ships as a patch release, `0.1.x`.)
 
 ## Phase 1.5 — Media buttons and on-screen display (`0.2.0`)
 
