@@ -11,6 +11,7 @@ import (
 
 	"github.com/jfreymuth/pulse/proto"
 
+	"github.com/Dzobash/apptrol/internal/logattr"
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
@@ -74,7 +75,7 @@ type Backend struct {
 // New returns a Backend. server is a PulseAudio server string; "" uses the
 // default (PULSE_SERVER, or the user's pipewire-pulse socket).
 func New(log *slog.Logger, server string) *Backend {
-	return &Backend{log: log, server: server, retryMin: 500 * time.Millisecond, retryMax: 5 * time.Second}
+	return &Backend{log: log.With(logattr.Component(logattr.Audio)), server: server, retryMin: 500 * time.Millisecond, retryMax: 5 * time.Second}
 }
 
 // Run connects and keeps the connection until ctx is canceled. After each
@@ -88,10 +89,11 @@ func (b *Backend) Run(ctx context.Context, out chan<- mixer.Event) error {
 		k, err := dial(b.server)
 		if err != nil {
 			if !failed {
-				b.log.Error("cannot connect to the audio server; retrying", "err", err)
+				b.log.Error("cannot connect to the audio server; retrying", logattr.Error(logattr.ErrAudioUnreachable, err))
 				failed = true
 			} else {
-				b.log.Debug("audio server still unreachable", "err", err, "retry_in", wait)
+				b.log.Debug("audio server still unreachable", logattr.Error(logattr.ErrAudioUnreachable, err),
+					logattr.KeyRetryDelay, wait.Seconds())
 			}
 		} else {
 			wait = b.retryMin
@@ -101,7 +103,7 @@ func (b *Backend) Run(ctx context.Context, out chan<- mixer.Event) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			b.log.Error("lost the connection to the audio server; reconnecting", "err", err)
+			b.log.Error("lost the connection to the audio server; reconnecting", logattr.Error(logattr.ErrAudioLost, err))
 			failed = true // already reported; retries are logged at debug level
 		}
 		select {
@@ -130,7 +132,7 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 	if err != nil {
 		return err
 	}
-	b.log.Info("connected to the audio server", "server", fmt.Sprintf("%s %s", info.PackageName, info.PackageVersion))
+	b.log.Info("connected to the audio server", logattr.KeyAudioServer, fmt.Sprintf("%s %s", info.PackageName, info.PackageVersion))
 
 	var t tracker
 	send := func(ev mixer.Event) error {
@@ -286,14 +288,16 @@ func (b *Backend) defend(k *conn, s StreamInfo) error {
 
 	if vol != nil {
 		b.log.Debug("audio server changed the volume of a new stream; setting it again",
-			"stream", s.ID, "app", s.AppName, "volume", s.Volume, "want", *vol)
+			logattr.KeyStreamID, s.ID, logattr.KeyStreamName, s.AppName,
+			logattr.KeyVolume, percent(s.Volume), logattr.KeyWanted, percent(*vol))
 		if err := k.setStreamVolume(s.ID, s.Channels, *vol); err != nil && !IsGone(err) {
 			return err
 		}
 	}
 	if muted != nil {
 		b.log.Debug("audio server changed the mute of a new stream; setting it again",
-			"stream", s.ID, "app", s.AppName, "muted", s.Muted, "want", *muted)
+			logattr.KeyStreamID, s.ID, logattr.KeyStreamName, s.AppName,
+			logattr.KeyMuted, s.Muted, logattr.KeyWantMut, *muted)
 		if err := k.setStreamMute(s.ID, *muted); err != nil && !IsGone(err) {
 			return err
 		}
@@ -316,14 +320,14 @@ func (b *Backend) defendDevice(k *conn, d SourceInfo) error {
 
 	if vol != nil {
 		b.log.Debug("audio server changed the volume of a new input; setting it again",
-			"device", d.Name, "volume", d.Volume, "want", *vol)
+			logattr.KeyDeviceName, d.Name, logattr.KeyVolume, percent(d.Volume), logattr.KeyWanted, percent(*vol))
 		if err := k.setSourceVolume(d.Name, d.Channels, *vol); err != nil && !IsGone(err) {
 			return err
 		}
 	}
 	if muted != nil {
 		b.log.Debug("audio server changed the mute of a new input; setting it again",
-			"device", d.Name, "muted", d.Muted, "want", *muted)
+			logattr.KeyDeviceName, d.Name, logattr.KeyMuted, d.Muted, logattr.KeyWantMut, *muted)
 		if err := k.setSourceMute(d.Name, *muted); err != nil && !IsGone(err) {
 			return err
 		}
@@ -402,3 +406,6 @@ func (b *Backend) setConn(k *conn) {
 	b.cur = k
 	b.mu.Unlock()
 }
+
+// percent is a volume for the log: percent of normal, rounded.
+func percent(v float64) int { return int(math.Round(v * 100)) }

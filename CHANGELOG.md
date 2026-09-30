@@ -58,10 +58,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `apptrol test` shows what the controller sends and toggles each button's LED, to check
   the controller and its LED mode. It says which buttons have no LED (Track and Marker).
 - `apptrol run` (the default command) runs the service: sliders and knobs set volumes,
-  M mutes, S solos, LEDs show the state, positions and mutes survive restarts. It creates
+  M mutes, S solos, LEDs show the state, positions, mutes and the solo survive restarts. It creates
   the example configuration on first start and reloads the configuration when the file
   is saved; an invalid file is reported and the previous settings stay active. On stop it
-  ends solo, saves the state and turns the LEDs off.
+  saves the state, ends solo (so no app stays silent while Apptrol is stopped) and turns the
+  LEDs off.
 - New requirement LED-08: LEDs are turned off when Apptrol stops.
 - `max_volume` per app (1–150 %, default 100): the control spans 0 to that value, for a
   boost above 100 % or a cap below it. Changing it in a running Apptrol applies at once.
@@ -73,8 +74,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   remake the logo files; a README in the asset folder points to the guide.
 - Warning when two apps' match lists overlap, naming the app that gets the streams
   (CFG-12); the matching rule is documented in the configuration reference.
+- Log records follow the OpenTelemetry semantic conventions (ADR 0016, LOG-10 to LOG-13):
+  every line names its component (`apptrol.component`), errors carry `error.type` and
+  `exception.message`, attribute names are standard, and every record is one line. Lines
+  about a control name the layout, the control and the app on it; every button press is
+  logged (LOG-14). Tests check every log call against these rules.
+- User guide for the logs (`docs/logging.md`): how to read a line, levels, components,
+  error types, examples, how to find lines, how to collect them into Loki, Elasticsearch
+  or the OpenTelemetry Collector, and every attribute.
+- Log timestamps have milliseconds, so events within one second keep their order.
+- README: Apptrol has been tested on one system only (Kubuntu, KDE Plasma, PipeWire,
+  amd64); reports from other systems are welcome.
 
 ### Fixed
+- The solo survives a restart of Apptrol: it is saved with the state and restored on
+  start (STATE-04 changed; solo was not saved before). Found in testing v0.1.0-rc2.
+- LEDs show the right state again after PipeWire restarts: they are sent again when the
+  audio server reconnects, and once more 2 seconds later (LED-07). Found in testing
+  v0.1.0-rc2.
+- An invalid configuration is logged as one line per problem instead of one record
+  spanning several lines. Found in testing v0.1.0-rc2.
+- The message after a package upgrade includes `systemctl --user daemon-reload`, and the
+  README explains upgrading. Found in testing v0.1.0-rc2.
 - LEDs show the right state again after the controller is unplugged and plugged back in:
   the controller ignores LED messages while it starts up, so the state is now sent again
   after 0.5 and 2 seconds, and LED messages are spaced out. Found in testing v0.1.0-rc1.

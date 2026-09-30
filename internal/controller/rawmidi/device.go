@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Dzobash/apptrol/internal/controller"
+	"github.com/Dzobash/apptrol/internal/logattr"
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
@@ -58,7 +59,7 @@ type Device struct {
 // New returns a Device that looks for the sound card with id port.
 func New(log *slog.Logger, port string) *Device {
 	return &Device{
-		log:  log,
+		log:  log.With(logattr.Component(logattr.Controller)),
 		port: port,
 		m:    controller.NanoKONTROL2,
 		poll: time.Second,
@@ -99,17 +100,18 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 		path, err := d.find()
 		if err != nil {
 			report(slog.LevelWarn, "controller not found; waiting for it to be plugged in",
-				"port", d.port, "sound_cards", cardList(d.procDir))
+				logattr.KeyPort, d.port, logattr.KeySoundCards, cardList(d.procDir))
 		} else if f, err := d.open(path); err != nil {
 			switch {
 			case errors.Is(err, syscall.EBUSY):
-				report(slog.LevelError, "the controller is in use by another program; retrying (close the other program, or see `fuser "+path+"`)",
-					"device", path) // HW-06
+				report(slog.LevelError, "the controller is in use by another program; retrying (`fuser <device>` names it)",
+					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerBusy, err)) // HW-06
 			case errors.Is(err, syscall.EACCES), errors.Is(err, syscall.EPERM):
 				report(slog.LevelError, "no permission to open the controller; see the README section on permissions",
-					"device", path, "err", err)
+					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerDenied, err))
 			default:
-				report(slog.LevelError, "cannot open the controller; retrying", "device", path, "err", err)
+				report(slog.LevelError, "cannot open the controller; retrying",
+					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerOpen, err))
 			}
 		} else {
 			lastProblem = ""
@@ -117,7 +119,7 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			d.log.Info("controller disconnected", "device", path, "reason", err)
+			d.log.Info("controller disconnected", logattr.KeyMIDIDevice, path, logattr.KeyDisconnected, reason(err))
 		}
 		select {
 		case <-ctx.Done():
@@ -138,12 +140,27 @@ func cardList(procDir string) string {
 func fmtArgs(args []any) string {
 	var b strings.Builder
 	for _, a := range args {
-		if s, ok := a.(string); ok {
-			b.WriteString(s)
+		switch v := a.(type) {
+		case string:
+			b.WriteString(v)
+		case slog.Attr:
+			b.WriteString(v.String())
 		}
 		b.WriteByte(0)
 	}
 	return b.String()
+}
+
+// reason says why a session ended, in a word or two: the device was unplugged,
+// or the read error's text.
+func reason(err error) string {
+	if errors.Is(err, syscall.ENODEV) || errors.Is(err, io.EOF) {
+		return "unplugged"
+	}
+	if err == nil {
+		return "unknown"
+	}
+	return err.Error()
 }
 
 // session reads one connected controller until it goes away or ctx ends.
@@ -161,9 +178,9 @@ func (d *Device) session(ctx context.Context, path string, f io.ReadWriteCloser,
 	stop := context.AfterFunc(ctx, func() { _ = f.Close() })
 	defer stop()
 
-	d.log.Info("controller connected", "device", path, "port", d.port)
+	d.log.Info("controller connected", logattr.KeyMIDIDevice, path, logattr.KeyPort, d.port)
 	d.log.Info("LEDs show mute and solo only when the controller's LED mode is set to External; "+
-		"buttons must be Momentary", "help", ledHelp) // HW-03
+		"buttons must be Momentary", logattr.KeyURL, ledHelp) // HW-03
 
 	send := func(ev mixer.Event) bool {
 		select {
@@ -206,7 +223,8 @@ func (d *Device) session(ctx context.Context, path string, f io.ReadWriteCloser,
 		p.Feed(buf[:n], func(cc controller.CC) {
 			d.channel.Store(uint32(cc.Channel))
 			if ev, known := d.m.Decode(cc); known && ok {
-				d.log.Debug("midi", "cc", cc.Controller, "value", cc.Value, "channel", cc.Channel+1)
+				d.log.Debug("midi message", logattr.KeyMIDICC, cc.Controller, logattr.KeyMIDIValue, cc.Value,
+					logattr.KeyMIDIChannel, cc.Channel+1)
 				ok = send(ev)
 			}
 		})

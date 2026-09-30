@@ -39,7 +39,8 @@ How the service is put together. Decisions and their reasons are in
 | `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`); reconnects; `apptrol list` data |
 | `internal/config` | TOML loading, validation (including overlap warnings), file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
-| `internal/logging` | Log outputs (journald, rotating file) and formats |
+| `internal/logging` | Log outputs (journald, rotating file) and formats; keeps every record on one line |
+| `internal/logattr` | Names of log attributes and error types, following the OpenTelemetry conventions (ADR 0016); explained for users in [`logging.md`](logging.md) |
 | `internal/version` | Build information |
 | `examples` | The example configuration, built into the binary for the first start (CFG-09) |
 
@@ -59,8 +60,9 @@ Bursts of slider events are coalesced before step 2 (CTRL-07): the loop reads ev
 already waiting, and of several positions of one control only the last is handled.
 
 The configuration file is checked once a second; after a change the loop reloads it
-(CFG-06). On SIGTERM or Ctrl+C the loop ends solo, saves the state and turns the LEDs off
-before the adapters are stopped (SVC-05, SVC-07, LED-08).
+(CFG-06). On SIGTERM or Ctrl+C the loop saves the state (including the solo, which the next
+start restores), ends solo and turns the LEDs off before the adapters are stopped (SVC-05,
+STATE-04, SVC-07, LED-08).
 
 ## Controller access
 

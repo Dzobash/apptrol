@@ -186,9 +186,26 @@ func TestSTATE05_BadEntriesAreSkipped(t *testing.T) {
 	}
 }
 
-func TestSTATE04_SoloIsNotInTheFormat(t *testing.T) {
+func TestSTATE04_Solo(t *testing.T) {
 	if strings.Contains(string(Encode(sample())), "solo") {
-		t.Error("state file mentions solo")
+		t.Error("state without solo mentions solo")
+	}
+	st := sample()
+	st.Solo = 3
+	data := Encode(st)
+	if !strings.Contains(string(data), `"solo": true`) {
+		t.Errorf("solo not written:\n%s", data)
+	}
+	got, warnings, err := Decode(data)
+	if err != nil || len(warnings) > 0 || got.Solo != 3 {
+		t.Errorf("Decode = %+v %q %v", got, warnings, err)
+	}
+
+	// Solo on a knob is ignored; of several solos the lowest column is kept.
+	got, warnings, err = Decode([]byte(`{"version":1,"layouts":{"default":{
+		"knob1":{"solo":true},"slider5":{"solo":true},"slider2":{"solo":true}}}}`))
+	if err != nil || got.Solo != 2 || len(warnings) != 2 {
+		t.Errorf("Decode = %+v %q %v", got, warnings, err)
 	}
 }
 

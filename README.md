@@ -73,6 +73,14 @@ what you're doing.
 `alsa-utils` is optional but handy for troubleshooting — `amidi -l` shows whether the
 controller is detected.
 
+**Tested on one system only.** So far, Apptrol has been tried on one real computer: the
+author's desktop with Kubuntu, KDE Plasma and PipeWire on an amd64 PC, with a Korg
+nanoKONTROL2 and a GoXLR Mini. The automated tests also run against PipeWire on Ubuntu in
+CI. Other distributions and desktops, PulseAudio instead of PipeWire, and the arm64
+packages should work, but nobody has tried them yet. If you run Apptrol somewhere else,
+please [open an issue](https://github.com/Dzobash/apptrol/issues) and say whether it
+worked — that helps everyone.
+
 **Controller settings.** The nanoKONTROL2 stores these itself; the factory defaults are
 fine except for the LED mode:
 
@@ -105,6 +113,13 @@ sudo apt install ./apptrol_*_amd64.deb      # Debian, Ubuntu, Kubuntu
 sudo dnf install ./apptrol-*.x86_64.rpm     # Fedora
 ```
 
+To upgrade, install the newer package the same way, then restart Apptrol (as your user):
+
+```bash
+systemctl --user daemon-reload
+systemctl --user restart apptrol
+```
+
 ## First steps
 
 1. **Write your configuration** in `~/.config/apptrol/config.toml`. Apptrol creates it from
@@ -127,6 +142,13 @@ sudo dnf install ./apptrol-*.x86_64.rpm     # Fedora
    ```bash
    journalctl --user -u apptrol -f
    ```
+   Each line says which part of Apptrol wrote it and, for your controls, which slider or
+   knob and which app it is about:
+   ```text
+   INFO muted apptrol.component=mixer apptrol.layout=default apptrol.control=slider2 apptrol.app.id=browser apptrol.app.name=Browser apptrol.app.type=app apptrol.button=M2
+   ```
+   [Reading Apptrol's logs](docs/logging.md) explains every part of a line and how to find
+   the lines you need.
 
 ## Known issues
 
@@ -149,6 +171,7 @@ Found another problem? Please [open an issue](https://github.com/Dzobash/apptrol
 - [Architecture](docs/architecture.md)
 - [Roadmap](docs/roadmap.md)
 - [Configuration reference](docs/config.md) and [example config](examples/config.toml)
+- [Reading the logs](docs/logging.md)
 - [Decision records](docs/adr/)
 - [Testing](docs/testing.md)
 - [Releasing](docs/releasing.md)
@@ -168,7 +191,7 @@ has not been audited.
 ## Disclaimer
 
 Apptrol is provided **as is, without warranty of any kind**, and you use it at your own
-risk. The authors are not responsible for any problems or damage that may result from using
+risk. It has been tested on one system only (see [Before you install](#before-you-install)). The authors are not responsible for any problems or damage that may result from using
 it — including changes to your audio setup or to your controller's settings (for example
 when using third-party tools such as SysEx Controls). The full terms are in the
 [MIT license](LICENSE).

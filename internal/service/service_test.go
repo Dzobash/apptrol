@@ -15,6 +15,7 @@ import (
 
 	"github.com/Dzobash/apptrol/examples"
 	"github.com/Dzobash/apptrol/internal/config"
+	"github.com/Dzobash/apptrol/internal/logattr"
 	"github.com/Dzobash/apptrol/internal/mixer"
 	"github.com/Dzobash/apptrol/internal/state"
 )
@@ -60,6 +61,7 @@ type fakeController struct {
 
 	mu   sync.Mutex
 	leds map[mixer.LED]bool
+	sets map[mixer.LED]int // how often each LED was set
 }
 
 func (f *fakeController) Run(ctx context.Context, out chan<- mixer.Event) error {
@@ -78,7 +80,17 @@ func (f *fakeController) SetLED(l mixer.LED, on bool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.leds[l] = on
+	if f.sets == nil {
+		f.sets = map[mixer.LED]int{}
+	}
+	f.sets[l]++
 	return nil
+}
+
+func (f *fakeController) setCount(l mixer.LED) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.sets[l]
 }
 
 func (f *fakeController) HasLED(l mixer.LED) bool { return l.Transport != mixer.TrackPrev }
@@ -212,12 +224,13 @@ func (e *env) start() *env {
 	o := Options{
 		ConfigPath:    e.cfg,
 		StatePath:     e.statePath(),
-		Log:           slog.New(slog.NewTextHandler(e.out, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Log:           slog.New(&checkHandler{t: e.t, inner: slog.NewTextHandler(e.out, &slog.HandlerOptions{Level: slog.LevelDebug})}),
 		Logs:          e.logs,
 		Audio:         e.audio,
 		NewController: func(port string) Controller { e.ctl.port = port; return e.ctl },
 		WatchInterval: 10 * time.Millisecond,
 		SaveDelay:     10 * time.Millisecond,
+		LEDResync:     20 * time.Millisecond,
 	}
 	go func() { e.done <- Run(ctx, o) }()
 	e.t.Cleanup(e.stop)
@@ -383,6 +396,22 @@ func TestCFG07_InvalidReloadKeepsSettings(t *testing.T) {
 	e.waitLog("the changed configuration is invalid")
 	e.send(slider(1, 0))
 	e.waitApplied(mixer.SetStreamVolume{StreamID: spotify.ID, Volume: 0})
+	// Two problems: one record each, on one line, with the component and the
+	// error type (LOG-10, LOG-12, LOG-13).
+	e.write(testConfig + "\n[apps.y]\nname = \"Y\"\ntype = \"bogus\"\nmatch = [\"y\"]\n[apps.z]\nname = \"Z\"\ntype = \"app\"\n")
+	e.eventually("two problem records", func() bool {
+		return strings.Count(e.out.String(), "error.type=config_invalid") >= 3
+	})
+	for _, l := range strings.Split(e.out.String(), "\n") {
+		if strings.Contains(l, "config_invalid") &&
+			(!strings.Contains(l, "apptrol.component=config") || !strings.Contains(l, "exception.message=")) {
+			t.Errorf("config problem record lacks component or message: %s", l)
+		}
+	}
+	e.send(slider(1, 64))
+	e.waitApplied(mixer.SetStreamVolume{StreamID: spotify.ID, Volume: 64.0 / 127})
+	e.send(slider(1, 0))
+	e.waitApplied(mixer.SetStreamVolume{StreamID: spotify.ID, Volume: 0})
 
 	if err := os.Remove(e.cfg); err != nil {
 		t.Fatal(err)
@@ -431,6 +460,9 @@ func TestSVC05_SVC07_Shutdown(t *testing.T) {
 	if err != nil || st.Positions[mixer.Control{Kind: mixer.Slider, Column: 2}] != 64 {
 		t.Errorf("state not saved on shutdown: %v %+v", err, st)
 	}
+	if st.Solo != 1 {
+		t.Errorf("saved solo = %d, want 1: the next start restores it (STATE-04)", st.Solo)
+	}
 	for _, want := range []string{"Apptrol stopping", "Apptrol stopped"} {
 		if !strings.Contains(e.out.String(), want) {
 			t.Errorf("log lacks %q", want)
@@ -459,4 +491,85 @@ func TestCTRL07_Coalesce(t *testing.T) {
 	if in[0] != (mixer.ControlMoved{Control: s1, Value: 1}) {
 		t.Error("Coalesce changed its input")
 	}
+}
+
+func TestLED07_LEDsResentAfterAudioReconnect(t *testing.T) {
+	e := newEnv(t, testConfig).start()
+	s1 := mixer.LED{Button: mixer.ButtonS, Column: 1}
+	e.send(mixer.ButtonPressed{Button: mixer.ButtonS, Column: 1})
+	e.eventually("S1 lit", func() bool { return e.ctl.led(s1) })
+	before := e.ctl.setCount(s1)
+	// The audio server comes back: the LEDs are sent at once and once more later.
+	e.send(e.audio.snapshot)
+	e.eventually("S1 sent twice more", func() bool { return e.ctl.setCount(s1) >= before+2 })
+	if !e.ctl.led(s1) {
+		t.Error("S1 dark after the audio server came back")
+	}
+}
+
+// checkHandler fails the test for any record that breaks ADR 0016: every
+// record names its component (LOG-10), attribute names follow the naming rules
+// (LOG-11), errors carry error.type (LOG-12), and the message is one line
+// (LOG-13).
+// kinds remembers the value type of every attribute name seen in any test.
+var (
+	kindsMu sync.Mutex
+	kinds   = map[string]slog.Kind{}
+)
+
+type checkHandler struct {
+	t     *testing.T
+	inner slog.Handler
+	attrs []slog.Attr
+}
+
+func (h *checkHandler) Enabled(ctx context.Context, l slog.Level) bool {
+	return h.inner.Enabled(ctx, l)
+}
+
+func (h *checkHandler) Handle(ctx context.Context, r slog.Record) error {
+	keys := map[string]bool{}
+	var walk func(a slog.Attr)
+	walk = func(a slog.Attr) {
+		if a.Key == "" && a.Value.Kind() == slog.KindGroup {
+			for _, g := range a.Value.Group() {
+				walk(g)
+			}
+			return
+		}
+		keys[a.Key] = true
+		if !logattr.ValidKey(a.Key) {
+			h.t.Errorf("record %q: attribute name %q breaks LOG-11", r.Message, a.Key)
+		}
+		// One type per name, so log stores such as Elasticsearch can map it (LOG-11).
+		kindsMu.Lock()
+		if k, seen := kinds[a.Key]; seen && k != a.Value.Kind() {
+			h.t.Errorf("record %q: %s is %v here but %v elsewhere", r.Message, a.Key, a.Value.Kind(), k)
+		}
+		kinds[a.Key] = a.Value.Kind()
+		kindsMu.Unlock()
+	}
+	for _, a := range h.attrs {
+		walk(a)
+	}
+	r.Attrs(func(a slog.Attr) bool { walk(a); return true })
+	if !keys[logattr.KeyComponent] {
+		h.t.Errorf("record %q has no %s (LOG-10)", r.Message, logattr.KeyComponent)
+	}
+	if r.Level >= slog.LevelError && !keys[logattr.KeyErrorType] {
+		h.t.Errorf("error record %q has no %s (LOG-12)", r.Message, logattr.KeyErrorType)
+	}
+	if strings.ContainsAny(r.Message, "\r\n") {
+		h.t.Errorf("record %q is not one line (LOG-13)", r.Message)
+	}
+	return h.inner.Handle(ctx, r)
+}
+
+func (h *checkHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &checkHandler{t: h.t, inner: h.inner.WithAttrs(attrs), attrs: append(append([]slog.Attr(nil), h.attrs...), attrs...)}
+}
+
+func (h *checkHandler) WithGroup(name string) slog.Handler {
+	h.t.Errorf("WithGroup(%q): groups would change attribute names", name)
+	return h
 }

@@ -11,13 +11,14 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	charm "github.com/charmbracelet/log"
 	"github.com/muesli/termenv"
 )
 
-const timeFormat = time.RFC3339
+// timeFormat is RFC 3339 with milliseconds, so that events within one second
+// keep their order when the log is collected elsewhere (Loki, Elasticsearch).
+const timeFormat = "2006-01-02T15:04:05.000Z07:00"
 
 func charmFormatter(format string) (charm.Formatter, error) {
 	switch format {

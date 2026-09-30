@@ -36,6 +36,7 @@ knob8   = "mic"
 			"mic":    {ID: "mic", Name: "Mic", Kind: mixer.Input, Match: []string{"GoXLR"}, MaxVolume: 1},
 			"unused": {ID: "unused", Name: "Unused", Kind: mixer.App, Match: []string{"x"}, MaxVolume: 1},
 		},
+		Layout: DefaultLayout,
 		Assignments: map[mixer.Control]string{
 			{Kind: mixer.Slider, Column: 1}: "music",
 			{Kind: mixer.Knob, Column: 8}:   "mic",

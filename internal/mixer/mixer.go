@@ -5,6 +5,8 @@ import (
 	"math"
 	"sort"
 	"strings"
+
+	"github.com/Dzobash/apptrol/internal/logattr"
 )
 
 // Mixer is Apptrol's state machine. It is not safe for concurrent use: the
@@ -33,9 +35,9 @@ type streamInfo struct {
 	muteKnown bool
 }
 
-// New creates a mixer for setup, restoring saved state (STATE-03). Saved
-// positions and mutes of controls that are no longer assigned are dropped
-// (STATE-07).
+// New creates a mixer for setup, restoring saved state (STATE-03, STATE-04).
+// Saved positions and mutes of controls that are no longer assigned are
+// dropped (STATE-07), and so is a solo whose column no longer holds an app.
 func New(setup Setup, saved State) *Mixer {
 	m := &Mixer{
 		positions:      map[Control]int{},
@@ -56,6 +58,9 @@ func New(setup Setup, saved State) *Mixer {
 		if _, ok := m.setup.Assignments[c]; ok && on && c.Kind == Slider && c.Valid() {
 			m.muted[c] = true
 		}
+	}
+	if id, ok := m.setup.Assignments[Control{Slider, saved.Solo}]; ok && m.setup.Targets[id].Kind == App {
+		m.solo = saved.Solo
 	}
 	return m
 }
@@ -81,9 +86,9 @@ func (m *Mixer) setSetup(s Setup) {
 }
 
 // Snapshot returns the state to persist (STATE-01): positions and user mutes of
-// assigned controls only (STATE-07). Solo is not included (STATE-04).
+// assigned controls only (STATE-07), and the soloed column (STATE-04).
 func (m *Mixer) Snapshot() State {
-	s := State{Positions: map[Control]int{}, Muted: map[Control]bool{}}
+	s := State{Positions: map[Control]int{}, Muted: map[Control]bool{}, Solo: m.solo}
 	for c, v := range m.positions {
 		if _, ok := m.setup.Assignments[c]; ok {
 			s.Positions[c] = v
@@ -117,9 +122,10 @@ func (m *Mixer) ControlOf(targetID string) (Control, bool) {
 }
 
 // Shutdown ends solo and returns the actions that undo its silencing, so no app
-// stays muted by a solo that is never saved (SVC-07, STATE-04). The audio
-// server remembers mutes per app, so without this an app silenced by solo
-// would stay muted even after Apptrol and the app restart.
+// stays muted while Apptrol is not running (SVC-07). The audio server
+// remembers mutes per app, so without this an app silenced by solo would stay
+// muted even after Apptrol exits. Take the Snapshot before calling Shutdown:
+// the saved state keeps the solo, and the next start restores it (STATE-04).
 func (m *Mixer) Shutdown() []Action {
 	var a actions
 	if m.solo != 0 {
@@ -140,10 +146,14 @@ func (m *Mixer) Handle(ev Event) []Action {
 		m.buttonPressed(&a, e)
 	case TransportPressed:
 		// BTN-01: reserved for later phases.
+		a.notice(slog.LevelDebug, "button has no function yet", logattr.KeyButton, e.Button.String())
 	case ControllerConnected:
 		m.syncLEDs(&a, true) // LED-07
 	case AudioSnapshot:
 		m.audioSnapshot(&a, e)
+		// A restart of PipeWire can reset the controller's LEDs: the audio
+		// server may open the controller's MIDI port too (LED-07).
+		m.syncLEDs(&a, true)
 	case StreamAdded:
 		m.streamAdded(&a, e.Stream)
 	case StreamRemoved:
@@ -196,7 +206,7 @@ func (m *Mixer) controlMoved(a *actions, e ControlMoved) {
 			a.add(SetDeviceVolume{Device: dev, Volume: vol}) // CTRL-05
 		}
 	}
-	a.notice(slog.LevelDebug, "volume", "control", e.Control.String(), "app", id, "percent", int(math.Round(vol*100)))
+	a.notice(slog.LevelDebug, "volume changed", m.about(e.Control, logattr.KeyVolume, int(math.Round(vol*100)))...)
 	a.add(StateChanged{})
 }
 
@@ -238,53 +248,86 @@ func (m *Mixer) buttonPressed(a *actions, e ButtonPressed) {
 	if e.Column < 1 || e.Column > NumColumns {
 		return
 	}
+	button := LED{Button: e.Button, Column: e.Column}.String()
 	switch e.Button {
 	case ButtonM:
-		m.toggleMute(a, e.Column)
+		m.toggleMute(a, e.Column, button)
 	case ButtonS:
-		m.toggleSolo(a, e.Column)
+		m.toggleSolo(a, e.Column, button)
 	case ButtonR:
 		// BTN-01: reserved.
+		a.notice(slog.LevelDebug, "button has no function yet", m.about(Control{Slider, e.Column}, logattr.KeyButton, button)...)
 	}
 }
 
+// about returns the log attributes that say which control a record is about:
+// the layout, the control and, if the control is assigned, the app on it
+// (LOG-14). extra attributes follow.
+func (m *Mixer) about(c Control, extra ...any) []any {
+	layout := m.setup.Layout
+	if layout == "" {
+		layout = "default"
+	}
+	attrs := []any{logattr.KeyLayout, layout, logattr.KeyControl, c.String()}
+	if id, ok := m.setup.Assignments[c]; ok {
+		t := m.setup.Targets[id]
+		attrs = append(attrs, logattr.KeyAppID, id, logattr.KeyApp, t.Name, logattr.KeyAppType, t.Kind.String())
+	}
+	return append(attrs, extra...)
+}
+
+// aboutTarget is about for the control target id is on.
+func (m *Mixer) aboutTarget(id string, extra ...any) []any {
+	return m.about(m.controlOf[id], extra...)
+}
+
 // toggleMute flips the user mute of the slider column's target (MUTE-01).
-func (m *Mixer) toggleMute(a *actions, col int) {
+func (m *Mixer) toggleMute(a *actions, col int, button string) {
 	c := Control{Slider, col}
-	id, ok := m.setup.Assignments[c]
+	_, ok := m.setup.Assignments[c]
 	if !ok {
+		a.notice(slog.LevelDebug, "button has no function: no app on this column", m.about(c, logattr.KeyButton, button)...)
 		return // MUTE-03
 	}
 	m.muted[c] = !m.muted[c]
 	if !m.muted[c] {
 		delete(m.muted, c)
 	}
-	t := m.setup.Targets[id]
+	msg := "unmuted"
 	if m.muted[c] {
-		a.notice(slog.LevelInfo, "muted", "app", t.Name, "control", c.String())
-	} else {
-		a.notice(slog.LevelInfo, "unmuted", "app", t.Name, "control", c.String())
+		msg = "muted"
 	}
+	a.notice(slog.LevelInfo, msg, m.about(c, logattr.KeyButton, button)...)
 	m.applyMutes(a) // MUTE-04, MUTE-05
 	m.syncLEDs(a, false)
 	a.add(StateChanged{})
 }
 
 // toggleSolo implements the exclusive solo toggle (SOLO-01 … SOLO-07).
-func (m *Mixer) toggleSolo(a *actions, col int) {
-	id, ok := m.setup.Assignments[Control{Slider, col}]
+func (m *Mixer) toggleSolo(a *actions, col int, button string) {
+	c := Control{Slider, col}
+	id, ok := m.setup.Assignments[c]
 	if !ok || m.setup.Targets[id].Kind != App {
-		return // SOLO-07: S on an input column (or an empty one) does nothing
+		// SOLO-07: S on an input column (or an empty one) does nothing
+		a.notice(slog.LevelDebug, "button has no function: solo needs an app on this column", m.about(c, logattr.KeyButton, button)...)
+		return
 	}
-	if m.solo == col {
+	switch {
+	case m.solo == col:
 		m.solo = 0 // SOLO-05
-		a.notice(slog.LevelInfo, "solo off", "app", m.setup.Targets[id].Name)
-	} else {
-		m.solo = col // SOLO-01, SOLO-04
-		a.notice(slog.LevelInfo, "solo on", "app", m.setup.Targets[id].Name, "control", Control{Slider, col}.String())
+		a.notice(slog.LevelInfo, "solo off", m.about(c, logattr.KeyButton, button)...)
+	case m.solo != 0:
+		prev := Control{Slider, m.solo}
+		m.solo = col // SOLO-04
+		a.notice(slog.LevelInfo, "solo moved", m.about(c, logattr.KeyButton, button,
+			logattr.KeySoloFrom, prev.String(), logattr.KeySoloFromApp, m.setup.Targets[m.setup.Assignments[prev]].Name)...)
+	default:
+		m.solo = col // SOLO-01
+		a.notice(slog.LevelInfo, "solo on", m.about(c, logattr.KeyButton, button)...)
 	}
 	m.applyMutes(a)
 	m.syncLEDs(a, false)
+	a.add(StateChanged{})
 }
 
 // effectiveMute: a target is muted when user-muted, or when solo is on and it is
@@ -408,8 +451,7 @@ func (m *Mixer) streamAdded(a *actions, s Stream) {
 	}
 	if info.target != "" {
 		c := m.controlOf[info.target]
-		a.notice(slog.LevelInfo, "stream matched", "app", m.setup.Targets[info.target].Name,
-			"control", c.String(), "stream", s.ID, "name", s.AppName)
+		a.notice(slog.LevelInfo, "stream matched", m.about(c, streamAttrs(s)...)...)
 	}
 	m.applyStream(a, info)
 }
@@ -436,8 +478,8 @@ func (m *Mixer) audioSnapshot(a *actions, e AudioSnapshot) {
 	m.chooseDevices(a)
 	for _, id := range m.inputTargets() {
 		if _, ok := m.deviceFor[id]; !ok {
-			a.notice(slog.LevelWarn, "no input device matches", "app", m.setup.Targets[id].Name,
-				"match", strings.Join(m.setup.Targets[id].Match, ", "))
+			a.notice(slog.LevelWarn, "no input device matches", m.aboutTarget(id,
+				logattr.KeyMatch, strings.Join(m.setup.Targets[id].Match, ", "))...)
 		}
 	}
 	for _, s := range e.Streams {
@@ -498,12 +540,11 @@ func (m *Mixer) chooseDevices(a *actions) {
 		}
 		chosen[id] = pick
 		if pick != cur {
-			t := m.setup.Targets[id]
-			a.notice(slog.LevelInfo, "input matched", "app", t.Name, "device", m.devices[pick].Description,
-				"control", m.controlOf[id].String())
+			a.notice(slog.LevelInfo, "input matched", m.aboutTarget(id,
+				logattr.KeyDeviceDescription, m.devices[pick].Description, logattr.KeyDeviceName, pick)...)
 			if len(matches) > 1 {
-				a.notice(slog.LevelWarn, "several input devices match; using the first. Make the match more specific: `apptrol list` shows each device's unique name", "app", t.Name,
-					"using", pick, "matches", strings.Join(matches, ", "))
+				a.notice(slog.LevelWarn, "several input devices match; using the first (make the match more specific: `apptrol list` shows each device's unique name)",
+					m.aboutTarget(id, logattr.KeyDeviceName, pick, logattr.KeyDeviceMatches, strings.Join(matches, ", "))...)
 			}
 			if v, ok := m.positions[m.controlOf[id]]; ok {
 				a.add(SetDeviceVolume{Device: pick, Volume: m.volume(id, v)})
@@ -568,8 +609,7 @@ func (m *Mixer) configChanged(a *actions, s Setup) {
 		// Re-apply when the stream's app, the app's control or its max_volume changed.
 		if info.target != before || (info.target != "" && m.controlOf[info.target] != beforeControl) || maxChanged(info.target) {
 			if info.target != "" {
-				a.notice(slog.LevelInfo, "stream matched", "app", m.setup.Targets[info.target].Name,
-					"control", m.controlOf[info.target].String(), "stream", info.ID, "name", info.AppName)
+				a.notice(slog.LevelInfo, "stream matched", m.aboutTarget(info.target, streamAttrs(info.Stream)...)...)
 			}
 			m.applyStream(a, info)
 		}
@@ -617,4 +657,14 @@ func (m *Mixer) sortedStreams() []*streamInfo {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out
+}
+
+// streamAttrs are the log attributes of a stream; the binary only when the
+// app reports one.
+func streamAttrs(s Stream) []any {
+	attrs := []any{logattr.KeyStreamID, s.ID, logattr.KeyStreamName, s.AppName}
+	if s.Binary != "" {
+		attrs = append(attrs, logattr.KeyExecutableName, s.Binary)
+	}
+	return attrs
 }

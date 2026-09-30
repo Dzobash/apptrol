@@ -1,18 +1,21 @@
 // Package state saves and restores what Apptrol remembers between runs: the
-// last known position of each control and the user mutes (STATE-01).
+// last known position of each control, the user mutes (STATE-01) and the solo
+// (STATE-04).
 //
 // The file is JSON, written atomically (STATE-02), at
-// $XDG_STATE_HOME/apptrol/state.json (STATE-06). Solo is never saved (STATE-04).
+// $XDG_STATE_HOME/apptrol/state.json (STATE-06).
 //
 //	{
 //	  "version": 1,
 //	  "layouts": {
 //	    "default": {
-//	      "slider1": { "position": 90 },
+//	      "slider1": { "position": 90, "solo": true },
 //	      "slider8": { "position": 100, "muted": true }
 //	    }
 //	  }
 //	}
+//
+// "solo" was added in 0.1.0-rc3 without a new version: older versions ignore it.
 package state
 
 import (
@@ -45,6 +48,7 @@ type fileJSON struct {
 type controlJSON struct {
 	Position *int `json:"position,omitempty"` // absent: position unknown
 	Muted    bool `json:"muted,omitempty"`
+	Solo     bool `json:"solo,omitempty"`
 }
 
 // Load reads the state file. A missing file returns an error that wraps
@@ -74,6 +78,7 @@ func Decode(data []byte) (mixer.State, []string, error) {
 
 	st := emptyState()
 	var warnings []string
+	soloCount := 0
 	for name, c := range f.Layouts[Layout] {
 		ctl, ok := mixer.ParseControl(name)
 		if !ok {
@@ -94,6 +99,19 @@ func Decode(data []byte) (mixer.State, []string, error) {
 				st.Muted[ctl] = true
 			}
 		}
+		if c.Solo {
+			if ctl.Kind != mixer.Slider {
+				warnings = append(warnings, fmt.Sprintf("state: ignoring solo of %s (only slider columns can be soloed)", name))
+			} else {
+				soloCount++
+				if st.Solo == 0 || ctl.Column < st.Solo {
+					st.Solo = ctl.Column // several: keep the lowest, as the map order is random
+				}
+			}
+		}
+	}
+	if soloCount > 1 {
+		warnings = append(warnings, fmt.Sprintf("state: several controls are soloed; keeping slider%d", st.Solo))
 	}
 	return st, warnings, nil
 }
@@ -113,6 +131,12 @@ func Encode(st mixer.State) []byte {
 			e.Muted = true
 			controls[c.String()] = e
 		}
+	}
+	if st.Solo != 0 {
+		name := mixer.Control{Kind: mixer.Slider, Column: st.Solo}.String()
+		e := controls[name]
+		e.Solo = true
+		controls[name] = e
 	}
 	f := fileJSON{Version: formatVersion, Layouts: map[string]map[string]controlJSON{Layout: controls}}
 	data, err := json.MarshalIndent(f, "", "  ")

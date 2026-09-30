@@ -3,6 +3,7 @@ package logging
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,8 +12,10 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/Dzobash/apptrol/internal/config"
+	"github.com/Dzobash/apptrol/internal/logattr"
 )
 
 // syncBuffer is a bytes.Buffer safe for concurrent writes.
@@ -128,13 +131,41 @@ func TestLOG05_JournaldPriorityPrefixes(t *testing.T) {
 	}
 }
 
-func TestLOG05_JournaldMultiLineMessagesArePrefixedPerLine(t *testing.T) {
+func TestLOG13_EveryRecordIsOneLine(t *testing.T) {
+	for _, format := range []string{"text", "logfmt", "json"} {
+		t.Run(format, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "apptrol.log")
+			cfg := baseConfig()
+			cfg.Outputs = []string{config.OutputFile}
+			cfg.File = config.FileOutput{Path: path, Format: format, MaxSize: 1 << 20, MaxFiles: 1}
+			m, _ := newManager(t, cfg, true)
+			l := m.Logger().With(logattr.Component(logattr.Config))
+			l.Error("config invalid:\n  - problem one",
+				logattr.Error(logattr.ErrConfigInvalid, errors.New("file: 2 problems\n  - a\n  - b")),
+				"plain", fmt.Errorf("wrapped:\n%w", errors.New("inner")))
+			if err := m.Close(); err != nil {
+				t.Fatal(err)
+			}
+			got := lines(readFile(t, path))
+			if len(got) != 1 {
+				t.Fatalf("%d lines:\n%s", len(got), strings.Join(got, "\n"))
+			}
+			for _, want := range []string{"apptrol.component", "config", "error.type", "config_invalid",
+				"exception.message", "file: 2 problems; a; b", "config invalid:; problem one", "wrapped:; inner"} {
+				if !strings.Contains(got[0], want) {
+					t.Errorf("record lacks %q: %s", want, got[0])
+				}
+			}
+		})
+	}
+}
+
+func TestLOG05_JournaldOneLinePerRecord(t *testing.T) {
 	m, out := newManager(t, baseConfig(), true)
 	m.Logger().Error("config invalid:\n  - problem one\n  - problem two")
-	for _, line := range lines(out.String()) {
-		if !strings.HasPrefix(line, "<3>") {
-			t.Errorf("line without priority prefix: %q", line)
-		}
+	got := lines(out.String())
+	if len(got) != 1 || !strings.HasPrefix(got[0], "<3>") {
+		t.Errorf("journal lines = %q", got)
 	}
 }
 
@@ -173,9 +204,10 @@ func TestLOG05_TerminalModeHasTimestamps(t *testing.T) {
 	if !strings.Contains(got, "hello") || !strings.Contains(got, "INFO") {
 		t.Errorf("terminal output = %q", got)
 	}
-	// RFC 3339 timestamp, e.g. 2026-09-29T15:04:05+02:00
-	if !strings.Contains(strings.Fields(got)[0], "T") {
-		t.Errorf("want a timestamp first, got %q", got)
+	// RFC 3339 timestamp with milliseconds, e.g. 2026-09-29T15:04:05.123+02:00
+	ts := strings.Fields(got)[0]
+	if _, err := time.Parse(time.RFC3339, ts); err != nil || len(ts) < len("2006-01-02T15:04:05.000Z") || ts[19] != '.' {
+		t.Errorf("want a timestamp with milliseconds first, got %q", got)
 	}
 }
 

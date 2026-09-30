@@ -18,6 +18,7 @@ import (
 	"github.com/Dzobash/apptrol/internal/audio/pulse"
 	"github.com/Dzobash/apptrol/internal/config"
 	"github.com/Dzobash/apptrol/internal/controller/rawmidi"
+	"github.com/Dzobash/apptrol/internal/logattr"
 	"github.com/Dzobash/apptrol/internal/mixer"
 	"github.com/Dzobash/apptrol/internal/state"
 	"github.com/Dzobash/apptrol/internal/version"
@@ -58,22 +59,30 @@ type Options struct {
 	// state is saved at most once per second.
 	WatchInterval time.Duration
 	SaveDelay     time.Duration
+	LEDResync     time.Duration // zero: audioLEDResync
 }
 
 // maxBatch bounds how many queued events are read before handling them.
 const maxBatch = 256
 
+// audioLEDResync is how long after the audio server (re)connects the LEDs are
+// sent once more. A restart of PipeWire can reset the controller's LEDs while
+// its MIDI support starts up, which may end after the audio server accepts
+// connections (LED-07).
+const audioLEDResync = 2 * time.Second
+
 type service struct {
 	o     Options
-	log   *slog.Logger
+	log   *slog.Logger // apptrol.component=service; see logFor for the others
+	logs  map[string]*slog.Logger
 	m     *mixer.Mixer
 	ctl   Controller
 	port  string
 	saver *state.Saver
 }
 
-// Run runs Apptrol until ctx is canceled (SIGTERM or Ctrl+C), then ends solo,
-// saves the state, turns the LEDs off and returns (SVC-05, SVC-07).
+// Run runs Apptrol until ctx is canceled (SIGTERM or Ctrl+C), then saves the
+// state, ends solo, turns the LEDs off and returns (SVC-05, SVC-07).
 func Run(ctx context.Context, o Options) error {
 	if o.WatchInterval == 0 {
 		o.WatchInterval = time.Second
@@ -81,9 +90,13 @@ func Run(ctx context.Context, o Options) error {
 	if o.SaveDelay == 0 {
 		o.SaveDelay = state.DefaultDelay
 	}
-	s := &service{o: o, log: o.Log}
+	if o.LEDResync == 0 {
+		o.LEDResync = audioLEDResync
+	}
+	s := &service{o: o, logs: map[string]*slog.Logger{}}
+	s.log = s.logFor(logattr.Service)
 	ver, _, _ := version.Info()
-	s.log.Info("Apptrol starting", "version", ver, "config", o.ConfigPath)
+	s.log.Info("Apptrol starting", logattr.KeyServiceName, "apptrol", logattr.KeyServiceVersion, ver)
 
 	cfg, cfgData := s.loadConfig()
 	setup := mixer.Setup{}
@@ -96,7 +109,8 @@ func Run(ctx context.Context, o Options) error {
 	saved := s.loadState()
 	s.m = mixer.New(setup, saved)
 	s.saver = state.NewSaver(o.StatePath, o.SaveDelay, func(err error) {
-		s.log.Warn("could not save the state", "file", o.StatePath, "err", err)
+		s.logFor(logattr.State).Warn("could not save the state",
+			logattr.KeyFilePath, o.StatePath, logattr.Error(logattr.ErrStateNotSaved, err))
 	})
 	s.saver.Loaded(saved)
 	s.ctl = o.NewController(s.port)
@@ -120,6 +134,7 @@ func Run(ctx context.Context, o Options) error {
 	}
 
 	s.log.Info("Apptrol running")
+	var ledResync <-chan time.Time // see audioLEDResync
 	for {
 		select {
 		case <-ctx.Done():
@@ -130,6 +145,9 @@ func Run(ctx context.Context, o Options) error {
 			return nil
 		case ch := <-changes:
 			s.configChanged(ch)
+		case <-ledResync:
+			ledResync = nil
+			s.handle(mixer.ControllerConnected{Resync: true})
 		case ev := <-events:
 			batch := []mixer.Event{ev}
 		more:
@@ -142,6 +160,9 @@ func Run(ctx context.Context, o Options) error {
 				}
 			}
 			for _, e := range Coalesce(batch) {
+				if _, ok := e.(mixer.AudioSnapshot); ok {
+					ledResync = time.After(o.LEDResync)
+				}
 				s.handle(e)
 			}
 		}
@@ -153,31 +174,62 @@ func Run(ctx context.Context, o Options) error {
 // assignments until the file is fixed (CFG-07). It returns the configuration
 // (nil if none is valid) and the file contents it read.
 func (s *service) loadConfig() (*config.Config, []byte) {
+	log := s.logFor(logattr.Config)
 	path := s.o.ConfigPath
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		if werr := writeExample(path); werr != nil {
-			s.log.Error("no configuration file, and the example could not be created", "file", path, "err", werr)
+			log.Error("no configuration file, and the example could not be created",
+				logattr.KeyFilePath, path, logattr.Error(logattr.ErrExampleNotCreated, werr))
 			return nil, nil
 		}
-		s.log.Info("created an example configuration; edit it to assign your apps", "file", path)
+		log.Info("created an example configuration; edit it to assign your apps", logattr.KeyFilePath, path)
 		data, err = os.ReadFile(path)
 	}
 	if err != nil {
-		s.log.Error("cannot read the configuration", "file", path, "err", err)
+		log.Error("cannot read the configuration", logattr.KeyFilePath, path, logattr.Error(logattr.ErrConfigUnreadable, err))
 		return nil, nil
 	}
 	cfg, warnings, err := config.Parse(path, data)
 	if err != nil {
-		s.log.Error("invalid configuration; waiting for a valid one (run `apptrol check`)", "err", err)
+		s.invalidConfig("invalid configuration; waiting for a valid one (run `apptrol check`)", path, err)
 		return nil, data
 	}
-	s.log.Info("configuration loaded", "file", path, "controls", len(cfg.Layout().Assignments))
+	log.Info("configuration loaded", logattr.KeyFilePath, path, logattr.KeyControls, len(cfg.Layout().Assignments))
 	s.applyLogging(cfg)
-	for _, w := range warnings {
-		s.log.Warn("configuration: " + w)
-	}
+	s.configWarnings(path, warnings)
 	return cfg, data
+}
+
+// logFor returns the logger for a component: every record says which part of
+// Apptrol it comes from (LOG-10).
+func (s *service) logFor(component string) *slog.Logger {
+	l, ok := s.logs[component]
+	if !ok {
+		l = s.o.Log.With(logattr.Component(component))
+		s.logs[component] = l
+	}
+	return l
+}
+
+// invalidConfig logs one record per problem of an invalid configuration, so
+// each stays on one line and can be read on its own (LOG-13).
+func (s *service) invalidConfig(msg, path string, err error) {
+	log := s.logFor(logattr.Config)
+	var ve *config.ValidationError
+	if !errors.As(err, &ve) {
+		log.Error(msg, logattr.KeyFilePath, path, logattr.Error(logattr.ErrConfigInvalid, err))
+		return
+	}
+	for _, p := range ve.Problems {
+		log.Error(msg, logattr.KeyFilePath, path, logattr.Error(logattr.ErrConfigInvalid, errors.New(p)))
+	}
+}
+
+func (s *service) configWarnings(path string, warnings []string) {
+	for _, w := range warnings {
+		s.logFor(logattr.Config).Warn("configuration warning", logattr.KeyFilePath, path, logattr.KeyWarning, w)
+	}
 }
 
 // writeExample creates the example configuration, but never overwrites a file.
@@ -201,52 +253,61 @@ func (s *service) applyLogging(cfg *config.Config) {
 		return
 	}
 	if err := s.o.Logs.Reconfigure(cfg.Log); err != nil {
-		s.log.Error("could not apply the log settings", "err", err)
+		s.logFor(logattr.Config).Error("could not apply the log settings", logattr.Error(logattr.ErrLogSetup, err))
 	}
 }
 
 // loadState restores positions and mutes (STATE-03); a missing or damaged
 // file means starting without them (STATE-05).
 func (s *service) loadState() mixer.State {
-	st, warnings, err := state.Load(s.o.StatePath)
+	log := s.logFor(logattr.State)
+	path := s.o.StatePath
+	st, warnings, err := state.Load(path)
 	switch {
 	case state.IsFirstStart(err):
-		s.log.Debug("no saved state yet", "file", s.o.StatePath)
+		log.Debug("no saved state yet", logattr.KeyFilePath, path)
 	case err != nil:
-		s.log.Warn("cannot use the saved state; starting without it", "file", s.o.StatePath, "err", err)
+		log.Warn("cannot use the saved state; starting without it",
+			logattr.KeyFilePath, path, logattr.Error(logattr.ErrStateUnreadable, err))
 	default:
-		s.log.Info("state restored", "file", s.o.StatePath, "positions", len(st.Positions), "mutes", len(st.Muted))
+		solo := ""
+		if st.Solo != 0 {
+			solo = mixer.Control{Kind: mixer.Slider, Column: st.Solo}.String()
+		}
+		log.Info("state restored", logattr.KeyFilePath, path,
+			logattr.KeyPositions, len(st.Positions), logattr.KeyMutes, len(st.Muted), logattr.KeySolo, solo)
 	}
 	for _, w := range warnings {
-		s.log.Warn(w)
+		log.Warn("saved state warning", logattr.KeyFilePath, path, logattr.KeyWarning, w)
 	}
 	return st
 }
 
 // configChanged handles a change of the configuration file (CFG-06, CFG-07).
 func (s *service) configChanged(ch config.Change) {
+	log := s.logFor(logattr.Config)
 	path := s.o.ConfigPath
 	switch {
 	case ch.Removed:
-		s.log.Warn("the configuration file was removed; keeping the current settings", "file", path)
+		log.Warn("the configuration file was removed; keeping the current settings",
+			logattr.KeyFilePath, path, logattr.Error(logattr.ErrConfigRemoved, nil))
 		return
 	case ch.Err != nil:
-		s.log.Error("cannot read the changed configuration; keeping the current settings", "file", path, "err", ch.Err)
+		log.Error("cannot read the changed configuration; keeping the current settings",
+			logattr.KeyFilePath, path, logattr.Error(logattr.ErrConfigUnreadable, ch.Err))
 		return
 	}
 	cfg, warnings, err := config.Parse(path, ch.Data)
 	if err != nil {
-		s.log.Error("the changed configuration is invalid; keeping the current settings", "err", err)
+		s.invalidConfig("the changed configuration is invalid; keeping the current settings", path, err)
 		return
 	}
-	s.log.Info("configuration reloaded", "file", path, "controls", len(cfg.Layout().Assignments))
+	log.Info("configuration reloaded", logattr.KeyFilePath, path, logattr.KeyControls, len(cfg.Layout().Assignments))
 	s.applyLogging(cfg)
-	for _, w := range warnings {
-		s.log.Warn("configuration: " + w)
-	}
+	s.configWarnings(path, warnings)
 	if cfg.Controller.Port != s.port {
-		s.log.Warn("the controller setting changed; restart Apptrol to use it",
-			"port", cfg.Controller.Port, "in_use", s.port)
+		log.Warn("the controller setting changed; restart Apptrol to use it",
+			logattr.KeyPort, cfg.Controller.Port, logattr.KeyPortInUse, s.port)
 	}
 	s.handle(mixer.ConfigChanged{Setup: cfg.Setup()})
 }
@@ -267,31 +328,38 @@ func (s *service) do(a mixer.Action) {
 		case pulse.IsGone(err), errors.Is(err, pulse.ErrNotConnected):
 			// The app just ended, or the audio server is away; everything is
 			// applied again when it returns (SVC-04).
-			s.log.Debug("audio change not applied", "action", fmt.Sprintf("%T", a), "err", err)
+			s.logFor(logattr.Audio).Debug("audio change not applied",
+				logattr.KeyAction, fmt.Sprintf("%+v", a), logattr.Error(logattr.ErrAudioApply, err))
 		default:
-			s.log.Warn("could not change the audio setting", "action", fmt.Sprintf("%+v", a), "err", err)
+			s.logFor(logattr.Audio).Warn("could not change the audio setting",
+				logattr.KeyAction, fmt.Sprintf("%+v", a), logattr.Error(logattr.ErrAudioApply, err))
 		}
 	case mixer.SetLED:
 		if err := s.ctl.SetLED(a.LED, a.On); err != nil && !errors.Is(err, rawmidi.ErrNotConnected) {
-			s.log.Debug("could not set an LED", "led", a.LED.String(), "err", err)
+			s.logFor(logattr.Controller).Debug("could not set an LED",
+				logattr.KeyLED, a.LED.String(), logattr.Error(logattr.ErrLEDFailed, err))
 		}
 	case mixer.StateChanged:
 		s.saver.Request(s.m.Snapshot())
 	case mixer.Notice:
-		s.log.Log(context.Background(), a.Level, a.Msg, a.Attrs...)
+		s.logFor(logattr.Mixer).Log(context.Background(), a.Level, a.Msg, a.Attrs...)
 	}
 }
 
-// shutdown ends solo so no app stays silenced by it (SVC-07), saves the state
-// (SVC-05) and turns every LED off (LED-08).
+// shutdown saves the state (SVC-05), ends solo so no app stays silenced by it
+// while Apptrol is not running (SVC-07) and turns every LED off (LED-08).
 func (s *service) shutdown() {
 	s.log.Info("Apptrol stopping")
-	for _, a := range s.m.Shutdown() {
-		s.do(a)
-	}
+	// Save before ending solo: the next start restores it (STATE-04).
 	s.saver.Request(s.m.Snapshot())
+	for _, a := range s.m.Shutdown() {
+		if _, ok := a.(mixer.StateChanged); !ok {
+			s.do(a)
+		}
+	}
 	if err := s.saver.Flush(); err != nil {
-		s.log.Error("could not save the state", "file", s.o.StatePath, "err", err)
+		s.logFor(logattr.State).Error("could not save the state",
+			logattr.KeyFilePath, s.o.StatePath, logattr.Error(logattr.ErrStateNotSaved, err))
 	}
 	for col := 1; col <= mixer.NumColumns; col++ {
 		for _, b := range []mixer.ButtonKind{mixer.ButtonS, mixer.ButtonM, mixer.ButtonR} {

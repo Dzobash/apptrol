@@ -171,7 +171,7 @@ func TestMUTE02_KnobAppsHaveNoMute(t *testing.T) {
 func TestMUTE03_MOnEmptyColumnDoesNothing(t *testing.T) {
 	w := started(t)
 	w.press(ButtonM, 5)
-	if len(w.last) != 0 {
+	if len(effects(w.last)) != 0 {
 		t.Errorf("actions for M on an empty column: %v", w.last)
 	}
 }
@@ -241,7 +241,7 @@ func TestSOLO06_SoloedAppKeepsItsOwnMute(t *testing.T) {
 func TestSOLO07_SOnInputColumnDoesNothing(t *testing.T) {
 	w := started(t)
 	w.press(ButtonS, 8)
-	if len(w.last) != 0 {
+	if len(effects(w.last)) != 0 {
 		t.Errorf("S on the input column produced %v", w.last)
 	}
 	w.wantMuted(false, spotify.ID)
@@ -315,12 +315,12 @@ func TestBTN01_ReservedButtonsDoNothing(t *testing.T) {
 	w.press(ButtonR, 1)
 	for _, tr := range AllTransport {
 		w.do(TransportPressed{tr})
-		if len(w.last) != 0 {
+		if len(effects(w.last)) != 0 {
 			t.Errorf("%v produced %v", tr, w.last)
 		}
 	}
 	w.do(ButtonPressed{ButtonM, 0}, ButtonPressed{ButtonM, 9})
-	if len(w.last) != 0 {
+	if len(effects(w.last)) != 0 {
 		t.Errorf("out-of-range columns produced %v", w.last)
 	}
 }
@@ -357,12 +357,47 @@ func TestSTATE03_RestoredStateIsApplied(t *testing.T) {
 	}
 }
 
-func TestSTATE04_SoloIsNotSaved(t *testing.T) {
+func TestSTATE04_SoloIsSavedAndRestored(t *testing.T) {
 	w := started(t)
 	w.press(ButtonS, 1)
-	w2 := newWorld(t, testSetup(), w.m.Snapshot())
-	w2.do(AudioSnapshot{Streams: []Stream{firefox}})
-	w2.wantMuted(false, firefox.ID)
+	saved := w.m.Snapshot()
+	if saved.Solo != 1 {
+		t.Fatalf("Snapshot().Solo = %d, want 1", saved.Solo)
+	}
+	w2 := newWorld(t, testSetup(), saved)
+	w2.do(ControllerConnected{})
+	w2.do(AudioSnapshot{Streams: []Stream{spotify, firefox}})
+	w2.wantMuted(true, firefox.ID)
+	w2.wantMuted(false, spotify.ID)
+	w2.wantLEDs(1, true, false, false)
+	if w2.m.Snapshot().Solo != 1 {
+		t.Error("restored solo not in the next snapshot")
+	}
+}
+
+func TestSTATE04_SoloChangesTheState(t *testing.T) {
+	w := started(t)
+	for _, want := range []int{1, 0} {
+		changed := false
+		for _, a := range w.m.Handle(ButtonPressed{ButtonS, 1}) {
+			_, ok := a.(StateChanged)
+			changed = changed || ok
+		}
+		if !changed {
+			t.Errorf("solo %d: no StateChanged", want)
+		}
+		if got := w.m.Snapshot().Solo; got != want {
+			t.Errorf("Snapshot().Solo = %d, want %d", got, want)
+		}
+	}
+}
+
+func TestSTATE04_SavedSoloOnlyOnAnAppColumn(t *testing.T) {
+	for _, col := range []int{8, 5, 9, -1} { // input column, empty column, out of range
+		if got := New(testSetup(), State{Solo: col}).Snapshot().Solo; got != 0 {
+			t.Errorf("saved solo %d restored as %d", col, got)
+		}
+	}
 }
 
 func TestSTATE07_UnassignedControlsAreDropped(t *testing.T) {
@@ -394,7 +429,7 @@ func TestStreamPropertyChangeCanMoveItToAnotherApp(t *testing.T) {
 	w.do(StreamAdded{Stream{ID: viber.ID, AppName: "Vesktop"}}) // same id, now matches discord
 	w.wantMuted(true, viber.ID)
 	w.do(StreamAdded{Stream{ID: viber.ID, AppName: "Vesktop"}}) // no change: no actions
-	if len(w.last) != 0 {
+	if len(effects(w.last)) != 0 {
 		t.Errorf("repeated identical update produced %v", w.last)
 	}
 }
@@ -652,4 +687,81 @@ func TestLED07_ResyncSendsEveryLEDAgain(t *testing.T) {
 	}
 	w.wantLEDs(1, false, true, false)
 	w.wantLEDs(8, true, true, true)
+}
+
+func TestLED07_AudioReconnectSendsEveryLEDAgain(t *testing.T) {
+	// A restart of PipeWire can reset the controller's LEDs, while solo stays on.
+	w := started(t)
+	w.press(ButtonS, 1)
+	w.leds = map[LED]bool{} // the controller forgot its LEDs
+	w.do(AudioSnapshot{Streams: []Stream{spotify, firefox}, Devices: []Device{goxlr}})
+	w.wantLEDs(1, true, false, false)
+	w.wantLEDs(8, true, true, true)
+	w.wantMuted(true, firefox.ID)
+}
+
+// effects drops log notices: actions that change something.
+func effects(acts []Action) []Action {
+	var out []Action
+	for _, a := range acts {
+		if _, ok := a.(Notice); !ok {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// notice returns the one log notice among acts.
+func notice(t *testing.T, acts []Action) Notice {
+	t.Helper()
+	var found []Notice
+	for _, a := range acts {
+		if n, ok := a.(Notice); ok {
+			found = append(found, n)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("want one notice, got %v", found)
+	}
+	return found[0]
+}
+
+// attrs turns a notice's attributes into a map.
+func attrs(n Notice) map[string]any {
+	m := map[string]any{}
+	for i := 0; i+1 < len(n.Attrs); i += 2 {
+		m[n.Attrs[i].(string)] = n.Attrs[i+1]
+	}
+	return m
+}
+
+func TestLOG14_ButtonRecordsNameLayoutControlAndApp(t *testing.T) {
+	w := started(t)
+	w.press(ButtonM, 1)
+	n := notice(t, w.last)
+	got := attrs(n)
+	want := map[string]any{"apptrol.layout": "default", "apptrol.control": "slider1", "apptrol.app.id": "spotify",
+		"apptrol.app.name": "Spotify", "apptrol.app.type": "app", "apptrol.button": "M1"}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %v, want %v (notice %v)", k, got[k], v, n)
+		}
+	}
+	if n.Level != slog.LevelInfo || n.Msg != "muted" {
+		t.Errorf("notice = %v", n)
+	}
+
+	w.press(ButtonS, 1)
+	w.press(ButtonS, 2)
+	n = notice(t, w.last)
+	if got := attrs(n); n.Msg != "solo moved" || got["apptrol.solo.previous_control"] != "slider1" ||
+		got["apptrol.solo.previous_app"] != "Spotify" || got["apptrol.control"] != "slider2" {
+		t.Errorf("solo moved notice = %v", n)
+	}
+
+	// Buttons without a function are logged at debug level.
+	w.press(ButtonR, 1)
+	if n := notice(t, w.last); n.Level != slog.LevelDebug || attrs(n)["apptrol.button"] != "R1" {
+		t.Errorf("R notice = %v", n)
+	}
 }

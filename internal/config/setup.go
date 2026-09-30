@@ -5,7 +5,7 @@ import "github.com/Dzobash/apptrol/internal/mixer"
 // Setup returns the part of the configuration the mixer needs: every app and
 // the assignments of the active layout.
 func (c *Config) Setup() mixer.Setup {
-	s := mixer.Setup{Targets: map[string]mixer.Target{}, Assignments: map[mixer.Control]string{}}
+	s := mixer.Setup{Layout: DefaultLayout, Targets: map[string]mixer.Target{}, Assignments: map[mixer.Control]string{}}
 	for id, app := range c.Apps {
 		kind := mixer.App
 		if app.Type == TypeInput {
