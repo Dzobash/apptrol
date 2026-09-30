@@ -66,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `max_volume` per app (1–150 %, default 100): the control spans 0 to that value, for a
   boost above 100 % or a cap below it. Changing it in a running Apptrol applies at once.
 - CI requires at least 75 % test coverage (was 70 %).
+- README: known issues (Spotify resets its own volume on track changes).
 - README: why Apptrol exists, and a photo of the controller (CC BY-NC-SA 3.0, from
   iFixit, credited in `docs/assets/photos/`).
 - Brand guide: lockup proportions (mark and wordmark) with a drawing, and how to edit and

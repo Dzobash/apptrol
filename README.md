@@ -128,6 +128,21 @@ sudo dnf install ./apptrol-*.x86_64.rpm     # Fedora
    journalctl --user -u apptrol -f
    ```
 
+## Known issues
+
+- **Spotify resets the volume when the track changes.** On Linux with PipeWire, Spotify
+  does not keep its own volume setting in sync with the volume of its audio stream. While
+  a track plays, the stream's volume can be changed from outside (by Apptrol, or by the
+  desktop's volume settings) and the change is heard at once. But as soon as the next
+  track starts, whether on its own or through *Next*, Spotify applies the volume stored
+  in its own settings again and overwrites the stream's volume.
+
+  This is a bug in the Spotify client, and Apptrol deliberately does not work around it:
+  a change that another program makes to an app's volume stays until you touch that app's
+  slider or knob again. Touch Spotify's slider after a track change to set it back.
+
+Found another problem? Please [open an issue](https://github.com/Dzobash/apptrol/issues).
+
 ## Documentation
 
 - [Requirements](docs/requirements.md)
