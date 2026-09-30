@@ -24,3 +24,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0013](0013-release-packaging.md) | Releases and packaging with GoReleaser | Accepted |
 | [0014](0014-logo-and-visual-identity.md) | Logo and visual identity | Accepted |
 | [0015](0015-service-architecture.md) | Service architecture and controller access | Accepted |
+| [0016](0016-log-records-follow-opentelemetry.md) | Log records follow the OpenTelemetry semantic conventions | Accepted |

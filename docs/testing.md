@@ -64,8 +64,8 @@ state file unless a step says otherwise.
 | H-14 | Solo an app column while the mic is on a slider | Mic is not affected | SOLO-03 |
 | H-15 | Edit and save the config (move an app to another slider) | Reload logged; new assignment works without restart | CFG-06 |
 | H-16 | Save an invalid config | Error logged; old config keeps working | CFG-07 |
-| H-17 | Mute an app, solo another, restart the service | Mute restored, solo off | STATE-03, STATE-04 |
-| H-18 | `systemctl --user restart pipewire pipewire-pulse` while running | Reconnect logged; volumes and mutes re-applied | SVC-04 |
-| H-19 | Check `journalctl --user -u apptrol` and the log file | Entries at the expected levels and formats | LOG-* |
+| H-17 | Mute an app, solo another (e.g. slider 1), restart the service (`systemctl --user restart apptrol`) | Mute restored; solo restored: S lit on the same column and only that app audible | STATE-03, STATE-04 |
+| H-18 | With an app muted and another soloed: `systemctl --user restart pipewire pipewire-pulse` while running | Reconnect logged; volumes, mutes and solo re-applied; within 2 seconds the LEDs show the same state as before | SVC-04, LED-07 |
+| H-19 | Check `journalctl --user -u apptrol` and the log file, including the lines from H-16 and the button presses from H-08 to H-12 | Entries at the expected levels and formats, as in [`logging.md`](logging.md); every line has `apptrol.component`; each error has `error.type`; each configuration problem is its own single line; mute and solo lines name layout, control, app and button | LOG-* |
 | H-20 | Set `max_volume = 150` for the app on slider 1, save, move slider 1 to the top | The desktop mixer shows 150 %; with the slider in the middle, 75 % | CTRL-03, CFG-06 |
 | H-21 | Assign two apps whose match lists overlap (`"fire"` and `"firefox"`); run `apptrol check` | Warning names both apps and which one gets the streams | CFG-12 |

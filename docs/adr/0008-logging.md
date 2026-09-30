@@ -22,3 +22,8 @@ differ: some read `journalctl`, some want a separate file or JSON for log toolin
 
 - Rotation is handled by Apptrol, not `logrotate`.
 - High-volume events (every volume step, raw MIDI) are kept at `debug` so normal logs stay small.
+
+## Notes
+
+- 2026-09-30: What each log record contains (message, attribute names, component, errors)
+  is decided in [ADR 0016](0016-log-records-follow-opentelemetry.md).

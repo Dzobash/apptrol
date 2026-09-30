@@ -135,6 +135,14 @@ const (
 	Input                   // one capture device
 )
 
+// String is the name the configuration uses: "app" or "input".
+func (k TargetKind) String() string {
+	if k == Input {
+		return "input"
+	}
+	return "app"
+}
+
 // Target is something a control acts on (config: [apps.<id>]).
 type Target struct {
 	ID    string
@@ -148,6 +156,7 @@ type Target struct {
 
 // Setup is the part of the configuration the mixer needs.
 type Setup struct {
+	Layout      string             // name of the active layout, for the log; "" = "default"
 	Targets     map[string]Target  // by id
 	Assignments map[Control]string // control -> target id
 }
@@ -165,9 +174,10 @@ type Device struct {
 	Description string // human-readable, e.g. "GoXLR Mini Mic"
 }
 
-// State is what the mixer persists (STATE-01): known control positions and the
-// user mutes of slider columns. Solo is never saved (STATE-04).
+// State is what the mixer persists (STATE-01): known control positions, the
+// user mutes of slider columns and the soloed column (STATE-04).
 type State struct {
 	Positions map[Control]int
 	Muted     map[Control]bool
+	Solo      int // soloed slider column, 0 = none
 }

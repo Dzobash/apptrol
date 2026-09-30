@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/Dzobash/apptrol/internal/config"
+	"github.com/Dzobash/apptrol/internal/logattr"
 )
 
 // Options controls where output goes. The zero value uses the real stdout and
@@ -206,6 +207,7 @@ func (h *dynamicHandler) Enabled(_ context.Context, l slog.Level) bool {
 }
 
 func (h *dynamicHandler) Handle(ctx context.Context, r slog.Record) error {
+	r = oneLine(r)
 	h.m.mu.RLock()
 	outputs := h.m.handlers
 	h.m.mu.RUnlock()
@@ -227,7 +229,7 @@ func (h *dynamicHandler) Handle(ctx context.Context, r slog.Record) error {
 
 func (h *dynamicHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	n := *h
-	n.attrs = append(append([]slog.Attr(nil), h.attrs...), attrs...)
+	n.attrs = append(append([]slog.Attr(nil), h.attrs...), flatten(nil, attrs)...)
 	return &n
 }
 
@@ -239,3 +241,40 @@ func (h *dynamicHandler) WithGroup(name string) slog.Handler {
 	n.groups = append(append([]string(nil), h.groups...), name)
 	return &n
 }
+
+// oneLine returns r with every line break in the message and in string values
+// replaced, and with groups without a name inlined, so that each record is
+// one line in every format (LOG-13, ADR 0016).
+func oneLine(r slog.Record) slog.Record {
+	var attrs []slog.Attr
+	r.Attrs(func(a slog.Attr) bool {
+		attrs = flatten(attrs, []slog.Attr{a})
+		return true
+	})
+	n := slog.NewRecord(r.Time, r.Level, logattr.OneLine(r.Message), r.PC)
+	n.AddAttrs(attrs...)
+	return n
+}
+
+// flatten appends attrs to dst, inlining groups without a name (slog's rule,
+// which not every output follows) and joining the lines of string values.
+func flatten(dst, attrs []slog.Attr) []slog.Attr {
+	for _, a := range attrs {
+		a.Value = a.Value.Resolve()
+		switch {
+		case a.Value.Kind() == slog.KindGroup && a.Key == "":
+			dst = flatten(dst, a.Value.Group())
+		case a.Value.Kind() == slog.KindString:
+			dst = append(dst, slog.String(a.Key, logattr.OneLine(a.Value.String())))
+		case a.Key == "" && a.Value.Any() == nil:
+			// an empty attribute; slog handlers ignore it
+		case a.Value.Kind() == slog.KindAny && isError(a.Value.Any()):
+			dst = append(dst, slog.String(a.Key, logattr.OneLine(a.Value.Any().(error).Error())))
+		default:
+			dst = append(dst, a)
+		}
+	}
+	return dst
+}
+
+func isError(v any) bool { _, ok := v.(error); return ok }

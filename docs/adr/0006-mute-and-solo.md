@@ -26,3 +26,10 @@ desks handle multiple solos differently (additive vs. exclusive).
 
 - Ending solo never loses a user's own mutes.
 - The M LED never reflects solo silencing, so its meaning is always "you muted this".
+
+## Notes
+
+- 2026-09-30: Solo is now saved too, and restored on start (STATE-04). Testing
+  v0.1.0-rc2 showed that a solo lost on restart is confusing: all apps suddenly play
+  again. While Apptrol is stopped, solo is still ended (SVC-07), so no app stays
+  silenced by it without Apptrol running.

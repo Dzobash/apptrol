@@ -142,7 +142,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | LED-04 | **Input column** — S, M and R LEDs MUST be lit by default so the column is recognisable as an input. When the input is muted, only the M LED MUST turn off. | MUST |
 | LED-05 | Columns without a slider target MUST have all LEDs off. | MUST |
 | LED-06 | Transport button LEDs MUST be off in Phase 1. | MUST |
-| LED-07 | LEDs MUST be re-sent whenever the controller (re)connects and whenever the configuration or state changes. After a connect they MUST be sent again once the controller has started up (it ignores LED messages for a moment after being plugged in). | MUST |
+| LED-07 | LEDs MUST be re-sent whenever the controller (re)connects, the audio server (re)connects, and the configuration or state changes. After a controller connect they MUST be sent again once the controller has started up (it ignores LED messages for a moment after being plugged in); after an audio server connect, again 2 seconds later (a PipeWire restart can reset the controller's LEDs). | MUST |
 | LED-08 | When Apptrol stops, it SHOULD turn all LEDs off, so no LED shows a state that no longer applies. | SHOULD |
 
 ### 4.6 Other buttons
@@ -158,7 +158,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | STATE-01 | Apptrol MUST save, per layout and per control, the last known position and, per slider column, the user mute. | MUST |
 | STATE-02 | State MUST be saved after every change, at most once per second, and written atomically (write to a temporary file, then rename). | MUST |
 | STATE-03 | On start, saved positions and user mutes MUST be restored and applied to matching streams and inputs. | MUST |
-| STATE-04 | Solo MUST NOT be saved. Apptrol always starts with solo off. | MUST |
+| STATE-04 | The soloed column MUST be saved and restored on start, if it still holds an app. (Until 0.1.0-rc2: solo was not saved.) | MUST |
 | STATE-05 | If the state file is missing or unreadable, Apptrol MUST start with all positions *unknown* and no user mutes, leave current volumes unchanged, and log a warning (unless it is the first start). | MUST |
 | STATE-06 | The state file MUST be stored at `$XDG_STATE_HOME/apptrol/state.json` (default `~/.local/state/apptrol/state.json`). | MUST |
 | STATE-07 | State of controls whose assignment was removed from the config SHOULD be discarded. | SHOULD |
@@ -187,12 +187,17 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | LOG-01 | Apptrol MUST use structured logging (charmbracelet/log). | MUST |
 | LOG-02 | The log level MUST be configurable: `debug`, `info`, `warn`, `error`. | MUST |
 | LOG-03 | Two outputs MUST be available, usable separately or together: **journald** and **file**. | MUST |
-| LOG-04 | Each output MUST have its own format: journald `text` or `logfmt`; file `text`, `json` or `logfmt`. | MUST |
+| LOG-04 | Each output MUST have its own format: journald `text` or `logfmt`; file `text`, `json` or `logfmt`. Timestamps MUST have millisecond precision. | MUST |
 | LOG-05 | When running under systemd, the journald output MUST mark each line with its severity so that `journalctl -p` filtering works. When started from a terminal, it MUST print coloured text to the terminal instead. | MUST |
 | LOG-06 | The file output MUST default to `$XDG_STATE_HOME/apptrol/apptrol.log`; the path MUST be configurable (e.g. to `/var/log/apptrol/` if the user has prepared that directory). | MUST |
 | LOG-07 | The file output MUST rotate by size, keeping a configurable number of old files. | MUST |
 | LOG-08 | Log level and outputs MUST be updated on config reload without restarting. | MUST |
-| LOG-09 | Events MUST be logged at these levels: **info** — start/stop, config loaded/reloaded, controller connected/disconnected, stream matched to a control, mute/solo changes; **warn** — config entry that matches nothing, controller not found, state file unreadable; **error** — invalid config, lost connection to the audio server; **debug** — every volume change and raw MIDI message. | MUST |
+| LOG-09 | Events MUST be logged at these levels: **info** — start/stop, config loaded/reloaded, controller connected/disconnected, stream matched to a control, mute/solo changes; **warn** — config entry that matches nothing, controller not found, state file unreadable; **error** — invalid config, lost connection to the audio server; **debug** — every volume change, raw MIDI message and button press without a function. | MUST |
+| LOG-10 | Every log record MUST carry `apptrol.component`: `service`, `config`, `state`, `audio`, `controller` or `mixer` (ADR 0016). | MUST |
+| LOG-11 | Attribute names MUST follow the OpenTelemetry semantic conventions: their attribute where one exists (`error.type`, `exception.message`, `file.path`, …), otherwise a name in the `apptrol.` namespace; lower case, dot-separated, snake_case within a part. No name may be the start of another, and each name MUST always carry the same type of value, so that log stores can map them. | MUST |
+| LOG-12 | Every record about an error MUST carry `error.type` (a fixed word for the kind of error) and, where there is an error message, `exception.message`. | MUST |
+| LOG-13 | Every record MUST be one line with a fixed message; values go into attributes. Several problems (e.g. in the configuration) MUST be logged as one record each. | MUST |
+| LOG-14 | A record about a control MUST name the layout, the control and, if assigned, the app on it (id, name, type); a record caused by a button MUST name the button. Every button press MUST be logged: mute and solo changes at info, presses without a function at debug. | MUST |
 
 ### 4.10 Service and runtime
 
@@ -204,7 +209,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | SVC-04 | If the connection to the audio server is lost (e.g. PipeWire restart), Apptrol MUST reconnect and re-apply the current state. | MUST |
 | SVC-05 | Apptrol MUST shut down cleanly on SIGTERM/SIGINT, saving state first. | MUST |
 | SVC-06 | `apptrol --version` MUST print the version, commit and build date. | MUST |
-| SVC-07 | On shutdown, Apptrol MUST end solo and unmute every app it silenced by solo. The audio server remembers mutes per app, so otherwise those apps would stay muted after Apptrol exits. User mutes (M) stay, as they are saved and restored. | MUST |
+| SVC-07 | On shutdown, Apptrol MUST end solo and unmute every app it silenced by solo. The audio server remembers mutes per app, so otherwise those apps would stay muted after Apptrol exits. User mutes (M) stay. Both are saved first and restored on the next start (STATE-03, STATE-04). | MUST |
 
 ## 5. Non-functional requirements
 

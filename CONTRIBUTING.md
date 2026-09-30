@@ -49,6 +49,16 @@ Repository settings that support this (**Settings → General → Pull Requests*
 - Add an entry under **Unreleased** in [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
 - Keep pull requests focused on one thing.
 
+## Log messages
+
+Follow [ADR 0016](docs/adr/0016-log-records-follow-opentelemetry.md): a short, fixed
+message; values as attributes named by constants in `internal/logattr`; the component on
+every record (packages get it from their logger); `logattr.Error(errorType, err)` for
+errors. Records about a control use the mixer's `about` helper, so they name the layout,
+control and app. A new attribute or error type also needs a row in
+[`docs/logging.md`](docs/logging.md). `go test ./internal/logattr` fails on log calls that
+break these rules and on attributes missing from the guide.
+
 ## Code
 
 Requires Go 1.24 or newer.
@@ -74,8 +84,9 @@ Project layout:
 | `internal/controller/`, `…/rawmidi/` | MIDI decoding and the nanoKONTROL2 map; the raw MIDI device |
 | `internal/audio/pulse/` | Connection to PipeWire through the PulseAudio protocol |
 | `internal/config/` | Loading, validating and watching the configuration file |
-| `internal/state/` | Saved positions and mutes |
+| `internal/state/` | Saved positions, mutes and solo |
 | `internal/logging/` | Log outputs and formats |
+| `internal/logattr/` | Log attribute names and error types (ADR 0016) |
 | `internal/version/` | Build information (set at link time) |
 | `docs/` | Requirements, architecture, roadmap, configuration reference, ADRs |
 | `docs/assets/` | Logo files (`brand/`, MIT) and third-party photos (`photos/`, each with its own license) |
