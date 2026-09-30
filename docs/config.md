@@ -93,6 +93,40 @@ Defines something a control can act on. `<id>` is your own short name (letters, 
   If several devices match, the first one is used and a warning is logged. Monitors of
   outputs are not input devices and are never matched.
 
+### When several devices have the same description
+
+Some audio interfaces offer several inputs that all carry the same description. A GoXLR
+Mini, for example, shows up as three capture devices, all described as "GoXLRMini". A match
+on `"GoXLR"` then catches all three; Apptrol uses the first one (by name) and logs a
+warning:
+
+```
+WARN several input devices match; using the first. Make the match more specific: …
+```
+
+Every device also has a **unique name**. `apptrol list` shows it in the NAME column:
+
+```
+Input devices. Put part of DESCRIPTION or NAME into an input's match list:
+  DESCRIPTION  NAME                                                        VOLUME  CONTROL
+  GoXLRMini    alsa_input.usb-TC-Helicon_GoXLRMini-00.HiFi__Headset__source  100%    slider8 (Microphone)
+  GoXLRMini    alsa_input.usb-TC-Helicon_GoXLRMini-00.HiFi__Line4__source    100%    -
+  GoXLRMini    alsa_input.usb-TC-Helicon_GoXLRMini-00.HiFi__Line5__source    100%    -
+```
+
+Put the part of the name that tells them apart into `match`:
+
+```toml
+[apps.mic]
+name  = "Microphone"
+type  = "input"
+match = ["GoXLRMini-00.HiFi__Headset"]
+```
+
+To find out which input is your microphone, assign one, speak, and move its slider:
+you hear the level change (or watch it in your desktop's volume settings). The same
+approach works for apps: if two programs report the same name, use the BINARY column.
+
 **One app per stream.** A stream (or input device) is controlled by only one app. If the
 match lists of two apps in the layout both catch it, it goes to the app on the first
 control, in the order slider1 to slider8, then knob1 to knob8; the other app's control does

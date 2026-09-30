@@ -73,6 +73,10 @@ Raw MIDI (`/dev/snd/midiC<card>D<device>`), in pure Go:
 - **Input:** read and decode MIDI Control Change messages (running status included).
 - **Output:** Control Change messages to set LEDs (LED mode *External*), on the MIDI
   channel the controller sends on. Track ◀ ▶ and the three Marker buttons have no LED.
+  LED messages are sent at least 2 ms apart: the controller drops some of a burst.
+- **After a connect** the controller is still starting up for a moment and ignores LED
+  messages. The full LED state is therefore sent at once, and again after 0.5 s and 2 s
+  (LED-07).
 - **Exclusive:** raw MIDI allows one reader. While Apptrol runs, other programs cannot use
   the controller, and if another program holds it, Apptrol logs a clear error and retries.
 

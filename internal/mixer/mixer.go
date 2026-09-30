@@ -502,7 +502,7 @@ func (m *Mixer) chooseDevices(a *actions) {
 			a.notice(slog.LevelInfo, "input matched", "app", t.Name, "device", m.devices[pick].Description,
 				"control", m.controlOf[id].String())
 			if len(matches) > 1 {
-				a.notice(slog.LevelWarn, "several input devices match; using the first", "app", t.Name,
+				a.notice(slog.LevelWarn, "several input devices match; using the first. Make the match more specific: `apptrol list` shows each device's unique name", "app", t.Name,
 					"using", pick, "matches", strings.Join(matches, ", "))
 			}
 			if v, ok := m.positions[m.controlOf[id]]; ok {

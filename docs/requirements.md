@@ -142,7 +142,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | LED-04 | **Input column** — S, M and R LEDs MUST be lit by default so the column is recognisable as an input. When the input is muted, only the M LED MUST turn off. | MUST |
 | LED-05 | Columns without a slider target MUST have all LEDs off. | MUST |
 | LED-06 | Transport button LEDs MUST be off in Phase 1. | MUST |
-| LED-07 | LEDs MUST be re-sent whenever the controller (re)connects and whenever the configuration or state changes. | MUST |
+| LED-07 | LEDs MUST be re-sent whenever the controller (re)connects and whenever the configuration or state changes. After a connect they MUST be sent again once the controller has started up (it ignores LED messages for a moment after being plugged in). | MUST |
 | LED-08 | When Apptrol stops, it SHOULD turn all LEDs off, so no LED shows a state that no longer applies. | SHOULD |
 
 ### 4.6 Other buttons

@@ -76,6 +76,7 @@ func TestHW07_Test(t *testing.T) {
 		mixer.ControlMoved{Control: mixer.Control{Kind: mixer.Slider, Column: 3}, Value: 127},
 		mixer.ButtonPressed{Button: mixer.ButtonM, Column: 2},
 		mixer.ButtonPressed{Button: mixer.ButtonS, Column: 1},
+		mixer.ControllerConnected{Resync: true}, // must not reset S1
 		mixer.ButtonPressed{Button: mixer.ButtonM, Column: 2},
 		mixer.TransportPressed{Button: mixer.TrackPrev},
 		mixer.TransportPressed{Button: mixer.Play},
@@ -120,6 +121,9 @@ func TestHW07_Test(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("output lacks %q:\n%s", want, got)
 		}
+	}
+	if strings.Count(got, "Controller connected") != 1 {
+		t.Error("a resync was reported as a new connection")
 	}
 	if strings.Count(got, "LED mode is Internal") != 1 {
 		t.Error("LED mode hint shown more than once")
