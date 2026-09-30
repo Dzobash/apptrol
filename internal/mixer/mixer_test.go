@@ -403,14 +403,15 @@ func TestSTATE04_SavedSoloOnlyOnAnAppColumn(t *testing.T) {
 func TestSTATE07_UnassignedControlsAreDropped(t *testing.T) {
 	saved := State{
 		Positions: map[Control]int{{Slider, 5}: 10, {Slider, 1}: 20, {Knob, 99}: 1},
-		Muted:     map[Control]bool{{Slider, 6}: true, {Knob, 1}: true},
+		Muted:     map[Control]bool{{Slider, 6}: true, {Knob, 1}: true, {Knob, 5}: true},
 	}
 	s := New(testSetup(), saved).Snapshot()
 	if len(s.Positions) != 1 || s.Positions[Control{Slider, 1}] != 20 {
 		t.Errorf("positions = %v", s.Positions)
 	}
-	if len(s.Muted) != 0 {
-		t.Errorf("mutes = %v: slider6 is unassigned and knobs have no mute", s.Muted)
+	// knob1 holds an app muted outside Apptrol (MUTE-07); slider6 and knob5 are unassigned.
+	if len(s.Muted) != 1 || !s.Muted[Control{Knob, 1}] {
+		t.Errorf("mutes = %v, want only knob1", s.Muted)
 	}
 }
 
@@ -763,5 +764,99 @@ func TestLOG14_ButtonRecordsNameLayoutControlAndApp(t *testing.T) {
 	w.press(ButtonR, 1)
 	if n := notice(t, w.last); n.Level != slog.LevelDebug || attrs(n)["apptrol.button"] != "R1" {
 		t.Errorf("R notice = %v", n)
+	}
+}
+
+// ---- mute changes made outside Apptrol (MUTE-07) ---------------------------
+
+func TestMUTE07_UnmutedOutsideApptrol(t *testing.T) {
+	w := started(t)
+	w.press(ButtonM, 1)
+	w.wantLEDs(1, false, true, false)
+	saves := w.saves
+	w.do(StreamMuteChanged{ID: spotify.ID, Muted: false}) // e.g. the Plasma volume applet
+	w.wantMuted(false, spotify.ID)
+	w.wantLEDs(1, false, false, false)
+	if w.m.Snapshot().Muted[Control{Slider, 1}] || w.saves == saves {
+		t.Error("the outside unmute was not taken over into the saved state")
+	}
+	if n := notice(t, w.last); n.Msg != "unmuted outside Apptrol" || attrs(n)["apptrol.control"] != "slider1" {
+		t.Errorf("notice = %v", n)
+	}
+	// Pressing M again mutes it: the controller and the desktop agree.
+	w.press(ButtonM, 1)
+	w.wantMuted(true, spotify.ID)
+}
+
+func TestMUTE07_MutedOutsideApptrolMutesTheWholeApp(t *testing.T) {
+	w := started(t)
+	w.do(StreamAdded{ffTab2})
+	w.do(StreamMuteChanged{ID: firefox.ID, Muted: true})
+	w.wantMuted(true, firefox.ID, ffTab2.ID)
+	w.wantLEDs(2, false, true, false)
+	if !w.m.Snapshot().Muted[Control{Slider, 2}] {
+		t.Error("mute not saved")
+	}
+}
+
+func TestMUTE07_ApptrolsOwnChangeIsNotAnOutsideChange(t *testing.T) {
+	w := started(t)
+	w.press(ButtonM, 1)
+	w.do(StreamMuteChanged{ID: spotify.ID, Muted: true})
+	if len(w.last) != 0 {
+		t.Errorf("an echo of Apptrol's own mute produced %v", w.last)
+	}
+}
+
+func TestMUTE07_SoloKeepsOtherAppsSilent(t *testing.T) {
+	w := started(t)
+	w.press(ButtonS, 1)
+	w.do(StreamMuteChanged{ID: firefox.ID, Muted: false})
+	w.wantMuted(true, firefox.ID) // muted again
+	w.wantLEDs(2, false, false, false)
+	if n := notice(t, w.last); n.Msg != "unmuted outside Apptrol, but solo keeps it silent" {
+		t.Errorf("notice = %v", n)
+	}
+	// Once solo ends, the app plays.
+	w.press(ButtonS, 1)
+	w.wantMuted(false, firefox.ID)
+}
+
+func TestMUTE07_InputMutedOutsideApptrol(t *testing.T) {
+	w := started(t)
+	w.wantLEDs(8, true, true, true)
+	w.do(DeviceMuteChanged{Name: goxlr.Name, Muted: true}) // e.g. the desktop's mic mute key
+	w.wantLEDs(8, true, false, true)
+	if !w.m.Snapshot().Muted[Control{Slider, 8}] {
+		t.Error("input mute not saved")
+	}
+	w.do(DeviceMuteChanged{Name: goxlr.Name, Muted: false})
+	w.wantLEDs(8, true, true, true)
+	// A device that is on no control is not Apptrol's business.
+	w.do(DeviceMuteChanged{Name: webcam.Name, Muted: true})
+	if len(effects(w.last)) != 0 || len(w.last) != 0 {
+		t.Errorf("webcam mute produced %v", w.last)
+	}
+}
+
+func TestMUTE07_AppOnAKnobKeepsAnOutsideMute(t *testing.T) {
+	w := started(t)
+	w.do(StreamMuteChanged{ID: steam.ID, Muted: true})
+	w.press(ButtonM, 1) // anything that re-applies mutes
+	w.press(ButtonM, 1)
+	w.wantMuted(true, steam.ID)
+	if !w.m.Snapshot().Muted[Control{Knob, 1}] {
+		t.Error("knob mute not saved")
+	}
+	w2 := newWorld(t, testSetup(), w.m.Snapshot())
+	w2.do(AudioSnapshot{Streams: []Stream{steam}})
+	w2.wantMuted(true, steam.ID)
+}
+
+func TestMUTE07_UnassignedStreamsAreIgnored(t *testing.T) {
+	w := started(t)
+	w.do(StreamMuteChanged{ID: viber.ID, Muted: true}, StreamMuteChanged{ID: 999, Muted: true})
+	if len(w.last) != 0 {
+		t.Errorf("produced %v", w.last)
 	}
 }

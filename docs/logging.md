@@ -100,6 +100,13 @@ DEBU button has no function: no app on this column apptrol.component=mixer apptr
 DEBU button has no function yet apptrol.component=mixer apptrol.button=cycle
 ```
 
+Muted or unmuted somewhere else, e.g. in the desktop's volume applet (Apptrol follows):
+
+```text
+INFO unmuted outside Apptrol apptrol.component=mixer apptrol.layout=default apptrol.control=slider1 apptrol.app.id=spotify apptrol.app.name=Spotify apptrol.app.type=app apptrol.stream.id=10 apptrol.stream.app_name=Spotify
+INFO unmuted outside Apptrol, but solo keeps it silent apptrol.component=mixer apptrol.layout=default apptrol.control=slider2 apptrol.app.id=browser apptrol.app.name=Browser apptrol.app.type=app apptrol.stream.id=11 apptrol.stream.app_name=Firefox process.executable.name=firefox
+```
+
 An app starts playing and is found:
 
 ```text

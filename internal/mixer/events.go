@@ -44,6 +44,20 @@ type DeviceAdded struct{ Device Device }
 // DeviceRemoved reports that a capture device is gone.
 type DeviceRemoved struct{ Name string }
 
+// StreamMuteChanged reports that a playback stream was muted or unmuted by
+// someone other than Apptrol, e.g. in the desktop's volume applet (MUTE-07).
+type StreamMuteChanged struct {
+	ID    uint32
+	Muted bool
+}
+
+// DeviceMuteChanged reports that a capture device was muted or unmuted by
+// someone other than Apptrol, e.g. with the desktop's microphone mute key (MUTE-07).
+type DeviceMuteChanged struct {
+	Name  string
+	Muted bool
+}
+
 // ConfigChanged carries a new, valid configuration (CFG-06).
 type ConfigChanged struct{ Setup Setup }
 
@@ -56,6 +70,8 @@ func (StreamAdded) isEvent()         {}
 func (StreamRemoved) isEvent()       {}
 func (DeviceAdded) isEvent()         {}
 func (DeviceRemoved) isEvent()       {}
+func (StreamMuteChanged) isEvent()   {}
+func (DeviceMuteChanged) isEvent()   {}
 func (ConfigChanged) isEvent()       {}
 
 // Action is something the service must do.

@@ -87,6 +87,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   amd64); reports from other systems are welcome.
 
 ### Fixed
+- Mute changes made outside Apptrol are followed: unmuting an app in the desktop's volume
+  applet (or muting the mic with a mute key) now updates the M LED and the saved state
+  (MUTE-07). Solo still keeps other apps silent. Found in testing v0.1.0-rc2.
 - The solo survives a restart of Apptrol: it is saved with the state and restored on
   start (STATE-04 changed; solo was not saved before). Found in testing v0.1.0-rc2.
 - LEDs show the right state again after PipeWire restarts: they are sent again when the

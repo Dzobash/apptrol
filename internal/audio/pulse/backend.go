@@ -53,6 +53,11 @@ func (g *guard) check(volume float64, muted bool) (setVol *float64, setMute *boo
 
 func newGuardNow() *guard { return &guard{until: time.Now().Add(newGuard)} }
 
+// ownMute is how long after Apptrol set a mute a change of it counts as
+// Apptrol's own. Later changes were made by someone else and are reported
+// (MUTE-07).
+const ownMute = time.Second
+
 // Backend keeps a connection to the audio server, reports streams and capture
 // devices as mixer events, and carries out volume and mute actions.
 //
@@ -70,6 +75,9 @@ type Backend struct {
 	devChans map[string]int    // channel count per capture device
 	guards   map[uint32]*guard // new streams
 	devGuard map[string]*guard // new capture devices
+
+	muteSet    map[uint32]time.Time // when Apptrol last set a stream's mute
+	devMuteSet map[string]time.Time // when Apptrol last set a device's mute
 }
 
 // New returns a Backend. server is a PulseAudio server string; "" uses the
@@ -119,6 +127,8 @@ func (b *Backend) Run(ctx context.Context, out chan<- mixer.Event) error {
 type tracker struct {
 	streams map[uint32]mixer.Stream
 	devices map[uint32]mixer.Device // by source index
+	muted   map[uint32]bool         // last seen mute, by stream
+	devMute map[uint32]bool         // last seen mute, by source index
 }
 
 // session runs one connection until it breaks or ctx ends.
@@ -153,19 +163,23 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 		if err != nil {
 			return err
 		}
-		t = tracker{streams: map[uint32]mixer.Stream{}, devices: map[uint32]mixer.Device{}}
+		t = tracker{streams: map[uint32]mixer.Stream{}, devices: map[uint32]mixer.Device{},
+			muted: map[uint32]bool{}, devMute: map[uint32]bool{}}
 		chans, devChans := map[uint32]int{}, map[string]int{}
 		for _, s := range streams {
 			t.streams[s.ID] = s.Stream
+			t.muted[s.ID] = s.Muted
 			chans[s.ID] = s.Channels
 		}
 		for _, d := range sources {
 			t.devices[d.Index] = d.Device
+			t.devMute[d.Index] = d.Muted
 			devChans[d.Name] = d.Channels
 		}
 		b.mu.Lock()
 		b.cur, b.channels, b.devChans = k, chans, devChans
 		b.guards, b.devGuard = map[uint32]*guard{}, map[string]*guard{}
+		b.muteSet, b.devMuteSet = map[uint32]time.Time{}, map[string]time.Time{}
 		b.mu.Unlock()
 		return send(Snapshot(streams, sources))
 	}
@@ -216,8 +230,16 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) (mixer.Eve
 					b.guards[s.ID] = newGuardNow()
 				}
 				b.mu.Unlock()
+				wasMuted := t.muted[s.ID]
+				t.muted[s.ID] = s.Muted
 				if known && old == s.Stream {
-					return nil, b.defend(k, s) // a volume change and the like
+					if err := b.defend(k, s); err != nil { // a volume change and the like
+						return nil, err
+					}
+					if s.Muted != wasMuted && b.outsideStreamMute(s.ID) {
+						return mixer.StreamMuteChanged{ID: s.ID, Muted: s.Muted}, nil
+					}
+					return nil, nil
 				}
 				t.streams[s.ID] = s.Stream
 				return mixer.StreamAdded{Stream: s.Stream}, nil
@@ -230,9 +252,11 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) (mixer.Eve
 			return nil, nil
 		}
 		delete(t.streams, e.Index)
+		delete(t.muted, e.Index)
 		b.mu.Lock()
 		delete(b.channels, e.Index)
 		delete(b.guards, e.Index)
+		delete(b.muteSet, e.Index)
 		b.mu.Unlock()
 		return mixer.StreamRemoved{ID: e.Index}, nil
 
@@ -250,8 +274,16 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) (mixer.Eve
 					b.devGuard[d.Name] = newGuardNow()
 				}
 				b.mu.Unlock()
+				wasMuted := t.devMute[e.Index]
+				t.devMute[e.Index] = d.Muted
 				if known && old == d.Device {
-					return nil, b.defendDevice(k, d)
+					if err := b.defendDevice(k, d); err != nil {
+						return nil, err
+					}
+					if d.Muted != wasMuted && b.outsideDeviceMute(d.Name) {
+						return mixer.DeviceMuteChanged{Name: d.Name, Muted: d.Muted}, nil
+					}
+					return nil, nil
 				}
 				t.devices[e.Index] = d.Device
 				return mixer.DeviceAdded{Device: d.Device}, nil
@@ -263,9 +295,11 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) (mixer.Eve
 			return nil, nil
 		}
 		delete(t.devices, e.Index)
+		delete(t.devMute, e.Index)
 		b.mu.Lock()
 		delete(b.devChans, old.Name)
 		delete(b.devGuard, old.Name)
+		delete(b.devMuteSet, old.Name)
 		b.mu.Unlock()
 		return mixer.DeviceRemoved{Name: old.Name}, nil
 	}
@@ -335,6 +369,28 @@ func (b *Backend) defendDevice(k *conn, d SourceInfo) error {
 	return nil
 }
 
+// outsideStreamMute reports whether a mute change of a stream was made by
+// someone else: not by Apptrol within ownMute, and not while the new-stream
+// guard is putting back what the server restored (PRIO-03).
+func (b *Backend) outsideStreamMute(id uint32) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if g := b.guards[id]; g != nil && time.Now().Before(g.until) {
+		return false
+	}
+	return time.Since(b.muteSet[id]) > ownMute
+}
+
+// outsideDeviceMute is outsideStreamMute for capture devices.
+func (b *Backend) outsideDeviceMute(name string) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if g := b.devGuard[name]; g != nil && time.Now().Before(g.until) {
+		return false
+	}
+	return time.Since(b.devMuteSet[name]) > ownMute
+}
+
 // Apply carries out a volume or mute action. Other actions are ignored.
 // Errors for streams that just ended can be checked with IsGone.
 func (b *Backend) Apply(a mixer.Action) error {
@@ -353,6 +409,9 @@ func (b *Backend) Apply(a mixer.Action) error {
 			m := a.Muted
 			g.muted = &m
 		}
+		if b.muteSet != nil {
+			b.muteSet[a.StreamID] = time.Now()
+		}
 	case mixer.SetDeviceVolume:
 		chans = b.devChans[a.Device]
 		if g := b.devGuard[a.Device]; g != nil {
@@ -363,6 +422,9 @@ func (b *Backend) Apply(a mixer.Action) error {
 		if g := b.devGuard[a.Device]; g != nil {
 			m := a.Muted
 			g.muted = &m
+		}
+		if b.devMuteSet != nil {
+			b.devMuteSet[a.Device] = time.Now()
 		}
 	}
 	b.mu.Unlock()

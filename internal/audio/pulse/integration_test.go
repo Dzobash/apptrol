@@ -217,13 +217,26 @@ func TestIntegration_Backend(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitStream(t, name, func(s StreamInfo) bool { return near(s.Volume, 1.5) })
-	// Our own changes do not come back as StreamAdded.
+	// Our own changes do not come back as StreamAdded or StreamMuteChanged.
 	time.Sleep(200 * time.Millisecond)
 	for len(events) > 0 {
-		if e, ok := (<-events).(mixer.StreamAdded); ok && e.Stream.ID == id {
-			t.Errorf("volume change reported as %+v", e)
+		switch e := (<-events).(type) {
+		case mixer.StreamAdded:
+			if e.Stream.ID == id {
+				t.Errorf("volume change reported as %+v", e)
+			}
+		case mixer.StreamMuteChanged:
+			t.Errorf("Apptrol's own mute reported as %+v", e)
 		}
 	}
+
+	// A mute change made by someone else is reported (MUTE-07), once the
+	// new-stream guard and Apptrol's own change are over.
+	time.Sleep(newGuard + ownMute)
+	if out, err := exec.Command("pactl", "set-sink-input-mute", fmt.Sprint(id), "0").CombinedOutput(); err != nil {
+		t.Fatalf("pactl set-sink-input-mute: %v %s", err, out)
+	}
+	next(t, events, func(e mixer.StreamMuteChanged) bool { return e.ID == id && !e.Muted })
 
 	// The app stops.
 	_ = player.Process.Kill()
