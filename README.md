@@ -128,6 +128,15 @@ sudo dnf install ./apptrol-*.x86_64.rpm     # Fedora
    journalctl --user -u apptrol -f
    ```
 
+## Known issues
+
+- **Spotify resets its volume to 100 % on every track change.** This is Spotify's own
+  behaviour on Linux, not caused by Apptrol. Apptrol deliberately does not fight it: a
+  volume change that another program makes while an app is playing stays until you touch
+  that app's slider or knob again, which sets it back.
+
+Found another problem? Please [open an issue](https://github.com/Dzobash/apptrol/issues).
+
 ## Documentation
 
 - [Requirements](docs/requirements.md)
