@@ -176,13 +176,13 @@ func TestSTATE05_BadEntriesAreSkipped(t *testing.T) {
 	}
 	want := mixer.State{
 		Positions: map[mixer.Control]int{ctl("slider1"): 64, ctl("knob2"): 5},
-		Muted:     map[mixer.Control]bool{},
+		Muted:     map[mixer.Control]bool{ctl("knob2"): true}, // MUTE-07: knob mutes come from outside Apptrol
 	}
 	if !reflect.DeepEqual(st, want) {
 		t.Errorf("got %+v, want %+v", st, want)
 	}
-	if len(warnings) != 4 {
-		t.Errorf("want 4 warnings, got %q", warnings)
+	if len(warnings) != 3 {
+		t.Errorf("want 3 warnings, got %q", warnings)
 	}
 }
 
@@ -380,7 +380,7 @@ func FuzzDecode(f *testing.F) {
 			}
 		}
 		for c := range st.Muted {
-			if !c.Valid() || c.Kind != mixer.Slider {
+			if !c.Valid() { // knobs may be muted too (MUTE-07)
 				t.Fatalf("invalid mute %v", c)
 			}
 		}

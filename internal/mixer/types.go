@@ -175,7 +175,8 @@ type Device struct {
 }
 
 // State is what the mixer persists (STATE-01): known control positions, the
-// user mutes of slider columns and the soloed column (STATE-04).
+// mutes (M, or taken over from outside Apptrol, MUTE-07) and the soloed
+// column (STATE-04).
 type State struct {
 	Positions map[Control]int
 	Muted     map[Control]bool

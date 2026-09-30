@@ -115,10 +115,11 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | ID | Requirement | Level |
 |---|---|---|
 | MUTE-01 | Pressing M on a slider column MUST toggle the user mute of that column's target. | MUST |
-| MUTE-02 | Knobs have no mute; a knob's target MUST only be silenced by solo (SOLO-03). | MUST |
+| MUTE-02 | Knobs have no M button; a knob's target MUST only be silenced by solo (SOLO-03) or by a mute made outside Apptrol (MUTE-07). | MUST |
 | MUTE-03 | Pressing M on a column without a slider target MUST do nothing. | MUST |
 | MUTE-04 | User mute and solo are separate states. An app's stream is muted when it is user-muted **or** silenced by solo. | MUST |
 | MUTE-05 | Pressing M on any column while solo is active MUST toggle that column's user mute; the effect becomes audible once solo ends. | MUST |
+| MUTE-07 | When an assigned app or input is muted or unmuted outside Apptrol (e.g. in the desktop's volume applet, or with a microphone mute key), Apptrol MUST take over the new state as the control's mute: the M LED follows and the state is saved. The mute applies to the whole app, so its other streams follow. Solo still applies: an app unmuted outside Apptrol while another app is soloed MUST be muted again. Changes Apptrol made itself, and settings the audio server restores on new streams (PRIO-03), MUST NOT count as outside changes. *(Unlike volume (PRIO-02), mute is a two-state setting the controller can show, so the controller and the desktop stay in agreement.)* | MUST |
 
 ### 4.4 Solo (S)
 
@@ -155,7 +156,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 
 | ID | Requirement | Level |
 |---|---|---|
-| STATE-01 | Apptrol MUST save, per layout and per control, the last known position and, per slider column, the user mute. | MUST |
+| STATE-01 | Apptrol MUST save, per layout and per control, the last known position and the mute (set with M, or taken over from outside Apptrol, MUTE-07). | MUST |
 | STATE-02 | State MUST be saved after every change, at most once per second, and written atomically (write to a temporary file, then rename). | MUST |
 | STATE-03 | On start, saved positions and user mutes MUST be restored and applied to matching streams and inputs. | MUST |
 | STATE-04 | The soloed column MUST be saved and restored on start, if it still holds an app. (Until 0.1.0-rc2: solo was not saved.) | MUST |

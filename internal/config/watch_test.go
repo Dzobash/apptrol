@@ -101,6 +101,9 @@ func TestCFG06_WatchUnreadableFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := startWatch(t, path, []byte("x"))
+	// Give the watcher time to look at the file first; otherwise, on a busy
+	// machine, it may only start after the replacement and see nothing change.
+	noChange(t, out)
 	// Replace it in one step with a file nobody may read.
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, []byte("yy"), 0o000); err != nil {

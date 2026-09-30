@@ -26,3 +26,9 @@ Pick-up is introduced in Phase 2, where layout switches make it necessary.
 
 - Simple, predictable behaviour in Phase 1, and no need to show a "waiting" state.
 - The first touch after an external change can cause an audible jump. Accepted.
+
+## Notes
+
+- 2026-09-30: This decision is about volume. Mute follows changes made outside Apptrol
+  (MUTE-07, see the note in ADR 0006): unlike a slider, a button's LED can show the new
+  state, so the controller and the desktop never disagree about it.

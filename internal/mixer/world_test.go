@@ -144,6 +144,10 @@ func (w *world) forgetGone(ev Event) {
 				delete(w.devVol, n)
 			}
 		}
+	case StreamMuteChanged: // someone else changed it on the server (MUTE-07)
+		w.streamMute[e.ID] = e.Muted
+	case DeviceMuteChanged:
+		w.devMute[e.Name] = e.Muted
 	case StreamAdded:
 		if _, known := w.m.streams[e.Stream.ID]; !known {
 			delete(w.streamVol, e.Stream.ID)

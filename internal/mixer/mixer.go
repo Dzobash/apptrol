@@ -17,7 +17,7 @@ type Mixer struct {
 	fragments map[string][]string // target id -> lower-case match fragments
 
 	positions map[Control]int  // known physical positions (PRIO-04: absent = unknown)
-	muted     map[Control]bool // user mutes of slider controls (MUTE-01)
+	muted     map[Control]bool // user mutes: M (MUTE-01) or from outside Apptrol (MUTE-07)
 	solo      int              // soloed column, 0 = none (SOLO-*)
 
 	streams   map[uint32]*streamInfo
@@ -55,7 +55,7 @@ func New(setup Setup, saved State) *Mixer {
 		}
 	}
 	for c, on := range saved.Muted {
-		if _, ok := m.setup.Assignments[c]; ok && on && c.Kind == Slider && c.Valid() {
+		if _, ok := m.setup.Assignments[c]; ok && on && c.Valid() {
 			m.muted[c] = true
 		}
 	}
@@ -161,6 +161,10 @@ func (m *Mixer) Handle(ev Event) []Action {
 	case DeviceAdded:
 		m.devices[e.Device.Name] = e.Device
 		m.chooseDevices(&a)
+	case StreamMuteChanged:
+		m.streamMuteChanged(&a, e)
+	case DeviceMuteChanged:
+		m.deviceMuteChanged(&a, e)
 	case DeviceRemoved:
 		delete(m.devices, e.Name)
 		delete(m.deviceMuteSent, e.Name)
@@ -330,11 +334,69 @@ func (m *Mixer) toggleSolo(a *actions, col int, button string) {
 	a.add(StateChanged{})
 }
 
+// streamMuteChanged follows a mute change made outside Apptrol (MUTE-07): on
+// a slider column it becomes the column's user mute, for every stream of the
+// app. Solo still silences other apps: an app unmuted outside Apptrol while
+// another is soloed is muted again.
+func (m *Mixer) streamMuteChanged(a *actions, e StreamMuteChanged) {
+	s, ok := m.streams[e.ID]
+	if !ok || s.target == "" {
+		return // not ours (CTRL-06)
+	}
+	if s.muteKnown && s.muteSent == e.Muted {
+		return // already so
+	}
+	s.muteSent, s.muteKnown = e.Muted, true
+	m.followMute(a, s.target, e.Muted, streamAttrs(s.Stream)...)
+}
+
+// deviceMuteChanged is streamMuteChanged for input devices.
+func (m *Mixer) deviceMuteChanged(a *actions, e DeviceMuteChanged) {
+	for _, id := range m.inputTargets() {
+		if m.deviceFor[id] != e.Name {
+			continue
+		}
+		if sent, ok := m.deviceMuteSent[e.Name]; ok && sent == e.Muted {
+			return
+		}
+		m.deviceMuteSent[e.Name] = e.Muted
+		m.followMute(a, id, e.Muted, logattr.KeyDeviceName, e.Name)
+		return
+	}
+}
+
+// followMute takes over a mute state set outside Apptrol for target id.
+func (m *Mixer) followMute(a *actions, id string, muted bool, attrs ...any) {
+	c := m.controlOf[id]
+	changed := false
+	if m.muted[c] != muted { // on a knob too: it has no M button, but can be muted outside (MUTE-07)
+		if muted {
+			m.muted[c] = true
+		} else {
+			delete(m.muted, c)
+		}
+		changed = true
+	}
+	msg := "unmuted outside Apptrol"
+	if muted {
+		msg = "muted outside Apptrol"
+	}
+	if !muted && m.effectiveMute(id) {
+		msg = "unmuted outside Apptrol, but solo keeps it silent"
+	}
+	a.notice(slog.LevelInfo, msg, m.aboutTarget(id, attrs...)...)
+	m.applyMutes(a) // the app's other streams follow; solo silences again
+	m.syncLEDs(a, false)
+	if changed {
+		a.add(StateChanged{})
+	}
+}
+
 // effectiveMute: a target is muted when user-muted, or when solo is on and it is
 // another app (SOLO-02, SOLO-03, SOLO-06, MUTE-04).
 func (m *Mixer) effectiveMute(id string) bool {
 	c := m.controlOf[id]
-	if c.Kind == Slider && m.muted[c] {
+	if m.muted[c] { // M on a slider column, or a mute from outside Apptrol (MUTE-07)
 		return true
 	}
 	if m.solo != 0 && m.setup.Targets[id].Kind == App && c != (Control{Slider, m.solo}) {

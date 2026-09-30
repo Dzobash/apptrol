@@ -93,6 +93,9 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   and tracked through subscription events.
 - An app matches a stream when a configured fragment is found in `application.name` or
   `application.process.binary`; some apps (Spotify) only report the name.
+- Mute changes made by others (e.g. the desktop's volume applet) are reported to the mixer,
+  which takes them over (MUTE-07). A change within a second of Apptrol's own, or while the
+  new-stream guard is active, counts as Apptrol's.
 - Volume is set per stream and per input; mute likewise. The percentage is the one desktop
   mixers (KDE, GNOME, pavucontrol) show, so a slider at 50 % shows 50 % there. The top of
   a control is the app's `max_volume` (default 100 %, up to 150 %). All channels get the

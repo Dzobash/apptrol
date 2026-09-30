@@ -14,7 +14,7 @@ func FuzzMixer(f *testing.F) {
 		w := newWorld(t, testSetup(), State{})
 		w.do(ControllerConnected{})
 		for i := 0; i+1 < len(data); i += 2 {
-			op, arg := data[i]%11, int(data[i+1])
+			op, arg := data[i]%13, int(data[i+1])
 			var ev Event
 			switch op {
 			case 0:
@@ -46,6 +46,16 @@ func FuzzMixer(f *testing.F) {
 				ev = AudioSnapshot{Streams: pool[:arg%len(pool)], Devices: devices[:arg%3]}
 			case 10:
 				ev = ButtonPressed{ButtonR, arg % 10}
+			case 11:
+				// Muted or unmuted outside Apptrol; the server only reports
+				// streams it has, and Apptrol only cares about assigned ones.
+				s := pool[arg%len(pool)]
+				if info, ok := w.m.streams[s.ID]; !ok || info.target == "" {
+					continue
+				}
+				ev = StreamMuteChanged{ID: s.ID, Muted: arg%2 == 0}
+			case 12:
+				ev = DeviceMuteChanged{Name: devices[arg%2].Name, Muted: arg%3 == 0}
 			}
 			w.do(ev)
 			checkInvariants(t, w)

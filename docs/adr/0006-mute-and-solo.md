@@ -33,3 +33,9 @@ desks handle multiple solos differently (additive vs. exclusive).
   v0.1.0-rc2 showed that a solo lost on restart is confusing: all apps suddenly play
   again. While Apptrol is stopped, solo is still ended (SVC-07), so no app stays
   silenced by it without Apptrol running.
+- 2026-09-30: Mutes made outside Apptrol are now followed (MUTE-07). Found in testing
+  v0.1.0-rc2: unmuting an app in the Plasma volume applet left its M LED lit, and Apptrol
+  still treated it as muted. Now an outside mute or unmute becomes the control's mute (the
+  M LED follows; it is saved), for the whole app. Solo still wins: an app unmuted outside
+  Apptrol while another is soloed is muted again. Apps on knobs, which have no M button,
+  keep an outside mute too.

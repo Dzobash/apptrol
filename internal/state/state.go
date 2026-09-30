@@ -93,11 +93,9 @@ func Decode(data []byte) (mixer.State, []string, error) {
 			}
 		}
 		if c.Muted {
-			if ctl.Kind != mixer.Slider {
-				warnings = append(warnings, fmt.Sprintf("state: ignoring mute of %s (only slider columns can be muted)", name))
-			} else {
-				st.Muted[ctl] = true
-			}
+			// Knobs have no M button, but an app on a knob can be muted
+			// outside Apptrol, which Apptrol follows (MUTE-07).
+			st.Muted[ctl] = true
 		}
 		if c.Solo {
 			if ctl.Kind != mixer.Slider {
