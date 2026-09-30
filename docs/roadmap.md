@@ -14,6 +14,10 @@ Each phase ends with a tagged release. Detailed requirements live in
 
 `1.0.0` is released once Phases 1–3 are stable and the config format is frozen.
 
+<p align="center">
+  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by phase: sliders, knobs, S and M work now (Phase 1); transport buttons as media keys in 0.2.0; Track and Cycle for layouts in 0.3.0; R, Marker and Record have no function yet" width="800">
+</p>
+
 ---
 
 ## Phase 0 — Project setup

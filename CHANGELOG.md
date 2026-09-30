@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- README and roadmap: a picture of the controller showing which controls work now and
+  which are planned (`docs/assets/photos/nanokontrol2-controls.png`, CC BY-NC-SA 3.0).
+
 ## [0.1.0] - 2026-09-30
 
 First release: Phase 1, the core mixer.

@@ -37,6 +37,12 @@ with no desktop mixer involved.
 - Runs quietly in the background as a systemd user service
 - Works on any desktop (KDE Plasma, GNOME, …), Wayland or X11
 
+What each control does in this version:
+
+<p align="center">
+  <img src="docs/assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked: sliders, knobs, S and M work now; R buttons have no function yet; the transport buttons are planned for 0.2.0 as media keys; Track and Cycle are planned for 0.3.0 to switch layouts; Marker and Record are not assigned yet" width="800">
+</p>
+
 It works alongside an audio interface such as a GoXLR, or on its own with a normal sound card.
 
 Planned later: media buttons, on-screen volume display, multiple layouts (e.g. *Work* and
