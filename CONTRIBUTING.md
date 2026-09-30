@@ -61,7 +61,8 @@ break these rules and on attributes missing from the guide.
 
 ## Code
 
-Requires Go 1.24 or newer.
+Requires Go 1.24 or newer. Building and installing without changing the code is described
+in the README, under [Building from source](README.md#building-from-source).
 
 ```bash
 make check    # the same checks CI runs: format, vet, lint, tests
