@@ -636,3 +636,20 @@ func TestCFG06_MaxVolumeChangeIsApplied(t *testing.T) {
 	}
 	w.noActionFor(firefox.ID) // unchanged apps are left alone
 }
+
+func TestLED07_ResyncSendsEveryLEDAgain(t *testing.T) {
+	w := started(t)
+	w.press(ButtonM, 1)
+	w.do(ControllerConnected{Resync: true})
+	var n int
+	for _, a := range w.last {
+		if _, ok := a.(SetLED); ok {
+			n++
+		}
+	}
+	if want := 3*NumColumns + len(AllTransport); n != want {
+		t.Errorf("resync sent %d LEDs, want all %d", n, want)
+	}
+	w.wantLEDs(1, false, true, false)
+	w.wantLEDs(8, true, true, true)
+}

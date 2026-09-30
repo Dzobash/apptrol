@@ -99,6 +99,16 @@ func cmdTest(ctx context.Context, port string, stdout io.Writer, log *slog.Logge
 		case ev := <-events:
 			switch e := ev.(type) {
 			case mixer.ControllerConnected:
+				if e.Resync {
+					// The controller may have ignored earlier LED messages
+					// while starting up: show the current state again.
+					for _, l := range allLEDs() {
+						if d.HasLED(l) {
+							_ = d.SetLED(l, lit[l])
+						}
+					}
+					continue
+				}
 				lit = map[mixer.LED]bool{}
 				setAll(false)
 				fmt.Fprintln(stdout, "Controller connected. All LEDs are off.")

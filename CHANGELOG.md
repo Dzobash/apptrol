@@ -74,6 +74,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (CFG-12); the matching rule is documented in the configuration reference.
 
 ### Fixed
+- LEDs show the right state again after the controller is unplugged and plugged back in:
+  the controller ignores LED messages while it starts up, so the state is now sent again
+  after 0.5 and 2 seconds, and LED messages are spaced out. Found in testing v0.1.0-rc1.
+- The warning for several matching input devices says how to fix it; the configuration
+  reference explains devices that share a description (such as the GoXLR Mini's inputs).
+- Hardware checklist: clearer expectations for H-02 (LEDs after replugging) and H-03 (no
+  on-screen popup before Phase 1.5).
 - Documentation matches the Phase 1 code: architecture, contributing guide, testing,
   requirements (CTRL-02, NFR-03), configuration reference; release candidates described
   in the release guide; implementation notes added to ADR 0015.

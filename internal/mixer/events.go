@@ -20,8 +20,10 @@ type ButtonPressed struct {
 // TransportPressed reports a transport button press. Ignored in Phase 1.
 type TransportPressed struct{ Button TransportButton }
 
-// ControllerConnected reports that the controller (re)appeared; all LEDs are sent.
-type ControllerConnected struct{}
+// ControllerConnected reports that the controller (re)appeared; all LEDs are
+// sent. Resync marks the repeats sent shortly after a connect, because the
+// controller ignores LED messages while it starts up (LED-07).
+type ControllerConnected struct{ Resync bool }
 
 // AudioSnapshot carries the full list of streams and devices, sent on
 // (re)connect to the audio server. It replaces everything the mixer knew (SVC-04).

@@ -139,6 +139,8 @@ func newHarnessWith(t *testing.T, events chan mixer.Event) *harness {
 	h.d = New(slog.New(slog.NewTextHandler(h.log, &slog.HandlerOptions{Level: slog.LevelDebug})), "nanoKONTROL2")
 	h.d.poll = 5 * time.Millisecond
 	h.d.procDir = t.TempDir()
+	h.d.resync = nil // tested on its own
+	h.d.ledGap = 0
 	h.d.find = func() (string, error) {
 		h.mu.Lock()
 		defer h.mu.Unlock()
@@ -327,6 +329,66 @@ func TestStopBeforeConnectedIsSent(t *testing.T) {
 	h.set(true, nil)
 	eventually(t, "connected", func() bool { return h.log.count("controller connected") == 1 })
 	h.stop() // Run is blocked sending ControllerConnected
+}
+
+func TestLED07_StateSentAgainAfterConnect(t *testing.T) {
+	// The controller ignores LED messages while it starts up after being
+	// plugged in, so the mixer is asked for all LEDs again a little later.
+	h := newHarness(t)
+	h.d.resync = []time.Duration{20 * time.Millisecond, 60 * time.Millisecond}
+	start := time.Now()
+	h.set(true, nil)
+	for i, want := range []mixer.Event{
+		mixer.ControllerConnected{},
+		mixer.ControllerConnected{Resync: true},
+		mixer.ControllerConnected{Resync: true},
+	} {
+		if ev := h.next(); ev != want {
+			t.Fatalf("event %d: %v, want %v", i, ev, want)
+		}
+	}
+	if d := time.Since(start); d < 60*time.Millisecond {
+		t.Errorf("three ControllerConnected within %v, want the last after 60ms", d)
+	}
+	select {
+	case ev := <-h.events:
+		t.Errorf("unexpected fourth event %v", ev)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestLED07_ResyncStopsWithTheSession(t *testing.T) {
+	h := newHarness(t)
+	h.d.resync = []time.Duration{50 * time.Millisecond}
+	h.set(true, nil)
+	h.next() // ControllerConnected
+	h.set(false, nil)
+	h.port().unplug()
+	eventually(t, "disconnect", func() bool { return h.log.count("controller disconnected") == 1 })
+	select {
+	case ev := <-h.events:
+		t.Errorf("event %v after the controller was unplugged", ev)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestLED07_LEDMessagesArePaced(t *testing.T) {
+	h := newHarness(t)
+	h.d.ledGap = 15 * time.Millisecond
+	h.set(true, nil)
+	h.next()
+	start := time.Now()
+	for col := 1; col <= 3; col++ {
+		if err := h.d.SetLED(mixer.LED{Button: mixer.ButtonS, Column: col}, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if d := time.Since(start); d < 30*time.Millisecond {
+		t.Errorf("3 LED messages took %v, want at least 2 gaps of 15ms", d)
+	}
+	if got := len(h.port().out()); got != 9 {
+		t.Errorf("%d bytes written, want 9", got)
+	}
 }
 
 func TestOpenRawFIFO(t *testing.T) {

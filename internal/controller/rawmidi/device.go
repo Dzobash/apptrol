@@ -23,6 +23,16 @@ var ErrNotConnected = errors.New("controller not connected")
 // ledHelp is logged on every connect (HW-03).
 const ledHelp = "https://github.com/Dzobash/apptrol#before-you-install"
 
+// Right after it is plugged in, the controller is still starting up and
+// ignores LED messages. So after a connect, mixer.ControllerConnected (which
+// makes the mixer send every LED) is sent again after each of these delays
+// (LED-07).
+var defaultResync = []time.Duration{500 * time.Millisecond, 2 * time.Second}
+
+// defaultLEDGap is the least time between two LED messages. Sent all at once,
+// the controller drops some of a burst of LED messages.
+const defaultLEDGap = 2 * time.Millisecond
+
 // Device is the controller, connected through raw MIDI. Run and SetLED may be
 // called from different goroutines.
 type Device struct {
@@ -33,11 +43,15 @@ type Device struct {
 
 	procDir string // for listing sound cards in the "not found" message
 
+	resync []time.Duration // see defaultResync
+	ledGap time.Duration   // see defaultLEDGap
+
 	find func() (string, error)
 	open func(path string) (io.ReadWriteCloser, error)
 
 	mu      sync.Mutex
 	cur     io.ReadWriteCloser
+	lastLED time.Time     // when the last LED message was written
 	channel atomic.Uint32 // MIDI channel the controller sends on; LEDs use it too
 }
 
@@ -50,6 +64,8 @@ func New(log *slog.Logger, port string) *Device {
 		poll: time.Second,
 
 		procDir: DefaultProcDir,
+		resync:  defaultResync,
+		ledGap:  defaultLEDGap,
 		find:    func() (string, error) { return Find(DefaultProcDir, DefaultDevDir, port) },
 		open:    openRaw,
 	}
@@ -68,8 +84,8 @@ func openRaw(path string) (io.ReadWriteCloser, error) {
 
 // Run looks for the controller, reads it while it is connected, and waits for
 // it while it is not (SVC-03), until ctx is canceled. After every connect it
-// sends mixer.ControllerConnected, then the decoded events. It returns ctx's
-// error.
+// sends mixer.ControllerConnected, again after the resync delays, and the
+// decoded events. It returns ctx's error.
 func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 	var lastProblem string // logged once until something changes
 	report := func(level slog.Level, msg string, args ...any) {
@@ -160,6 +176,27 @@ func (d *Device) session(ctx context.Context, path string, f io.ReadWriteCloser,
 	if !send(mixer.ControllerConnected{}) {
 		return ctx.Err()
 	}
+	// Send the LED state again once the controller has surely started up.
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		var waited time.Duration
+		for _, at := range d.resync {
+			select {
+			case <-time.After(at - waited):
+			case <-done:
+				return
+			}
+			waited = at
+			select {
+			case out <- mixer.ControllerConnected{Resync: true}:
+			case <-done:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
 	var p controller.Parser
 	buf := make([]byte, 256)
@@ -196,6 +233,10 @@ func (d *Device) SetLED(l mixer.LED, on bool) error {
 	if d.cur == nil {
 		return ErrNotConnected
 	}
+	if wait := d.ledGap - time.Since(d.lastLED); wait > 0 {
+		time.Sleep(wait)
+	}
 	_, err := d.cur.Write(cc.Encode())
+	d.lastLED = time.Now()
 	return err
 }
