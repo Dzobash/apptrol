@@ -127,6 +127,37 @@ systemctl --user daemon-reload
 systemctl --user restart apptrol
 ```
 
+### Building from source
+
+You need [Go](https://go.dev/dl/) 1.24 or newer, `git` and `make`; nothing else, as Apptrol
+is pure Go without C libraries. (Ubuntu and Kubuntu 25.04 or newer ship a recent enough Go
+as `golang-go`; on older releases, install it from go.dev.)
+
+```bash
+git clone https://github.com/Dzobash/apptrol.git
+cd apptrol
+git checkout v0.1.0        # optional: a release instead of the newest code
+make build                 # creates bin/apptrol
+./bin/apptrol --version
+```
+
+`./bin/apptrol` runs it in the terminal. To run it as a service, as the packages do, install
+the program and the systemd unit for your user:
+
+```bash
+install -Dm755 bin/apptrol ~/.local/bin/apptrol
+install -Dm644 packaging/systemd/apptrol.service ~/.config/systemd/user/apptrol.service
+sed -i "s|/usr/bin/apptrol|$HOME/.local/bin/apptrol|" ~/.config/systemd/user/apptrol.service
+systemctl --user daemon-reload
+systemctl --user enable --now apptrol
+```
+
+To update, pull the new code, run `make build` and the first `install` line again, then
+`systemctl --user restart apptrol`. To remove it, `systemctl --user disable --now apptrol`
+and delete the two installed files. To build your own `.deb` and `.rpm` packages instead,
+run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they end up in
+`dist/`. For changing the code, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## First steps
 
 1. **Write your configuration** in `~/.config/apptrol/config.toml`. Apptrol creates it from
