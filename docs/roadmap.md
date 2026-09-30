@@ -20,7 +20,7 @@ Each phase ends with a tagged release. Detailed requirements live in
 
 - [x] Requirements, roadmap, configuration reference, decision records
 - [x] License (MIT), README, changelog, contributing guide
-- [x] Git repository on GitHub (private until the first release)
+- [x] Git repository on GitHub (public since the first release, v0.1.0)
 - [x] Go module and project skeleton (`cmd/apptrol`, `internal/…`)
 - [x] Testing strategy and QA requirements ([ADR 0012](adr/0012-testing-strategy.md), [testing.md](testing.md))
 - [x] CI with GitHub Actions: lint, tests (race, coverage gate, two Go versions), `govulncheck`, build
