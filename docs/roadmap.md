@@ -81,8 +81,9 @@ problems. Anything found later ships as a patch release, `0.1.x`.)
 
 ## Phase 3 — GUI and tray (`0.4.0`)
 
-- [ ] Decide how the GUI talks to the service (ADR; open question Q-4)
-- [ ] Choose the GUI toolkit (ADR)
+- [ ] Record how the GUI talks to the service: D-Bus, decided (Q-4); ADR with Phase 1.5
+- [ ] Prototype: Fyne window with one drawn column and a tray icon, tested on KDE
+- [ ] Choose the GUI toolkit (ADR), based on the prototype
 - [ ] Main window: layout drop-down, control assignments with current percentages
 - [ ] Tray icon (StatusNotifierItem; works on KDE and on GNOME with AppIndicator support)
 

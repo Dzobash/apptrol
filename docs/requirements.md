@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Phase 1 implemented (release candidate for 0.1.0); later phases outlined |
-| **Last updated** | 2026-09-30 |
+| **Last updated** | 2026-10-02 |
 | **Related** | [Roadmap](roadmap.md) · [Configuration reference](config.md) · [Decision records](adr/) |
 
 ## 1. Purpose
@@ -263,7 +263,11 @@ before the phase starts. See the [roadmap](roadmap.md).
 
 ### Phase 3 — GUI
 - A main window with a layout drop-down and a list of every control's target and current percentage.
-- A tray icon. The GUI talks to the running service; it is not required for the service to work.
+- The window looks like the controller: eight columns, each with a knob, a slider and S / M / R buttons with their LEDs, so it is clear what is being configured.
+- A tray icon wherever the desktop has a tray (StatusNotifierItem); the window works fully without one. Desktops with only an XEmbed tray (e.g. i3bar) and GNOME without the AppIndicator extension show no icon.
+- Clicking the tray icon opens and closes the window. On Wayland the desktop, not the app, decides where a window appears, so there is no popup next to the icon.
+- Works independently of the desktop: KDE Plasma, GNOME, wlroots compositors (Hyprland, Sway), Wayland and X11.
+- The GUI is a separate program that talks to the running service over D-Bus (Q-4); it is not required for the service to work.
 
 ### Backlog (unscheduled)
 - **Record (●)**: start/stop recording in a configured app (OBS via its WebSocket API, or custom start/stop commands); LED shows recording state.
@@ -280,5 +284,5 @@ before the phase starts. See the [roadmap](roadmap.md).
 | Q-1 | When switching from a layout where an app is user-muted to a layout that does not contain that app, should the app stay muted or become audible until you switch back? | 2 |
 | Q-2 | Should R also cycle an input column between input devices? | Backlog |
 | Q-3 | Should an output move made with R persist after the app restarts, and is it per layout or global? | Backlog |
-| Q-4 | How does the GUI talk to the service (D-Bus or a local socket)? To be decided in an ADR. | 3 |
+| Q-4 | How does the GUI talk to the service (D-Bus or a local socket)? **Decided 2026-10-02: D-Bus** (session bus), which Phase 1.5 brings in anyway for MPRIS and the on-screen display. To be recorded in the ADR at the start of Phase 1.5. | 3 |
 | Q-5 | Should the journald output use the native journal protocol (structured fields) instead of stdout with severity prefixes? Phase 1 uses severity prefixes. | Backlog |
