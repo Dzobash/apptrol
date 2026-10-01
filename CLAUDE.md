@@ -48,6 +48,9 @@ Read these instead of guessing; this file only links to them:
   owner's PipeWire; it adds a silent test output and inputs and removes them afterwards).
 - `internal/mixer` stays pure: no I/O, events in, actions out
   ([ADR 0015](docs/adr/0015-service-architecture.md)).
+- No cgo: the binary stays pure Go and static (ADR 0013). Never import
+  `github.com/coreos/go-systemd/v22/sdjournal`; it needs cgo
+  ([ADR 0017](docs/adr/0017-desktop-services-over-dbus.md)).
 
 ## How we work together
 

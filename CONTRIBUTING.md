@@ -97,6 +97,8 @@ Project layout:
 How the packages work together: [docs/architecture.md](docs/architecture.md).
 
 - Go, formatted with `gofmt`; CI runs `go vet`, `golangci-lint` and the tests.
+- No cgo: Apptrol is built with `CGO_ENABLED=0` (ADR 0013). Never import
+  `github.com/coreos/go-systemd/v22/sdjournal`; it needs cgo (ADR 0017).
 - New behaviour comes with tests; see [docs/testing.md](docs/testing.md).
 - Images you did not make yourself go in `docs/assets/photos/`, only under a license that
   allows it, with author, source, license and changes listed in its README.
