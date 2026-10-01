@@ -25,3 +25,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0014](0014-logo-and-visual-identity.md) | Logo and visual identity | Accepted |
 | [0015](0015-service-architecture.md) | Service architecture and controller access | Accepted |
 | [0016](0016-log-records-follow-opentelemetry.md) | Log records follow the OpenTelemetry semantic conventions | Accepted |
+| [0017](0017-desktop-services-over-dbus.md) | Talk to desktop services over D-Bus with godbus | Accepted |
