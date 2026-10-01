@@ -249,8 +249,10 @@ How these are met is described in [ADR 0012](adr/0012-testing-strategy.md) and
 These are agreed directions, not yet full requirements. They will be refined and given IDs
 before the phase starts. See the [roadmap](roadmap.md).
 
-### Phase 1.5 — Media buttons and on-screen display
+### Phase 1.5 — Media buttons
 - ◀◀ ▶▶ ■ ▶ control media playback through MPRIS. Default: the most recently active player; optionally pinned to one player in the config.
+
+### Phase 1.6 — On-screen display
 - On-screen feedback when a volume or mute changes: KDE's native volume OSD when available, a desktop notification elsewhere (e.g. GNOME).
 
 ### Phase 2 — Layouts
@@ -284,5 +286,5 @@ before the phase starts. See the [roadmap](roadmap.md).
 | Q-1 | When switching from a layout where an app is user-muted to a layout that does not contain that app, should the app stay muted or become audible until you switch back? | 2 |
 | Q-2 | Should R also cycle an input column between input devices? | Backlog |
 | Q-3 | Should an output move made with R persist after the app restarts, and is it per layout or global? | Backlog |
-| Q-4 | How does the GUI talk to the service (D-Bus or a local socket)? **Decided 2026-10-02: D-Bus** (session bus), which Phase 1.5 brings in anyway for MPRIS and the on-screen display. To be recorded in the ADR at the start of Phase 1.5. | 3 |
+| Q-4 | How does the GUI talk to the service (D-Bus or a local socket)? **Decided 2026-10-02: D-Bus** (session bus), which Phases 1.5 and 1.6 bring in anyway for MPRIS and the on-screen display. To be recorded in the ADR at the start of Phase 1.5. | 3 |
 | Q-5 | Should the journald output use the native journal protocol (structured fields) instead of stdout with severity prefixes? Phase 1 uses severity prefixes. | Backlog |

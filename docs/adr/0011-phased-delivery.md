@@ -18,3 +18,10 @@ Recording, output switching (R), bleep and Marker buttons stay in the backlog.
 
 - A usable tool early; later phases are refined with real usage experience.
 - The config format and code must leave room for later phases (see ADR 0004).
+
+## Notes
+
+- 2026-10-02: Phase 1.5 is split in two. Media buttons stay in Phase 1.5 (`0.2.0`); the
+  on-screen display becomes Phase 1.6 (`0.3.0`). MPRIS is one standard on every desktop,
+  while the on-screen display differs per desktop and should not hold back the media
+  buttons. Layouts move to `0.4.0` and the GUI to `0.5.0`; the phase numbers stay.

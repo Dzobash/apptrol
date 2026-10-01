@@ -7,15 +7,16 @@ Each phase ends with a tagged release. Detailed requirements live in
 |---|---|---|---|
 | 0 | Project setup | 0.0.1 | ✅ Done |
 | 1 | Core mixer: sliders, knobs, M, S | 0.1.0 | ✅ Released 2026-09-30 |
-| 1.5 | Media buttons and on-screen display | 0.2.0 | ⚪ Planned |
-| 2 | Layouts | 0.3.0 | ⚪ Planned |
-| 3 | GUI and tray | 0.4.0 | ⚪ Planned |
+| 1.5 | Media buttons | 0.2.0 | ⚪ Planned |
+| 1.6 | On-screen display | 0.3.0 | ⚪ Planned |
+| 2 | Layouts | 0.4.0 | ⚪ Planned |
+| 3 | GUI and tray | 0.5.0 | ⚪ Planned |
 | – | Backlog | – | ⚪ Unscheduled |
 
 `1.0.0` is released once Phases 1–3 are stable and the config format is frozen.
 
 <p align="center">
-  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by phase: sliders, knobs, S and M work now (Phase 1); transport buttons as media keys in 0.2.0; Track and Cycle for layouts in 0.3.0; R, Marker and Record have no function yet" width="800">
+  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by phase: sliders, knobs, S and M work now (Phase 1); transport buttons as media keys in 0.2.0; Track and Cycle for layouts in 0.4.0; R, Marker and Record have no function yet" width="800">
 </p>
 
 ---
@@ -64,13 +65,20 @@ an installed release candidate. (The original goal of a week as the only volume 
 was dropped: three release candidates were tested on hardware and daily use showed no
 problems. Anything found later ships as a patch release, `0.1.x`.)
 
-## Phase 1.5 — Media buttons and on-screen display (`0.2.0`)
+## Phase 1.5 — Media buttons (`0.2.0`)
 
+- [ ] D-Bus connection in the service (ADR; also used by Phases 1.6 and 3, Q-4)
 - [ ] ◀◀ ▶▶ ■ ▶ via MPRIS; most recent player by default, optionally pinned
+
+## Phase 1.6 — On-screen display (`0.3.0`)
+
+Split from Phase 1.5 on 2026-10-02: the on-screen display differs per desktop and should
+not hold back the media buttons.
+
 - [ ] On-screen feedback: KDE volume OSD, notification fallback for other desktops
 - [ ] Config switch to turn on-screen feedback off
 
-## Phase 2 — Layouts (`0.3.0`)
+## Phase 2 — Layouts (`0.4.0`)
 
 - [ ] Multiple layouts with their own assignments and saved state
 - [ ] Switch behaviour per layout: fixed value (with per-control overrides), last values, carry over
@@ -79,7 +87,7 @@ problems. Anything found later ships as a patch release, `0.1.x`.)
 - [ ] Optional automatic switching by running application
 - [ ] Resolve open question Q-1
 
-## Phase 3 — GUI and tray (`0.4.0`)
+## Phase 3 — GUI and tray (`0.5.0`)
 
 - [ ] Record how the GUI talks to the service: D-Bus, decided (Q-4); ADR with Phase 1.5
 - [ ] Prototype: Fyne window with one drawn column and a tray icon, tested on KDE

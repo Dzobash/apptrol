@@ -168,7 +168,7 @@ Rules checked on load:
 | Section | Phase | Purpose |
 |---|---|---|
 | `[media]` | 1.5 | Media buttons; optional `player` to pin one MPRIS player. |
-| `[osd]` | 1.5 | On-screen feedback on/off. |
+| `[osd]` | 1.6 | On-screen feedback on/off. |
 | `[layouts.<name>]` switch options | 2 | Behaviour on layout switch, fixed values, per-control overrides. |
 | `outputs` in `[apps.<id>]` | Backlog | Allowed outputs for the R button. |
 | `[record]` | Backlog | Recording app and start/stop commands. |

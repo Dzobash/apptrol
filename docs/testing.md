@@ -50,7 +50,7 @@ state file unless a step says otherwise.
 | H-00 | `apptrol test`: move every slider and knob, press every button twice | Every control is shown with the right name and 0–127; each button's LED turns on, then off (Track and Marker buttons have no LED) | HW-01, HW-02, HW-07 |
 | H-01 | Start the service with the controller unplugged, then plug it in | Log says it is waiting, then connected; LEDs set | SVC-03, LED-07 |
 | H-02 | Mute two apps, then unplug and replug the controller while running | Disconnect and reconnect logged; within 2 seconds the LEDs show the same state as before (M lit for the muted apps, input column lit) | SVC-03, LED-07 |
-| H-03 | Play music in an app assigned to slider 1; move slider 1 from bottom to top | Volume follows smoothly from 0 % to 100 %; the desktop's volume settings show the same percentage (there is no on-screen popup yet; that comes in Phase 1.5) | CTRL-02 |
+| H-03 | Play music in an app assigned to slider 1; move slider 1 from bottom to top | Volume follows smoothly from 0 % to 100 %; the desktop's volume settings show the same percentage (there is no on-screen popup yet; that comes in Phase 1.6) | CTRL-02 |
 | H-04 | Same with an app on a knob | Volume follows | CTRL-02 |
 | H-05 | Move an unassigned slider | Nothing changes | CTRL-01 |
 | H-06 | Change the app's volume in the desktop mixer, then touch the slider | Volume jumps back to the slider's position | PRIO-01 |

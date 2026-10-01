@@ -60,7 +60,7 @@ dim(381,211,577,257,12); dim(514,268,575,332); box(380,210,578,258,GREY,12); box
 items=[(1,GREEN,'Works now','Sliders and knobs set each app’s volume; S solos, M mutes; the LEDs show it.'),
        (2,GREY,'No function yet','R buttons. Lit on an input column (e.g. your microphone).'),
        (3,AMBER,'Planned for 0.2.0','◀◀ ▶▶ ■ ▶ control the music player that is playing.'),
-       (4,VERM,'Planned for 0.3.0','Track ◀ ▶ and Cycle switch between layouts.'),
+       (4,VERM,'Planned for 0.4.0','Track ◀ ▶ and Cycle switch between layouts.'),
        (5,GREY,'Not assigned yet','Marker buttons and Record: ideas in the roadmap’s backlog.')]
 y0=PAD_T+PH+PAD_B
 colx=[60,840]
