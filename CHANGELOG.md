@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which are planned (`docs/assets/photos/nanokontrol2-controls.png`, CC BY-NC-SA 3.0).
 - README: mutes made with M stay set while Apptrol is stopped; ADR 0006 records why.
 
+### Changed
+- Roadmap: the on-screen display gets its own release (Phase 1.6, `0.3.0`) after the
+  media buttons (`0.2.0`); layouts move to `0.4.0`, the GUI to `0.5.0`.
+- Roadmap: `0.2.0` also plans app launchers on Record and the Marker buttons, play /
+  pause per slider on R, and a cough button and talk-over for the microphone. The
+  microphone "bleep" is dropped: it would be an audio effect, which is out of scope.
+
 ## [0.1.0] - 2026-09-30
 
 First release: Phase 1, the core mixer.
