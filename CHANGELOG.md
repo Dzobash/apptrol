@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: building from source, and running a self-built Apptrol as a user service.
 - README and roadmap: a picture of the controller showing which controls work now and
   which are planned (`docs/assets/photos/nanokontrol2-controls.png`, CC BY-NC-SA 3.0).
+- README: mutes made with M stay set while Apptrol is stopped; ADR 0006 records why.
 
 ## [0.1.0] - 2026-09-30
 
