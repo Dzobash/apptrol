@@ -44,3 +44,8 @@ desks handle multiple solos differently (additive vs. exclusive).
   an app that stays muted is the safer failure, and the mute shows in the desktop's
   volume applet. The LEDs still go off on stop (LED-08); a restart takes about a second,
   and they come back on start (LED-07).
+- 2026-10-02: S on an input column will not be a bleep: replacing the microphone signal
+  with a tone is an audio effect, out of scope, and not possible through the PulseAudio
+  protocol (ADR 0003). From Phase 1.5 it is talk-over (hold to turn apps down), and R on
+  an input column is a cough button (hold to mute). Both are held states, kept apart from
+  the M mute like solo is, and never saved.

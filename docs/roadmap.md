@@ -7,7 +7,7 @@ Each phase ends with a tagged release. Detailed requirements live in
 |---|---|---|---|
 | 0 | Project setup | 0.0.1 | ✅ Done |
 | 1 | Core mixer: sliders, knobs, M, S | 0.1.0 | ✅ Released 2026-09-30 |
-| 1.5 | Media buttons | 0.2.0 | ⚪ Planned |
+| 1.5 | Media, launcher and column buttons | 0.2.0 | ⚪ Planned |
 | 1.6 | On-screen display | 0.3.0 | ⚪ Planned |
 | 2 | Layouts | 0.4.0 | ⚪ Planned |
 | 3 | GUI and tray | 0.5.0 | ⚪ Planned |
@@ -16,7 +16,7 @@ Each phase ends with a tagged release. Detailed requirements live in
 `1.0.0` is released once Phases 1–3 are stable and the config format is frozen.
 
 <p align="center">
-  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by phase: sliders, knobs, S and M work now (Phase 1); transport buttons as media keys in 0.2.0; Track and Cycle for layouts in 0.4.0; R, Marker and Record have no function yet" width="800">
+  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by phase: sliders, knobs, S and M work now (Phase 1); transport buttons as media keys, R buttons, Marker and Record as launchers in 0.2.0; Track and Cycle for layouts in 0.4.0" width="800">
 </p>
 
 ---
@@ -65,10 +65,18 @@ an installed release candidate. (The original goal of a week as the only volume 
 was dropped: three release candidates were tested on hardware and daily use showed no
 problems. Anything found later ships as a patch release, `0.1.x`.)
 
-## Phase 1.5 — Media buttons (`0.2.0`)
+## Phase 1.5 — Media, launcher and column buttons (`0.2.0`)
+
+Every button except the layout buttons gets a function.
 
 - [ ] D-Bus connection in the service (ADR; also used by Phases 1.6 and 3, Q-4)
 - [ ] ◀◀ ▶▶ ■ ▶ via MPRIS; most recent player by default, optionally pinned
+- [ ] Record (●) and the Marker buttons start apps (desktop ID or command), each in its own systemd scope; already-running behaviour configurable
+- [ ] `apptrol list apps [search]` shows desktop IDs; `apptrol check` warns about unknown ones
+- [ ] R on an app column: play / pause that app (MPRIS), LED lit while it plays
+- [ ] R on an input column: hold to mute (cough), or push-to-talk
+- [ ] S on an input column: hold to turn apps down (talk-over)
+- [ ] R can be overridden per column as a launcher; launchers and overrides set per layout
 
 ## Phase 1.6 — On-screen display (`0.3.0`)
 
@@ -97,10 +105,8 @@ not hold back the media buttons.
 
 ## Backlog
 
-- Record button (●): OBS WebSocket or custom start/stop commands, LED shows recording state
-- R: move an app between a per-app list of outputs (needs discussion; Q-2, Q-3)
-- Bleep on an input column's S button
-- Marker buttons
+- R override: move an app between a per-app list of outputs (needs discussion; Q-2, Q-3)
+- Recording control beyond starting an app (e.g. OBS WebSocket, Record LED shows recording state)
 - Read the controller's LED mode over SysEx and warn only when it is "Internal" (see HW-03)
 - Support for other MIDI controllers
 - Native journald protocol for structured log fields (Q-5)

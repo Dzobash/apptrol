@@ -168,7 +168,8 @@ Rules checked on load:
 | Section | Phase | Purpose |
 |---|---|---|
 | `[media]` | 1.5 | Media buttons; optional `player` to pin one MPRIS player. |
+| Buttons in `[layouts.<name>]` | 1.5 | Launchers for Record and the Marker buttons; R overrides per column (launcher, push-to-talk). |
+| Talk-over level | 1.5 | How far apps are turned down while S is held on an input column. |
 | `[osd]` | 1.6 | On-screen feedback on/off. |
 | `[layouts.<name>]` switch options | 2 | Behaviour on layout switch, fixed values, per-control overrides. |
-| `outputs` in `[apps.<id>]` | Backlog | Allowed outputs for the R button. |
-| `[record]` | Backlog | Recording app and start/stop commands. |
+| `outputs` in `[apps.<id>]` | Backlog | Allowed outputs for an R override. |

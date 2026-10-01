@@ -54,12 +54,14 @@ and works just as well with a plain internal sound card.
 
 ### 2.2 Out of scope for Phase 1
 
-Media buttons, on-screen popups, multiple layouts, pick-up, a GUI, recording control,
-moving apps between outputs (R), mic bleep. See section 5 and the [roadmap](roadmap.md).
+Media buttons, launcher buttons, functions for R and for S on an input column, on-screen
+popups, multiple layouts, pick-up, a GUI, moving apps between outputs. See section 6 and
+the [roadmap](roadmap.md).
 
 ### 2.3 Never in scope
 
-- Audio routing or effects (EQ, compression, mixing streams together).
+- Audio routing or effects (EQ, compression, mixing streams together, replacing the
+  microphone signal with a tone ("bleep")).
 - Windows or macOS support.
 - Replacing the audio interface's own software (e.g. the GoXLR utility).
 
@@ -131,7 +133,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | SOLO-04 | Only one column can be soloed at a time. Pressing S on another column MUST move the solo to that column. | MUST |
 | SOLO-05 | Pressing S on the soloed column MUST turn solo off. Every app then returns to its own state: user-muted apps stay muted, all others become audible. Solo MUST NOT return to a previously soloed column. | MUST |
 | SOLO-06 | A soloed column's own user mute still applies (soloing a user-muted app results in silence). | MUST |
-| SOLO-07 | Pressing S on an input column MUST do nothing in Phase 1. The button is reserved for a future bleep function. | MUST |
+| SOLO-07 | Pressing S on an input column MUST do nothing in Phase 1. The button is reserved for talk-over (Phase 1.5). | MUST |
 
 ### 4.5 LED feedback
 
@@ -249,8 +251,19 @@ How these are met is described in [ADR 0012](adr/0012-testing-strategy.md) and
 These are agreed directions, not yet full requirements. They will be refined and given IDs
 before the phase starts. See the [roadmap](roadmap.md).
 
-### Phase 1.5 — Media buttons
+### Phase 1.5 — Media, launcher and column buttons
+Every button except the layout buttons (Track ◀ / ▶, Cycle) gets a function.
 - ◀◀ ▶▶ ■ ▶ control media playback through MPRIS. Default: the most recently active player; optionally pinned to one player in the config.
+- **Launcher buttons**: Record (●) and the three Marker buttons each start an app, given by its desktop ID (works for system, Flatpak and Snap installs) or as a command (run without a shell). Start only; nothing is stopped. Per launcher, configurable whether an app that is already running is started again or skipped.
+- Started apps run in their own systemd scope, so they belong to the desktop session, not to Apptrol, and keep running when Apptrol restarts or stops.
+- `apptrol list apps [search]` shows the desktop IDs and names of installed apps (from the `.desktop` files, without hidden ones), with where each comes from (system, Flatpak, Snap, home folder). `apptrol check` warns about desktop IDs that are not installed.
+- **R on an app column**: play / pause that column's app through MPRIS; the R LED is lit while it plays. Apps without MPRIS: R does nothing, LED off. The column's app is found among the MPRIS players with its match list.
+- **R on an input column**: hold to mute ("cough"); configurable as push-to-talk (muted except while held). Kept apart from the M mute, like user mute and solo.
+- **S on an input column**: hold to turn all app targets down to a configurable level ("talk-over"); on release they return to their controls' positions.
+- Any R button can be overridden per column to be a launcher instead.
+- Held states (cough, push-to-talk, talk-over) are never saved; they end when Apptrol stops.
+- Launcher buttons and R overrides are set per layout, so each layout (Phase 2) has its own.
+- Desktops that do not pass the display to systemd user services (e.g. Hyprland, Sway) need one line in their config so started apps can open windows; documented with the feature.
 
 ### Phase 1.6 — On-screen display
 - On-screen feedback when a volume or mute changes: KDE's native volume OSD when available, a desktop notification elsewhere (e.g. GNOME).
@@ -272,10 +285,8 @@ before the phase starts. See the [roadmap](roadmap.md).
 - The GUI is a separate program that talks to the running service over D-Bus (Q-4); it is not required for the service to work.
 
 ### Backlog (unscheduled)
-- **Record (●)**: start/stop recording in a configured app (OBS via its WebSocket API, or custom start/stop commands); LED shows recording state.
-- **R — move app to another output**: cycle an app through a per-app list of allowed output devices; R LED shows when the app is not on its home output. Needs further discussion.
-- **Bleep** on an input column's S button: replace the microphone signal with a tone while held.
-- Functions for the Marker buttons.
+- **Move app to another output**, as a further R override: cycle an app through a per-app list of allowed output devices; R LED shows when the app is not on its home output. Needs further discussion.
+- Recording control beyond starting an app (e.g. start/stop recording in OBS via its WebSocket API, with the Record LED showing the state).
 - Read the controller's LED mode over SysEx (read-only) and log a **warning** only when it is "Internal", replacing the HW-03 hint.
 - Support for other MIDI controllers.
 
