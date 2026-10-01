@@ -39,3 +39,8 @@ desks handle multiple solos differently (additive vs. exclusive).
   M LED follows; it is saved), for the whole app. Solo still wins: an app unmuted outside
   Apptrol while another is soloed is muted again. Apps on knobs, which have no M button,
   keep an outside mute too.
+- 2026-10-01: User mutes stay when Apptrol stops (decided in #26). Releasing them would
+  unmute a muted microphone after every restart and login until Apptrol starts again;
+  an app that stays muted is the safer failure, and the mute shows in the desktop's
+  volume applet. The LEDs still go off on stop (LED-08); a restart takes about a second,
+  and they come back on start (LED-07).
