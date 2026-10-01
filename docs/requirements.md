@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Phase 1 implemented (release candidate for 0.1.0); later phases outlined |
+| **Status** | Phase 1 released (0.1.0); later phases outlined |
 | **Last updated** | 2026-10-02 |
 | **Related** | [Roadmap](roadmap.md) · [Configuration reference](config.md) · [Decision records](adr/) |
 
