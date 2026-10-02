@@ -50,7 +50,7 @@ It works alongside an audio interface such as a GoXLR, or on its own with a norm
 
 Planned later: media buttons, buttons that start apps, play / pause per slider,
 on-screen volume display, multiple layouts (e.g.
-*Work* and *Gaming*) and a GUI.
+*Work* and *Gaming*), a setup in the terminal and a tray icon.
 
 
 ## Why Apptrol exists

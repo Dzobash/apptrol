@@ -29,3 +29,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0018](0018-media-players-through-mpris.md) | Media players through MPRIS: finding, matching and controlling them | Accepted |
 | [0019](0019-launcher-and-column-buttons.md) | Launcher buttons, input column buttons and their configuration | Accepted; input column buttons replaced by 0020 |
 | [0020](0020-microphone-column-buttons.md) | Microphone column buttons: M talks, S coughs or talks over | Accepted |
+| [0021](0021-no-desktop-gui.md) | No desktop GUI: a terminal setup and a tray icon in the service | Accepted |

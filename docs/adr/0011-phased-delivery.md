@@ -29,3 +29,6 @@ Recording, output switching (R), bleep and Marker buttons stay in the backlog.
   function: launchers on Record and the Marker buttons, R plays / pauses its column's app,
   and R and S on an input column become cough and talk-over. None of it is uncertain like
   the on-screen display, so it ships with the media buttons in `0.2.0`.
+- 2026-10-02: Phase 3 is no longer a GUI. It becomes *Setup and tray* (`0.5.0`): a
+  terminal setup, `apptrol setup`, and a tray icon in the service; problem notifications
+  join the on-screen display in Phase 1.6. See [ADR 0021](0021-no-desktop-gui.md).
