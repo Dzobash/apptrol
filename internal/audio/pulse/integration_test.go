@@ -224,6 +224,15 @@ func TestIntegration_MEDIA10_Cork(t *testing.T) {
 	}, &created); err != nil {
 		t.Fatal(err)
 	}
+	// Like a real player, send sound (silence): some PipeWire versions report
+	// a stream that has no data yet as corked.
+	n := int(created.Missing)
+	if n == 0 {
+		n = 44100 * 4 / 2 // half a second of mono float32
+	}
+	if err := k.c.Send(created.StreamIndex, make([]byte, n)); err != nil {
+		t.Fatal(err)
+	}
 	cork := func(corked bool) {
 		t.Helper()
 		if err := k.request(&proto.CorkPlaybackStream{StreamIndex: created.StreamIndex, Corked: corked}, nil); err != nil {
@@ -236,14 +245,21 @@ func TestIntegration_MEDIA10_Cork(t *testing.T) {
 	if id != created.SinkInputIndex {
 		t.Fatalf("stream %d appeared, created %d", id, created.SinkInputIndex)
 	}
-	if added.Stream.Corked {
-		t.Error("a stream created uncorked is reported as corked")
+	// Follow the stream's state through the reported changes, whatever it
+	// started as.
+	corked := added.Stream.Corked
+	wait := func(want bool) {
+		t.Helper()
+		for corked != want {
+			corked = next(t, events, func(e mixer.StreamCorkChanged) bool { return e.ID == id }).Corked
+		}
 	}
 
+	wait(false) // playing
 	cork(true)
-	next(t, events, func(e mixer.StreamCorkChanged) bool { return e.ID == id && e.Corked })
+	wait(true)
 	cork(false)
-	next(t, events, func(e mixer.StreamCorkChanged) bool { return e.ID == id && !e.Corked })
+	wait(false)
 }
 
 func TestIntegration_Backend(t *testing.T) {
