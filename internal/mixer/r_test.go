@@ -97,22 +97,35 @@ func TestMEDIA07_ROffAndLaunchersSendNothing(t *testing.T) {
 	w.wantLEDs(2, false, false, false) // …and as a launcher
 }
 
-func TestMEDIA09_RLightsWhileTheAppPlaysAndHasAPlayer(t *testing.T) {
-	w := started(t)                    // Spotify's stream is not corked
+func TestMEDIA09_RLightsWhileAPlayerOfTheAppPlays(t *testing.T) {
+	w := started(t)
 	w.wantLEDs(1, false, false, false) // no player yet
 	w.do(PlayerAdded{Player: spotifyPlayer})
 	w.wantLEDs(1, false, false, true)
-	w.do(StreamCorkChanged{ID: spotify.ID, Corked: true}) // paused: the stream is corked
+	w.do(PlayerStatusChanged{BusName: spotifyPlayer.BusName, Status: StatusPaused})
+	w.wantLEDs(1, false, false, false) // at once, not when the app corks its stream
+	w.do(StreamCorkChanged{ID: spotify.ID, Corked: true})
 	w.wantLEDs(1, false, false, false)
-	w.do(StreamCorkChanged{ID: spotify.ID, Corked: false})
+	w.do(PlayerStatusChanged{BusName: spotifyPlayer.BusName, Status: StatusPlaying})
 	w.wantLEDs(1, false, false, true)
-	w.do(StreamRemoved{ID: spotify.ID})
+	w.do(PlayerStatusChanged{BusName: spotifyPlayer.BusName, Status: "Stopped"})
 	w.wantLEDs(1, false, false, false)
-	w.do(StreamAdded{Stream: spotify})
-	w.wantLEDs(1, false, false, true)
+	w.do(PlayerStatusChanged{BusName: spotifyPlayer.BusName, Status: StatusPlaying})
 	w.do(PlayerRemoved{BusName: spotifyPlayer.BusName})
 	w.wantLEDs(1, false, false, false)
 	w.wantLEDs(8, true, true, true) // the microphone's R stays lit (LED-04)
+}
+
+func TestMEDIA09_RLightsWhileAnyOfSeveralPlayersPlays(t *testing.T) {
+	w := started(t)
+	a := player("firefox.instance_1_1", "Firefox", "")
+	b := player("vivaldi.instance42", "Vivaldi", "")
+	w.do(PlayerSnapshot{Players: []Player{a, withStatus(b, StatusPaused)}})
+	w.wantLEDs(2, false, false, true)
+	w.do(PlayerStatusChanged{BusName: a.BusName, Status: StatusPaused})
+	w.wantLEDs(2, false, false, false)
+	w.do(PlayerStatusChanged{BusName: b.BusName, Status: StatusPlaying})
+	w.wantLEDs(2, false, false, true)
 }
 
 func TestMEDIA09_PhonePlayersDoNotLightR(t *testing.T) {

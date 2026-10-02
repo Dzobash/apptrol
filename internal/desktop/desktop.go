@@ -335,7 +335,8 @@ func (t *tracker) signal(sig *dbus.Signal) []mixer.Event {
 		}
 		p.Status = status
 		t.players[name] = p
-		t.b.log.Debug("playback status changed", logattr.KeyPlayerBusName, name, logattr.KeyPlayerStatus, status)
+		t.b.log.Debug("playback status changed", logattr.KeyPlayerBusName, name,
+			logattr.KeyPlayerIdentity, p.Identity, logattr.KeyPlayerStatus, status)
 		return []mixer.Event{mixer.PlayerStatusChanged{BusName: name, Status: status}}
 	}
 	return nil

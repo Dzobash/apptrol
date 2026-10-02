@@ -186,7 +186,6 @@ func (m *Mixer) Handle(ev Event) []Action {
 		m.streamAdded(&a, e.Stream)
 	case StreamRemoved:
 		delete(m.streams, e.ID)
-		m.syncLEDs(&a, false) // the R LED may go off (MEDIA-09)
 	case DeviceAdded:
 		m.devices[e.Device.Name] = e.Device
 		m.chooseDevices(&a)
@@ -397,9 +396,8 @@ func (m *Mixer) streamMuteChanged(a *actions, e StreamMuteChanged) {
 }
 
 // streamCorkChanged keeps track of whether a stream's app has paused it
-// (MEDIA-10). The R LED shows it: lit while the app plays (MEDIA-09).
+// (MEDIA-10), and logs it.
 func (m *Mixer) streamCorkChanged(a *actions, e StreamCorkChanged) {
-	defer m.syncLEDs(a, false)
 	s, known := m.streams[e.ID]
 	if !known {
 		return
@@ -822,7 +820,6 @@ func (m *Mixer) streamAdded(a *actions, s Stream) {
 		a.notice(slog.LevelInfo, "stream matched", m.about(c, append(streamAttrs(s), logattr.KeyStreamCorked, s.Corked)...)...)
 	}
 	m.applyStream(a, info)
-	m.syncLEDs(a, false) // a playing stream may light R (MEDIA-09)
 }
 
 // applyStream gives a stream its control's position (PRIO-03, or leaves the

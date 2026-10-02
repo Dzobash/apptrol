@@ -148,7 +148,7 @@ func (m *Mixer) playersChanged(a *actions, ev Event) {
 			p.Status = e.Status
 		}
 	}
-	m.syncLEDs(a, false) // a player appearing or going changes the R LED (MEDIA-09)
+	m.syncLEDs(a, false) // a player playing, pausing or going changes the R LED (MEDIA-09)
 }
 
 func (m *Mixer) nextPlaySeq() int {
@@ -231,14 +231,16 @@ func (m *Mixer) playPause(a *actions, c Control, button string) {
 }
 
 // rLit reports whether the R LED of an app column is lit: in play_pause mode,
-// while the app has a stream that is not corked and at least one media
-// player, so a lit R always means pressing it does something (MEDIA-09).
+// while one of the app's media players reports Playing (MEDIA-09). Lit means
+// pressing R pauses; dark means it resumes, or does nothing. The player's
+// status arrives right after a press, while apps cork their stream only
+// seconds after pausing (ADR 0018, note of 2026-10-02).
 func (m *Mixer) rLit(col int, id string) bool {
-	if m.rMode(col) != ModePlayPause || len(m.appPlayers(id)) == 0 {
+	if m.rMode(col) != ModePlayPause {
 		return false
 	}
-	for _, s := range m.streams {
-		if s.target == id && !s.Corked {
+	for _, p := range m.appPlayers(id) {
+		if p.Status == StatusPlaying {
 			return true
 		}
 	}
