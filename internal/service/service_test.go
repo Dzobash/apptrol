@@ -158,6 +158,8 @@ type env struct {
 	out    *syncBuf
 	cancel context.CancelFunc
 	done   chan error
+
+	logLevelFlag string // Options.LogLevelFlag
 }
 
 var (
@@ -226,6 +228,7 @@ func (e *env) start() *env {
 		StatePath:     e.statePath(),
 		Log:           slog.New(&checkHandler{t: e.t, inner: slog.NewTextHandler(e.out, &slog.HandlerOptions{Level: slog.LevelDebug})}),
 		Logs:          e.logs,
+		LogLevelFlag:  e.logLevelFlag,
 		Audio:         e.audio,
 		NewController: func(port string) Controller { e.ctl.port = port; return e.ctl },
 		WatchInterval: 10 * time.Millisecond,
@@ -440,6 +443,28 @@ func TestPortChangeNeedsRestart(t *testing.T) {
 	}
 	e.write("[controller]\nport = \"second\"\n" + testConfig)
 	e.waitLog("restart Apptrol to use it")
+}
+
+func TestLOG16_StartRecordNamesLevelSource(t *testing.T) {
+	tests := []struct {
+		name string
+		flag string
+		want string
+	}{
+		{"from the configuration", "", "apptrol.log.level_source=config"},
+		{"from --log-level", "debug", "apptrol.log.level=debug apptrol.log.level_source=flag"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newEnv(t, testConfig)
+			e.logLevelFlag = tt.flag
+			e.start()
+			first := strings.SplitN(e.out.String(), "\n", 2)[0]
+			if !strings.Contains(first, "Apptrol starting") || !strings.Contains(first, tt.want) {
+				t.Errorf("first record = %q, want the start record with %q", first, tt.want)
+			}
+		})
+	}
 }
 
 func TestSVC05_SVC07_Shutdown(t *testing.T) {

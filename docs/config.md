@@ -37,7 +37,7 @@ A complete example is in [`examples/config.toml`](../examples/config.toml).
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `level` | string | `"info"` | `debug`, `info`, `warn` or `error`. |
+| `level` | string | `"info"` | `debug`, `info`, `warn` or `error`. For one run in a terminal, `apptrol --log-level debug` overrides it without changing the file. |
 | `outputs` | list | `["journald"]` | Where logs go: `"journald"`, `"file"`, or both. |
 
 ### `[log.journald]`

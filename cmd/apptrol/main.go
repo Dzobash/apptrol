@@ -46,6 +46,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	configPath := fs.String("config", "", "path to the configuration file (default: ~/.config/apptrol/config.toml)")
 	showVersion := fs.Bool("version", false, "print version information and exit")
+	logLevel := fs.String("log-level", "", "log level for this run only: debug, info, warn or error\n(default: [log] level in the configuration, which stays unchanged)")
 	fs.Usage = func() {
 		fmt.Fprint(stderr, `Usage: apptrol [flags] [command]
 
@@ -73,6 +74,17 @@ Flags:
 		return 0
 	}
 
+	// --log-level is checked before anything starts (LOG-16).
+	var level *slog.Level
+	if *logLevel != "" {
+		l, err := logging.ParseLevel(*logLevel)
+		if err != nil {
+			fmt.Fprintf(stderr, "apptrol: --log-level %q is not valid (use debug, info, warn or error)\n", *logLevel)
+			return 2
+		}
+		level = &l
+	}
+
 	cmd := "run"
 	if fs.NArg() > 0 {
 		cmd = fs.Arg(0)
@@ -85,13 +97,13 @@ Flags:
 	var err error
 	switch cmd {
 	case "run":
-		err = cmdRun(*configPath)
+		err = cmdRun(*configPath, level, *logLevel)
 	case "list":
 		err = cmdList(*configPath, stdout, func() (*pulse.Listing, error) { return pulse.List("") })
 	case "check":
 		err = cmdCheck(*configPath, stdout)
 	case "test":
-		err = runTest(*configPath, stdout, stderr)
+		err = runTest(*configPath, level, stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, version.String())
 		return 0
@@ -108,8 +120,9 @@ Flags:
 	return 0
 }
 
-// cmdRun runs the service until SIGTERM or Ctrl+C.
-func cmdRun(configPath string) error {
+// cmdRun runs the service until SIGTERM or Ctrl+C. level, if not nil, is the
+// --log-level override; levelName is its name for the start record.
+func cmdRun(configPath string, level *slog.Level, levelName string) error {
 	path, err := resolveConfigPath(configPath)
 	if err != nil {
 		return err
@@ -119,7 +132,7 @@ func cmdRun(configPath string) error {
 		return err
 	}
 	// Log to the journal (or the terminal) until the configuration says otherwise.
-	logs, err := logging.New(defaultLog, logging.Options{})
+	logs, err := logging.New(defaultLog, logging.Options{Level: level})
 	if err != nil {
 		return err
 	}
@@ -129,11 +142,12 @@ func cmdRun(configPath string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return service.Run(ctx, service.Options{
-		ConfigPath: path,
-		StatePath:  filepath.Join(stateDir, state.FileName),
-		Log:        log,
-		Logs:       logs,
-		Audio:      pulse.New(log, ""),
+		ConfigPath:   path,
+		StatePath:    filepath.Join(stateDir, state.FileName),
+		Log:          log,
+		Logs:         logs,
+		LogLevelFlag: levelName,
+		Audio:        pulse.New(log, ""),
 		NewController: func(port string) service.Controller {
 			return rawmidi.New(log, port)
 		},
@@ -199,9 +213,9 @@ func resolveConfigPath(flagValue string) (string, error) {
 
 // runTest wires `apptrol test` to the real controller, a terminal logger and
 // Ctrl+C.
-func runTest(configPath string, stdout, stderr io.Writer) error {
+func runTest(configPath string, level *slog.Level, stdout, stderr io.Writer) error {
 	terminal := false
-	logs, _ := logging.New(defaultLog, logging.Options{Stdout: stderr, Journal: &terminal})
+	logs, _ := logging.New(defaultLog, logging.Options{Stdout: stderr, Journal: &terminal, Level: level})
 	defer func() { _ = logs.Close() }()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

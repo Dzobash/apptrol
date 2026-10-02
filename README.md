@@ -172,7 +172,7 @@ run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they 
    devices; `apptrol check` validates the file and shows which app is on which control.
    The [configuration reference](docs/config.md) explains every setting.
 2. **Try it** in a terminal: run `apptrol`, move a slider, and watch the log. Ctrl+C stops
-   it.
+   it. `apptrol --log-level debug` shows every detail, for this run only.
 3. **Start Apptrol** for your user, now and at every login:
    ```bash
    systemctl --user daemon-reload

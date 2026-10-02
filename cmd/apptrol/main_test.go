@@ -25,6 +25,10 @@ func TestRun(t *testing.T) {
 		{"unknown command", []string{"frobnicate"}, 2, "", `unknown command "frobnicate"`},
 		{"extra arguments", []string{"list", "extra"}, 2, "", "unexpected arguments"},
 		{"unknown flag", []string{"--nope"}, 2, "", "flag provided but not defined"},
+		// LOG-16: an invalid --log-level stops before anything starts.
+		{"log level invalid", []string{"--log-level", "verbose", "run"}, 2, "", `--log-level "verbose" is not valid`},
+		{"log level valid", []string{"--log-level", "debug", "version"}, 0, "apptrol ", ""},
+		{"log level in help", []string{"-h"}, 0, "", "-log-level"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

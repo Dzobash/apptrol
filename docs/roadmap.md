@@ -81,7 +81,7 @@ Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-
 - [ ] R on an input column: hold to mute (cough), or push-to-talk
 - [ ] S on an input column: hold to turn apps down (talk-over)
 - [ ] R can be overridden per column as a launcher; launchers and overrides set per layout
-- [ ] `--log-level` flag for one run (LOG-16)
+- [x] `--log-level` flag for one run (LOG-16)
 
 ## Phase 1.6 — On-screen display (`0.3.0`)
 
