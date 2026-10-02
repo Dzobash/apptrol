@@ -37,7 +37,7 @@ A complete example is in [`examples/config.toml`](../examples/config.toml).
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `level` | string | `"info"` | `debug`, `info`, `warn` or `error`. For one run in a terminal, `apptrol --log-level debug` overrides it without changing the file. |
+| `level` | string | `"warn"` | `debug`, `info`, `warn` or `error`. Use `info` to see what Apptrol does (mute, solo, apps found), e.g. when something does not work as expected. For one run in a terminal, `apptrol --log-level debug` overrides it without changing the file. |
 | `outputs` | list | `["journald"]` | Where logs go: `"journald"`, `"file"`, or both. |
 
 ### `[log.journald]`

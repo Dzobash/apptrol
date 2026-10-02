@@ -206,7 +206,7 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | ID | Requirement | Level |
 |---|---|---|
 | LOG-01 | Apptrol MUST use structured logging (charmbracelet/log). | MUST |
-| LOG-02 | The log level MUST be configurable: `debug`, `info`, `warn`, `error`. | MUST |
+| LOG-02 | The log level MUST be configurable: `debug`, `info`, `warn`, `error`; the default MUST be `warn`. *(Until 0.1.x: `info`.)* | MUST |
 | LOG-03 | Two outputs MUST be available, usable separately or together: **journald** and **file**. | MUST |
 | LOG-04 | Each output MUST have its own format: journald `text` or `logfmt`; file `text`, `json` or `logfmt`. Timestamps MUST have millisecond precision. | MUST |
 | LOG-05 | When running under systemd, the journald output MUST mark each line with its severity so that `journalctl -p` filtering works. When started from a terminal, it MUST print coloured text to the terminal instead. | MUST |

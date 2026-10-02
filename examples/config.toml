@@ -11,7 +11,8 @@ port = "nanoKONTROL2"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 [log]
-level   = "info"                   # debug | info | warn | error
+level   = "warn"                   # debug | info | warn | error; "info" shows every
+                                   # mute, solo and app found, for troubleshooting
 outputs = ["journald"]             # "journald", "file", or both
 
 [log.journald]
