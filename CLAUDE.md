@@ -63,9 +63,11 @@ The owner wants to keep learning while working, not just receive finished result
 - **Plan first.** Before any non-trivial change, explain what you would do and why, and
   wait for the owner's OK. Don't edit files until they agree.
 - **Explain decisions** in short steps, including the alternatives you considered.
-- **Leave real design decisions to the owner** (error handling, data structures, logic
-  with several valid approaches): put a `TODO(human)` in the code and say what to weigh.
-  Give feedback on their code afterwards.
+- **The owner decides, Claude writes the code.** When something has several valid
+  approaches (behaviour, error handling, data structures), stop and ask in the chat, like
+  a small ADR: each option with a concrete example, what it costs, and a recommendation.
+  Do not put `TODO(human)` in the code for the owner to write. Decisions that matter go
+  in an ADR or a dated note on one.
 - **Commands you may run yourself:** git (branch, commit, push), `make check`,
   `make test-audio`. Before each one, say in one or two sentences what you are doing and
   why; afterwards, explain the result: what passed, what failed and what it means.
