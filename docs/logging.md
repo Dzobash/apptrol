@@ -240,6 +240,9 @@ Apptrol's own:
 | `apptrol.launcher.desktop_id` | The app a launcher starts |
 | `apptrol.launcher.command` | The command a launcher runs |
 | `apptrol.launcher.unit` | The systemd unit an app was started in, e.g. `app-apptrol-discord@1a2b3c4d.service` (`journalctl --user -u <unit>` shows the app's output) |
+| `apptrol.launcher.running_found_by` | With `if_running = "skip"`: how a running app was found, `unit` or `process` |
+| `apptrol.launcher.running_unit` | The unit a running app was found in |
+| `apptrol.launcher.checked` | What was looked at when an app was not found running (debug) |
 | `apptrol.desktop.bus_address` | The session bus Apptrol connected to |
 | `apptrol.desktop.players` | How many media players were found on connecting |
 | `apptrol.player.bus_name` | A media player's name on the bus, e.g. `org.mpris.MediaPlayer2.spotify` |

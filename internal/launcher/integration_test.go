@@ -58,6 +58,41 @@ func TestIntegration_LAUNCH04_AUnitStartsAndIsRemoved(t *testing.T) {
 	}
 }
 
+// Regression: the connection to systemd was tied to the first press and
+// closed with it, so every second press failed ("connection closed").
+func TestIntegration_LAUNCH04_TwoPressesInARowBothStart(t *testing.T) {
+	requireSystemd(t)
+	var log bytes.Buffer
+	s := NewStarter(slog.New(slog.NewTextHandler(&log, nil)))
+	for range 3 {
+		s.start(mixer.LaunchApp{Launch: mixer.Launch{Command: []string{"true"}}})
+	}
+	if n := strings.Count(log.String(), "starting app"); n != 3 || strings.Contains(log.String(), "could not be started") {
+		t.Errorf("log:\n%s", log.String())
+	}
+}
+
+func TestIntegration_LAUNCH07_ARunningAppIsFoundByItsUnit(t *testing.T) {
+	conn := requireSystemd(t)
+	var log bytes.Buffer
+	s := NewStarter(slog.New(slog.NewTextHandler(&log, nil)))
+	s.procDir = t.TempDir() // only the unit may find it
+	s.start(mixer.LaunchApp{Launch: mixer.Launch{Command: []string{"sleep", "30"}}})
+	t.Cleanup(func() {
+		units, _ := conn.ListUnitsByPatternsContext(context.Background(), nil, []string{"app-apptrol-sleep@*"})
+		for _, u := range units {
+			_, _ = conn.StopUnitContext(context.Background(), u.Name, "replace", nil)
+		}
+	})
+	log.Reset()
+	s.start(mixer.LaunchApp{Launch: mixer.Launch{Command: []string{"sleep", "30"}, SkipIfRunning: true}})
+	for _, want := range []string{"app already running; not started", "running_found_by=unit", "running_unit=app-apptrol-sleep@"} {
+		if !strings.Contains(log.String(), want) {
+			t.Errorf("log lacks %q:\n%s", want, log.String())
+		}
+	}
+}
+
 func TestIntegration_LAUNCH11_AMissingProgramFails(t *testing.T) {
 	requireSystemd(t)
 	var log bytes.Buffer
