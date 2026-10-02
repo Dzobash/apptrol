@@ -40,6 +40,25 @@ type Button struct {
 // Launcher reports whether the button starts an app.
 func (b Button) Launcher() bool { return b.App != "" || len(b.Command) > 0 }
 
+// LauncherApps returns the desktop IDs the launchers start, by layout and
+// button name; launchers with a command are left out. `apptrol check` and
+// the service warn about IDs that are not installed (LAUNCH-10).
+func (c *Config) LauncherApps() map[string]map[string]string {
+	out := map[string]map[string]string{}
+	for name, l := range c.Layouts {
+		for button, b := range l.Buttons {
+			if b.App == "" {
+				continue
+			}
+			if out[name] == nil {
+				out[name] = map[string]string{}
+			}
+			out[name][button] = b.App
+		}
+	}
+	return out
+}
+
 // Column returns the column of r1–r8, s1–s8 and m1–m8, and the button letter;
 // ok is false for other buttons.
 func (b Button) Column() (letter byte, col int, ok bool) { return buttonColumn(b.Name) }

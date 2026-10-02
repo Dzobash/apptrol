@@ -20,6 +20,7 @@ import (
 	"github.com/Dzobash/apptrol/internal/audio/pulse"
 	"github.com/Dzobash/apptrol/internal/config"
 	"github.com/Dzobash/apptrol/internal/controller/rawmidi"
+	"github.com/Dzobash/apptrol/internal/launcher"
 	"github.com/Dzobash/apptrol/internal/logattr"
 	"github.com/Dzobash/apptrol/internal/mixer"
 	"github.com/Dzobash/apptrol/internal/state"
@@ -66,6 +67,9 @@ type Options struct {
 	Audio         Audio
 	NewController func(port string) Controller
 	Desktop       Desktop // may be nil: no media players
+	// InstalledApps lists the installed apps, for the launchers' warnings
+	// (LAUNCH-10); nil means launcher.Installed.
+	InstalledApps func() launcher.Apps
 
 	// Zero values mean the defaults: the file is checked every second, and the
 	// state is saved at most once per second.
@@ -221,6 +225,7 @@ func (s *service) loadConfig() (*config.Config, []byte) {
 	s.applyLogging(cfg)
 	s.configWarnings(path, warnings)
 	s.logButtons(cfg)
+	s.launcherWarnings(cfg)
 	return cfg, data
 }
 
@@ -253,6 +258,28 @@ func (s *service) configWarnings(path string, warnings []string) {
 	for _, w := range warnings {
 		s.logFor(logattr.Config).Warn("configuration warning", logattr.KeyFilePath, path, logattr.KeyWarning, w)
 	}
+}
+
+// launcherWarnings warns about launchers whose desktop ID is not installed;
+// the configuration stays valid, as the app may be installed later (LAUNCH-10).
+func (s *service) launcherWarnings(cfg *config.Config) {
+	installed := s.o.InstalledApps
+	if installed == nil {
+		installed = launcher.Installed
+	}
+	for _, m := range installed().Missing(cfg.LauncherApps()) {
+		s.logFor(logattr.Config).Warn("desktop ID not installed; the button will not start anything (`apptrol list apps` shows the installed ones)",
+			logattr.KeyLayout, m.Layout, logattr.KeyButton, buttonLabel(m.Button), logattr.KeyLauncherDesktopID, m.DesktopID)
+	}
+}
+
+// buttonLabel names a button from the configuration as the mixer's log does:
+// "R3", or "●" for record.
+func buttonLabel(name string) string {
+	if l := transportLabels[name]; l != "" {
+		return l
+	}
+	return strings.ToUpper(name)
 }
 
 // writeExample creates the example configuration, but never overwrites a file.
@@ -329,6 +356,7 @@ func (s *service) configChanged(ch config.Change) {
 	s.applyLogging(cfg)
 	s.configWarnings(path, warnings)
 	s.logButtons(cfg)
+	s.launcherWarnings(cfg)
 	if cfg.Controller.Port != s.port {
 		log.Warn("the controller setting changed; restart Apptrol to use it",
 			logattr.KeyPort, cfg.Controller.Port, logattr.KeyPortInUse, s.port)
@@ -399,11 +427,7 @@ func (s *service) logButtons(cfg *config.Config) {
 	sort.Strings(names)
 	for _, n := range names {
 		b := layout.Buttons[n]
-		label := transportLabels[n]
-		if label == "" {
-			label = strings.ToUpper(n)
-		}
-		attrs := []any{logattr.KeyLayout, layout.Name, logattr.KeyButton, label}
+		attrs := []any{logattr.KeyLayout, layout.Name, logattr.KeyButton, buttonLabel(n)}
 		switch {
 		case b.App != "":
 			attrs = append(attrs, logattr.KeyButtonMode, "launcher", logattr.KeyLauncherDesktopID, b.App)

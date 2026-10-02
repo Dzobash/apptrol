@@ -39,7 +39,8 @@ with no desktop mixer involved.
 - The button LEDs show what is muted and soloed, also when you mute or unmute an app
   somewhere else, e.g. in the desktop's volume applet
 - Apps that start later get the slider's volume straight away
-- `apptrol list` shows the names to put in the config; `apptrol test` checks the controller
+- `apptrol list` shows the names to put in the config, `apptrol list apps` the installed
+  apps; `apptrol test` checks the controller
 - Settings live in a simple TOML file that is reloaded when you save it
 - Runs quietly in the background as a systemd user service
 - Works on any desktop (KDE Plasma, GNOME, …), Wayland or X11

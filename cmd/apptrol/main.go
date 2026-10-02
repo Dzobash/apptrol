@@ -32,6 +32,7 @@ import (
 	"github.com/Dzobash/apptrol/internal/config"
 	"github.com/Dzobash/apptrol/internal/controller/rawmidi"
 	"github.com/Dzobash/apptrol/internal/desktop"
+	"github.com/Dzobash/apptrol/internal/launcher"
 	"github.com/Dzobash/apptrol/internal/logging"
 	"github.com/Dzobash/apptrol/internal/service"
 	"github.com/Dzobash/apptrol/internal/state"
@@ -55,6 +56,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 Commands:
   run      run the service (default)
   list     show playing apps and input devices with the names used for matching
+  list apps [search]
+           show installed apps with the desktop IDs used by launchers
   check    validate the configuration file and exit
   test     show what the controller sends and light its buttons, to check it
   version  print version information
@@ -91,7 +94,9 @@ Flags:
 	if fs.NArg() > 0 {
 		cmd = fs.Arg(0)
 	}
-	if fs.NArg() > 1 {
+	// `list apps [search]` is the only command with arguments (LAUNCH-09).
+	listApps := cmd == "list" && fs.NArg() > 1 && fs.Arg(1) == "apps"
+	if fs.NArg() > 1 && (!listApps || fs.NArg() > 3) {
 		fmt.Fprintf(stderr, "apptrol: unexpected arguments after %q: %v\n", cmd, fs.Args()[1:])
 		return 2
 	}
@@ -101,6 +106,10 @@ Flags:
 	case "run":
 		err = cmdRun(*configPath, level, *logLevel)
 	case "list":
+		if listApps {
+			err = cmdListApps(stdout, fs.Arg(2), launcher.Installed())
+			break
+		}
 		err = cmdList(*configPath, stdout, func() (*pulse.Listing, error) { return pulse.List("") })
 	case "check":
 		err = cmdCheck(*configPath, stdout)
@@ -233,6 +242,12 @@ func cmdCheck(configPath string, stdout io.Writer) error {
 		return err
 	}
 	fmt.Fprintf(stdout, "Logging: %s to %s\n", cfg.Log.Level, strings.Join(cfg.Log.Outputs, " and "))
+	// Launchers of apps that are not installed: a warning only, as the app
+	// may be installed later (LAUNCH-10).
+	for _, m := range launcher.Installed().Missing(cfg.LauncherApps()) {
+		warnings = append(warnings, fmt.Sprintf("layouts.%s.buttons.%s: desktop ID %q is not installed (`apptrol list apps` shows the installed ones)",
+			m.Layout, m.Button, m.DesktopID))
+	}
 	for _, w := range warnings {
 		fmt.Fprintf(stdout, "\nwarning: %s", w)
 	}

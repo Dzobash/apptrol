@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `apptrol list apps [search]` lists the installed apps with the desktop IDs a launcher
+  uses, their names and where they come from (system, Flatpak, Snap, user), found as the
+  Desktop Entry specification says (LAUNCH-02, LAUNCH-09). `apptrol check` and every
+  configuration load warn about a launcher whose app is not installed; the configuration
+  stays valid (LAUNCH-10). Starting apps follows.
 - **Media keys ◀◀ ▶▶ ■ ▶** control the player that most recently started playing, on a
   control or not; with `[media] player` set, only that app's player, and nothing while it
   is not running (MEDIA-05, MEDIA-06). ▶ plays or pauses, ■ stops, ◀◀ and ▶▶ go to the

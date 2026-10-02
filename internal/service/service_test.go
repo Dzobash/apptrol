@@ -15,6 +15,7 @@ import (
 
 	"github.com/Dzobash/apptrol/examples"
 	"github.com/Dzobash/apptrol/internal/config"
+	"github.com/Dzobash/apptrol/internal/launcher"
 	"github.com/Dzobash/apptrol/internal/logattr"
 	"github.com/Dzobash/apptrol/internal/mixer"
 	"github.com/Dzobash/apptrol/internal/state"
@@ -234,6 +235,8 @@ func (e *env) start() *env {
 		WatchInterval: 10 * time.Millisecond,
 		SaveDelay:     10 * time.Millisecond,
 		LEDResync:     20 * time.Millisecond,
+		// Only Discord is installed in the tests, whatever the machine has.
+		InstalledApps: func() launcher.Apps { return launcher.Apps{"discord": {ID: "discord", Name: "Discord"}} },
 	}
 	go func() { e.done <- Run(ctx, o) }()
 	e.t.Cleanup(e.stop)
@@ -408,6 +411,22 @@ m8     = { mode = "hold_to_talk", talk_over = true }
 	e.waitApplied(mixer.SetDeviceMute{Device: goxlr.Name, Muted: true})
 	e.send(mixer.ButtonPressed{Button: mixer.ButtonM, Column: 8})
 	e.waitApplied(mixer.SetDeviceMute{Device: goxlr.Name, Muted: false})
+}
+
+func TestLAUNCH10_LaunchersOfMissingAppsAreWarnedAbout(t *testing.T) {
+	e := newEnv(t, testConfig+`
+[layouts.default.buttons]
+record     = { app = "com.obsproject.Studio" }
+marker_set = { app = "discord" }
+r1         = { command = ["konsole"] }
+`).start()
+	e.waitLog("desktop ID not installed")
+	for _, want := range []string{"apptrol.button=●", "apptrol.launcher.desktop_id=com.obsproject.Studio"} {
+		e.waitLog(want)
+	}
+	if n := strings.Count(e.out.String(), "desktop ID not installed"); n != 1 {
+		t.Errorf("warned %d times, want once (Discord is installed, commands are not checked)", n)
+	}
 }
 
 func TestCFG07_InvalidReloadKeepsSettings(t *testing.T) {

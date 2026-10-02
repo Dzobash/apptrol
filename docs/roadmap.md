@@ -76,7 +76,7 @@ Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-
 - [x] D-Bus connection in the service, following the media players (DESK-01 to DESK-03, MEDIA-01; also used by Phases 1.6 and 3)
 - [x] ◀◀ ▶▶ ■ ▶ via MPRIS; most recent player by default, optionally pinned; ▶ lit while it plays
 - [ ] Record (●) and the Marker buttons start apps (desktop ID or command), each in its own systemd scope; already-running behaviour configurable
-- [ ] `apptrol list apps [search]` shows desktop IDs; `apptrol check` warns about unknown ones
+- [x] `apptrol list apps [search]` shows desktop IDs; `apptrol check` warns about unknown ones
 - [x] R on an app column: play / pause that app (MPRIS), LED lit while it plays
 - [ ] R can be overridden per column as a launcher; launchers and overrides set per layout
 - [x] Button configuration per layout, checked on load (CFG-13 to CFG-17)
