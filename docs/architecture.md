@@ -160,7 +160,7 @@ Launcher buttons (ADR 0019, LAUNCH-*):
 
 A launcher `command` runs exactly what the user configured, with the user's rights; the
 README and docs/config.md say it is the user's responsibility. Validation refuses a short
-list of catastrophic commands (LAUNCH-12, "Blocked commands" in docs/config.md): deleting
+list of catastrophic commands (LAUNCH-12, [ADR 0022](adr/0022-launcher-command-safety.md), "Blocked commands" in docs/config.md): deleting
 everything, wiping a disk, fork bombs, running a download, changing rights on everything,
 and `sudo`, `su` or `doas`, which need a terminal. This is a safety net against
 copy-paste accidents, not a security boundary: plain argument lists are checked

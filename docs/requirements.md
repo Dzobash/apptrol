@@ -100,8 +100,9 @@ Sections 4.1–4.10 are delivered in Phase 1 (0.1.0); sections 4.11–4.14 and t
 requirements marked *Phase 1.5* in other sections in Phase 1.5 (0.2.0), designed in
 ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 [0018](adr/0018-media-players-through-mpris.md),
-[0019](adr/0019-launcher-and-column-buttons.md) and
-[0020](adr/0020-microphone-column-buttons.md).
+[0019](adr/0019-launcher-and-column-buttons.md),
+[0020](adr/0020-microphone-column-buttons.md) and
+[0022](adr/0022-launcher-command-safety.md).
 
 ### 4.1 Controls and volume
 
@@ -273,7 +274,7 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | LAUNCH-09 | `apptrol list apps [search]` SHOULD print the desktop ID, name and source (`system`, `flatpak`, `snap`, `user`) of every installed app, without `Hidden` or `NoDisplay` ones; the search is case-insensitive over ID and name. | SHOULD |
 | LAUNCH-10 | `apptrol check` and every configuration load SHOULD warn about desktop IDs that are not installed; this MUST NOT make the configuration invalid. | SHOULD |
 | LAUNCH-11 | An app that cannot be started MUST be logged as an error (`app_start_failed`); Apptrol keeps running. | MUST |
-| LAUNCH-12 | Validation MUST reject a launcher `command` that deletes everything (`rm` with `-r` and `-f` on `/`, `/*`, `~`, `$HOME` or `/home`), wipes a disk (`mkfs*`, `wipefs`, `dd` to `/dev/…`, writing to a disk device), is a fork bomb, runs a download (`curl`/`wget` piped to a shell), changes rights on everything (`chmod -R`/`chown -R` on `/`), or uses `sudo`, `su` or `doas`; also after wrappers and inside `sh -c` text. The error MUST name the group and point to docs/config.md. Desktop IDs are not checked. It is a safety net against accidents, not security. | MUST |
+| LAUNCH-12 | Validation MUST reject a launcher `command` that deletes everything (`rm` with `-r` and `-f` on `/`, `/*`, `~`, `$HOME` or `/home`), wipes a disk (`mkfs*`, `wipefs`, `dd` to `/dev/…`, writing to a disk device), is a fork bomb, runs a download (`curl`/`wget` piped to a shell), changes rights on everything (`chmod -R`/`chown -R` on `/`), or uses `sudo`, `su` or `doas`; also after wrappers and inside `sh -c` text. The error MUST name the group and point to docs/config.md. Desktop IDs are not checked. It is a safety net against accidents, not security (ADR 0022). | MUST |
 
 ### 4.14 Input column buttons *(Phase 1.5)*
 

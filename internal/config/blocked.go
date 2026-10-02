@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// Blocked commands (LAUNCH-12, ADR 0019 note of 2026-10-02): launcher
+// Blocked commands (LAUNCH-12, ADR 0022): launcher
 // commands that are refused because they are irreversible or catastrophic,
 // the core of what security guides and AI coding agents' guardrails block.
 // It is a safety net against copy-paste accidents, not security: a command

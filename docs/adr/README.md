@@ -30,3 +30,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0019](0019-launcher-and-column-buttons.md) | Launcher buttons, input column buttons and their configuration | Accepted; input column buttons replaced by 0020 |
 | [0020](0020-microphone-column-buttons.md) | Microphone column buttons: M talks, S coughs or talks over | Accepted |
 | [0021](0021-no-desktop-gui.md) | No desktop GUI: a terminal setup and a tray icon in the service | Accepted |
+| [0022](0022-launcher-command-safety.md) | Launcher commands: the user's responsibility, and a denylist of catastrophic commands | Accepted |

@@ -155,12 +155,5 @@ Measured on the reference system (Kubuntu, KDE Plasma) on 2026-10-02:
   names as `systemd-escape` does (spaces occur in Steam's game shortcuts). Apptrol
   connects to the user manager over the existing session bus, never starting one. Log
   records about starting apps carry `apptrol.component=launcher`.
-- 2026-10-02: Blocked commands (LAUNCH-12). Validation refuses launcher commands that
-  security guides and AI coding agents' guardrails agree on as catastrophic: deleting
-  everything, wiping a disk, a fork bomb, running a download, changing rights on
-  everything, and `sudo`, `su` or `doas`, which need a terminal a launcher does not
-  have (`pkexec` and similar ask in a dialog and are allowed). It is a safety net, not
-  security: published research in 2026 found most such denylists can be bypassed through
-  shell text, so only plain commands are checked reliably. Desktop IDs come from
-  installed packages and are not checked. The README, docs/config.md and the example
-  configuration say that configured commands are the user's responsibility.
+- 2026-10-02: Which launcher commands are refused, and that configured commands are the
+  user's responsibility, is decided in [ADR 0022](0022-launcher-command-safety.md).
