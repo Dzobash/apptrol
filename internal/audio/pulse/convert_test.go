@@ -3,6 +3,7 @@ package pulse
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"math"
@@ -44,6 +45,59 @@ func TestStreamFromReply(t *testing.T) {
 	got = streamFromReply(r)
 	if got.Binary != "" || got.Media != "Spotify" || got.Volume != 0 || got.Channels != 0 {
 		t.Errorf("got %+v", got)
+	}
+}
+
+func TestMEDIA10_StreamCorkedFromReply(t *testing.T) {
+	for _, corked := range []bool{true, false} {
+		r := &proto.GetSinkInputInfoReply{SinkInputIndex: 7, Corked: corked, Properties: props("application.name", "Firefox")}
+		if got := streamFromReply(r); got.Corked != corked {
+			t.Errorf("Corked = %v, want %v", got.Corked, corked)
+		}
+	}
+}
+
+func TestMEDIA10_StreamChanges(t *testing.T) {
+	playing := mixer.Stream{ID: 7, AppName: "Firefox"}
+	paused := mixer.Stream{ID: 7, AppName: "Firefox", Corked: true}
+	outside := func(uint32) bool { return true }
+	ours := func(uint32) bool { return false } // Apptrol muted it itself
+	tests := []struct {
+		name     string
+		old      mixer.Stream
+		wasMuted bool
+		now      StreamInfo
+		outside  func(uint32) bool
+		want     []mixer.Event
+	}{
+		{"nothing changed", playing, false, StreamInfo{Stream: playing}, outside, nil},
+		{"paused", playing, false, StreamInfo{Stream: paused}, outside,
+			[]mixer.Event{mixer.StreamCorkChanged{ID: 7, Corked: true}}},
+		{"resumed", paused, false, StreamInfo{Stream: playing}, outside,
+			[]mixer.Event{mixer.StreamCorkChanged{ID: 7, Corked: false}}},
+		{"muted outside", playing, false, StreamInfo{Stream: playing, Muted: true}, outside,
+			[]mixer.Event{mixer.StreamMuteChanged{ID: 7, Muted: true}}},
+		{"muted by Apptrol", playing, false, StreamInfo{Stream: playing, Muted: true}, ours, nil},
+		// One notification, two changes: neither may be lost.
+		{"muted outside and paused", playing, false, StreamInfo{Stream: paused, Muted: true}, outside,
+			[]mixer.Event{mixer.StreamMuteChanged{ID: 7, Muted: true}, mixer.StreamCorkChanged{ID: 7, Corked: true}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := streamChanges(tt.old, tt.wasMuted, tt.now, tt.outside)
+			if fmt.Sprint(got) != fmt.Sprint(tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMEDIA10_CorkingIsNotANewStream(t *testing.T) {
+	if !mixer.SameStream(mixer.Stream{ID: 7, AppName: "Firefox"}, mixer.Stream{ID: 7, AppName: "Firefox", Corked: true}) {
+		t.Error("a paused stream counts as a different stream; it would be matched and set again")
+	}
+	if mixer.SameStream(mixer.Stream{ID: 7, AppName: "Firefox"}, mixer.Stream{ID: 7, AppName: "Vivaldi"}) {
+		t.Error("a stream with a new application.name counts as the same stream")
 	}
 }
 

@@ -163,6 +163,8 @@ func (m *Mixer) Handle(ev Event) []Action {
 		m.chooseDevices(&a)
 	case StreamMuteChanged:
 		m.streamMuteChanged(&a, e)
+	case StreamCorkChanged:
+		m.streamCorkChanged(&a, e)
 	case DeviceMuteChanged:
 		m.deviceMuteChanged(&a, e)
 	case DeviceRemoved:
@@ -350,6 +352,27 @@ func (m *Mixer) streamMuteChanged(a *actions, e StreamMuteChanged) {
 	m.followMute(a, s.target, e.Muted, streamAttrs(s.Stream)...)
 }
 
+// streamCorkChanged keeps track of whether a stream's app has paused it
+// (MEDIA-10). The R LED will use it to show that an app plays (MEDIA-09).
+func (m *Mixer) streamCorkChanged(a *actions, e StreamCorkChanged) {
+	s, known := m.streams[e.ID]
+	if !known {
+		return
+	}
+	s.Corked = e.Corked
+	msg := "stream uncorked"
+	if e.Corked {
+		msg = "stream corked"
+	}
+	// Every stream is logged, also those on no control: the log then shows
+	// that Apptrol sees a stream even when it matches no app (LOG-15).
+	if s.target == "" {
+		a.notice(slog.LevelDebug, msg, streamAttrs(s.Stream)...)
+		return
+	}
+	a.notice(slog.LevelDebug, msg, m.about(m.controlOf[s.target], streamAttrs(s.Stream)...)...)
+}
+
 // deviceMuteChanged is streamMuteChanged for input devices.
 func (m *Mixer) deviceMuteChanged(a *actions, e DeviceMuteChanged) {
 	for _, id := range m.inputTargets() {
@@ -513,7 +536,7 @@ func (m *Mixer) streamAdded(a *actions, s Stream) {
 	}
 	if info.target != "" {
 		c := m.controlOf[info.target]
-		a.notice(slog.LevelInfo, "stream matched", m.about(c, streamAttrs(s)...)...)
+		a.notice(slog.LevelInfo, "stream matched", m.about(c, append(streamAttrs(s), logattr.KeyStreamCorked, s.Corked)...)...)
 	}
 	m.applyStream(a, info)
 }

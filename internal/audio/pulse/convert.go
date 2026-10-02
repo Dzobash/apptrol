@@ -34,6 +34,7 @@ func streamFromReply(r *proto.GetSinkInputInfoReply) StreamInfo {
 			ID:      r.SinkInputIndex,
 			AppName: prop(r.Properties, "application.name", ""),
 			Binary:  prop(r.Properties, "application.process.binary", ""),
+			Corked:  r.Corked, // MEDIA-10
 		},
 		Media:    prop(r.Properties, "media.name", r.MediaName),
 		Volume:   fromChannelVolumes(r.ChannelVolumes),

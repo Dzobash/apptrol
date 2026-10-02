@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	jpulse "github.com/jfreymuth/pulse"
+
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
@@ -178,6 +180,53 @@ func TestIntegration_List(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+// TestIntegration_MEDIA10_Cork pauses and resumes a real stream, as a browser
+// tab or a player does, and expects the backend to report it as a cork
+// change, not as a new stream.
+func TestIntegration_MEDIA10_Cork(t *testing.T) {
+	needServer(t)
+	b := New(quietLog(), "")
+	events := make(chan mixer.Event, 256)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- b.Run(ctx, events) }()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Errorf("Run = %v", err)
+		}
+	})
+	next(t, events, func(mixer.AudioSnapshot) bool { return true })
+
+	// pacat cannot pause its stream, so play through the library's client.
+	name := unique("TestCork")
+	c, err := jpulse.NewClient(jpulse.ClientApplicationName(name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(c.Close)
+	silence := jpulse.Float32Reader(func(buf []float32) (int, error) { clear(buf); return len(buf), nil })
+	s, err := c.NewPlayback(silence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Close)
+	s.Start()
+
+	// The library creates the stream corked and uncorks it on Start, so it
+	// may appear corked and then be reported as resumed.
+	added := next(t, events, func(e mixer.StreamAdded) bool { return e.Stream.AppName == name })
+	id := added.Stream.ID
+	if added.Stream.Corked {
+		next(t, events, func(e mixer.StreamCorkChanged) bool { return e.ID == id && !e.Corked })
+	}
+
+	s.Pause()
+	next(t, events, func(e mixer.StreamCorkChanged) bool { return e.ID == id && e.Corked })
+	s.Resume()
+	next(t, events, func(e mixer.StreamCorkChanged) bool { return e.ID == id && !e.Corked })
 }
 
 func TestIntegration_Backend(t *testing.T) {

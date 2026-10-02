@@ -14,7 +14,7 @@ func FuzzMixer(f *testing.F) {
 		w := newWorld(t, testSetup(), State{})
 		w.do(ControllerConnected{})
 		for i := 0; i+1 < len(data); i += 2 {
-			op, arg := data[i]%13, int(data[i+1])
+			op, arg := data[i]%14, int(data[i+1])
 			var ev Event
 			switch op {
 			case 0:
@@ -56,6 +56,10 @@ func FuzzMixer(f *testing.F) {
 				ev = StreamMuteChanged{ID: s.ID, Muted: arg%2 == 0}
 			case 12:
 				ev = DeviceMuteChanged{Name: devices[arg%2].Name, Muted: arg%3 == 0}
+			case 13:
+				// Paused or resumed by its app (MEDIA-10), also for streams the
+				// mixer does not know (yet).
+				ev = StreamCorkChanged{ID: pool[arg%len(pool)].ID, Corked: arg%2 == 0}
 			}
 			w.do(ev)
 			checkInvariants(t, w)

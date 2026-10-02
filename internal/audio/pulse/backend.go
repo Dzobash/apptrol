@@ -201,11 +201,11 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 				}
 				continue
 			}
-			ev, err := b.handle(k, &t, e)
+			evs, err := b.handle(k, &t, e)
 			if err != nil {
 				return err
 			}
-			if ev != nil {
+			for _, ev := range evs {
 				if err := send(ev); err != nil {
 					return err
 				}
@@ -214,8 +214,9 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 	}
 }
 
-// handle turns one change notification into a mixer event, or nil.
-func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) (mixer.Event, error) {
+// handle turns one change notification into mixer events, possibly none. One
+// notification can carry several changes, e.g. a stream muted and corked.
+func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) ([]mixer.Event, error) {
 	kind := e.Event.GetType()
 	switch e.Event.GetFacility() {
 	case proto.EventSinkSinkInput:
@@ -232,17 +233,14 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) (mixer.Eve
 				b.mu.Unlock()
 				wasMuted := t.muted[s.ID]
 				t.muted[s.ID] = s.Muted
-				if known && old == s.Stream {
+				t.streams[s.ID] = s.Stream
+				if known && mixer.SameStream(old, s.Stream) {
 					if err := b.defend(k, s); err != nil { // a volume change and the like
 						return nil, err
 					}
-					if s.Muted != wasMuted && b.outsideStreamMute(s.ID) {
-						return mixer.StreamMuteChanged{ID: s.ID, Muted: s.Muted}, nil
-					}
-					return nil, nil
+					return streamChanges(old, wasMuted, s, b.outsideStreamMute), nil
 				}
-				t.streams[s.ID] = s.Stream
-				return mixer.StreamAdded{Stream: s.Stream}, nil
+				return []mixer.Event{mixer.StreamAdded{Stream: s.Stream}}, nil
 			case !IsGone(err):
 				return nil, err
 			}
@@ -258,7 +256,7 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) (mixer.Eve
 		delete(b.guards, e.Index)
 		delete(b.muteSet, e.Index)
 		b.mu.Unlock()
-		return mixer.StreamRemoved{ID: e.Index}, nil
+		return []mixer.Event{mixer.StreamRemoved{ID: e.Index}}, nil
 
 	case proto.EventSource:
 		old, known := t.devices[e.Index]
@@ -281,12 +279,12 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) (mixer.Eve
 						return nil, err
 					}
 					if d.Muted != wasMuted && b.outsideDeviceMute(d.Name) {
-						return mixer.DeviceMuteChanged{Name: d.Name, Muted: d.Muted}, nil
+						return []mixer.Event{mixer.DeviceMuteChanged{Name: d.Name, Muted: d.Muted}}, nil
 					}
 					return nil, nil
 				}
 				t.devices[e.Index] = d.Device
-				return mixer.DeviceAdded{Device: d.Device}, nil
+				return []mixer.Event{mixer.DeviceAdded{Device: d.Device}}, nil
 			case !IsGone(err):
 				return nil, err
 			}
@@ -301,9 +299,24 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) (mixer.Eve
 		delete(b.devGuard, old.Name)
 		delete(b.devMuteSet, old.Name)
 		b.mu.Unlock()
-		return mixer.DeviceRemoved{Name: old.Name}, nil
+		return []mixer.Event{mixer.DeviceRemoved{Name: old.Name}}, nil
 	}
 	return nil, nil
+}
+
+// streamChanges returns the events for a known stream whose properties
+// changed but whose identity did not: a mute made outside Apptrol (MUTE-07)
+// and a pause or resume by its app (MEDIA-10). outsideMute tells whether a
+// mute change came from outside Apptrol; it is only asked when the mute changed.
+func streamChanges(old mixer.Stream, wasMuted bool, s StreamInfo, outsideMute func(id uint32) bool) []mixer.Event {
+	var evs []mixer.Event
+	if s.Muted != wasMuted && outsideMute(s.ID) {
+		evs = append(evs, mixer.StreamMuteChanged{ID: s.ID, Muted: s.Muted})
+	}
+	if s.Corked != old.Corked {
+		evs = append(evs, mixer.StreamCorkChanged{ID: s.ID, Corked: s.Corked})
+	}
+	return evs
 }
 
 // defend sets the volume and mute Apptrol chose for a new stream again if the

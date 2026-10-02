@@ -81,6 +81,7 @@ const (
 	KeySolo         = "apptrol.state.solo"      // restored soloed control, "" = none
 	KeyDisconnected = "apptrol.controller.reason"
 
+	KeyStreamCorked   = "apptrol.stream.corked"    // the stream is paused by its app
 	KeyLogLevel       = "apptrol.log.level"        // the log level in use
 	KeyLogLevelSource = "apptrol.log.level_source" // where it comes from: flag or config
 )
