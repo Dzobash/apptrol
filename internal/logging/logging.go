@@ -32,6 +32,9 @@ type Options struct {
 	// Journal forces journald mode (true) or terminal mode (false).
 	// Nil detects it from JOURNAL_STREAM (see IsJournalStream).
 	Journal *bool
+	// Level, if set, is used instead of the configured level for the whole
+	// run, including every Reconfigure (--log-level, LOG-16).
+	Level *slog.Level
 }
 
 // Manager owns the log outputs. Its Logger stays valid across Reconfigure.
@@ -88,7 +91,7 @@ func (m *Manager) Close() error {
 }
 
 func (m *Manager) apply(cfg config.Log, initial bool) error {
-	level, err := ParseLevel(cfg.Level)
+	level, err := effectiveLevel(cfg.Level, m.opts.Level)
 	if err != nil {
 		return err
 	}
@@ -192,6 +195,16 @@ func ParseLevel(s string) (slog.Level, error) {
 		return slog.LevelError, nil
 	}
 	return 0, fmt.Errorf("unknown log level %q", s)
+}
+
+// effectiveLevel returns the level to use: the override from --log-level if
+// set, otherwise the configured one (LOG-16). The configured level is not even
+// parsed when there is an override; configuration validation reports a bad one.
+func effectiveLevel(configured string, override *slog.Level) (slog.Level, error) {
+	if override != nil {
+		return *override, nil
+	}
+	return ParseLevel(configured)
 }
 
 // dynamicHandler forwards records to the Manager's current outputs, so that a

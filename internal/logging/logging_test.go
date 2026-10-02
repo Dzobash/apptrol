@@ -351,6 +351,71 @@ func TestReconfigureRejectsUnknownLevel(t *testing.T) {
 	}
 }
 
+func newManagerWithLevel(t *testing.T, cfg config.Log, level slog.Level) (*Manager, *syncBuffer) {
+	t.Helper()
+	out := &syncBuffer{}
+	m, err := New(cfg, Options{Stdout: out, Journal: boolPtr(true), Level: &level})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	t.Cleanup(func() { _ = m.Close() })
+	return m, out
+}
+
+func TestLOG16_OverrideWinsOverConfiguredLevel(t *testing.T) {
+	tests := []struct {
+		name       string
+		configured string
+		override   slog.Level
+		want       []string
+	}{
+		{"debug over info", "info", slog.LevelDebug, []string{"d", "i", "w"}},
+		{"warn over debug", "debug", slog.LevelWarn, []string{"w"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := baseConfig()
+			cfg.Level = tt.configured
+			m, out := newManagerWithLevel(t, cfg, tt.override)
+			l := m.Logger()
+			l.Debug("d")
+			l.Info("i")
+			l.Warn("w")
+			got := lines(out.String())
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d lines, want %d:\n%s", len(got), len(tt.want), out.String())
+			}
+			for i, w := range tt.want {
+				if !strings.HasSuffix(got[i], " "+w) {
+					t.Errorf("line %d = %q, want message %q", i, got[i], w)
+				}
+			}
+		})
+	}
+}
+
+func TestLOG16_OverrideSurvivesReconfigureOnEveryOutput(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	m, out := newManagerWithLevel(t, baseConfig(), slog.LevelDebug)
+
+	// A reload that asks for "warn" and adds the file output.
+	cfg := baseConfig()
+	cfg.Level = "warn"
+	cfg.Outputs = []string{config.OutputJournald, config.OutputFile}
+	cfg.File.Path = path
+	if err := m.Reconfigure(cfg); err != nil {
+		t.Fatalf("Reconfigure: %v", err)
+	}
+	m.Logger().Debug("still debug")
+
+	if !strings.Contains(out.String(), "still debug") {
+		t.Error("the reload replaced the --log-level override on the journal output")
+	}
+	if !strings.Contains(readFile(t, path), "still debug") {
+		t.Error("the --log-level override does not reach the file output")
+	}
+}
+
 func TestConcurrentLoggingDuringReconfigure(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "apptrol.log")
 	m, _ := newManager(t, baseConfig(), true)

@@ -51,6 +51,9 @@ type Options struct {
 	StatePath  string
 	Log        *slog.Logger
 	Logs       Logs // may be nil
+	// LogLevelFlag is the level given with --log-level, "" if none; it is
+	// named on the start record (LOG-16).
+	LogLevelFlag string
 
 	Audio         Audio
 	NewController func(port string) Controller
@@ -96,7 +99,13 @@ func Run(ctx context.Context, o Options) error {
 	s := &service{o: o, logs: map[string]*slog.Logger{}}
 	s.log = s.logFor(logattr.Service)
 	ver, _, _ := version.Info()
-	s.log.Info("Apptrol starting", logattr.KeyServiceName, "apptrol", logattr.KeyServiceVersion, ver)
+	start := []any{logattr.KeyServiceName, "apptrol", logattr.KeyServiceVersion, ver}
+	if o.LogLevelFlag != "" {
+		start = append(start, logattr.KeyLogLevel, o.LogLevelFlag, logattr.KeyLogLevelSource, "flag")
+	} else {
+		start = append(start, logattr.KeyLogLevelSource, "config")
+	}
+	s.log.Info("Apptrol starting", start...)
 
 	cfg, cfgData := s.loadConfig()
 	setup := mixer.Setup{}

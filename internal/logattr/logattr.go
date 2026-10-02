@@ -80,6 +80,9 @@ const (
 	KeyMutes        = "apptrol.state.mutes"     // number of restored mutes
 	KeySolo         = "apptrol.state.solo"      // restored soloed control, "" = none
 	KeyDisconnected = "apptrol.controller.reason"
+
+	KeyLogLevel       = "apptrol.log.level"        // the log level in use
+	KeyLogLevelSource = "apptrol.log.level_source" // where it comes from: flag or config
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records

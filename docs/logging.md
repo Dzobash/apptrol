@@ -42,7 +42,7 @@ The same line in the JSON log file:
 | `error` | yes | Something failed: an invalid configuration, the audio server is gone, the controller cannot be opened. |
 | `warn` | yes | Something needs your attention: the controller is not plugged in, an app in the configuration matches nothing. |
 | `info` | yes | What Apptrol does: start and stop, configuration loaded, apps found, mute and solo. |
-| `debug` | no (`level = "debug"`) | Every volume change, every MIDI message, buttons that have no function. |
+| `debug` | no (`level = "debug"`, or `apptrol --log-level debug` for one run) | Every volume change, every MIDI message, buttons that have no function. |
 
 ### Which part of Apptrol wrote it
 
@@ -223,3 +223,5 @@ Apptrol's own:
 | `apptrol.state.positions` | How many positions were restored |
 | `apptrol.state.mutes` | How many mutes were restored |
 | `apptrol.state.solo` | The restored solo, e.g. `slider1` |
+| `apptrol.log.level` | The log level set with `--log-level` (on the start line) |
+| `apptrol.log.level_source` | Where the log level comes from: `flag` (`--log-level`) or `config` (on the start line) |
