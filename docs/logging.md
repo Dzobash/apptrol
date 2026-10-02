@@ -205,6 +205,7 @@ Apptrol's own:
 | `apptrol.led` | An LED, e.g. `S1` |
 | `apptrol.stream.id` | PipeWire's number for a playing stream |
 | `apptrol.stream.app_name` | The name the app gives its stream (what `match` compares) |
+| `apptrol.stream.corked` | Whether the app has paused the stream (`true`) or it plays (`false`) |
 | `apptrol.device.name` | An input device's unique name |
 | `apptrol.device.description` | An input device's readable name |
 | `apptrol.device.matches` | All input devices that match |

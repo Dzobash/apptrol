@@ -1,8 +1,12 @@
 package mixer
 
 import (
+	"fmt"
 	"log/slog"
+	"strings"
 	"testing"
+
+	"github.com/Dzobash/apptrol/internal/logattr"
 )
 
 // ---- controls and volume ----------------------------------------------------
@@ -475,6 +479,69 @@ func TestDeviceHotplug(t *testing.T) {
 	w.move(Slider, 8, 10)
 	if near(w.devVol[goxlr.Name], 10.0/127) {
 		t.Error("volume sent to a removed device")
+	}
+}
+
+// ---- streams paused by their app (MEDIA-10) ---------------------------------
+
+func TestMEDIA10_CorkStateIsTracked(t *testing.T) {
+	w := started(t)
+	if w.m.streams[firefox.ID].Corked {
+		t.Fatal("a playing stream starts as corked")
+	}
+	w.do(StreamCorkChanged{ID: firefox.ID, Corked: true})
+	if !w.m.streams[firefox.ID].Corked {
+		t.Error("pause not recorded")
+	}
+	if len(effects(w.last)) != 0 {
+		t.Errorf("pausing changed something audible: %v", w.last) // volume and mute stay
+	}
+	w.do(StreamCorkChanged{ID: firefox.ID, Corked: false})
+	if w.m.streams[firefox.ID].Corked {
+		t.Error("resume not recorded")
+	}
+}
+
+func TestMEDIA10_InitialCorkStateComesWithTheStream(t *testing.T) {
+	paused := Stream{ID: 20, AppName: "Spotify", Corked: true}
+	w := newWorld(t, testSetup(), State{})
+	w.do(AudioSnapshot{Streams: []Stream{paused}})
+	if !w.m.streams[paused.ID].Corked {
+		t.Error("corked state from the snapshot lost")
+	}
+	tab := Stream{ID: 21, AppName: "Firefox", Corked: true}
+	w.do(StreamAdded{tab})
+	if !w.m.streams[tab.ID].Corked {
+		t.Error("corked state of a new stream lost")
+	}
+}
+
+func TestMEDIA10_LOG15_EveryCorkChangeIsLogged(t *testing.T) {
+	w := started(t)
+
+	// On a control: the record names the control and the app (LOG-14).
+	w.do(StreamCorkChanged{ID: firefox.ID, Corked: true})
+	n := notice(t, w.last)
+	attrs := fmt.Sprint(n.Attrs)
+	if n.Level != slog.LevelDebug || n.Msg != "stream corked" || !strings.Contains(attrs, "slider2") {
+		t.Errorf("got %v %q %s, want a debug \"stream corked\" naming slider2", n.Level, n.Msg, attrs)
+	}
+
+	// On no control (viber is not configured): logged too, without a control,
+	// so the log shows that Apptrol sees the stream.
+	w.do(StreamCorkChanged{ID: viber.ID, Corked: false})
+	n = notice(t, w.last)
+	attrs = fmt.Sprint(n.Attrs)
+	if n.Msg != "stream uncorked" || !strings.Contains(attrs, "ViberPC") || strings.Contains(attrs, logattr.KeyControl) {
+		t.Errorf("got %q %s, want \"stream uncorked\" for ViberPC without a control", n.Msg, attrs)
+	}
+}
+
+func TestMEDIA10_UnknownStreamChangesNothing(t *testing.T) {
+	w := started(t)
+	w.do(StreamCorkChanged{ID: 999, Corked: true})
+	if len(effects(w.last)) != 0 {
+		t.Errorf("a cork change for an unknown stream produced %v", w.last)
 	}
 }
 

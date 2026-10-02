@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jfreymuth/pulse/proto"
+
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
@@ -178,6 +180,86 @@ func TestIntegration_List(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+// TestIntegration_MEDIA10_Cork pauses and resumes a real stream, as a browser
+// tab or a player does, and expects the backend to report it as a cork
+// change, not as a new stream.
+func TestIntegration_MEDIA10_Cork(t *testing.T) {
+	needServer(t)
+	b := New(quietLog(), "")
+	events := make(chan mixer.Event, 256)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- b.Run(ctx, events) }()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Errorf("Run = %v", err)
+		}
+	})
+	next(t, events, func(mixer.AudioSnapshot) bool { return true })
+
+	// pacat cannot pause its stream, so the test creates one over its own
+	// connection and corks it with plain requests, as a player does. (The
+	// library's high-level PlaybackStream is not used: it has data races of
+	// its own, which -race reports.)
+	name := unique("TestCork")
+	k, err := dial("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(k.shutdown)
+	var created proto.CreatePlaybackStreamReply
+	if err := k.request(&proto.CreatePlaybackStream{
+		SinkIndex:             proto.Undefined,
+		ChannelMap:            proto.ChannelMap{proto.ChannelMono},
+		SampleSpec:            proto.SampleSpec{Format: proto.FormatFloat32LE, Channels: 1, Rate: 44100},
+		ChannelVolumes:        proto.ChannelVolumes{proto.VolumeNorm},
+		BufferMaxLength:       proto.Undefined,
+		BufferTargetLength:    proto.Undefined,
+		BufferPrebufferLength: proto.Undefined,
+		BufferMinimumRequest:  proto.Undefined,
+		Properties:            proto.PropList{"application.name": proto.PropListString(name)},
+	}, &created); err != nil {
+		t.Fatal(err)
+	}
+	// Like a real player, send sound (silence): some PipeWire versions report
+	// a stream that has no data yet as corked.
+	n := int(created.Missing)
+	if n == 0 {
+		n = 44100 * 4 / 2 // half a second of mono float32
+	}
+	if err := k.c.Send(created.StreamIndex, make([]byte, n)); err != nil {
+		t.Fatal(err)
+	}
+	cork := func(corked bool) {
+		t.Helper()
+		if err := k.request(&proto.CorkPlaybackStream{StreamIndex: created.StreamIndex, Corked: corked}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	added := next(t, events, func(e mixer.StreamAdded) bool { return e.Stream.AppName == name })
+	id := added.Stream.ID
+	if id != created.SinkInputIndex {
+		t.Fatalf("stream %d appeared, created %d", id, created.SinkInputIndex)
+	}
+	// Follow the stream's state through the reported changes, whatever it
+	// started as.
+	corked := added.Stream.Corked
+	wait := func(want bool) {
+		t.Helper()
+		for corked != want {
+			corked = next(t, events, func(e mixer.StreamCorkChanged) bool { return e.ID == id }).Corked
+		}
+	}
+
+	wait(false) // playing
+	cork(true)
+	wait(true)
+	cork(false)
+	wait(false)
 }
 
 func TestIntegration_Backend(t *testing.T) {

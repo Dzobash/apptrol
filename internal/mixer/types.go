@@ -166,6 +166,14 @@ type Stream struct {
 	ID      uint32
 	AppName string // application.name
 	Binary  string // application.process.binary
+	Corked  bool   // paused by the app itself (MEDIA-10); changes come as StreamCorkChanged
+}
+
+// SameStream reports whether a and b are the same stream with the same
+// identity, ignoring state such as Corked. A changed identity (e.g. a new
+// application.name) makes the stream count as new; a changed state does not.
+func SameStream(a, b Stream) bool {
+	return a.ID == b.ID && a.AppName == b.AppName && a.Binary == b.Binary
 }
 
 // Device is a capture device (a PulseAudio "source").

@@ -51,6 +51,14 @@ type StreamMuteChanged struct {
 	Muted bool
 }
 
+// StreamCorkChanged reports that a playback stream was paused (corked) or
+// resumed by its app, e.g. a paused browser tab (MEDIA-10). Only the app can
+// cork its stream; Apptrol only observes it.
+type StreamCorkChanged struct {
+	ID     uint32
+	Corked bool
+}
+
 // DeviceMuteChanged reports that a capture device was muted or unmuted by
 // someone other than Apptrol, e.g. with the desktop's microphone mute key (MUTE-07).
 type DeviceMuteChanged struct {
@@ -71,6 +79,7 @@ func (StreamRemoved) isEvent()       {}
 func (DeviceAdded) isEvent()         {}
 func (DeviceRemoved) isEvent()       {}
 func (StreamMuteChanged) isEvent()   {}
+func (StreamCorkChanged) isEvent()   {}
 func (DeviceMuteChanged) isEvent()   {}
 func (ConfigChanged) isEvent()       {}
 
