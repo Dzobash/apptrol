@@ -40,6 +40,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ADR 0020 replaces the input column part of ADR 0019: M is the microphone button
   (`mute` or `hold_to_talk`), S coughs or talks over, R on an input column is `off` or a
   launcher. The input's talk-over setting is named `talk_over_volume`.
+- Roadmap: no desktop GUI (ADR 0021). Phase 3 becomes *Setup and tray*: `apptrol setup`
+  in the terminal, editing `config.toml`, and a status icon in the tray. Notifications
+  for problems join the on-screen display in Phase 1.6; a man page and shell completions
+  are planned for later.
 - Roadmap: the on-screen display gets its own release (Phase 1.6, `0.3.0`) after the
   media buttons (`0.2.0`); layouts move to `0.4.0`, the GUI to `0.5.0`.
 - Roadmap: `0.2.0` also plans app launchers on Record and the Marker buttons, play /

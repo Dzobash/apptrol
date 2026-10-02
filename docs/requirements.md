@@ -61,7 +61,8 @@ and works just as well with a plain internal sound card.
 ### 2.2 Out of scope for Phase 1
 
 Media buttons, launcher buttons, functions for R and for S on an input column, on-screen
-popups, multiple layouts, pick-up, a GUI, moving apps between outputs. See section 6 and
+popups, multiple layouts, pick-up, a terminal setup and a tray icon, moving apps between
+outputs. See section 6 and
 the [roadmap](roadmap.md).
 
 ### 2.3 Never in scope
@@ -333,6 +334,7 @@ explains it with the feature.
 
 ### Phase 1.6 — On-screen display
 - On-screen feedback when a volume or mute changes: KDE's native volume OSD when available, a desktop notification elsewhere (e.g. GNOME).
+- A desktop notification when something needs attention, e.g. an invalid configuration or the controller unplugged (ADR 0021).
 
 ### Phase 2 — Layouts
 - Several layouts (e.g. *Work*, *Gaming*), each with its own assignments.
@@ -342,13 +344,14 @@ explains it with the feature.
 - Track ◀ / ▶ step through layouts; Cycle + S / M / R on a column jumps directly to a layout (up to 24).
 - Optional automatic switching (e.g. when a game starts).
 
-### Phase 3 — GUI
-- A main window with a layout drop-down and a list of every control's target and current percentage.
-- The window looks like the controller: eight columns, each with a knob, a slider and S / M / R buttons with their LEDs, so it is clear what is being configured.
-- A tray icon wherever the desktop has a tray (StatusNotifierItem); the window works fully without one. Desktops with only an XEmbed tray (e.g. i3bar) and GNOME without the AppIndicator extension show no icon.
-- Clicking the tray icon opens and closes the window. On Wayland the desktop, not the app, decides where a window appears, so there is no popup next to the icon.
-- Works independently of the desktop: KDE Plasma, GNOME, wlroots compositors (Hyprland, Sway), Wayland and X11.
-- The GUI is a separate program that talks to the running service over D-Bus (Q-4); it is not required for the service to work.
+### Phase 3 — Setup and tray *(ADR 0021; no desktop GUI)*
+- `apptrol setup`: a terminal interface in the same binary that shows the layout as the controller's columns and lets you assign apps (picked from what is playing now) and set the buttons.
+- Every change is checked like `apptrol check` and saved to `config.toml`, keeping its comments and layout; the file stays the only place settings live (Q-6), and the service reloads it.
+- A tray icon in the service, showing status only: running and fine, or needing attention (the tooltip names the problem); no icon means Apptrol is not running. A small menu opens the configuration file, the log, or `apptrol setup` in a terminal.
+- The tray icon appears wherever the desktop has a tray (StatusNotifierItem); desktops with only an XEmbed tray (e.g. i3bar) and GNOME without the AppIndicator extension show none, and nothing depends on it.
+
+### Later (unscheduled)
+- A man page and shell completions (bash, zsh, fish) in the packages, written without a command-line framework (ADR 0021).
 
 ### Backlog (unscheduled)
 - **Move app to another output**, as a further R override: cycle an app through a per-app list of allowed output devices; R LED shows when the app is not on its home output. Needs further discussion.
@@ -363,5 +366,6 @@ explains it with the feature.
 | Q-1 | When switching from a layout where an app is user-muted to a layout that does not contain that app, should the app stay muted or become audible until you switch back? | 2 |
 | Q-2 | Should R also cycle an input column between input devices? | Backlog |
 | Q-3 | Should an output move made with R persist after the app restarts, and is it per layout or global? | Backlog |
-| Q-4 | How does the GUI talk to the service (D-Bus or a local socket)? **Decided 2026-10-02: D-Bus** (session bus), which Phases 1.5 and 1.6 bring in anyway for MPRIS and the on-screen display. To be recorded in the ADR at the start of Phase 1.5. | 3 |
+| Q-4 | How does the GUI talk to the service (D-Bus or a local socket)? **Decided 2026-10-02: D-Bus** (session bus), recorded in ADR 0017. **No longer applies** since ADR 0021: there is no GUI program. | 3 |
 | Q-5 | Should the journald output use the native journal protocol (structured fields) instead of stdout with severity prefixes? Phase 1 uses severity prefixes. | Backlog |
+| Q-6 | Where do settings live when they can be changed outside the file? **Decided 2026-10-02: in `config.toml` only** (ADR 0021): `apptrol setup` edits the file, keeping its comments; nothing overrides it. Open: how to write the file without losing comments. | 3 |

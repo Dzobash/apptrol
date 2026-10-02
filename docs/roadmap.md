@@ -10,7 +10,7 @@ Each phase ends with a tagged release. Detailed requirements live in
 | 1.5 | Media, launcher and column buttons | 0.2.0 | ⚪ Planned |
 | 1.6 | On-screen display | 0.3.0 | ⚪ Planned |
 | 2 | Layouts | 0.4.0 | ⚪ Planned |
-| 3 | GUI and tray | 0.5.0 | ⚪ Planned |
+| 3 | Setup and tray | 0.5.0 | ⚪ Planned |
 | – | Backlog | – | ⚪ Unscheduled |
 
 `1.0.0` is released once Phases 1–3 are stable and the config format is frozen.
@@ -73,7 +73,7 @@ Requirement areas: DESK, MEDIA, LAUNCH, INPUT; CFG-13 to CFG-17, LOG-15, LOG-16.
 Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-media-players-through-mpris.md), [ADR 0019](adr/0019-launcher-and-column-buttons.md), [ADR 0020](adr/0020-microphone-column-buttons.md).
 
 - [x] Decision records (ADR 0017–0019), requirements and hardware checklist (H-23 to H-42)
-- [ ] D-Bus connection in the service (ADR; also used by Phases 1.6 and 3, Q-4)
+- [x] D-Bus connection in the service, following the media players (DESK-01 to DESK-03, MEDIA-01; also used by Phases 1.6 and 3)
 - [ ] ◀◀ ▶▶ ■ ▶ via MPRIS; most recent player by default, optionally pinned
 - [ ] Record (●) and the Marker buttons start apps (desktop ID or command), each in its own systemd scope; already-running behaviour configurable
 - [ ] `apptrol list apps [search]` shows desktop IDs; `apptrol check` warns about unknown ones
@@ -91,6 +91,7 @@ not hold back the media buttons.
 
 - [ ] On-screen feedback: KDE volume OSD, notification fallback for other desktops
 - [ ] Config switch to turn on-screen feedback off
+- [ ] Desktop notifications when something needs attention: invalid configuration, controller unplugged ([ADR 0021](adr/0021-no-desktop-gui.md))
 - [ ] Show microphone button states and hints, e.g. "cough has no use with hold-to-talk: release M to mute" (ADR 0020)
 
 ## Phase 2 — Layouts (`0.4.0`)
@@ -102,13 +103,15 @@ not hold back the media buttons.
 - [ ] Optional automatic switching by running application
 - [ ] Resolve open question Q-1
 
-## Phase 3 — GUI and tray (`0.5.0`)
+## Phase 3 — Setup and tray (`0.5.0`)
 
-- [ ] Record how the GUI talks to the service: D-Bus, decided (Q-4); ADR with Phase 1.5
-- [ ] Prototype: Fyne window with one drawn column and a tray icon, tested on KDE
-- [ ] Choose the GUI toolkit (ADR), based on the prototype
-- [ ] Main window: layout drop-down, control assignments with current percentages
-- [ ] Tray icon (StatusNotifierItem; works on KDE and on GNOME with AppIndicator support)
+No desktop GUI ([ADR 0021](adr/0021-no-desktop-gui.md)): the binary stays pure Go, and
+`config.toml` stays the only place settings live.
+
+- [ ] `apptrol setup` in the terminal (bubbletea, bubbles, huh, lipgloss): the layout as columns, apps picked from what is playing, button settings
+- [ ] Save to `config.toml` keeping its comments and layout (Q-6)
+- [ ] Tests without a terminal (teatest); a GIF of the setup in the README (vhs)
+- [ ] Tray icon in the service (StatusNotifierItem): status, tooltip with the problem, menu with *Open configuration*, *Show log*, *Set up…*
 
 ## Backlog
 
@@ -117,3 +120,4 @@ not hold back the media buttons.
 - Read the controller's LED mode over SysEx and warn only when it is "Internal" (see HW-03)
 - Support for other MIDI controllers
 - Native journald protocol for structured log fields (Q-5)
+- Man page and shell completions (bash, zsh, fish) in the packages, written without a command-line framework (ADR 0021)

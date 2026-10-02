@@ -56,3 +56,9 @@ records.
 - LOG-10 gains the component `desktop`; `docs/logging.md` documents it.
 - CI gets a D-Bus integration test job next to the PipeWire one.
 - The GUI (Phase 3) can later talk to the service over the same session bus.
+
+## Notes
+
+- 2026-10-02: There will be no GUI program ([ADR 0021](0021-no-desktop-gui.md)). The
+  session bus connection serves the media players, the on-screen display and
+  notifications (Phase 1.6) and the tray icon (Phase 3), all inside the service.

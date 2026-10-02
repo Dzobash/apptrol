@@ -81,7 +81,7 @@ Defines something a control can act on. `<id>` is your own short name (letters, 
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `name` | string | the id | Display name, used in logs (and later in popups and the GUI). |
+| `name` | string | the id | Display name, used in logs (and later in popups and `apptrol setup`). |
 | `type` | string | `"app"` | `"app"` for playback streams, `"input"` for a capture device (microphone). |
 | `match` | list of strings | — (required) | Case-insensitive name fragments. See below. |
 | `max_volume` | integer | `100` | Volume in percent with the control at the top, from 1 to 150. The control spans 0 to this value: with `150`, the middle is 75 %. Below 100 it works as a cap, e.g. `80` for games that are always too loud. Above 100 the audio is amplified in software and can distort. |
