@@ -101,6 +101,7 @@ const (
 	KeyPlayers             = "apptrol.desktop.players"       // number of media players found
 	KeyPlayerMatchedBy     = "apptrol.player.matched_by"     // bus_name, identity or desktop_entry
 	KeyPlayerIgnoredReason = "apptrol.player.ignored_reason" // other_device, proxy or duplicate
+	KeyPlayerCommand       = "apptrol.player.command"        // Play or Pause, sent to a player
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records
@@ -123,6 +124,7 @@ const (
 	ErrDesktopUnreachable = "desktop_bus_unreachable"
 	ErrDesktopLost        = "desktop_bus_lost"
 	ErrPlayerUnreadable   = "media_player_unreadable"
+	ErrMediaCommand       = "media_command_failed"
 )
 
 // Component returns the apptrol.component attribute.

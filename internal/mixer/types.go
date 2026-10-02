@@ -161,11 +161,13 @@ type Target struct {
 // DefaultTalkOverVolume is the talk-over volume of an input that sets none (CFG-16).
 const DefaultTalkOverVolume = 25
 
-// Mode is what M or S does on an input column (INPUT-01, ADR 0020).
+// Mode is what a button does: M and S on an input column (INPUT-01, ADR 0020),
+// R on any column (MEDIA-07).
 type Mode int
 
-// Button modes. ModeDefault is the button's default: mute for M; cough for S,
-// or off when M is in hold-to-talk.
+// Button modes. ModeDefault is the button's default: on an input column mute
+// for M, cough for S (off when M is in hold-to-talk) and off for R; on an app
+// column play_pause for R.
 const (
 	ModeDefault    Mode = iota
 	ModeOff             // the button does nothing
@@ -173,9 +175,11 @@ const (
 	ModeHoldToTalk      // M: live only while held
 	ModeCough           // S: muted while held
 	ModeTalkOver        // S: apps go down while held
+	ModePlayPause       // R: play or pause the column's app
+	ModeLauncher        // R: starts an app (LAUNCH-01, a later step)
 )
 
-var modeNames = [...]string{"default", "off", "mute", "hold_to_talk", "cough", "talk_over"}
+var modeNames = [...]string{"default", "off", "mute", "hold_to_talk", "cough", "talk_over", "play_pause", "launcher"}
 
 // String is the name the configuration uses, e.g. "hold_to_talk".
 func (m Mode) String() string {

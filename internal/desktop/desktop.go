@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/godbus/dbus/v5"
@@ -40,6 +41,46 @@ type Bus struct {
 	address string // "" = from the environment (busAddress)
 	// Wait before reconnecting: starts at retryMin, doubles up to retryMax.
 	retryMin, retryMax time.Duration
+
+	mu   sync.Mutex
+	conn *dbus.Conn // the current connection, nil while there is none
+}
+
+// ErrNotConnected is returned by Apply while there is no session bus.
+var ErrNotConnected = errors.New("not connected to the session bus")
+
+func (b *Bus) setConn(c *dbus.Conn) {
+	b.mu.Lock()
+	b.conn = c
+	b.mu.Unlock()
+}
+
+// Apply carries out a mixer action: a PlayerCommand is sent to its player
+// without waiting for the answer, so a slow or hanging player cannot hold up
+// the controller. A player that refuses is logged when its answer arrives.
+func (b *Bus) Apply(a mixer.Action) error {
+	cmd, ok := a.(mixer.PlayerCommand)
+	if !ok {
+		return fmt.Errorf("desktop: unsupported action %T", a)
+	}
+	b.mu.Lock()
+	conn := b.conn
+	b.mu.Unlock()
+	if conn == nil {
+		return ErrNotConnected
+	}
+	ctx, cancel := context.WithTimeout(conn.Context(), callTimeout)
+	done := make(chan *dbus.Call, 1)
+	// FlagNoAutoStart: a player that has just gone is not started (DESK-03).
+	conn.Object(cmd.BusName, mprisPath).GoWithContext(ctx, ifacePlayer+"."+cmd.Command, dbus.FlagNoAutoStart, done)
+	go func() {
+		defer cancel()
+		if call := <-done; call.Err != nil {
+			b.log.Error("media player command failed", logattr.KeyPlayerBusName, cmd.BusName,
+				logattr.KeyPlayerCommand, cmd.Command, logattr.Error(logattr.ErrMediaCommand, call.Err))
+		}
+	}()
+	return nil
 }
 
 // New returns a Bus. address is the session bus address; "" finds it as a
@@ -95,7 +136,9 @@ func (b *Bus) Run(ctx context.Context, out chan<- mixer.Event) error {
 		} else {
 			wait = b.retryMin
 			b.log.Info("connected to the session bus", logattr.KeyBusAddress, addr)
+			b.setConn(conn)
 			err = b.session(ctx, conn, out)
+			b.setConn(nil)
 			_ = conn.Close()
 			if ctx.Err() != nil {
 				return ctx.Err()

@@ -89,6 +89,7 @@ A configuration with several problems gives one line per problem.
 | `desktop_bus_unreachable` | No D-Bus session bus (is a desktop session running?); media players are not available, everything else works. |
 | `desktop_bus_lost` | The connection to the session bus broke; Apptrol reconnects by itself. |
 | `media_player_unreadable` | A media player did not answer when asked for its name; it is ignored. |
+| `media_command_failed` | A media player refused *Play* or *Pause*, or did not answer in time. |
 
 ## Examples
 
@@ -244,3 +245,4 @@ Apptrol's own:
 | `apptrol.player.status` | `Playing`, `Paused` or `Stopped` |
 | `apptrol.player.matched_by` | What made a media player belong to an app: `bus_name`, `identity` or `desktop_entry` |
 | `apptrol.player.ignored_reason` | Why a media player is never used: `other_device` (e.g. a phone through KDE Connect), `proxy` (`playerctld`) or `duplicate` (`plasma-browser-integration`) |
+| `apptrol.player.command` | `Play` or `Pause`, sent to a media player |

@@ -51,13 +51,12 @@ func TestMEDIA01_PlayersAreFollowed(t *testing.T) {
 func TestDESK02_SnapshotReplacesPlayers(t *testing.T) {
 	w := started(t)
 	w.do(PlayerSnapshot{Players: []Player{spotifyPlayer, vlcPlayer}})
+	w.wantLEDs(1, false, false, true)                  // Spotify plays and has a player
 	w.do(PlayerSnapshot{Players: []Player{vlcPlayer}}) // after a reconnect
 	if len(w.m.players) != 1 {
 		t.Errorf("players = %v, want only VLC", w.m.players)
 	}
-	if len(effects(w.last)) != 0 {
-		t.Errorf("player events produced %v", w.last)
-	}
+	w.wantLEDs(1, false, false, false) // its player is gone: R can do nothing
 }
 
 func TestMEDIA02_OtherDevicesProxiesAndDuplicatesAreIgnored(t *testing.T) {

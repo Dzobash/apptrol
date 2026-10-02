@@ -38,6 +38,7 @@ type Audio interface {
 // Desktop is the session bus: media players (internal/desktop, ADR 0017).
 type Desktop interface {
 	Run(ctx context.Context, out chan<- mixer.Event) error
+	Apply(a mixer.Action) error // does not wait for the player's answer
 }
 
 // Controller is the MIDI controller (internal/controller/rawmidi).
@@ -361,6 +362,15 @@ func (s *service) do(a mixer.Action) {
 		if err := s.ctl.SetLED(a.LED, a.On); err != nil && !errors.Is(err, rawmidi.ErrNotConnected) {
 			s.logFor(logattr.Controller).Debug("could not set an LED",
 				logattr.KeyLED, a.LED.String(), logattr.Error(logattr.ErrLEDFailed, err))
+		}
+	case mixer.PlayerCommand:
+		if s.o.Desktop == nil {
+			return
+		}
+		// Refusals are logged by the adapter when the answer arrives.
+		if err := s.o.Desktop.Apply(a); err != nil {
+			s.logFor(logattr.Desktop).Debug("media player command not sent", logattr.KeyPlayerBusName, a.BusName,
+				logattr.KeyPlayerCommand, a.Command, logattr.Error(logattr.ErrMediaCommand, err))
 		}
 	case mixer.StateChanged:
 		s.saver.Request(s.m.Snapshot())
