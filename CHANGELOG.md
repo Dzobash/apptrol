@@ -86,6 +86,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pause per slider on R, and a cough button and talk-over for the microphone. The
   microphone "bleep" is dropped: it would be an audio effect, which is out of scope.
 
+### Fixed
+- The packages and archives now contain `THIRD_PARTY_LICENSES`: the copyright notices
+  and license texts of every library compiled into Apptrol, and of Go's standard library,
+  as their licenses require. 0.1.0 shipped only Apptrol's own license (#33, NFR-08). It
+  is generated on every release, and CI fails on a library with an unknown license.
+
 ## [0.1.0] - 2026-09-30
 
 First release: Phase 1, the core mixer.

@@ -5,6 +5,11 @@ version: 2
 
 project_name: apptrol
 
+before:
+  hooks:
+    # The licenses of every library compiled into the binary, and Go's (#33).
+    - make third-party-licenses
+
 builds:
   - id: apptrol
     main: ./cmd/apptrol
@@ -29,6 +34,7 @@ archives:
     files:
       - README.md
       - LICENSE
+      - THIRD_PARTY_LICENSES
       - CHANGELOG.md
       - examples/config.toml
       - packaging/systemd/apptrol.service
@@ -63,6 +69,12 @@ nfpms:
         packager: deb
       - src: LICENSE
         dst: /usr/share/licenses/apptrol/LICENSE
+        packager: rpm
+      - src: THIRD_PARTY_LICENSES
+        dst: /usr/share/doc/apptrol/THIRD_PARTY_LICENSES
+        packager: deb
+      - src: THIRD_PARTY_LICENSES
+        dst: /usr/share/licenses/apptrol/THIRD_PARTY_LICENSES
         packager: rpm
     scripts:
       postinstall: packaging/scripts/postinstall.sh

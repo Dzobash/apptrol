@@ -13,7 +13,10 @@ LDFLAGS := -s -w \
 # Minimum total test coverage in percent; keep in sync with COVERAGE_MIN in ci.yml.
 COVERAGE_MIN ?= 75
 
-.PHONY: all check build test test-audio test-desktop test-launcher cover vet fmt lint vulncheck snapshot release-check clean help
+# go-licenses lists the libraries compiled into the binary with their licenses (#33).
+GO_LICENSES := github.com/google/go-licenses/v2@v2.0.1
+
+.PHONY: all check build test test-audio test-desktop test-launcher cover vet fmt lint vulncheck third-party-licenses snapshot release-check clean help
 
 all: check build ## Run all checks, then build
 
@@ -53,6 +56,28 @@ lint: ## Run golangci-lint (install: https://golangci-lint.run/welcome/install/)
 vulncheck: ## Check dependencies for known vulnerabilities
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
+third-party-licenses: ## Write THIRD_PARTY_LICENSES: every bundled library's license, and Go's; fail on an unknown or restricted license
+	go run $(GO_LICENSES) check ./cmd/apptrol --ignore $(PKG) --disallowed_types=forbidden,restricted,unknown
+	go run $(GO_LICENSES) report ./cmd/apptrol --ignore $(PKG) --template packaging/third-party-licenses.tpl > THIRD_PARTY_LICENSES
+	@# Apache-2.0 libraries' NOTICE files must ship too (e.g. go-systemd's).
+	@tmp=$$(mktemp -d) && trap 'rm -rf "$$tmp"' EXIT && \
+		go run $(GO_LICENSES) save ./cmd/apptrol --ignore $(PKG) --save_path="$$tmp/l" 2>/dev/null && \
+		find "$$tmp/l" -iname 'NOTICE*' | sort | while read -r f; do \
+			printf -- '\n%s\n%s\n%s\n\n' \
+				'--------------------------------------------------------------------------------' \
+				"NOTICE of $$(dirname "$${f#$$tmp/l/}")" \
+				'--------------------------------------------------------------------------------'; \
+			cat "$$f"; \
+		done >> THIRD_PARTY_LICENSES
+	@{ printf -- '\n%s\n%s\n%s\n%s\n%s\n\n' \
+		'--------------------------------------------------------------------------------' \
+		"The Go standard library and runtime $$(go env GOVERSION)" \
+		'License: BSD-3-Clause' \
+		'Source:  https://go.dev/LICENSE' \
+		'--------------------------------------------------------------------------------'; \
+		cat packaging/licenses/go.LICENSE; } >> THIRD_PARTY_LICENSES
+	@echo "THIRD_PARTY_LICENSES: $$(grep -c '^License:' THIRD_PARTY_LICENSES) components"
+
 snapshot: ## Trial release build into dist/, publishes nothing (needs goreleaser)
 	goreleaser release --snapshot --clean
 
@@ -60,7 +85,7 @@ release-check: ## Validate .goreleaser.yaml (needs goreleaser)
 	goreleaser check
 
 clean: ## Remove build and coverage output
-	rm -rf bin dist coverage.out coverage.html
+	rm -rf bin dist coverage.out coverage.html THIRD_PARTY_LICENSES
 
 help: ## List targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'

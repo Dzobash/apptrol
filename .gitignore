@@ -2,6 +2,7 @@
 /bin/
 /dist/
 /apptrol
+/THIRD_PARTY_LICENSES
 
 # Go
 *.test

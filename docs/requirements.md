@@ -300,6 +300,7 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | NFR-05 | Releases MUST be built by CI and published with binaries for x86_64 and arm64, .deb and .rpm packages (including the systemd user unit) and checksums. | MUST | 0 |
 | NFR-06 | The project MUST be published under the MIT license. | MUST | 0 |
 | NFR-07 | Documentation MUST NOT use Korg trademarks in the project name or logo, and MUST state that the project is not affiliated with Korg. | MUST | 0 |
+| NFR-08 | Every release archive and package MUST contain the copyright notices and license texts of all libraries compiled into the binary, and of Go's standard library, generated at build time; a library with an unknown or restricted license MUST fail the build. *(Missing in 0.1.0, #33.)* | MUST | 1.5 |
 
 ### 5.1 Quality assurance
 
