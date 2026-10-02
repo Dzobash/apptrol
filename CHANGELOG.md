@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (MPRIS), following them as they start, stop and change between playing and paused
   (DESK-01 to DESK-03, MEDIA-01). Nothing uses them yet; the media buttons follow.
   Without a session bus everything else keeps working, and Apptrol reconnects.
+- Each media player is matched to the app on a slider or knob through the app's `match`
+  list: its bus name, its name or its desktop ID (MEDIA-03). Players on other devices
+  (KDE Connect), `playerctld` and `plasma-browser-integration` are ignored (MEDIA-02).
+  The log says which control a player belongs to and why (`media player matched`).
 - On a microphone's slider, holding **S** mutes the microphone while you cough
   (INPUT-02). The M LED goes dark while it is muted; S and R stay lit to mark the
   column as an input (LED-04).

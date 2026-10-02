@@ -26,9 +26,9 @@ type Mixer struct {
 	devices   map[string]Device // by name
 	deviceFor map[string]string // input target id -> chosen device name
 
-	players        map[string]Player // media players by bus name (MEDIA-01); matched in a later step
-	deviceMuteSent map[string]bool   // last mute sent per device
-	leds           map[LED]bool      // last LED state sent
+	players        map[string]*playerInfo // media players by bus name (MEDIA-01, MEDIA-03)
+	deviceMuteSent map[string]bool        // last mute sent per device
+	leds           map[LED]bool           // last LED state sent
 }
 
 type streamInfo struct {
@@ -49,7 +49,7 @@ func New(setup Setup, saved State) *Mixer {
 		streams:        map[uint32]*streamInfo{},
 		devices:        map[string]Device{},
 		deviceFor:      map[string]string{},
-		players:        map[string]Player{},
+		players:        map[string]*playerInfo{},
 		deviceMuteSent: map[string]bool{},
 		leds:           map[LED]bool{},
 	}
@@ -200,20 +200,8 @@ func (m *Mixer) Handle(ev Event) []Action {
 		m.chooseDevices(&a)
 	case ConfigChanged:
 		m.configChanged(&a, e.Setup)
-	case PlayerSnapshot:
-		m.players = map[string]Player{}
-		for _, p := range e.Players {
-			m.players[p.BusName] = p
-		}
-	case PlayerAdded:
-		m.players[e.Player.BusName] = e.Player
-	case PlayerRemoved:
-		delete(m.players, e.BusName)
-	case PlayerStatusChanged:
-		if p, ok := m.players[e.BusName]; ok {
-			p.Status = e.Status
-			m.players[e.BusName] = p
-		}
+	case PlayerSnapshot, PlayerAdded, PlayerRemoved, PlayerStatusChanged:
+		m.playersChanged(&a, e)
 	}
 	return a
 }
@@ -1030,6 +1018,7 @@ func (m *Mixer) configChanged(a *actions, s Setup) {
 			m.applyStream(a, info)
 		}
 	}
+	m.rematchPlayers(a) // a player may belong to another control now (MEDIA-03)
 	devBefore := map[string]string{}
 	for id, dev := range m.deviceFor {
 		devBefore[id] = dev
