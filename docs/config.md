@@ -216,8 +216,21 @@ when talk-over ends.
 | `command` | A program and its arguments, run without a shell: `["konsole", "-e", "htop"]`. Use `["sh", "-c", "…"]` for pipes. |
 | `if_running` | `"start"` (default): start it on every press. `"skip"`: not if it already runs. |
 
-Set `app` or `command`, not both. *`if_running = "skip"` works from the next update; until
-then the app starts on every press.*
+Set `app` or `command`, not both.
+
+**How `"skip"` knows an app runs:** when you press the button, Apptrol looks for a running
+systemd unit with the app's desktop ID in its name (apps started from the menu, by
+Apptrol, Flatpak and Snap apps all have one), then for a process of yours with the app's
+program name (apps started from a terminal). Two exceptions:
+
+- **Steam games** (`steam steam://rungameid/…`) are always passed to Steam, which never
+  starts a running game twice. Steam itself can stay in a game's unit after the game has
+  ended, so a unit says nothing about the game.
+- **Apps started through a wrapper** (`flatpak`, `sh`, `env`, `python`, …) are only looked
+  for by their unit: the wrapper's name does not say which app runs.
+
+An app whose wrapper hides its program name can still be missed and start twice. With
+`level = "debug"`, the log says what was checked.
 
 Each app runs in a systemd unit of its own, `app-apptrol-<desktop ID>@<random>.service`:
 it is not a child of Apptrol and keeps running when Apptrol stops or restarts.

@@ -155,6 +155,12 @@ Launcher buttons (ADR 0019, LAUNCH-*):
   are removed). The app is never a child of Apptrol and outlives it. An app with only
   D-Bus activation is started through `org.freedesktop.Application.Activate`.
 - **Commands** are argument lists run without a shell; `~/` is expanded.
+- **Already running** (`if_running = "skip"`), checked on the press: active units with
+  the desktop ID in their name, in both spellings (as written and escaped), then the
+  user's processes in `/proc` by program name. Steam games are passed to Steam
+  unchecked; wrappers (`flatpak`, shells, …) are looked for only by unit.
+- **The connection** to the systemd user manager is opened on the first press and kept;
+  it is not tied to that press, and after an error the next press connects again.
 
 ## Safety of launcher commands
 

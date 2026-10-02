@@ -95,6 +95,10 @@ const (
 	KeyLauncherCommand   = "apptrol.launcher.command"    // the command a launcher runs
 	KeyLauncherUnit      = "apptrol.launcher.unit"       // the systemd unit an app was started in
 
+	KeyLauncherRunningFoundBy = "apptrol.launcher.running_found_by" // how a running app was found: unit or process
+	KeyLauncherRunningUnit    = "apptrol.launcher.running_unit"     // the unit it was found in
+	KeyLauncherChecked        = "apptrol.launcher.checked"          // what was looked at when the app was not found
+
 	KeyBusAddress          = "apptrol.desktop.bus_address" // the session bus address in use
 	KeyPlayerBusName       = "apptrol.player.bus_name"     // a media player's bus name
 	KeyPlayerIdentity      = "apptrol.player.identity"     // its Identity, a name for people

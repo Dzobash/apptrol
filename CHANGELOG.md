@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `if_running = "skip"`: a launcher does not start an app that already runs. Apptrol
+  looks for the app's systemd unit (menu, Flatpak, Snap, Apptrol), then for its process
+  (started from a terminal); Steam games are passed to Steam, which never starts a game
+  twice; apps started through a wrapper are only looked for by unit. The log says how a
+  running app was found, or what was checked (LAUNCH-06, LAUNCH-07).
 - **Launcher buttons start apps:** Record (●), the three Marker buttons and any R set as
   a launcher start an installed app by its desktop ID, or a command (LAUNCH-01). systemd
   starts each in a unit of its own, so it keeps running when Apptrol stops (LAUNCH-04);

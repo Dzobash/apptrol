@@ -157,3 +157,14 @@ Measured on the reference system (Kubuntu, KDE Plasma) on 2026-10-02:
   records about starting apps carry `apptrol.component=launcher`.
 - 2026-10-02: Which launcher commands are refused, and that configured commands are the
   user's responsibility, is decided in [ADR 0022](0022-launcher-command-safety.md).
+- 2026-10-02: "Already running" (point 6), tested on the reference system. A Steam game's
+  desktop file runs `steam steam://rungameid/<n>`. Started from the menu while Steam was
+  closed, the whole Steam client ran inside the game's unit, and stayed there after the
+  game had ended: the unit would report the game as running. With Steam open, the
+  shortcut hands over and exits at once, and the game runs outside its unit. Steam
+  itself never started a running game twice. So Steam games are passed to Steam
+  unchecked. For apps started through a wrapper (`flatpak`, a shell, `env`, …) the
+  process check is skipped: the wrapper's name does not say which app runs. Flatpak apps
+  ran in `app-flatpak-<id>-….scope` and Snap apps in `snap.<snap>.<app>-….scope`, next
+  to KDE's `app-<id>@….service`; KDE writes a `-` in the ID as `\x2d`, so the ID is
+  matched in both spellings. Only active units count: KDE leaves failed units behind.

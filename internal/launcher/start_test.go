@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"path"
 	"reflect"
 	"regexp"
 	"strings"
@@ -25,6 +26,21 @@ type fakeSystemd struct {
 	result  string // the start job's result; "" = "done"
 	refuse  string // a property name it does not know, like systemd < 250
 	callErr error
+	active  []string // names of active units, for the running check
+}
+
+// ListUnitsByPatternsContext matches like systemd: globs, "\" escapes.
+func (f *fakeSystemd) ListUnitsByPatternsContext(_ context.Context, _, patterns []string) ([]sd.UnitStatus, error) {
+	var out []sd.UnitStatus
+	for _, name := range f.active {
+		for _, p := range patterns {
+			if ok, _ := path.Match(p, name); ok {
+				out = append(out, sd.UnitStatus{Name: name, ActiveState: "active"})
+				break
+			}
+		}
+	}
+	return out, nil
 }
 
 func (f *fakeSystemd) StartTransientUnitContext(_ context.Context, name, _ string, props []sd.Property, ch chan<- string) (int, error) {
@@ -60,7 +76,7 @@ func (f *fakeSystemd) prop(i int, name string) any {
 func newTestStarter(apps Apps, sys *fakeSystemd) (*Starter, *bytes.Buffer, *[]string) {
 	var log bytes.Buffer
 	var activated []string
-	s := NewStarter(slog.New(slog.NewTextHandler(&log, nil)))
+	s := NewStarter(slog.New(slog.NewTextHandler(&log, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	s.apps = func() Apps { return apps }
 	s.connect = func(context.Context) (systemd, error) { return sys, nil }
 	s.activate = func(_ context.Context, id string) error { activated = append(activated, id); return nil }

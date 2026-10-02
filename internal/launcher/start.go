@@ -29,6 +29,7 @@ const startTimeout = 10 * time.Second
 // replaces it in tests (QA-06).
 type systemd interface {
 	StartTransientUnitContext(ctx context.Context, name, mode string, properties []sd.Property, ch chan<- string) (int, error)
+	ListUnitsByPatternsContext(ctx context.Context, states, patterns []string) ([]sd.UnitStatus, error)
 }
 
 // Starter starts the apps of launcher buttons. systemd starts each one in a
@@ -44,12 +45,13 @@ type Starter struct {
 	connect func(ctx context.Context) (systemd, error)
 	// activate starts a DBusActivatable app without Exec (LAUNCH-03).
 	activate func(ctx context.Context, desktopID string) error
+	procDir  string // where the running processes are listed: /proc
 }
 
 // NewStarter returns a Starter for the user's systemd and session bus.
 func NewStarter(log *slog.Logger) *Starter {
 	return &Starter{log: log.With(logattr.Component(logattr.Launcher)), apps: Installed,
-		connect: connectSystemd, activate: activateDBus}
+		connect: connectSystemd, activate: activateDBus, procDir: "/proc"}
 }
 
 // Launch starts the app of a launcher button without waiting for it; what
@@ -73,6 +75,9 @@ func (s *Starter) start(l mixer.LaunchApp) {
 	}
 
 	argv, name, err := s.command(l.Launch)
+	if (err == nil || errors.Is(err, errActivate)) && l.Launch.SkipIfRunning && s.alreadyRunning(ctx, name, argv, attrs) {
+		return
+	}
 	if errors.Is(err, errActivate) {
 		s.log.Info("starting app", append(attrs, logattr.KeyLauncherUnit, "dbus-activation")...)
 		if err := s.activate(ctx, l.Launch.DesktopID); err != nil {
@@ -89,6 +94,27 @@ func (s *Starter) start(l mixer.LaunchApp) {
 	if err := s.startUnit(ctx, unitName, name, argv); err != nil {
 		fail(err)
 	}
+}
+
+// alreadyRunning checks whether the app runs, for if_running = "skip", and
+// logs the outcome with how it was found or what was checked (LAUNCH-07).
+func (s *Starter) alreadyRunning(ctx context.Context, name string, argv []string, attrs []any) bool {
+	c := s.checkRunning(ctx, name, argv)
+	switch {
+	case c.steam:
+		s.log.Debug("not checked whether the app runs: Steam itself does not start a running game twice", attrs...)
+		return false
+	case !c.running:
+		s.log.Debug("app not running", append(attrs, logattr.KeyLauncherChecked, c.checked)...)
+		return false
+	case c.foundBy == foundByUnit:
+		s.log.Info("app already running; not started", append(attrs,
+			logattr.KeyLauncherRunningFoundBy, c.foundBy, logattr.KeyLauncherRunningUnit, c.what)...)
+	default:
+		s.log.Info("app already running; not started", append(attrs,
+			logattr.KeyLauncherRunningFoundBy, c.foundBy, logattr.KeyExecutableName, c.what)...)
+	}
+	return true
 }
 
 // errActivate says that the app is started over D-Bus, not by a command.
@@ -113,7 +139,7 @@ func (s *Starter) command(l mixer.Launch) (argv []string, name string, err error
 	}
 	if app.Exec == "" {
 		if app.DBusActivatable {
-			return nil, "", errActivate
+			return nil, l.DesktopID, errActivate // the ID still names its units
 		}
 		return nil, "", fmt.Errorf("%s has no Exec line", app.Path)
 	}
@@ -220,14 +246,16 @@ func (s *Starter) dropConn() {
 
 // connectSystemd connects to the systemd user manager over the existing
 // session bus; unlike go-systemd's NewUserConnectionContext it never starts
-// a bus (ADR 0017).
-func connectSystemd(ctx context.Context) (systemd, error) {
+// a bus (ADR 0017). The connection is kept for later presses, so it must not
+// be tied to the context of the press that opened it: that context ends with
+// the press and would close the connection.
+func connectSystemd(context.Context) (systemd, error) {
 	addr, err := desktop.SessionBusAddress()
 	if err != nil {
 		return nil, err
 	}
 	return sd.NewConnection(func() (*dbus.Conn, error) {
-		c, err := dbus.Dial(addr, dbus.WithContext(ctx))
+		c, err := dbus.Dial(addr)
 		if err != nil {
 			return nil, err
 		}

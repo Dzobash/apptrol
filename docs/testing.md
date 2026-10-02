@@ -93,7 +93,8 @@ slider 1, a browser on slider 2, the microphone on slider 8.
 | H-30 | If KDE Connect is used: play Spotify on the phone; press R1 and ▶ | Neither affects the phone; the log shows the phone's player as ignored (`other_device`) | MEDIA-02 |
 | H-31 | Set `record = { app = "<desktop ID>" }` (find it with `apptrol list apps <name>`), save, press ● | The app starts; the Record LED flashes briefly; the log names the unit | LAUNCH-01, LAUNCH-04, LAUNCH-08, LAUNCH-09 |
 | H-32 | With that app open: `systemctl --user restart apptrol` | The app keeps running | LAUNCH-04 |
-| H-33 | Set `if_running = "skip"`; with the app open from the menu, press ●; then close it, start it from a terminal and press ● again | Not started a second time either way; the log says how it was found (`unit`, then `process`) | LAUNCH-06, LAUNCH-07 |
+| H-33 | Set `if_running = "skip"`; with the app open from the menu, press ●; then close it, start it from a terminal and press ● again; press ● a few more times in a row with the app closed | Not started a second time either way; the log says how it was found (`unit`, then `process`). Presses in a row all work | LAUNCH-04, LAUNCH-06, LAUNCH-07 |
+| H-43 | Put a Steam game's desktop ID on a launcher with `if_running = "skip"`; press it twice while the game runs; quit the game, leave Steam open, press it again | Steam does not start the game twice; after quitting, it starts again although Steam still runs | LAUNCH-07 |
 | H-34 | Set `marker_prev = { command = ["konsole", "-e", "htop"] }` (or another terminal) and press Marker ◀ | The command runs in a new window | LAUNCH-05 |
 | H-35 | Set a desktop ID that is not installed; run `apptrol check` | A warning names it; the rest of the configuration is valid | LAUNCH-10 |
 | H-36 | Hold S8 while speaking (watch the desktop's microphone level or a recording), release | The mic is muted only while S8 is held; M8 is off while held, lit after; S8 and R8 stay lit | INPUT-02, LED-04 |
