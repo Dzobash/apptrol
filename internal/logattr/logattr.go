@@ -25,6 +25,7 @@ const (
 	Audio      = "audio"      // audio server connection
 	Controller = "controller" // MIDI controller
 	Desktop    = "desktop"    // session bus: media players (ADR 0017)
+	Launcher   = "launcher"   // starting apps (ADR 0019)
 	Mixer      = "mixer"      // volume, mute, solo, matching
 )
 
@@ -92,6 +93,7 @@ const (
 	KeyButtonTalkOver    = "apptrol.button_talk_over"    // talk_over = true on an M button
 	KeyLauncherDesktopID = "apptrol.launcher.desktop_id" // the app a launcher starts
 	KeyLauncherCommand   = "apptrol.launcher.command"    // the command a launcher runs
+	KeyLauncherUnit      = "apptrol.launcher.unit"       // the systemd unit an app was started in
 
 	KeyBusAddress          = "apptrol.desktop.bus_address" // the session bus address in use
 	KeyPlayerBusName       = "apptrol.player.bus_name"     // a media player's bus name
@@ -126,6 +128,7 @@ const (
 	ErrDesktopLost        = "desktop_bus_lost"
 	ErrPlayerUnreadable   = "media_player_unreadable"
 	ErrMediaCommand       = "media_command_failed"
+	ErrAppStart           = "app_start_failed"
 )
 
 // Component returns the apptrol.component attribute.

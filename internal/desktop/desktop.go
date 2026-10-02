@@ -90,12 +90,18 @@ func New(log *slog.Logger, address string) *Bus {
 		retryMin: 500 * time.Millisecond, retryMax: 30 * time.Second}
 }
 
-// busAddress returns the session bus address: DBUS_SESSION_BUS_ADDRESS, or
-// the standard socket in XDG_RUNTIME_DIR. It never starts a bus.
+// busAddress returns the address given to New, or SessionBusAddress.
 func (b *Bus) busAddress() (string, error) {
 	if b.address != "" {
 		return b.address, nil
 	}
+	return SessionBusAddress()
+}
+
+// SessionBusAddress returns the session bus address: DBUS_SESSION_BUS_ADDRESS,
+// or the standard socket in XDG_RUNTIME_DIR. It never starts a bus, unlike
+// godbus's SessionBus helpers (ADR 0017).
+func SessionBusAddress() (string, error) {
 	if a := os.Getenv("DBUS_SESSION_BUS_ADDRESS"); a != "" {
 		return a, nil
 	}

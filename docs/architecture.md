@@ -7,39 +7,46 @@ How the service is put together. Decisions and their reasons are in
 
 ```
  nanoKONTROL2 ──► controller ──┐                          ┌──► audio ──────► PipeWire
-  (raw MIDI)      (decode MIDI,│       events   ┌───────┐ │    (volume, mute)
-                   drive LEDs) ├───────────────►│ mixer │─┤
- config.toml ───► config ──────┤                │ (pure │ ├──► controller ─► LEDs
-                  (load,       │◄───────────────│ logic)│ │
-                   validate,   │     actions    └───────┘ └──► state ──────► state.json
-                   watch)      │
- PipeWire ──────► audio ───────┘
-  (streams appear / disappear)
+  (raw MIDI)      (decode MIDI,│                          │    (volume, mute)
+                   drive LEDs) │       events   ┌───────┐ ├──► controller ─► LEDs
+ config.toml ───► config ──────┼───────────────►│ mixer │─┤
+                  (load,       │                │ (pure │ ├──► desktop ────► media players
+                   validate,   │◄───────────────│ logic)│ │    (play, pause, next …)
+                   watch)      │     actions    └───────┘ ├──► launcher ───► systemd
+ PipeWire ──────► audio ───────┤                          │    (start an app in its own unit)
+  (streams appear / go)        │                          └──► state ──────► state.json
+ session bus ───► desktop ─────┘
+  (media players appear / go,
+   playing or paused)
 ```
 
-- **`mixer`** holds all behaviour: assignments, mute, solo, LED states, what a new stream
-  gets. It receives events and returns actions. It does no I/O, so it is tested completely
-  with plain unit tests.
-- **Adapters** (`controller`, `audio`, `config`, `state`, `logging`) talk to the outside
-  world. The service uses the controller and the audio server through two small
-  interfaces (`service.Controller`, `service.Audio`); tests use in-memory fakes (QA-06).
+- **`mixer`** holds all behaviour: assignments, mute, solo, the held microphone buttons,
+  which media player belongs to which control, what R, the media keys and the launcher
+  buttons do, and every LED. It receives events and returns actions. It does no I/O and
+  has no clock, so it is tested completely with plain unit tests.
+- **Adapters** (`controller`, `audio`, `desktop`, `launcher`, `config`, `state`,
+  `logging`) talk to the outside world. The service uses them through small interfaces
+  (`service.Controller`, `service.Audio`, `service.Desktop`, `service.Launcher`); tests use
+  in-memory fakes (QA-06).
 - **`service`** runs one event loop that owns all state: it takes events from the adapters,
   passes them to the mixer, and carries out the returned actions. One goroutine owns the
-  state, so there are no data races by design.
+  state, so there are no data races by design. Actions that can take long (a media
+  player's answer, systemd starting an app) are handed to their adapter without waiting,
+  so the controller never stalls.
 
 ## Packages
 
 | Package | Responsibility |
 |---|---|
 | `cmd/apptrol` | Command line: `run`, `list`, `check`, `test`, `version`; wires everything together |
-| `internal/service` | Event loop; the `Controller`, `Audio` and `Desktop` interfaces; turns mixer actions into adapter calls; config reload; shutdown |
-| `internal/mixer` | Core logic (pure): matching, positions, `max_volume`, user mutes, solo, LED computation |
+| `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop` and `Launcher` interfaces; turns mixer actions into adapter calls; the Record LED's flash (the mixer has no clock); config reload and its warnings; shutdown |
+| `internal/mixer` | Core logic (pure): matching streams, inputs and media players to controls, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write |
 | `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`); reconnects; `apptrol list` data |
-| `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them; reconnects; never starts a service |
-| `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps` and the launchers (ADR 0019) |
-| `internal/config` | TOML loading, validation (including overlap warnings), file watching |
+| `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
+| `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
+| `internal/config` | TOML loading, validation (including button rules, blocked commands and overlap warnings), file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
 | `internal/logging` | Log outputs (journald, rotating file) and formats; keeps every record on one line |
 | `internal/logattr` | Names of log attributes and error types, following the OpenTelemetry conventions (ADR 0016); explained for users in [`logging.md`](logging.md) |
@@ -52,13 +59,15 @@ nothing from the adapters.
 ## Event flow
 
 1. An adapter produces an event: *slider 3 moved to 90*, *M pressed on column 2*,
-   *S released on column 8*, *stream 57 (Spotify) appeared*, *config reloaded*,
-   *controller connected*, *controller disconnected*. Releases and disconnects only
-   matter for buttons that act while held (INPUT-*, ADR 0020).
+   *S released on column 8*, *stream 57 (Spotify) appeared*, *media player Spotify now
+   playing*, *config reloaded*, *controller connected*, *controller disconnected*.
+   Releases and disconnects only matter for buttons that act while held (INPUT-*,
+   ADR 0020).
 2. The service passes it to `mixer.Handle(event)`.
 3. The mixer updates its model and returns actions: *set stream 57 to 71 %*, *mute
-   input "GoXLR"*, *LED M2 on*, *state changed*.
-4. The service executes them. Failures are logged; they never stop the loop.
+   input "GoXLR"*, *LED M2 on*, *pause the Spotify player*, *start OBS*, *state changed*.
+4. The service executes them. Failures are logged; they never stop the loop. Player
+   commands and app starts are only handed over: their adapters log the outcome later.
 
 Bursts of slider events are coalesced before step 2 (CTRL-07): the loop reads every event
 already waiting, and of several positions of one control only the last is handled.
@@ -114,6 +123,51 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   every stream it controls explicitly, and ends solo on shutdown (SVC-07) so no app stays
   silenced by it.
 
+## Desktop access
+
+The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
+
+- **Connecting:** the address from `DBUS_SESSION_BUS_ADDRESS`, or the standard socket
+  `$XDG_RUNTIME_DIR/bus`. Apptrol never starts a bus, and calls players with
+  `FlagNoAutoStart`, so it never starts a service by accident (DESK-03). Without a bus,
+  everything except media players keeps working; Apptrol reconnects (DESK-02).
+- **Media players:** every running `org.mpris.MediaPlayer2.*` name, followed through
+  `NameOwnerChanged` and `PropertiesChanged` (`PlaybackStatus`). The adapter only reports
+  them; the mixer ignores players on other devices, proxies and duplicates, and matches
+  the rest to controls through the apps' `match` lists (MEDIA-02, MEDIA-03).
+- **Commands** (`Play`, `Pause`, `Stop`, `Next`, `Previous`) are sent without waiting;
+  a player that refuses is logged when its answer arrives.
+- **LEDs from players:** R and ▶ follow the players' `PlaybackStatus`, which arrives
+  milliseconds after a command, not the audio stream, which apps pause only seconds
+  later (ADR 0018, notes).
+
+## Starting apps
+
+Launcher buttons (ADR 0019, LAUNCH-*):
+
+- **Finding apps:** desktop files in `applications/` under `$XDG_DATA_HOME` and each
+  `$XDG_DATA_DIRS` entry, read on every press, so an app installed later is found. Their
+  `Exec` line is parsed as the Desktop Entry specification says.
+- **Starting:** the systemd user manager (`go-systemd`, over the existing session bus)
+  starts each app in a transient unit `app-apptrol-<id>@<random>.service`, with
+  `Type=exec` (a program that cannot run fails the start), `ExitType=cgroup` (a wrapper
+  that exits does not end the app) and `CollectMode=inactive-or-failed` (finished units
+  are removed). The app is never a child of Apptrol and outlives it. An app with only
+  D-Bus activation is started through `org.freedesktop.Application.Activate`.
+- **Commands** are argument lists run without a shell; `~/` is expanded.
+
+## Safety of launcher commands
+
+A launcher `command` runs exactly what the user configured, with the user's rights; the
+README and docs/config.md say it is the user's responsibility. Validation refuses a short
+list of catastrophic commands (LAUNCH-12, [ADR 0022](adr/0022-launcher-command-safety.md), "Blocked commands" in docs/config.md): deleting
+everything, wiping a disk, fork bombs, running a download, changing rights on everything,
+and `sudo`, `su` or `doas`, which need a terminal. This is a safety net against
+copy-paste accidents, not a security boundary: plain argument lists are checked
+reliably, but text for a shell (`sh -c`) can always be disguised. Desktop IDs come from
+installed packages and are not checked; apps that need root ask for the password in a
+dialog.
+
 ## Files at runtime
 
 | Path | Contents |
@@ -131,4 +185,10 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   `controller/rawmidi`: discovery, plug/unplug and busy devices against fake devices; the
   real controller is checked by hand (`apptrol test`, docs/testing.md).
 - `audio/pulse`: integration tests against a headless PipeWire in CI.
-- `config`, `state`: unit tests and fuzzing on malformed input.
+- `desktop`: integration tests in a private session bus with fake media players, locally
+  (`make test-desktop`) and in CI; a bus restart and a missing bus included.
+- `launcher`: desktop files and `Exec` parsing against temporary folders, with fuzzing;
+  starting apps against a fake systemd, and against the real user manager with harmless
+  units (`make test-launcher`, not in CI, which has no user systemd).
+- `config`, `state`: unit tests and fuzzing on malformed input; the blocked-command check
+  is fuzzed too.

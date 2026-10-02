@@ -161,6 +161,25 @@ type env struct {
 	done   chan error
 
 	logLevelFlag string // Options.LogLevelFlag
+	launcher     fakeLauncher
+}
+
+// fakeLauncher records the apps it is asked to start.
+type fakeLauncher struct {
+	mu  sync.Mutex
+	got []mixer.LaunchApp
+}
+
+func (f *fakeLauncher) Launch(l mixer.LaunchApp) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.got = append(f.got, l)
+}
+
+func (f *fakeLauncher) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.got)
 }
 
 var (
@@ -237,6 +256,7 @@ func (e *env) start() *env {
 		LEDResync:     20 * time.Millisecond,
 		// Only Discord is installed in the tests, whatever the machine has.
 		InstalledApps: func() launcher.Apps { return launcher.Apps{"discord": {ID: "discord", Name: "Discord"}} },
+		Launcher:      &e.launcher,
 	}
 	go func() { e.done <- Run(ctx, o) }()
 	e.t.Cleanup(e.stop)
@@ -411,6 +431,20 @@ m8     = { mode = "hold_to_talk", talk_over = true }
 	e.waitApplied(mixer.SetDeviceMute{Device: goxlr.Name, Muted: true})
 	e.send(mixer.ButtonPressed{Button: mixer.ButtonM, Column: 8})
 	e.waitApplied(mixer.SetDeviceMute{Device: goxlr.Name, Muted: false})
+}
+
+func TestLAUNCH08_RecordStartsItsAppAndFlashes(t *testing.T) {
+	e := newEnv(t, testConfig+`
+[layouts.default.buttons]
+record = { app = "discord" }
+`).start()
+	rec := mixer.LED{Transport: mixer.Record}
+	e.eventually("Record LED off at start", func() bool { return e.ctl.setCount(rec) > 0 && !e.ctl.led(rec) })
+	before := e.ctl.setCount(rec)
+	e.send(mixer.TransportPressed{Button: mixer.Record})
+	e.eventually("launch", func() bool { return e.launcher.count() == 1 })
+	e.eventually("flash on", func() bool { return e.ctl.setCount(rec) > before })
+	e.eventually("flash off", func() bool { return e.ctl.setCount(rec) >= before+2 && !e.ctl.led(rec) })
 }
 
 func TestLAUNCH10_LaunchersOfMissingAppsAreWarnedAbout(t *testing.T) {

@@ -56,6 +56,7 @@ Every line has `apptrol.component`:
 | `audio` | The connection to PipeWire |
 | `controller` | The nanoKONTROL2: found, connected, unplugged, MIDI messages |
 | `desktop` | The D-Bus session bus: connected, lost, and the media players found, gone or changing status (debug) |
+| `launcher` | Starting apps from launcher buttons: which app, in which systemd unit, and failures |
 | `mixer` | What your sliders, knobs and buttons do: volume, mute, solo, matching apps |
 
 ### Errors
@@ -90,6 +91,7 @@ A configuration with several problems gives one line per problem.
 | `desktop_bus_lost` | The connection to the session bus broke; Apptrol reconnects by itself. |
 | `media_player_unreadable` | A media player did not answer when asked for its name; it is ignored. |
 | `media_command_failed` | A media player refused *Play* or *Pause*, or did not answer in time. |
+| `app_start_failed` | A launcher's app could not be started: not installed, a broken `Exec` line, a program that does not exist, or systemd refused; `exception.message` says which. |
 
 ## Examples
 
@@ -237,6 +239,7 @@ Apptrol's own:
 | `apptrol.button_talk_over` | `true` when an M button also turns apps down (`talk_over = true`) |
 | `apptrol.launcher.desktop_id` | The app a launcher starts |
 | `apptrol.launcher.command` | The command a launcher runs |
+| `apptrol.launcher.unit` | The systemd unit an app was started in, e.g. `app-apptrol-discord@1a2b3c4d.service` (`journalctl --user -u <unit>` shows the app's output) |
 | `apptrol.desktop.bus_address` | The session bus Apptrol connected to |
 | `apptrol.desktop.players` | How many media players were found on connecting |
 | `apptrol.player.bus_name` | A media player's name on the bus, e.g. `org.mpris.MediaPlayer2.spotify` |

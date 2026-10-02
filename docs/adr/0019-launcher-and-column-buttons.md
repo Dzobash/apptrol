@@ -148,3 +148,12 @@ Measured on the reference system (Kubuntu, KDE Plasma) on 2026-10-02:
   points 11, 12 and 15) are replaced by [ADR 0020](0020-microphone-column-buttons.md):
   M becomes the microphone button (`mute` or `hold_to_talk`), S gets `cough` or
   `talk_over`, and R on an input column is `off` or a launcher.
+- 2026-10-02: Starting apps, as built. Units also get `Type=exec`, so a program that
+  cannot be run fails the start and is logged (LAUNCH-11), and `ExitType=cgroup`, so an
+  app started through a wrapper that exits keeps its unit; systemd before 250 does not
+  know `ExitType`, and the start is retried without it. Desktop IDs are escaped for unit
+  names as `systemd-escape` does (spaces occur in Steam's game shortcuts). Apptrol
+  connects to the user manager over the existing session bus, never starting one. Log
+  records about starting apps carry `apptrol.component=launcher`.
+- 2026-10-02: Which launcher commands are refused, and that configured commands are the
+  user's responsibility, is decided in [ADR 0022](0022-launcher-command-safety.md).

@@ -132,6 +132,13 @@ type PlayerCommand struct {
 	Command string // one of the Command constants
 }
 
+// LaunchApp starts an app for a launcher button (LAUNCH-01). The service
+// passes it to the launcher, which does not wait for the app.
+type LaunchApp struct {
+	Button LED
+	Launch Launch
+}
+
 // Player commands (MPRIS method names).
 const (
 	CommandPlay     = "Play"
@@ -183,3 +190,4 @@ func (SetLED) isAction()          {}
 func (StateChanged) isAction()    {}
 func (Notice) isAction()          {}
 func (PlayerCommand) isAction()   {}
+func (LaunchApp) isAction()       {}

@@ -34,6 +34,7 @@ with no desktop mixer involved.
   while the app plays
 - **◀◀ ▶▶ ■ ▶** are media keys for the player that started playing last, or for one app
   you choose; ▶ is lit while it plays
+- **●** (Record), the three **Marker** buttons and any **R** can start an app or a command
 - On the microphone's slider, hold **S** to mute it while you cough; M can also be set to
   hold-to-talk, and the music can go down while you talk (talk-over)
 - The button LEDs show what is muted and soloed, also when you mute or unmute an app
@@ -53,8 +54,8 @@ What each control does in this version:
 
 It works alongside an audio interface such as a GoXLR, or on its own with a normal sound card.
 
-Planned later: buttons that start apps, on-screen volume display, multiple layouts (e.g.
-*Work* and *Gaming*), a setup in the terminal and a tray icon.
+Planned later: on-screen volume display, multiple layouts (e.g. *Work* and *Gaming*), a
+setup in the terminal and a tray icon.
 
 
 ## Why Apptrol exists
@@ -253,6 +254,12 @@ risk. It has been tested on one system only (see [Before you install](#before-yo
 it — including changes to your audio setup or to your controller's settings (for example
 when using third-party tools such as SysEx Controls). The full terms are in the
 [MIT license](LICENSE).
+
+**Commands you configure are your responsibility.** A launcher's `command` runs exactly
+what you write, with your user's rights. Apptrol refuses a few catastrophic commands
+(see [Blocked commands](docs/config.md#blocked-commands)), but that is a safety net
+against accidents, not protection: the authors accept no liability for what a command
+you configure does.
 
 ## License
 

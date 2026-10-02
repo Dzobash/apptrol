@@ -124,6 +124,8 @@ func parseButtons(layout string, raw map[string]rawButton, l Layout, apps map[st
 			b.Command = *rb.Command
 			if len(b.Command) == 0 || strings.TrimSpace(b.Command[0]) == "" {
 				errs.add("%s.command: give the program and its arguments, e.g. [\"konsole\", \"-e\", \"htop\"]", at(name))
+			} else if reason := blockedCommand(b.Command); reason != "" {
+				errs.add("%s.command: %s", at(name), reason) // LAUNCH-12
 			}
 		}
 		launcher := rb.App != nil || rb.Command != nil

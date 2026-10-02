@@ -12,6 +12,7 @@ of [requirements.md](requirements.md#51-quality-assurance).
 | `make test` | Tests with the race detector |
 | `make test-audio` | Integration tests against your running PipeWire (they add a silent test output and inputs and remove them afterwards) |
 | `make test-desktop` | D-Bus integration tests in a private session bus (`dbus-run-session`); your desktop's bus and media players are not touched |
+| `make test-launcher` | Starts harmless test units (`true`) in your systemd user manager and checks they are removed; CI has no user systemd, so run it before a release |
 | `make cover` | Tests with coverage; fails below the minimum; writes `coverage.html` to open in a browser |
 | `make vulncheck` | Scans dependencies for known vulnerabilities |
 | `make lint` | `golangci-lint` only ([install it](https://golangci-lint.run/welcome/install/) first) |

@@ -70,7 +70,7 @@ problems. Anything found later ships as a patch release, `0.1.x`.)
 Every button except the layout buttons gets a function.
 
 Requirement areas: DESK, MEDIA, LAUNCH, INPUT; CFG-13 to CFG-17, LOG-15, LOG-16.
-Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-media-players-through-mpris.md), [ADR 0019](adr/0019-launcher-and-column-buttons.md), [ADR 0020](adr/0020-microphone-column-buttons.md).
+Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-media-players-through-mpris.md), [ADR 0019](adr/0019-launcher-and-column-buttons.md), [ADR 0020](adr/0020-microphone-column-buttons.md), [ADR 0022](adr/0022-launcher-command-safety.md).
 
 - [x] Decision records (ADR 0017–0019), requirements and hardware checklist (H-23 to H-42)
 - [x] D-Bus connection in the service, following the media players (DESK-01 to DESK-03, MEDIA-01; also used by Phases 1.6 and 3)
@@ -78,7 +78,7 @@ Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-
 - [ ] Record (●) and the Marker buttons start apps (desktop ID or command), each in its own systemd scope; already-running behaviour configurable
 - [x] `apptrol list apps [search]` shows desktop IDs; `apptrol check` warns about unknown ones
 - [x] R on an app column: play / pause that app (MPRIS), LED lit while it plays
-- [ ] R can be overridden per column as a launcher; launchers and overrides set per layout
+- [x] R can be overridden per column as a launcher; launchers and overrides set per layout
 - [x] Button configuration per layout, checked on load (CFG-13 to CFG-17)
 - [x] M on an input column: mute (toggle) or hold-to-talk, optionally turning apps down while you talk
 - [x] S on an input column: hold to mute (cough), or hold to turn apps down (talk-over)

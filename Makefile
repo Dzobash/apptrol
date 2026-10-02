@@ -13,7 +13,7 @@ LDFLAGS := -s -w \
 # Minimum total test coverage in percent; keep in sync with COVERAGE_MIN in ci.yml.
 COVERAGE_MIN ?= 75
 
-.PHONY: all check build test test-audio test-desktop cover vet fmt lint vulncheck snapshot release-check clean help
+.PHONY: all check build test test-audio test-desktop test-launcher cover vet fmt lint vulncheck snapshot release-check clean help
 
 all: check build ## Run all checks, then build
 
@@ -30,6 +30,9 @@ test-audio: ## Run the audio integration tests against your running PipeWire/Pul
 
 test-desktop: ## Run the D-Bus integration tests in a private session bus (not your desktop's)
 	dbus-run-session -- env APPTROL_DBUS_TEST=1 go test -race -count=1 -run Integration -v ./internal/desktop
+
+test-launcher: ## Start harmless test units (`true`) in your systemd user manager, to check starting apps
+	APPTROL_SYSTEMD_TEST=1 go test -race -count=1 -run Integration -v ./internal/launcher
 
 cover: ## Run tests with coverage, enforce COVERAGE_MIN, write coverage.html
 	go test -race -covermode=atomic -coverprofile=coverage.out ./...

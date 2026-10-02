@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Launcher buttons start apps:** Record (●), the three Marker buttons and any R set as
+  a launcher start an installed app by its desktop ID, or a command (LAUNCH-01). systemd
+  starts each in a unit of its own, so it keeps running when Apptrol stops (LAUNCH-04);
+  a command runs without a shell, `~/` expanded (LAUNCH-05); an app without `Exec` is
+  started over D-Bus (LAUNCH-03). The Record LED flashes on a press (LAUNCH-08); failures
+  are logged (`app_start_failed`, LAUNCH-11). `make test-launcher` checks it against the
+  real systemd user manager.
+- **Blocked commands:** a launcher `command` that deletes everything, wipes a disk, is a
+  fork bomb, runs a download, changes rights on everything, or uses `sudo`, `su` or
+  `doas` makes the configuration invalid, with the reason (LAUNCH-12). It is a safety
+  net against accidents, not security; docs/config.md lists the blocked commands. README,
+  docs/config.md and the example configuration state that configured commands are the
+  user's responsibility.
 - `apptrol list apps [search]` lists the installed apps with the desktop IDs a launcher
   uses, their names and where they come from (system, Flatpak, Snap, user), found as the
   Desktop Entry specification says (LAUNCH-02, LAUNCH-09). `apptrol check` and every

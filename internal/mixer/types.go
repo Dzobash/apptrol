@@ -200,6 +200,17 @@ type Setup struct {
 	// MediaPlayer is the id of the app the media keys are pinned to, "" for
 	// the player that most recently started playing (MEDIA-06, CFG-15).
 	MediaPlayer string
+	// Launchers are the buttons that start apps: Record, the Marker buttons
+	// (LED{Transport: …}) and R buttons (LED{Button: ButtonR, …}) (LAUNCH-01).
+	Launchers map[LED]Launch
+}
+
+// Launch is what a launcher button starts: an installed app by its desktop
+// ID, or a command (a program and its arguments).
+type Launch struct {
+	DesktopID     string
+	Command       []string
+	SkipIfRunning bool // if_running = "skip" (LAUNCH-06)
 }
 
 // Button is the setting of an M or S button on an input column.
