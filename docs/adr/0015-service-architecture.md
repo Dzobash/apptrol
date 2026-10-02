@@ -42,3 +42,8 @@ sequencer bridge is not subscribed to it.
   read with an error.
 - The controller and audio interfaces live in `internal/service` (`Controller`, `Audio`),
   next to the loop that uses them.
+- 2026-10-02: Phase 1.5 adds two adapters behind the same kind of interface,
+  `Desktop` (media players, ADR 0017/0018) and `Launcher` (starting apps, ADR 0019). Their
+  actions can take long, so the service hands them over without waiting and the adapters
+  log the outcome; the mixer stays pure and without a clock, and the service times the
+  Record LED's flash. `docs/architecture.md` describes both.
