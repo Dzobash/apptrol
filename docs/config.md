@@ -93,6 +93,13 @@ Defines something a control can act on. `<id>` is your own short name (letters, 
   application name (`application.name`) or program name (`application.process.binary`).
   All matching streams are controlled together, so a browser with three playing tabs is
   one app. A match list can also cover several programs, e.g. `["vivaldi", "firefox"]`.
+- **Media players** (for R and the media keys) belong to an app the same way: a fragment
+  found in the player's bus name (without `org.mpris.MediaPlayer2.` and `.instance…`), the
+  name it gives itself, or its desktop ID. With `level = "debug"` the log shows every
+  player and why it matched or not. Chromium-based apps often call their player
+  `chromium`, so `"chromium"` in a match list catches every one of them (Chrome, but also
+  e.g. Wavebox or Electron apps); `"chrome"` matches only Chrome, by its name. Players on
+  other devices (KDE Connect) are never matched.
 - **`type = "input"`** — the capture device whose name or description contains a fragment.
   If several devices match, the first one is used and a warning is logged. Monitors of
   outputs are not input devices and are never matched.

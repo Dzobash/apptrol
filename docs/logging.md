@@ -242,3 +242,5 @@ Apptrol's own:
 | `apptrol.player.identity` | The name a media player gives itself, e.g. `Spotify` |
 | `apptrol.player.desktop_entry` | The player's desktop ID, if it reports one |
 | `apptrol.player.status` | `Playing`, `Paused` or `Stopped` |
+| `apptrol.player.matched_by` | What made a media player belong to an app: `bus_name`, `identity` or `desktop_entry` |
+| `apptrol.player.ignored_reason` | Why a media player is never used: `other_device` (e.g. a phone through KDE Connect), `proxy` (`playerctld`) or `duplicate` (`plasma-browser-integration`) |

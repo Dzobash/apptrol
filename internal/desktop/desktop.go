@@ -229,8 +229,11 @@ func (t *tracker) add(name, owner string) (mixer.Player, bool) {
 	p.Status, _ = get(ifacePlayer, "PlaybackStatus")
 	t.owners[owner] = name
 	t.players[name] = p
-	t.b.log.Debug("media player found", logattr.KeyPlayerBusName, name, logattr.KeyPlayerIdentity, p.Identity,
-		logattr.KeyPlayerDesktopEntry, p.DesktopEntry, logattr.KeyPlayerStatus, p.Status)
+	attrs := []any{logattr.KeyPlayerBusName, name, logattr.KeyPlayerIdentity, p.Identity}
+	if p.DesktopEntry != "" {
+		attrs = append(attrs, logattr.KeyPlayerDesktopEntry, p.DesktopEntry)
+	}
+	t.b.log.Debug("media player found", append(attrs, logattr.KeyPlayerStatus, p.Status)...)
 	return p, true
 }
 

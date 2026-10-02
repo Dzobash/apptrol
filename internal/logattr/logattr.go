@@ -93,12 +93,14 @@ const (
 	KeyLauncherDesktopID = "apptrol.launcher.desktop_id" // the app a launcher starts
 	KeyLauncherCommand   = "apptrol.launcher.command"    // the command a launcher runs
 
-	KeyBusAddress         = "apptrol.desktop.bus_address" // the session bus address in use
-	KeyPlayerBusName      = "apptrol.player.bus_name"     // a media player's bus name
-	KeyPlayerIdentity     = "apptrol.player.identity"     // its Identity, a name for people
-	KeyPlayerDesktopEntry = "apptrol.player.desktop_entry"
-	KeyPlayerStatus       = "apptrol.player.status"   // Playing, Paused or Stopped
-	KeyPlayers            = "apptrol.desktop.players" // number of media players found
+	KeyBusAddress          = "apptrol.desktop.bus_address" // the session bus address in use
+	KeyPlayerBusName       = "apptrol.player.bus_name"     // a media player's bus name
+	KeyPlayerIdentity      = "apptrol.player.identity"     // its Identity, a name for people
+	KeyPlayerDesktopEntry  = "apptrol.player.desktop_entry"
+	KeyPlayerStatus        = "apptrol.player.status"         // Playing, Paused or Stopped
+	KeyPlayers             = "apptrol.desktop.players"       // number of media players found
+	KeyPlayerMatchedBy     = "apptrol.player.matched_by"     // bus_name, identity or desktop_entry
+	KeyPlayerIgnoredReason = "apptrol.player.ignored_reason" // other_device, proxy or duplicate
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records
