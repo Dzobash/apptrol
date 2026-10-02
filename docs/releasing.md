@@ -22,6 +22,14 @@ The packages install:
 | systemd user service | `/usr/lib/systemd/user/apptrol.service` |
 | Example configuration | `/usr/share/doc/apptrol/examples/config.toml` |
 | README, changelog, license | `/usr/share/doc/apptrol/` (license under `/usr/share/licenses/apptrol/` on rpm) |
+| Third-party licenses | `/usr/share/doc/apptrol/THIRD_PARTY_LICENSES` (`/usr/share/licenses/apptrol/` on rpm), and in the archives |
+
+`THIRD_PARTY_LICENSES` holds the copyright notice and license text of every library
+compiled into the binary, and of Go's standard library, as their licenses require
+(NFR-08). GoReleaser generates it before every build (`make third-party-licenses`, with
+`go-licenses`); it is not kept in the repository, so it never goes stale. The same target
+runs in CI on every pull request and fails on a library with an unknown or restricted
+license, so a new dependency is checked before it reaches a release.
 
 The service is **not** enabled automatically; each user runs
 `systemctl --user enable --now apptrol` once.

@@ -142,3 +142,5 @@ jobs:
         run: make build
       - name: Smoke test
         run: ./bin/apptrol --version
+      - name: Third-party licenses (generated for every release; fails on an unknown license)
+        run: make third-party-licenses

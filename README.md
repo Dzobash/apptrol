@@ -264,7 +264,9 @@ you configure does.
 ## License
 
 [MIT](LICENSE). The controller photo is not part of that: it is licensed under
-CC BY-NC-SA 3.0, see [docs/assets/photos](docs/assets/photos/README.md).
+CC BY-NC-SA 3.0, see [docs/assets/photos](docs/assets/photos/README.md). The libraries
+compiled into Apptrol keep their own licenses (MIT, BSD, Apache-2.0); the packages and
+archives contain them in `THIRD_PARTY_LICENSES` (`make third-party-licenses` writes it).
 
 ---
 
