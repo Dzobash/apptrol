@@ -82,7 +82,7 @@ slider8 = "mic"
 # Launchers start an app: app = a desktop ID (`apptrol list apps` shows them), or
 # command = ["program", "argument"]. if_running = "start" (default) or "skip".
 # Record, the three Marker buttons and any R button can be launchers.
-# (Starting apps and the media keys arrive later in 0.2.0.)
+# (Starting apps arrives later in 0.2.0.)
 
 [layouts.default.buttons]
 # m8 = { mode = "hold_to_talk", talk_over = true }

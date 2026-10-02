@@ -32,7 +32,7 @@ const (
 )
 
 // playerName is the bus name without the MPRIS prefix and without an
-// ".instance…" suffix: "org.mpris.MediaPlayer2.chromium.instance6652" is
+// ".instance…" suffix: "org.mpris.MediaPlayer2.chromium.instance1234" is
 // "chromium". The instance number changes on every start, so it would only
 // match by accident.
 func playerName(busName string) string {

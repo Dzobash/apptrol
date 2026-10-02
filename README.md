@@ -32,6 +32,8 @@ with no desktop mixer involved.
   stopped (the desktop's volume applet shows it); a solo ends.
 - **R** plays or pauses the app on that slider, through its media player; its LED is lit
   while the app plays
+- **◀◀ ▶▶ ■ ▶** are media keys for the player that started playing last, or for one app
+  you choose; ▶ is lit while it plays
 - On the microphone's slider, hold **S** to mute it while you cough; M can also be set to
   hold-to-talk, and the music can go down while you talk (talk-over)
 - The button LEDs show what is muted and soloed, also when you mute or unmute an app
@@ -50,8 +52,8 @@ What each control does in this version:
 
 It works alongside an audio interface such as a GoXLR, or on its own with a normal sound card.
 
-Planned later: media buttons, buttons that start apps, on-screen volume display, multiple
-layouts (e.g. *Work* and *Gaming*), a setup in the terminal and a tray icon.
+Planned later: buttons that start apps, on-screen volume display, multiple layouts (e.g.
+*Work* and *Gaming*), a setup in the terminal and a tray icon.
 
 
 ## Why Apptrol exists
@@ -212,6 +214,10 @@ run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they 
   and *Pause* reaches only the tab used last; the other tabs keep playing. M silences
   every tab, because it acts on each tab's audio. This is how browsers implement the
   media player interface (MPRIS), not something Apptrol can change.
+
+- **■ only pauses Spotify.** The media player standard says *Stop* stops, and *Play*
+  then starts the track again from the beginning; VLC and Elisa do this. Spotify treats
+  *Stop* as a pause instead, so ▶ continues where it was.
 
 Found another problem? Please [open an issue](https://github.com/Dzobash/apptrol/issues).
 

@@ -17,7 +17,7 @@ var mixerModes = map[string]mixer.Mode{
 // the assignments of the active layout and its M and S buttons.
 func (c *Config) Setup() mixer.Setup {
 	s := mixer.Setup{Layout: DefaultLayout, Targets: map[string]mixer.Target{}, Assignments: map[mixer.Control]string{},
-		Buttons: map[mixer.LED]mixer.Button{}}
+		Buttons: map[mixer.LED]mixer.Button{}, MediaPlayer: c.Media.Player}
 	for id, app := range c.Apps {
 		kind := mixer.App
 		if app.Type == TypeInput {

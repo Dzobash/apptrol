@@ -194,9 +194,12 @@ type Setup struct {
 	Layout      string             // name of the active layout, for the log; "" = "default"
 	Targets     map[string]Target  // by id
 	Assignments map[Control]string // control -> target id
-	// Buttons sets M and S on input columns, keyed by button (Column 1–8);
-	// a missing entry is the default.
+	// Buttons sets the column buttons, keyed by button (Column 1–8); a
+	// missing entry is the default.
 	Buttons map[LED]Button
+	// MediaPlayer is the id of the app the media keys are pinned to, "" for
+	// the player that most recently started playing (MEDIA-06, CFG-15).
+	MediaPlayer string
 }
 
 // Button is the setting of an M or S button on an input column.

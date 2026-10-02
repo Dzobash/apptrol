@@ -73,7 +73,8 @@ func New(setup Setup, saved State) *Mixer {
 }
 
 func (m *Mixer) setSetup(s Setup) {
-	m.setup = Setup{Layout: s.Layout, Targets: map[string]Target{}, Assignments: map[Control]string{}, Buttons: map[LED]Button{}}
+	m.setup = Setup{Layout: s.Layout, Targets: map[string]Target{}, Assignments: map[Control]string{}, Buttons: map[LED]Button{},
+		MediaPlayer: s.MediaPlayer}
 	for l, b := range s.Buttons {
 		m.setup.Buttons[l] = b
 	}
@@ -168,8 +169,7 @@ func (m *Mixer) Handle(ev Event) []Action {
 	case ButtonReleased:
 		m.buttonReleased(&a, e)
 	case TransportPressed:
-		// BTN-01: reserved for later phases.
-		a.notice(slog.LevelDebug, "button has no function yet", logattr.KeyButton, e.Button.String())
+		m.transportPressed(&a, e.Button)
 	case ControllerConnected:
 		m.syncLEDs(&a, true) // LED-07
 	case ControllerDisconnected:
@@ -767,7 +767,8 @@ func (m *Mixer) ledStates() []SetLED {
 			SetLED{LED{Button: ButtonR, Column: col}, r}) // LED-03
 	}
 	for _, t := range AllTransport {
-		out = append(out, SetLED{LED{Transport: t}, false}) // LED-06
+		on := t == Play && m.mediaKeyPlaying()           // ▶ lit while the media-key player plays
+		out = append(out, SetLED{LED{Transport: t}, on}) // LED-06
 	}
 	return out
 }

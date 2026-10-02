@@ -80,7 +80,7 @@ func TestMEDIA02_OtherDevicesProxiesAndDuplicatesAreIgnored(t *testing.T) {
 func TestMEDIA03_PlayersMatchByNameIdentityOrDesktopEntry(t *testing.T) {
 	w := started(t)
 	firefox := player("firefox.instance_1_42", "Mozilla firefox_firefox", "firefox_firefox")
-	chromeLike := player("chromium.instance6652", "Vivaldi", "") // a Chromium browser without DesktopEntry
+	chromeLike := player("chromium.instance1234", "Vivaldi", "") // a Chromium browser without DesktopEntry
 	game := player("bigpicture", "Big Picture", "steam")
 	w.do(PlayerSnapshot{Players: []Player{spotifyPlayer, firefox, chromeLike, game}})
 	w.wantPlayer(spotifyPlayer, "spotify", "bus_name")
@@ -92,7 +92,7 @@ func TestMEDIA03_PlayersMatchByNameIdentityOrDesktopEntry(t *testing.T) {
 
 func TestMEDIA03_UnmatchedPlayersAreLoggedAtDebug(t *testing.T) {
 	w := started(t)
-	other := player("chromium.instance3989", "Wavebox", "") // "chromium" is in no match list
+	other := player("chromium.instance5678", "Wavebox", "") // "chromium" is in no match list
 	w.do(PlayerAdded{Player: other})
 	w.wantPlayer(other, "", "")
 	w.wantNotice(slog.LevelDebug, "media player not matched")
@@ -114,7 +114,7 @@ func TestMEDIA03_InputsHaveNoPlayers(t *testing.T) {
 
 func TestMEDIA03_PlayerNameDropsTheInstance(t *testing.T) {
 	for bus, want := range map[string]string{
-		mprisPrefix + "chromium.instance6652": "chromium",
+		mprisPrefix + "chromium.instance1234": "chromium",
 		mprisPrefix + "vivaldi.instance42":    "vivaldi",
 		mprisPrefix + "spotify":               "spotify",
 		mprisPrefix + "vlc.instance1":         "vlc",

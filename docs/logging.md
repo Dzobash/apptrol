@@ -245,4 +245,5 @@ Apptrol's own:
 | `apptrol.player.status` | `Playing`, `Paused` or `Stopped` |
 | `apptrol.player.matched_by` | What made a media player belong to an app: `bus_name`, `identity` or `desktop_entry` |
 | `apptrol.player.ignored_reason` | Why a media player is never used: `other_device` (e.g. a phone through KDE Connect), `proxy` (`playerctld`) or `duplicate` (`plasma-browser-integration`) |
-| `apptrol.player.command` | `Play` or `Pause`, sent to a media player |
+| `apptrol.player.command` | `Play`, `Pause`, `Stop`, `Next` or `Previous`, sent to a media player |
+| `apptrol.player.selection` | How the media keys chose their player: `most_recent`, or `pinned` with `[media] player` |
