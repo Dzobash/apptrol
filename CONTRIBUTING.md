@@ -59,6 +59,12 @@ control and app. A new attribute or error type also needs a row in
 [`docs/logging.md`](docs/logging.md). `go test ./internal/logattr` fails on log calls that
 break these rules and on attributes missing from the guide.
 
+A new feature must be troubleshootable from its logs alone. Plan the logs together with
+the design: log every decision together with its reason (for example, why a media player
+belongs to a column: `apptrol.player.matched_by`), and log candidates that were rejected
+or ignored at debug level, so `level = "debug"` shows everything Apptrol saw. A feature's
+ADR lists its records (level, message, attributes); see ADR 0018, point 9.
+
 ## Code
 
 Requires Go 1.24 or newer. Building and installing without changing the code is described
