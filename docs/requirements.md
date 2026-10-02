@@ -98,8 +98,9 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 Sections 4.1–4.10 are delivered in Phase 1 (0.1.0); sections 4.11–4.14 and the
 requirements marked *Phase 1.5* in other sections in Phase 1.5 (0.2.0), designed in
 ADRs [0017](adr/0017-desktop-services-over-dbus.md),
-[0018](adr/0018-media-players-through-mpris.md) and
-[0019](adr/0019-launcher-and-column-buttons.md).
+[0018](adr/0018-media-players-through-mpris.md),
+[0019](adr/0019-launcher-and-column-buttons.md) and
+[0020](adr/0020-microphone-column-buttons.md).
 
 ### 4.1 Controls and volume
 
@@ -128,12 +129,12 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 
 | ID | Requirement | Level |
 |---|---|---|
-| MUTE-01 | Pressing M on a slider column MUST toggle the user mute of that column's target. | MUST |
+| MUTE-01 | Pressing M on a slider column MUST toggle the user mute of that column's target; on an input column only in mode `mute` (INPUT-01). | MUST |
 | MUTE-02 | Knobs have no M button; a knob's target MUST only be silenced by solo (SOLO-03) or by a mute made outside Apptrol (MUTE-07). | MUST |
 | MUTE-03 | Pressing M on a column without a slider target MUST do nothing. | MUST |
 | MUTE-04 | User mute and solo are separate states. An app's stream is muted when it is user-muted **or** silenced by solo. | MUST |
 | MUTE-05 | Pressing M on any column while solo is active MUST toggle that column's user mute; the effect becomes audible once solo ends. | MUST |
-| MUTE-07 | When an assigned app or input is muted or unmuted outside Apptrol (e.g. in the desktop's volume applet, or with a microphone mute key), Apptrol MUST take over the new state as the control's mute: the M LED follows and the state is saved. The mute applies to the whole app, so its other streams follow. Solo still applies: an app unmuted outside Apptrol while another app is soloed MUST be muted again. Changes Apptrol made itself, and settings the audio server restores on new streams (PRIO-03), MUST NOT count as outside changes. *(Unlike volume (PRIO-02), mute is a two-state setting the controller can show, so the controller and the desktop stay in agreement.)* | MUST |
+| MUTE-07 | When an assigned app or input is muted or unmuted outside Apptrol (e.g. in the desktop's volume applet, or with a microphone mute key), Apptrol MUST take over the new state as the control's mute: the M LED follows and the state is saved. The mute applies to the whole app, so its other streams follow. Solo still applies: an app unmuted outside Apptrol while another app is soloed MUST be muted again. An input in mode `hold_to_talk` is the exception: the change is undone (INPUT-03). Changes Apptrol made itself, and settings the audio server restores on new streams (PRIO-03), MUST NOT count as outside changes. *(Unlike volume (PRIO-02), mute is a two-state setting the controller can show, so the controller and the desktop stay in agreement.)* | MUST |
 
 ### 4.4 Solo (S)
 
@@ -145,7 +146,7 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | SOLO-04 | Only one column can be soloed at a time. Pressing S on another column MUST move the solo to that column. | MUST |
 | SOLO-05 | Pressing S on the soloed column MUST turn solo off. Every app then returns to its own state: user-muted apps stay muted, all others become audible. Solo MUST NOT return to a previously soloed column. | MUST |
 | SOLO-06 | A soloed column's own user mute still applies (soloing a user-muted app results in silence). | MUST |
-| SOLO-07 | Pressing S on an input column MUST NOT solo; it acts in the column's S mode (INPUT-01, default talk-over). *(Until 0.1.x: it did nothing.)* | MUST |
+| SOLO-07 | Pressing S on an input column MUST NOT solo; it acts in the column's S mode (INPUT-01, default cough). *(Until 0.1.x: it did nothing.)* | MUST |
 
 ### 4.5 LED feedback
 
@@ -154,7 +155,7 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | LED-01 | **App column** — the S LED MUST be lit only on the soloed column. | MUST |
 | LED-02 | **App column** — the M LED MUST be lit when the column's app is user-muted. It MUST NOT light up for apps that are only silenced by solo. | MUST |
 | LED-03 | **App column** — the R LED MUST show whether the column's app plays and R can control it (MEDIA-09). *(Until 0.1.x: always off.)* | MUST |
-| LED-04 | **Input column** — S, M and R LEDs MUST be lit by default so the column is recognisable as an input. The M LED MUST be lit only while the input is live: it turns off when the input is muted, with M or by a held state (INPUT-05). *(Until 0.1.x: only the M mute counted.)* | MUST |
+| LED-04 | **Input column** — S, M and R LEDs MUST be lit by default so the column is recognisable as an input. S and R stay lit whatever their mode. The M LED MUST be lit only while the input is live: it turns off when the input is muted, with M or by a held state (INPUT-05). *(Until 0.1.x: only the M mute counted.)* | MUST |
 | LED-05 | Columns without a slider target MUST have all LEDs off. | MUST |
 | LED-06 | Transport button LEDs MUST be off, except the Record LED's flash when it starts an app (LAUNCH-08). *(Until 0.1.x: always off.)* | MUST |
 | LED-07 | LEDs MUST be re-sent whenever the controller (re)connects, the audio server (re)connects, and the configuration or state changes. After a controller connect they MUST be sent again once the controller has started up (it ignores LED messages for a moment after being plugged in); after an audio server connect, again 2 seconds later (a PipeWire restart can reset the controller's LEDs). | MUST |
@@ -194,10 +195,10 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | CFG-10 | A command `apptrol list` SHOULD print the currently playing streams and capture devices with the names used for matching, to help write the config. | SHOULD |
 | CFG-11 | A command `apptrol check` SHOULD validate the configuration file and exit. | SHOULD |
 | CFG-12 | When two apps of the active layout can match the same streams (or input devices), because one match fragment contains another, Apptrol SHOULD warn and name the app that gets them: the one on the first control in the order slider1–slider8, knob1–knob8. | SHOULD |
-| CFG-13 | *Phase 1.5.* Buttons MUST be configured per layout in `[layouts.<name>.buttons]`, with the names `record`, `marker_set`, `marker_prev`, `marker_next`, `r1`–`r8` and `s1`–`s8`. A value is a launcher (`app` = a desktop ID, or `command` = a list of arguments; optional `if_running`) or a `mode`. | MUST |
-| CFG-14 | *Phase 1.5.* Validation MUST reject, with one record per problem: a launcher with both `app` and `command` or neither, an unknown button name, an unknown `mode` or `if_running` value, a mode that does not fit the column (`play_pause` on an input column; `cough`, `talk_over` or `push_to_talk` on an app column), an `s` setting on a column without an input, and a launcher on an S button. | MUST |
+| CFG-13 | *Phase 1.5.* Buttons MUST be configured per layout in `[layouts.<name>.buttons]`, with the names `record`, `marker_set`, `marker_prev`, `marker_next`, `r1`–`r8`, `s1`–`s8` and `m1`–`m8`. A value is a launcher (`app` = a desktop ID, or `command` = a list of arguments; optional `if_running`) or a `mode`; an `m` button MAY also set `talk_over = true` (INPUT-04). | MUST |
+| CFG-14 | *Phase 1.5.* Validation MUST reject, with one record per problem: a launcher with both `app` and `command` or neither, an unknown button name, an unknown `mode` or `if_running` value, a mode that does not fit the button or column (`play_pause` on an input column; `mute` or `hold_to_talk` on anything but M; `cough` or `talk_over` as a mode on anything but S; `cough` together with `hold_to_talk`), an `m` or `s` setting on a column without an input, `talk_over = true` on anything but an `m` button, and a launcher on an M or S button. | MUST |
 | CFG-15 | *Phase 1.5.* `[media] player` MAY name an app from `[apps]` to pin the media keys to (MEDIA-06); an unknown app MUST be rejected. | MUST |
-| CFG-16 | *Phase 1.5.* An input app MAY set `talk_over`, the volume in percent (0–100) that apps go down to during talk-over; default 25. On an app, or outside 0–100, it MUST be rejected. | MUST |
+| CFG-16 | *Phase 1.5.* An input app MAY set `talk_over_volume`, the volume in percent (0–100) that apps go down to during talk-over; default 25. On an app, or outside 0–100, it MUST be rejected. | MUST |
 | CFG-17 | *Phase 1.5.* The example configuration (CFG-09) MUST document every Phase 1.5 setting: commented out, with an example value, the accepted values and the default. | MUST |
 
 ### 4.9 Logging
@@ -218,7 +219,7 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | LOG-12 | Every record about an error MUST carry `error.type` (a fixed word for the kind of error) and, where there is an error message, `exception.message`. | MUST |
 | LOG-13 | Every record MUST be one line with a fixed message; values go into attributes. Several problems (e.g. in the configuration) MUST be logged as one record each. | MUST |
 | LOG-14 | A record about a control MUST name the layout, the control and, if assigned, the app on it (id, name, type); a record caused by a button MUST name the button. Every button press MUST be logged: mute and solo changes at info, presses without a function at debug. | MUST |
-| LOG-15 | *Phase 1.5.* Every decision MUST be logged with its reason, so a feature can be troubleshot from its logs alone: a media player matched to a control (info, with what matched), not matched or ignored (debug, with the reason); an app started (info, with its unit), not started because it runs (info, with how that was found) or failed to start (error); held states starting and ending (info, with the reason they ended). Records follow ADR 0018 (point 9) and ADR 0019 (point 15). | MUST |
+| LOG-15 | *Phase 1.5.* Every decision MUST be logged with its reason, so a feature can be troubleshot from its logs alone: a media player matched to a control (info, with what matched), not matched or ignored (debug, with the reason); an app started (info, with its unit), not started because it runs (info, with how that was found) or failed to start (error); held states starting and ending (info, with the reason they ended). Records follow ADR 0018 (point 9), ADR 0019 (point 15) and ADR 0020 (point 9). | MUST |
 | LOG-16 | *Phase 1.5.* `--log-level` SHOULD set the log level for one run without changing the configuration file. It MUST win over the configured level for the whole run, also after a reload; an invalid value MUST stop Apptrol with a clear message; the start record MUST say where the level came from (flag or configuration). | SHOULD |
 
 ### 4.10 Service and runtime
@@ -276,14 +277,14 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 
 | ID | Requirement | Level |
 |---|---|---|
-| INPUT-01 | R and S on an input column MUST each act in a mode (CFG-13): `cough` (R's default), `talk_over` (S's default), `push_to_talk` or `off`. R MAY instead be a launcher. | MUST |
-| INPUT-02 | `cough`: the input MUST be muted while the button is held. | MUST |
-| INPUT-03 | `push_to_talk`: the input MUST be muted except while the button is held, from the moment this mode is configured. | MUST |
-| INPUT-04 | `talk_over`: while the button is held, every app target of the layout MUST go down to the input app's `talk_over` level (CFG-16), but never up: an app below that level stays where it is. On release, every app MUST return to its control's position, or to its volume from before if the position is unknown. Inputs are not changed. | MUST |
-| INPUT-05 | Held states MUST be kept apart from the M mute, like solo (MUTE-04): an input is muted when it is muted with M, or coughing, or in `push_to_talk` and not held. | MUST |
-| INPUT-06 | A control moved during talk-over MUST have its position remembered and applied on release; a stream appearing during talk-over MUST get the lower of the talk-over level and its control's position. | MUST |
-| INPUT-07 | A held state MUST end when its button is released, when the controller disconnects, when a configuration reload changes the button's mode, and when Apptrol stops. Held states MUST NOT be saved. | MUST |
-| INPUT-08 | Apptrol MUST act on the release message (value 0) of R and S on input columns; the controller's buttons must be set to Momentary (HW-01). | MUST |
+| INPUT-01 | M, S and R on an input column MUST each act in a mode (CFG-13). M: `mute` (default) or `hold_to_talk`, with the option `talk_over`. S: `cough` (default; `off` with `hold_to_talk`), `talk_over` or `off`. R: `off` (default) or a launcher. | MUST |
+| INPUT-02 | `cough`: the input MUST be muted while S is held. | MUST |
+| INPUT-03 | `hold_to_talk`: the input MUST be live only while M is held, and muted otherwise: from the moment this mode is configured, after a restart and while Apptrol is stopped. A mute or unmute made outside Apptrol MUST be undone (unlike MUTE-07). A saved M mute of the control MUST be dropped. | MUST |
+| INPUT-04 | Talk-over is active while S in mode `talk_over` is held, and, with `talk_over = true` on M, while the input is live through M (`hold_to_talk`: M held; `mute`: not muted with M; a cough does not end it). While it is active, every app target of the layout MUST go down to the input's `talk_over_volume` (CFG-16), but never up: an app below it stays where it is. With talk-over active from several inputs, the lowest volume applies. An app whose control position is unknown (PRIO-04) MUST be muted instead, as its volume is unknown. When talk-over ends, every app MUST return to its control's position, and an app muted by talk-over MUST be unmuted unless it is muted otherwise (MUTE-04). Inputs are not changed. | MUST |
+| INPUT-05 | Held states MUST be kept apart from the M mute, like solo (MUTE-04): an input is muted when it is muted with M (mode `mute`), or coughing, or in `hold_to_talk` and M is not held. | MUST |
+| INPUT-06 | A control moved during talk-over MUST have its position remembered and applied when talk-over ends; a stream appearing during talk-over MUST get the lower of the talk-over volume and its control's position. | MUST |
+| INPUT-07 | A held state (M in `hold_to_talk`, S in `cough` or `talk_over`) MUST end when its button is released, when the controller disconnects, when a configuration reload changes the button's mode or the column's input, and when Apptrol stops. Held states MUST NOT be saved. | MUST |
+| INPUT-08 | Apptrol MUST act on the release message (value 0) of M and S on input columns; the controller's buttons must be set to Momentary (HW-01). | MUST |
 
 ## 5. Non-functional requirements
 

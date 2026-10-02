@@ -70,7 +70,7 @@ problems. Anything found later ships as a patch release, `0.1.x`.)
 Every button except the layout buttons gets a function.
 
 Requirement areas: DESK, MEDIA, LAUNCH, INPUT; CFG-13 to CFG-17, LOG-15, LOG-16.
-Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-media-players-through-mpris.md), [ADR 0019](adr/0019-launcher-and-column-buttons.md).
+Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-media-players-through-mpris.md), [ADR 0019](adr/0019-launcher-and-column-buttons.md), [ADR 0020](adr/0020-microphone-column-buttons.md).
 
 - [x] Decision records (ADR 0017–0019), requirements and hardware checklist (H-23 to H-42)
 - [ ] D-Bus connection in the service (ADR; also used by Phases 1.6 and 3, Q-4)
@@ -78,8 +78,8 @@ Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-
 - [ ] Record (●) and the Marker buttons start apps (desktop ID or command), each in its own systemd scope; already-running behaviour configurable
 - [ ] `apptrol list apps [search]` shows desktop IDs; `apptrol check` warns about unknown ones
 - [ ] R on an app column: play / pause that app (MPRIS), LED lit while it plays
-- [ ] R on an input column: hold to mute (cough), or push-to-talk
-- [ ] S on an input column: hold to turn apps down (talk-over)
+- [ ] M on an input column: mute (toggle) or hold-to-talk, optionally turning apps down while you talk
+- [ ] S on an input column: hold to mute (cough), or hold to turn apps down (talk-over)
 - [ ] R can be overridden per column as a launcher; launchers and overrides set per layout
 - [x] `--log-level` flag for one run (LOG-16)
 
@@ -90,6 +90,7 @@ not hold back the media buttons.
 
 - [ ] On-screen feedback: KDE volume OSD, notification fallback for other desktops
 - [ ] Config switch to turn on-screen feedback off
+- [ ] Show microphone button states and hints, e.g. "cough has no use with hold-to-talk: release M to mute" (ADR 0020)
 
 ## Phase 2 — Layouts (`0.4.0`)
 

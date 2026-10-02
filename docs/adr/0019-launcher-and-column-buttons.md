@@ -141,3 +141,10 @@ Measured on the reference system (Kubuntu, KDE Plasma) on 2026-10-02:
   given when Phase 1.5 starts. LED-04 (input column LEDs) and SOLO-07 (S on an input
   column) change with it.
 - The configuration format grows by one section per layout; existing files stay valid.
+
+## Notes
+
+- 2026-10-02: The input column buttons (points 8–10, and the input-column parts of
+  points 11, 12 and 15) are replaced by [ADR 0020](0020-microphone-column-buttons.md):
+  M becomes the microphone button (`mute` or `hold_to_talk`), S gets `cough` or
+  `talk_over`, and R on an input column is `off` or a launcher.
