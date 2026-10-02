@@ -59,6 +59,16 @@ vulncheck: ## Check dependencies for known vulnerabilities
 third-party-licenses: ## Write THIRD_PARTY_LICENSES: every bundled library's license, and Go's; fail on an unknown or restricted license
 	go run $(GO_LICENSES) check ./cmd/apptrol --ignore $(PKG) --disallowed_types=forbidden,restricted,unknown
 	go run $(GO_LICENSES) report ./cmd/apptrol --ignore $(PKG) --template packaging/third-party-licenses.tpl > THIRD_PARTY_LICENSES
+	@# Apache-2.0 libraries' NOTICE files must ship too (e.g. go-systemd's).
+	@tmp=$$(mktemp -d) && trap 'rm -rf "$$tmp"' EXIT && \
+		go run $(GO_LICENSES) save ./cmd/apptrol --ignore $(PKG) --save_path="$$tmp/l" 2>/dev/null && \
+		find "$$tmp/l" -iname 'NOTICE*' | sort | while read -r f; do \
+			printf -- '\n%s\n%s\n%s\n\n' \
+				'--------------------------------------------------------------------------------' \
+				"NOTICE of $$(dirname "$${f#$$tmp/l/}")" \
+				'--------------------------------------------------------------------------------'; \
+			cat "$$f"; \
+		done >> THIRD_PARTY_LICENSES
 	@{ printf -- '\n%s\n%s\n%s\n%s\n%s\n\n' \
 		'--------------------------------------------------------------------------------' \
 		"The Go standard library and runtime $$(go env GOVERSION)" \
