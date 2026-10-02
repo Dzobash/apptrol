@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Phase 1 released (0.1.0); later phases outlined |
+| **Status** | Phase 1 released (0.1.0); Phase 1.5 specified (0.2.0); later phases outlined |
 | **Last updated** | 2026-10-02 |
 | **Related** | [Roadmap](roadmap.md) · [Configuration reference](config.md) · [Decision records](adr/) |
 
@@ -24,8 +24,10 @@ and works just as well with a plain internal sound card.
 - Every requirement has a stable ID (`AREA-NN`). IDs are never reused; a dropped
   requirement is marked *withdrawn* rather than deleted. Commits, issues and tests
   reference these IDs.
-- **Phase** says when a requirement is delivered. Only Phase 1 is specified in full;
-  later phases are outlined in section 5 and in the [roadmap](roadmap.md).
+- **Phase** says when a requirement is delivered. Phases 1 and 1.5 are specified in full;
+  later phases are outlined in section 6 and in the [roadmap](roadmap.md).
+- A requirement that changes keeps its ID; its text describes the current behaviour,
+  followed by how it was before, e.g. *(Until 0.1.x: …)*.
 
 ### 1.2 Terms
 
@@ -39,6 +41,10 @@ and works just as well with a plain internal sound card.
 | **User mute** | Mute set by pressing a column's M button. |
 | **Solo** | A temporary state in which only one column's app stays audible. |
 | **Position** | The last known physical value of a control (0–127). *Unknown* until the control is first moved, unless restored from saved state. |
+| **Media player** | A program that offers playback control over MPRIS on the session bus (Spotify, a browser, VLC, …). A browser offers one, for its most recently used playing tab. |
+| **Launcher** | A button set up to start an app (Record, the Marker buttons, or an R button). |
+| **Desktop ID** | The name of an installed app's `.desktop` file without `.desktop`, e.g. `com.obsproject.Studio` (Flatpak) or `firefox_firefox` (Snap). |
+| **Held state** | A state that lasts only while a button is held: cough, push-to-talk live, talk-over. |
 
 ## 2. Scope
 
@@ -87,7 +93,13 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | M button | 48–55 | | ◀◀ / ▶▶ | 43 / 44 |
 | R button | 64–71 | | ■ / ▶ / ● | 42 / 41 / 45 |
 
-## 4. Phase 1 requirements
+## 4. Requirements
+
+Sections 4.1–4.10 are delivered in Phase 1 (0.1.0); sections 4.11–4.14 and the
+requirements marked *Phase 1.5* in other sections in Phase 1.5 (0.2.0), designed in
+ADRs [0017](adr/0017-desktop-services-over-dbus.md),
+[0018](adr/0018-media-players-through-mpris.md) and
+[0019](adr/0019-launcher-and-column-buttons.md).
 
 ### 4.1 Controls and volume
 
@@ -133,7 +145,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | SOLO-04 | Only one column can be soloed at a time. Pressing S on another column MUST move the solo to that column. | MUST |
 | SOLO-05 | Pressing S on the soloed column MUST turn solo off. Every app then returns to its own state: user-muted apps stay muted, all others become audible. Solo MUST NOT return to a previously soloed column. | MUST |
 | SOLO-06 | A soloed column's own user mute still applies (soloing a user-muted app results in silence). | MUST |
-| SOLO-07 | Pressing S on an input column MUST do nothing in Phase 1. The button is reserved for talk-over (Phase 1.5). | MUST |
+| SOLO-07 | Pressing S on an input column MUST NOT solo; it acts in the column's S mode (INPUT-01, default talk-over). *(Until 0.1.x: it did nothing.)* | MUST |
 
 ### 4.5 LED feedback
 
@@ -141,10 +153,10 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 |---|---|---|
 | LED-01 | **App column** — the S LED MUST be lit only on the soloed column. | MUST |
 | LED-02 | **App column** — the M LED MUST be lit when the column's app is user-muted. It MUST NOT light up for apps that are only silenced by solo. | MUST |
-| LED-03 | **App column** — the R LED MUST be off in Phase 1. | MUST |
-| LED-04 | **Input column** — S, M and R LEDs MUST be lit by default so the column is recognisable as an input. When the input is muted, only the M LED MUST turn off. | MUST |
+| LED-03 | **App column** — the R LED MUST show whether the column's app plays and R can control it (MEDIA-09). *(Until 0.1.x: always off.)* | MUST |
+| LED-04 | **Input column** — S, M and R LEDs MUST be lit by default so the column is recognisable as an input. The M LED MUST be lit only while the input is live: it turns off when the input is muted, with M or by a held state (INPUT-05). *(Until 0.1.x: only the M mute counted.)* | MUST |
 | LED-05 | Columns without a slider target MUST have all LEDs off. | MUST |
-| LED-06 | Transport button LEDs MUST be off in Phase 1. | MUST |
+| LED-06 | Transport button LEDs MUST be off, except the Record LED's flash when it starts an app (LAUNCH-08). *(Until 0.1.x: always off.)* | MUST |
 | LED-07 | LEDs MUST be re-sent whenever the controller (re)connects, the audio server (re)connects, and the configuration or state changes. After a controller connect they MUST be sent again once the controller has started up (it ignores LED messages for a moment after being plugged in); after an audio server connect, again 2 seconds later (a PipeWire restart can reset the controller's LEDs). | MUST |
 | LED-08 | When Apptrol stops, it SHOULD turn all LEDs off, so no LED shows a state that no longer applies. | SHOULD |
 
@@ -152,7 +164,7 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 
 | ID | Requirement | Level |
 |---|---|---|
-| BTN-01 | R buttons, transport buttons, Track, Cycle and Marker buttons MUST do nothing in Phase 1. Their functions are reserved for later phases. | MUST |
+| BTN-01 | Track ◀ / ▶ and Cycle MUST do nothing; they are reserved for layouts (Phase 2). Record and the Marker buttons do nothing unless set up as launchers (LAUNCH-01). *(Until 0.1.x: R, the transport and the Marker buttons did nothing too.)* | MUST |
 
 ### 4.7 State
 
@@ -182,6 +194,11 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | CFG-10 | A command `apptrol list` SHOULD print the currently playing streams and capture devices with the names used for matching, to help write the config. | SHOULD |
 | CFG-11 | A command `apptrol check` SHOULD validate the configuration file and exit. | SHOULD |
 | CFG-12 | When two apps of the active layout can match the same streams (or input devices), because one match fragment contains another, Apptrol SHOULD warn and name the app that gets them: the one on the first control in the order slider1–slider8, knob1–knob8. | SHOULD |
+| CFG-13 | *Phase 1.5.* Buttons MUST be configured per layout in `[layouts.<name>.buttons]`, with the names `record`, `marker_set`, `marker_prev`, `marker_next`, `r1`–`r8` and `s1`–`s8`. A value is a launcher (`app` = a desktop ID, or `command` = a list of arguments; optional `if_running`) or a `mode`. | MUST |
+| CFG-14 | *Phase 1.5.* Validation MUST reject, with one record per problem: a launcher with both `app` and `command` or neither, an unknown button name, an unknown `mode` or `if_running` value, a mode that does not fit the column (`play_pause` on an input column; `cough`, `talk_over` or `push_to_talk` on an app column), an `s` setting on a column without an input, and a launcher on an S button. | MUST |
+| CFG-15 | *Phase 1.5.* `[media] player` MAY name an app from `[apps]` to pin the media keys to (MEDIA-06); an unknown app MUST be rejected. | MUST |
+| CFG-16 | *Phase 1.5.* An input app MAY set `talk_over`, the volume in percent (0–100) that apps go down to during talk-over; default 25. On an app, or outside 0–100, it MUST be rejected. | MUST |
+| CFG-17 | *Phase 1.5.* The example configuration (CFG-09) MUST document every Phase 1.5 setting: commented out, with an example value, the accepted values and the default. | MUST |
 
 ### 4.9 Logging
 
@@ -196,11 +213,13 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | LOG-07 | The file output MUST rotate by size, keeping a configurable number of old files. | MUST |
 | LOG-08 | Log level and outputs MUST be updated on config reload without restarting. | MUST |
 | LOG-09 | Events MUST be logged at these levels: **info** — start/stop, config loaded/reloaded, controller connected/disconnected, stream matched to a control, mute/solo changes; **warn** — config entry that matches nothing, controller not found, state file unreadable; **error** — invalid config, lost connection to the audio server; **debug** — every volume change, raw MIDI message and button press without a function. | MUST |
-| LOG-10 | Every log record MUST carry `apptrol.component`: `service`, `config`, `state`, `audio`, `controller` or `mixer` (ADR 0016). | MUST |
+| LOG-10 | Every log record MUST carry `apptrol.component`: `service`, `config`, `state`, `audio`, `controller`, `desktop` or `mixer` (ADR 0016). *(Until 0.1.x: without `desktop`.)* | MUST |
 | LOG-11 | Attribute names MUST follow the OpenTelemetry semantic conventions: their attribute where one exists (`error.type`, `exception.message`, `file.path`, …), otherwise a name in the `apptrol.` namespace; lower case, dot-separated, snake_case within a part. No name may be the start of another, and each name MUST always carry the same type of value, so that log stores can map them. | MUST |
 | LOG-12 | Every record about an error MUST carry `error.type` (a fixed word for the kind of error) and, where there is an error message, `exception.message`. | MUST |
 | LOG-13 | Every record MUST be one line with a fixed message; values go into attributes. Several problems (e.g. in the configuration) MUST be logged as one record each. | MUST |
 | LOG-14 | A record about a control MUST name the layout, the control and, if assigned, the app on it (id, name, type); a record caused by a button MUST name the button. Every button press MUST be logged: mute and solo changes at info, presses without a function at debug. | MUST |
+| LOG-15 | *Phase 1.5.* Every decision MUST be logged with its reason, so a feature can be troubleshot from its logs alone: a media player matched to a control (info, with what matched), not matched or ignored (debug, with the reason); an app started (info, with its unit), not started because it runs (info, with how that was found) or failed to start (error); held states starting and ending (info, with the reason they ended). Records follow ADR 0018 (point 9) and ADR 0019 (point 15). | MUST |
+| LOG-16 | *Phase 1.5.* `--log-level` SHOULD set the log level for one run without changing the configuration file. It MUST win over the configured level for the whole run, also after a reload; an invalid value MUST stop Apptrol with a clear message; the start record MUST say where the level came from (flag or configuration). | SHOULD |
 
 ### 4.10 Service and runtime
 
@@ -213,6 +232,58 @@ Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on pre
 | SVC-05 | Apptrol MUST shut down cleanly on SIGTERM/SIGINT, saving state first. | MUST |
 | SVC-06 | `apptrol --version` MUST print the version, commit and build date. | MUST |
 | SVC-07 | On shutdown, Apptrol MUST end solo and unmute every app it silenced by solo. The audio server remembers mutes per app, so otherwise those apps would stay muted after Apptrol exits. User mutes (M) stay. Both are saved first and restored on the next start (STATE-03, STATE-04). | MUST |
+
+### 4.11 Desktop connection *(Phase 1.5)*
+
+| ID | Requirement | Level |
+|---|---|---|
+| DESK-01 | Apptrol MUST connect to the D-Bus session bus at start; every feature that needs D-Bus MUST share this connection, except calls to systemd, which go through go-systemd (ADR 0017). | MUST |
+| DESK-02 | Without a session bus, or when the connection is lost, sliders, knobs, M, S and the input modes MUST keep working; features that need D-Bus do nothing. Apptrol MUST log an error and reconnect, then find the media players again. | MUST |
+| DESK-03 | Apptrol MUST NOT start a D-Bus service as a side effect: names that are only activatable are never called. | MUST |
+
+### 4.12 Media players and R on app columns *(Phase 1.5)*
+
+| ID | Requirement | Level |
+|---|---|---|
+| MEDIA-01 | Apptrol MUST find every media player (bus name `org.mpris.MediaPlayer2.*` with a running owner) when it connects, and follow players appearing and disappearing while it runs. | MUST |
+| MEDIA-02 | Players on other devices (`kdeconnect.*`), proxies (`playerctld`) and duplicates (`plasma-browser-integration`) MUST be ignored, before any matching. | MUST |
+| MEDIA-03 | A player MUST belong to an app when one of the app's match fragments occurs, case-insensitively, in the player's bus name (without the prefix and without an `.instance…` suffix), in its `Identity`, or in its `DesktopEntry` if it has one. A player that matches apps on several controls belongs to the first control, in the order of CFG-12. | MUST |
+| MEDIA-04 | Apptrol MUST send `Play` or `Pause` chosen from the player's `PlaybackStatus`, never the toggle `PlayPause`. | MUST |
+| MEDIA-05 | ▶ MUST play or pause the media-key player, ■ MUST send `Stop`, ◀◀ `Previous` and ▶▶ `Next`. Without a player, they do nothing (debug log). | MUST |
+| MEDIA-06 | The media-key player MUST be the player that most recently started playing; with `[media] player` set (CFG-15), the most recent of that app's players. | MUST |
+| MEDIA-07 | R on an app column (mode `play_pause`, the default) MUST pause every playing player of the column's app; if none plays, it MUST play the one that was active most recently. | MUST |
+| MEDIA-08 | If the column's app has no player (e.g. mpv without its MPRIS plugin), R MUST do nothing (debug log). | MUST |
+| MEDIA-09 | The R LED of an app column in mode `play_pause` MUST be lit while the column's app has a stream that is not corked **and** at least one player; otherwise off. It MUST follow streams being corked or uncorked and players appearing or disappearing. In mode `off` or as a launcher, it MUST be off. | MUST |
+| MEDIA-10 | The audio adapter MUST report whether each stream is corked, and every change of it. | MUST |
+
+### 4.13 Launcher buttons *(Phase 1.5)*
+
+| ID | Requirement | Level |
+|---|---|---|
+| LAUNCH-01 | Record, the Marker buttons and any R button set up as a launcher (CFG-13) MUST start their app when pressed. Without a launcher, Record and the Marker buttons do nothing (debug log). | MUST |
+| LAUNCH-02 | A desktop ID MUST be resolved as the Desktop Entry and Base Directory specifications say: `applications/` under `$XDG_DATA_HOME`, then each `$XDG_DATA_DIRS` entry; the first file found wins. A file with `Hidden=true` counts as not installed. | MUST |
+| LAUNCH-03 | `Exec` MUST be parsed as the Desktop Entry specification says: quoting and escapes, `%f %F %u %U` removed, `%c` replaced by the app's name, `%i` and `%k` dropped. A file with `DBusActivatable=true` and no `Exec` MUST be started through `org.freedesktop.Application.Activate`. | MUST |
+| LAUNCH-04 | An app MUST be started by systemd as a transient user unit (`app-apptrol-<desktop-id>@<random>.service`), never as a child process of Apptrol. It MUST keep running when Apptrol stops or restarts; its unit is removed after it exits. | MUST |
+| LAUNCH-05 | A `command` MUST be run as a list of arguments, without a shell; `~/` at the start of an argument MUST be expanded. | MUST |
+| LAUNCH-06 | With `if_running = "start"` (the default) the app MUST be started on every press; with `"skip"`, not if it already runs (LAUNCH-07). | MUST |
+| LAUNCH-07 | Whether an app runs MUST be checked when the button is pressed: first the user manager's units for its desktop ID (`app-*<id>-*.scope`, `app-*<id>@*.service`, and `snap.<snap>.<app>-*.scope` for a Snap ID), then the running processes by the program name from `Exec` or `command`. | MUST |
+| LAUNCH-08 | When Record starts an app, its LED MUST flash briefly (about 0.3 s). | MUST |
+| LAUNCH-09 | `apptrol list apps [search]` SHOULD print the desktop ID, name and source (`system`, `flatpak`, `snap`, `user`) of every installed app, without `Hidden` or `NoDisplay` ones; the search is case-insensitive over ID and name. | SHOULD |
+| LAUNCH-10 | `apptrol check` and every configuration load SHOULD warn about desktop IDs that are not installed; this MUST NOT make the configuration invalid. | SHOULD |
+| LAUNCH-11 | An app that cannot be started MUST be logged as an error (`app_start_failed`); Apptrol keeps running. | MUST |
+
+### 4.14 Input column buttons *(Phase 1.5)*
+
+| ID | Requirement | Level |
+|---|---|---|
+| INPUT-01 | R and S on an input column MUST each act in a mode (CFG-13): `cough` (R's default), `talk_over` (S's default), `push_to_talk` or `off`. R MAY instead be a launcher. | MUST |
+| INPUT-02 | `cough`: the input MUST be muted while the button is held. | MUST |
+| INPUT-03 | `push_to_talk`: the input MUST be muted except while the button is held, from the moment this mode is configured. | MUST |
+| INPUT-04 | `talk_over`: while the button is held, every app target of the layout MUST go down to the input app's `talk_over` level (CFG-16), but never up: an app below that level stays where it is. On release, every app MUST return to its control's position, or to its volume from before if the position is unknown. Inputs are not changed. | MUST |
+| INPUT-05 | Held states MUST be kept apart from the M mute, like solo (MUTE-04): an input is muted when it is muted with M, or coughing, or in `push_to_talk` and not held. | MUST |
+| INPUT-06 | A control moved during talk-over MUST have its position remembered and applied on release; a stream appearing during talk-over MUST get the lower of the talk-over level and its control's position. | MUST |
+| INPUT-07 | A held state MUST end when its button is released, when the controller disconnects, when a configuration reload changes the button's mode, and when Apptrol stops. Held states MUST NOT be saved. | MUST |
+| INPUT-08 | Apptrol MUST act on the release message (value 0) of R and S on input columns; the controller's buttons must be set to Momentary (HW-01). | MUST |
 
 ## 5. Non-functional requirements
 
@@ -238,13 +309,14 @@ How these are met is described in [ADR 0012](adr/0012-testing-strategy.md) and
 | QA-03 | Tests MUST run against the minimum Go version from `go.mod` and against the latest stable Go release. | MUST | 0 |
 | QA-04 | CI MUST fail when total test coverage drops below the configured minimum (currently 75 %). Logic packages (matching, mixer state, config, saved state) SHOULD reach at least 85 %. | MUST | 0 |
 | QA-05 | Dependencies MUST be checked with `govulncheck`; a known vulnerability in code Apptrol actually calls MUST fail CI. | MUST | 0 |
-| QA-06 | Access to the controller and to the audio server MUST go through interfaces, so that all behaviour can be tested with fakes, without hardware or PipeWire. | MUST | 1 |
-| QA-07 | Every Phase 1 MUST requirement that can be tested without hardware MUST have at least one automated test. Test names SHOULD include the requirement ID. | MUST | 1 |
+| QA-06 | Access to the controller, to the audio server and (from Phase 1.5) to desktop services over D-Bus MUST go through interfaces, so that all behaviour can be tested with fakes, without hardware, PipeWire or a desktop session. | MUST | 1 |
+| QA-07 | Every MUST requirement that can be tested without hardware MUST have at least one automated test. Test names SHOULD include the requirement ID. *(Until 0.1.x: Phase 1 requirements.)* | MUST | 1 |
 | QA-08 | Configuration parsing and MIDI message decoding MUST have fuzz tests; CI SHOULD run each for a short time on every push. | MUST | 1 |
 | QA-09 | Integration tests against a real, headless PipeWire SHOULD run in CI. They run only when `APPTROL_PULSE_TEST=1` is set. | SHOULD | 1 |
 | QA-10 | Automated tests (except integration tests) MUST NOT need network access, hardware or a desktop session. | MUST | 0 |
 | QA-11 | A bug fix SHOULD include a test that fails without the fix. | SHOULD | 1 |
 | QA-12 | Before each release, the manual hardware checklist in [testing.md](testing.md) MUST be completed on a real controller. | MUST | 1 |
+| QA-13 | Integration tests against a private D-Bus session bus (`dbus-run-session`) SHOULD run in CI. They run only when `APPTROL_DBUS_TEST=1` is set. | SHOULD | 1.5 |
 
 ## 6. Later phases (outline)
 
@@ -252,18 +324,11 @@ These are agreed directions, not yet full requirements. They will be refined and
 before the phase starts. See the [roadmap](roadmap.md).
 
 ### Phase 1.5 — Media, launcher and column buttons
-Every button except the layout buttons (Track ◀ / ▶, Cycle) gets a function.
-- ◀◀ ▶▶ ■ ▶ control media playback through MPRIS. Default: the most recently active player; optionally pinned to one player in the config.
-- **Launcher buttons**: Record (●) and the three Marker buttons each start an app, given by its desktop ID (works for system, Flatpak and Snap installs) or as a command (run without a shell). Start only; nothing is stopped. Per launcher, configurable whether an app that is already running is started again or skipped.
-- Started apps run in their own systemd scope, so they belong to the desktop session, not to Apptrol, and keep running when Apptrol restarts or stops.
-- `apptrol list apps [search]` shows the desktop IDs and names of installed apps (from the `.desktop` files, without hidden ones), with where each comes from (system, Flatpak, Snap, home folder). `apptrol check` warns about desktop IDs that are not installed.
-- **R on an app column**: play / pause that column's app through MPRIS; the R LED is lit while it plays. Apps without MPRIS: R does nothing, LED off. The column's app is found among the MPRIS players with its match list.
-- **R on an input column**: hold to mute ("cough"); configurable as push-to-talk (muted except while held). Kept apart from the M mute, like user mute and solo.
-- **S on an input column**: hold to turn all app targets down to a configurable level ("talk-over"); on release they return to their controls' positions.
-- Any R button can be overridden per column to be a launcher instead.
-- Held states (cough, push-to-talk, talk-over) are never saved; they end when Apptrol stops.
-- Launcher buttons and R overrides are set per layout, so each layout (Phase 2) has its own.
-- Desktops that do not pass the display to systemd user services (e.g. Hyprland, Sway) need one line in their config so started apps can open windows; documented with the feature.
+Specified in full: sections 4.11–4.14 and the requirements marked *Phase 1.5* (CFG-13 to
+CFG-17, LOG-15, LOG-16), with changes to SOLO-07, LED-03, LED-04, LED-06, BTN-01 and LOG-10.
+Desktops that do not pass the display to systemd user services (e.g. some Hyprland and
+Sway setups) need one line in their config so started apps can open windows; the README
+explains it with the feature.
 
 ### Phase 1.6 — On-screen display
 - On-screen feedback when a volume or mute changes: KDE's native volume OSD when available, a desktop notification elsewhere (e.g. GNOME).
