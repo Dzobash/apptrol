@@ -93,6 +93,7 @@ Project layout:
 | `internal/controller/`, `…/rawmidi/` | MIDI decoding and the nanoKONTROL2 map; the raw MIDI device |
 | `internal/audio/pulse/` | Connection to PipeWire through the PulseAudio protocol |
 | `internal/desktop/` | The D-Bus session bus: finding and following media players |
+| `internal/launcher/` | Installed apps and their desktop files, for the launcher buttons |
 | `internal/config/` | Loading, validating and watching the configuration file |
 | `internal/state/` | Saved positions, mutes and solo |
 | `internal/logging/` | Log outputs and formats |

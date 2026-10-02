@@ -57,6 +57,9 @@ func writeConfig(t *testing.T, content string) string {
 }
 
 func TestCFG11_Check(t *testing.T) {
+	// No apps installed, whatever the machine has (LAUNCH-10).
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_DIRS", t.TempDir())
 	valid := writeConfig(t, `
 [apps.spotify]
 name  = "Spotify"
@@ -91,7 +94,8 @@ m8     = { mode = "hold_to_talk", talk_over = true }
 		{"valid", []string{"--config", valid, "check"}, 0,
 			[]string{": OK", "Controller: nanoKONTROL2", "slider1  Spotify", "app: spotify  max 150 %", "slider8  mic", "input: GoXLR",
 				"Buttons:", "m8      hold_to_talk, talk_over", "record  starts com.obsproject.Studio, unless it runs",
-				"Logging: warn to journald", "warning: apps.spare: not assigned"}, nil},
+				"Logging: warn to journald", "warning: apps.spare: not assigned",
+				`warning: layouts.default.buttons.record: desktop ID "com.obsproject.Studio" is not installed`}, nil},
 		{"invalid", []string{"--config", invalid, "check"}, 1,
 			nil, []string{"apptrol check:", "slider9: unknown control", `app "ghost" is not defined`}},
 		{"missing", []string{"--config", missing, "check"}, 1,

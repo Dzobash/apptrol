@@ -155,3 +155,16 @@ func TestCFG16_TalkOverVolume(t *testing.T) {
 		requireProblem(t, problemsOf(t, tc.src), tc.want)
 	}
 }
+
+func TestLAUNCH10_LauncherApps(t *testing.T) {
+	cfg, _ := mustParse(t, withButtons(`
+record      = { app = "com.obsproject.Studio" }
+marker_prev = { command = ["konsole"] }
+r1          = { app = "discord" }
+m8          = { mode = "mute" }
+`))
+	want := map[string]map[string]string{"default": {"record": "com.obsproject.Studio", "r1": "discord"}}
+	if got := cfg.LauncherApps(); !reflect.DeepEqual(got, want) {
+		t.Errorf("LauncherApps = %v, want %v (commands are not desktop IDs)", got, want)
+	}
+}

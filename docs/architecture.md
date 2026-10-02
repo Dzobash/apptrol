@@ -38,6 +38,7 @@ How the service is put together. Decisions and their reasons are in
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write |
 | `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`); reconnects; `apptrol list` data |
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them; reconnects; never starts a service |
+| `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps` and the launchers (ADR 0019) |
 | `internal/config` | TOML loading, validation (including overlap warnings), file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
 | `internal/logging` | Log outputs (journald, rotating file) and formats; keeps every record on one line |
