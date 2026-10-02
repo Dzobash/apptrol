@@ -74,4 +74,9 @@ The owner wants to keep learning while working, not just receive finished result
   to do and what to look for, then read the logs yourself and explain what they show.
 - No workarounds for bugs in other apps (e.g. Spotify). Document them under
   *Known issues* in the README instead.
-- Only access files inside this repository, never elsewhere in the home folder.
+- Only access files inside this repository, never elsewhere in the home folder (not even
+  Go's module cache; look at libraries through the GitHub API).
+- **Privacy:** never publish data from the owner's system in commits, docs, issues or
+  PRs: home paths, usernames, device names, hardware or device IDs, process numbers,
+  media titles. Use placeholders (`<pid>`, `<phone name>`, `/home/you`); measured data
+  keeps its structure, not its values. Check before every commit and push.
