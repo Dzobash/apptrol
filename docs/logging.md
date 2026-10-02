@@ -55,6 +55,7 @@ Every line has `apptrol.component`:
 | `state` | The saved positions, mutes and solo |
 | `audio` | The connection to PipeWire |
 | `controller` | The nanoKONTROL2: found, connected, unplugged, MIDI messages |
+| `desktop` | The D-Bus session bus: connected, lost, and the media players found, gone or changing status (debug) |
 | `mixer` | What your sliders, knobs and buttons do: volume, mute, solo, matching apps |
 
 ### Errors
@@ -85,6 +86,9 @@ A configuration with several problems gives one line per problem.
 | `controller_permission_denied` | You may not open the controller (see the README on permissions). |
 | `controller_open_failed` | The controller could not be opened for another reason. |
 | `led_failed` | An LED could not be set (debug level). |
+| `desktop_bus_unreachable` | No D-Bus session bus (is a desktop session running?); media players are not available, everything else works. |
+| `desktop_bus_lost` | The connection to the session bus broke; Apptrol reconnects by itself. |
+| `media_player_unreadable` | A media player did not answer when asked for its name; it is ignored. |
 
 ## Examples
 
@@ -232,3 +236,9 @@ Apptrol's own:
 | `apptrol.button_talk_over` | `true` when an M button also turns apps down (`talk_over = true`) |
 | `apptrol.launcher.desktop_id` | The app a launcher starts |
 | `apptrol.launcher.command` | The command a launcher runs |
+| `apptrol.desktop.bus_address` | The session bus Apptrol connected to |
+| `apptrol.desktop.players` | How many media players were found on connecting |
+| `apptrol.player.bus_name` | A media player's name on the bus, e.g. `org.mpris.MediaPlayer2.spotify` |
+| `apptrol.player.identity` | The name a media player gives itself, e.g. `Spotify` |
+| `apptrol.player.desktop_entry` | The player's desktop ID, if it reports one |
+| `apptrol.player.status` | `Playing`, `Paused` or `Stopped` |

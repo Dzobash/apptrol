@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Apptrol connects to the desktop's D-Bus session bus and finds the media players
+  (MPRIS), following them as they start, stop and change between playing and paused
+  (DESK-01 to DESK-03, MEDIA-01). Nothing uses them yet; the media buttons follow.
+  Without a session bus everything else keeps working, and Apptrol reconnects.
 - On a microphone's slider, holding **S** mutes the microphone while you cough
   (INPUT-02). The M LED goes dark while it is muted; S and R stay lit to mark the
   column as an input (LED-04).

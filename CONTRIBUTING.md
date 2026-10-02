@@ -74,6 +74,7 @@ in the README, under [Building from source](README.md#building-from-source).
 make check    # the same checks CI runs: format, vet, lint, tests
 make cover    # tests with coverage report (coverage.html)
 make test-audio  # integration tests against your running PipeWire
+make test-desktop  # D-Bus integration tests in a private session bus
 make build    # bin/apptrol with version information
 make help     # all targets
 ```
@@ -90,6 +91,7 @@ Project layout:
 | `internal/mixer/` | All behaviour, without I/O: matching, volume, mute, solo, LEDs |
 | `internal/controller/`, `…/rawmidi/` | MIDI decoding and the nanoKONTROL2 map; the raw MIDI device |
 | `internal/audio/pulse/` | Connection to PipeWire through the PulseAudio protocol |
+| `internal/desktop/` | The D-Bus session bus: finding and following media players |
 | `internal/config/` | Loading, validating and watching the configuration file |
 | `internal/state/` | Saved positions, mutes and solo |
 | `internal/logging/` | Log outputs and formats |

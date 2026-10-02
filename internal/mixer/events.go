@@ -77,6 +77,22 @@ type DeviceMuteChanged struct {
 	Muted bool
 }
 
+// PlayerSnapshot carries every media player on the session bus, sent on
+// (re)connect to the bus. It replaces every player the mixer knew (DESK-02).
+type PlayerSnapshot struct{ Players []Player }
+
+// PlayerAdded reports a media player that appeared (MEDIA-01).
+type PlayerAdded struct{ Player Player }
+
+// PlayerRemoved reports that a media player is gone.
+type PlayerRemoved struct{ BusName string }
+
+// PlayerStatusChanged reports a player's new PlaybackStatus.
+type PlayerStatusChanged struct {
+	BusName string
+	Status  string
+}
+
 // ConfigChanged carries a new, valid configuration (CFG-06).
 type ConfigChanged struct{ Setup Setup }
 
@@ -95,6 +111,10 @@ func (StreamMuteChanged) isEvent()      {}
 func (StreamCorkChanged) isEvent()      {}
 func (DeviceMuteChanged) isEvent()      {}
 func (ConfigChanged) isEvent()          {}
+func (PlayerSnapshot) isEvent()         {}
+func (PlayerAdded) isEvent()            {}
+func (PlayerRemoved) isEvent()          {}
+func (PlayerStatusChanged) isEvent()    {}
 
 // Action is something the service must do.
 type Action interface{ isAction() }

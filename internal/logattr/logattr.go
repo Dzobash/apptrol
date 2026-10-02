@@ -24,6 +24,7 @@ const (
 	State      = "state"      // saved state
 	Audio      = "audio"      // audio server connection
 	Controller = "controller" // MIDI controller
+	Desktop    = "desktop"    // session bus: media players (ADR 0017)
 	Mixer      = "mixer"      // volume, mute, solo, matching
 )
 
@@ -91,25 +92,35 @@ const (
 	KeyButtonTalkOver    = "apptrol.button_talk_over"    // talk_over = true on an M button
 	KeyLauncherDesktopID = "apptrol.launcher.desktop_id" // the app a launcher starts
 	KeyLauncherCommand   = "apptrol.launcher.command"    // the command a launcher runs
+
+	KeyBusAddress         = "apptrol.desktop.bus_address" // the session bus address in use
+	KeyPlayerBusName      = "apptrol.player.bus_name"     // a media player's bus name
+	KeyPlayerIdentity     = "apptrol.player.identity"     // its Identity, a name for people
+	KeyPlayerDesktopEntry = "apptrol.player.desktop_entry"
+	KeyPlayerStatus       = "apptrol.player.status"   // Playing, Paused or Stopped
+	KeyPlayers            = "apptrol.desktop.players" // number of media players found
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records
 // can be filtered by it.
 const (
-	ErrConfigInvalid     = "config_invalid"
-	ErrConfigUnreadable  = "config_unreadable"
-	ErrConfigRemoved     = "config_removed"
-	ErrExampleNotCreated = "example_not_created"
-	ErrLogSetup          = "log_setup_failed"
-	ErrStateUnreadable   = "state_unreadable"
-	ErrStateNotSaved     = "state_not_saved"
-	ErrAudioUnreachable  = "audio_server_unreachable"
-	ErrAudioLost         = "audio_connection_lost"
-	ErrAudioApply        = "audio_change_failed"
-	ErrControllerBusy    = "controller_busy"
-	ErrControllerDenied  = "controller_permission_denied"
-	ErrControllerOpen    = "controller_open_failed"
-	ErrLEDFailed         = "led_failed"
+	ErrConfigInvalid      = "config_invalid"
+	ErrConfigUnreadable   = "config_unreadable"
+	ErrConfigRemoved      = "config_removed"
+	ErrExampleNotCreated  = "example_not_created"
+	ErrLogSetup           = "log_setup_failed"
+	ErrStateUnreadable    = "state_unreadable"
+	ErrStateNotSaved      = "state_not_saved"
+	ErrAudioUnreachable   = "audio_server_unreachable"
+	ErrAudioLost          = "audio_connection_lost"
+	ErrAudioApply         = "audio_change_failed"
+	ErrControllerBusy     = "controller_busy"
+	ErrControllerDenied   = "controller_permission_denied"
+	ErrControllerOpen     = "controller_open_failed"
+	ErrLEDFailed          = "led_failed"
+	ErrDesktopUnreachable = "desktop_bus_unreachable"
+	ErrDesktopLost        = "desktop_bus_lost"
+	ErrPlayerUnreadable   = "media_player_unreadable"
 )
 
 // Component returns the apptrol.component attribute.
