@@ -74,9 +74,12 @@ func New(setup Setup, saved State) *Mixer {
 
 func (m *Mixer) setSetup(s Setup) {
 	m.setup = Setup{Layout: s.Layout, Targets: map[string]Target{}, Assignments: map[Control]string{}, Buttons: map[LED]Button{},
-		MediaPlayer: s.MediaPlayer}
+		MediaPlayer: s.MediaPlayer, Launchers: map[LED]Launch{}}
 	for l, b := range s.Buttons {
 		m.setup.Buttons[l] = b
+	}
+	for l, launch := range s.Launchers {
+		m.setup.Launchers[l] = launch
 	}
 	m.controlOf = map[string]Control{}
 	m.fragments = map[string][]string{}

@@ -216,8 +216,18 @@ when talk-over ends.
 | `command` | A program and its arguments, run without a shell: `["konsole", "-e", "htop"]`. Use `["sh", "-c", "…"]` for pipes. |
 | `if_running` | `"start"` (default): start it on every press. `"skip"`: not if it already runs. |
 
-Set `app` or `command`, not both. *Launchers are configured now; starting apps arrives
-later in 0.2.0.*
+Set `app` or `command`, not both. *`if_running = "skip"` works from the next update; until
+then the app starts on every press.*
+
+Each app runs in a systemd unit of its own, `app-apptrol-<desktop ID>@<random>.service`:
+it is not a child of Apptrol and keeps running when Apptrol stops or restarts.
+`journalctl --user -u 'app-apptrol-*'` shows what an app printed. The Record LED flashes
+briefly on a press. Apps that need root (e.g. Synaptic) work through their desktop ID:
+they ask for your password in a dialog.
+
+> **Your commands are your responsibility.** A `command` runs exactly what you write,
+> with your user's rights. The authors accept no liability for what a command you
+> configure does. The list below is a safety net against accidents, not protection.
 
 Rules checked on load (each problem is reported on its own line):
 
@@ -226,6 +236,38 @@ Rules checked on load (each problem is reported on its own line):
 - `play_pause` needs an app on the column's slider.
 - `talk_over = true` is only for M buttons; `if_running` only for launchers.
 - `cough` together with `hold_to_talk` is rejected: release M to mute.
+- A `command` from the list of blocked commands below is rejected.
+
+A problem makes the whole file invalid: Apptrol keeps the previous valid configuration,
+or waits for a valid one at start, and logs which line and why.
+
+### Blocked commands
+
+Some commands are refused in a `command`, because they cannot be undone or wreck the
+system. They are the ones security guides and the guardrails of AI coding agents agree
+on. The check looks at the program and its arguments, after `env`, `nohup`, `pkexec` and
+similar wrappers, and inside `sh -c "…"` text:
+
+| Group | Examples | Why |
+|---|---|---|
+| Delete everything | `rm -rf /`, `rm -rf ~`, `rm -rf /*`, `rm -r -f $HOME`, `rm -rf /home` | All your files are gone |
+| Wipe a disk | `mkfs…`, `wipefs`, `dd … of=/dev/sda`, `… > /dev/nvme0n1` | The disk's data is destroyed |
+| Fork bomb | `:(){ :\|:& };:` | Freezes the computer |
+| Download and run | `curl … \| sh`, `wget -qO- … \| bash` | Runs unknown code from the internet |
+| Rights on everything | `chmod -R … /`, `chown -R … /` | Breaks the system's security |
+| Root in a terminal | `sudo …`, `su …`, `doas …` | They ask for the password in a terminal, which a launcher does not have. Use `pkexec` (it asks in a dialog) or the app's desktop ID |
+
+Everything else is allowed, e.g. `rm -rf /tmp/cache`, `pkexec synaptic` or
+`["sh", "-c", "pgrep spotify || spotify"]`. The error names the group:
+
+```text
+layouts.default.buttons.r4.command: blocked: deletes all your files ("rm -rf /" or "rm -rf ~"); see "Blocked commands" in docs/config.md
+```
+
+This is not security: text inside `sh -c` can always be written so that no check
+recognises it (research in 2026 found most such lists can be bypassed). It catches
+copy-paste accidents. A plain command, without `sh -c`, is checked reliably, because no
+shell rewrites it.
 
 ## `[media]`
 

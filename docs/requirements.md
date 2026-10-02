@@ -215,7 +215,7 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | LOG-07 | The file output MUST rotate by size, keeping a configurable number of old files. | MUST |
 | LOG-08 | Log level and outputs MUST be updated on config reload without restarting. | MUST |
 | LOG-09 | Events MUST be logged at these levels: **info** — start/stop, config loaded/reloaded, controller connected/disconnected, stream matched to a control, mute/solo changes; **warn** — config entry that matches nothing, controller not found, state file unreadable; **error** — invalid config, lost connection to the audio server; **debug** — every volume change, raw MIDI message and button press without a function. | MUST |
-| LOG-10 | Every log record MUST carry `apptrol.component`: `service`, `config`, `state`, `audio`, `controller`, `desktop` or `mixer` (ADR 0016). *(Until 0.1.x: without `desktop`.)* | MUST |
+| LOG-10 | Every log record MUST carry `apptrol.component`: `service`, `config`, `state`, `audio`, `controller`, `desktop`, `launcher` or `mixer` (ADR 0016). *(Until 0.1.x: without `desktop` and `launcher`.)* | MUST |
 | LOG-11 | Attribute names MUST follow the OpenTelemetry semantic conventions: their attribute where one exists (`error.type`, `exception.message`, `file.path`, …), otherwise a name in the `apptrol.` namespace; lower case, dot-separated, snake_case within a part. No name may be the start of another, and each name MUST always carry the same type of value, so that log stores can map them. | MUST |
 | LOG-12 | Every record about an error MUST carry `error.type` (a fixed word for the kind of error) and, where there is an error message, `exception.message`. | MUST |
 | LOG-13 | Every record MUST be one line with a fixed message; values go into attributes. Several problems (e.g. in the configuration) MUST be logged as one record each. | MUST |
@@ -273,6 +273,7 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | LAUNCH-09 | `apptrol list apps [search]` SHOULD print the desktop ID, name and source (`system`, `flatpak`, `snap`, `user`) of every installed app, without `Hidden` or `NoDisplay` ones; the search is case-insensitive over ID and name. | SHOULD |
 | LAUNCH-10 | `apptrol check` and every configuration load SHOULD warn about desktop IDs that are not installed; this MUST NOT make the configuration invalid. | SHOULD |
 | LAUNCH-11 | An app that cannot be started MUST be logged as an error (`app_start_failed`); Apptrol keeps running. | MUST |
+| LAUNCH-12 | Validation MUST reject a launcher `command` that deletes everything (`rm` with `-r` and `-f` on `/`, `/*`, `~`, `$HOME` or `/home`), wipes a disk (`mkfs*`, `wipefs`, `dd` to `/dev/…`, writing to a disk device), is a fork bomb, runs a download (`curl`/`wget` piped to a shell), changes rights on everything (`chmod -R`/`chown -R` on `/`), or uses `sudo`, `su` or `doas`; also after wrappers and inside `sh -c` text. The error MUST name the group and point to docs/config.md. Desktop IDs are not checked. It is a safety net against accidents, not security. | MUST |
 
 ### 4.14 Input column buttons *(Phase 1.5)*
 

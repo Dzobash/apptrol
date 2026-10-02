@@ -42,6 +42,15 @@ type Desktop interface {
 	Apply(a mixer.Action) error // does not wait for the player's answer
 }
 
+// Launcher starts apps for launcher buttons (internal/launcher, ADR 0019);
+// it does not wait for them.
+type Launcher interface {
+	Launch(l mixer.LaunchApp)
+}
+
+// recordFlash is how long the Record LED lights up when it starts an app (LAUNCH-08).
+const recordFlash = 300 * time.Millisecond
+
 // Controller is the MIDI controller (internal/controller/rawmidi).
 type Controller interface {
 	Run(ctx context.Context, out chan<- mixer.Event) error
@@ -70,6 +79,7 @@ type Options struct {
 	// InstalledApps lists the installed apps, for the launchers' warnings
 	// (LAUNCH-10); nil means launcher.Installed.
 	InstalledApps func() launcher.Apps
+	Launcher      Launcher // may be nil: launcher buttons do nothing
 
 	// Zero values mean the defaults: the file is checked every second, and the
 	// state is saved at most once per second.
@@ -88,13 +98,15 @@ const maxBatch = 256
 const audioLEDResync = 2 * time.Second
 
 type service struct {
-	o     Options
-	log   *slog.Logger // apptrol.component=service; see logFor for the others
-	logs  map[string]*slog.Logger
-	m     *mixer.Mixer
-	ctl   Controller
-	port  string
-	saver *state.Saver
+	o    Options
+	log  *slog.Logger // apptrol.component=service; see logFor for the others
+	logs map[string]*slog.Logger
+	m    *mixer.Mixer
+	ctl  Controller
+	port string
+	// flashEnd fires when the Record LED's flash is over (LAUNCH-08).
+	flashEnd <-chan time.Time
+	saver    *state.Saver
 }
 
 // Run runs Apptrol until ctx is canceled (SIGTERM or Ctrl+C), then saves the
@@ -174,6 +186,9 @@ func Run(ctx context.Context, o Options) error {
 		case <-ledResync:
 			ledResync = nil
 			s.handle(mixer.ControllerConnected{Resync: true})
+		case <-s.flashEnd:
+			s.flashEnd = nil
+			_ = s.ctl.SetLED(mixer.LED{Transport: mixer.Record}, false)
 		case ev := <-events:
 			batch := []mixer.Event{ev}
 		more:
@@ -390,6 +405,15 @@ func (s *service) do(a mixer.Action) {
 		if err := s.ctl.SetLED(a.LED, a.On); err != nil && !errors.Is(err, rawmidi.ErrNotConnected) {
 			s.logFor(logattr.Controller).Debug("could not set an LED",
 				logattr.KeyLED, a.LED.String(), logattr.Error(logattr.ErrLEDFailed, err))
+		}
+	case mixer.LaunchApp:
+		if s.o.Launcher != nil {
+			s.o.Launcher.Launch(a) // logs what it starts, and failures
+		}
+		if a.Button == (mixer.LED{Transport: mixer.Record}) {
+			// The mixer has no clock: the service flashes the LED (LAUNCH-08).
+			_ = s.ctl.SetLED(a.Button, true)
+			s.flashEnd = time.After(recordFlash)
 		}
 	case mixer.PlayerCommand:
 		if s.o.Desktop == nil {

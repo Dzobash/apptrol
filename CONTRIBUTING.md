@@ -76,6 +76,7 @@ make check    # the same checks CI runs: format, vet, lint, tests
 make cover    # tests with coverage report (coverage.html)
 make test-audio  # integration tests against your running PipeWire
 make test-desktop  # D-Bus integration tests in a private session bus
+make test-launcher # starts harmless test units in your systemd user manager
 make build    # bin/apptrol with version information
 make help     # all targets
 ```

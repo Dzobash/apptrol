@@ -13,11 +13,28 @@ var mixerModes = map[string]mixer.Mode{
 	ModePlayPause:  mixer.ModePlayPause,
 }
 
+// launcherTransport maps the launcher buttons' names to the controller's.
+var launcherTransport = map[string]mixer.TransportButton{
+	"record": mixer.Record, "marker_set": mixer.MarkerSet, "marker_prev": mixer.MarkerPrev, "marker_next": mixer.MarkerNext,
+}
+
+// launcherLED returns the mixer's name for a launcher button: a transport
+// button, or R on a column.
+func launcherLED(name string) (mixer.LED, bool) {
+	if t, ok := launcherTransport[name]; ok {
+		return mixer.LED{Transport: t}, true
+	}
+	if letter, col, ok := buttonColumn(name); ok && letter == 'r' {
+		return mixer.LED{Button: mixer.ButtonR, Column: col}, true
+	}
+	return mixer.LED{}, false
+}
+
 // Setup returns the part of the configuration the mixer needs: every app,
 // the assignments of the active layout and its M and S buttons.
 func (c *Config) Setup() mixer.Setup {
 	s := mixer.Setup{Layout: DefaultLayout, Targets: map[string]mixer.Target{}, Assignments: map[mixer.Control]string{},
-		Buttons: map[mixer.LED]mixer.Button{}, MediaPlayer: c.Media.Player}
+		Buttons: map[mixer.LED]mixer.Button{}, MediaPlayer: c.Media.Player, Launchers: map[mixer.LED]mixer.Launch{}}
 	for id, app := range c.Apps {
 		kind := mixer.App
 		if app.Type == TypeInput {
@@ -34,6 +51,12 @@ func (c *Config) Setup() mixer.Setup {
 		s.Assignments[mixer.Control{Kind: kind, Column: a.Control.Column}] = a.AppID
 	}
 	for _, b := range c.Layout().Buttons {
+		if b.Launcher() {
+			if l, ok := launcherLED(b.Name); ok {
+				s.Launchers[l] = mixer.Launch{DesktopID: b.App, Command: append([]string(nil), b.Command...),
+					SkipIfRunning: b.IfRunning == IfRunningSkip}
+			}
+		}
 		letter, col, ok := b.Column()
 		mode, known := mixerModes[b.Mode]
 		if b.Launcher() {

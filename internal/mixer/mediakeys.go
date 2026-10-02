@@ -11,6 +11,17 @@ import (
 // The media keys ◀◀ ▶▶ ■ ▶ (MEDIA-05, MEDIA-06, ADR 0018). Unlike R they are
 // not tied to a control: they act on any player that is not ignored.
 
+// launch starts the app of a launcher button; without one, the button does
+// nothing (LAUNCH-01). The launcher logs what it starts.
+func (m *Mixer) launch(a *actions, b LED) {
+	l, ok := m.setup.Launchers[b]
+	if !ok {
+		a.notice(slog.LevelDebug, "button has no function: no launcher configured", logattr.KeyButton, b.String())
+		return
+	}
+	a.add(LaunchApp{Button: b, Launch: l})
+}
+
 // mediaKeyCommands maps the media keys to player commands; ▶ is decided by
 // the player's status.
 var mediaKeyCommands = map[TransportButton]string{
@@ -78,9 +89,16 @@ func (m *Mixer) mediaKeyPlaying() bool {
 	return p != nil && p.Status == StatusPlaying
 }
 
-// transportPressed handles the transport buttons: the media keys here; the
-// launchers (Record, Marker) and the layout buttons come later.
+// launcherButtons are the transport buttons that can start apps (LAUNCH-01).
+var launcherButtons = map[TransportButton]bool{Record: true, MarkerSet: true, MarkerPrev: true, MarkerNext: true}
+
+// transportPressed handles the transport buttons: media keys and
+// launchers; Track and Cycle (layouts) come later.
 func (m *Mixer) transportPressed(a *actions, b TransportButton) {
+	if launcherButtons[b] {
+		m.launch(a, LED{Transport: b})
+		return
+	}
 	command, isMediaKey := mediaKeyCommands[b]
 	if b != Play && !isMediaKey {
 		a.notice(slog.LevelDebug, "button has no function yet", logattr.KeyButton, b.String())

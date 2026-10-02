@@ -21,6 +21,7 @@ type world struct {
 	saves      int
 	notices    []Notice
 	commands   []PlayerCommand // media player commands sent
+	launched   []LaunchApp     // apps started
 	last       []Action        // actions of the most recent event
 }
 
@@ -122,6 +123,8 @@ func (w *world) apply(acts []Action) {
 			w.notices = append(w.notices, a)
 		case PlayerCommand:
 			w.commands = append(w.commands, a)
+		case LaunchApp:
+			w.launched = append(w.launched, a)
 		default:
 			w.t.Fatalf("unknown action %T", a)
 		}

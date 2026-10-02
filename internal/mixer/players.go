@@ -189,7 +189,7 @@ func (m *Mixer) rPressed(a *actions, col int, button string) {
 	case ModePlayPause:
 		m.playPause(a, c, button)
 	case ModeLauncher:
-		a.notice(slog.LevelDebug, "button has no function yet", m.about(c, logattr.KeyButton, button)...)
+		m.launch(a, LED{Button: ButtonR, Column: col})
 	default:
 		a.notice(slog.LevelDebug, "button has no function: its mode is off", m.about(c, logattr.KeyButton, button)...)
 	}
