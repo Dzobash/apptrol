@@ -38,10 +38,14 @@ Read these instead of guessing; this file only links to them:
 - Every decision gets an ADR ([docs/adr/](docs/adr/), copy `template.md`, next free
   number, add it to the index). Accepted ADRs are not rewritten, only given dated notes;
   a changed decision gets a new ADR that supersedes the old one.
-- Logs follow ADR 0016: attribute names from `internal/logattr`, `apptrol.component` on
-  every record, `error.type` on errors, one line per record with a fixed message. New
-  attributes and error types also go in [docs/logging.md](docs/logging.md) (a test
-  checks this).
+- Logs follow ADR 0016 (OpenTelemetry conventions): attribute names from
+  `internal/logattr`, `apptrol.component` on every record, `error.type` on errors, one
+  line per record with a fixed message. New attributes and error types also go in
+  [docs/logging.md](docs/logging.md) (a test checks this).
+- **Every feature must be troubleshootable from its logs alone.** Plan its logs with the
+  design: log each decision with the reason (e.g. `apptrol.player.matched_by`), and
+  rejected or ignored candidates at debug. A feature's ADR has a logging table: level,
+  message, attributes ([ADR 0018](docs/adr/0018-media-players-through-mpris.md), point 9).
 - With every change, update what it affects: [CHANGELOG.md](CHANGELOG.md) (Unreleased),
   requirements, [docs/testing.md](docs/testing.md), architecture, README.
 - Before a PR: `make check`. For audio changes also `make test-audio` (runs against the
