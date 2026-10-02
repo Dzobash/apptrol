@@ -392,6 +392,24 @@ func TestCFG06_Reload(t *testing.T) {
 	}
 }
 
+func TestCFG13_ButtonsFromTheConfiguration(t *testing.T) {
+	e := newEnv(t, testConfig+`
+[layouts.default.buttons]
+record = { app = "com.obsproject.Studio" }
+m8     = { mode = "hold_to_talk", talk_over = true }
+`).start()
+	// Each configured button is logged with what it does (LOG-15).
+	e.waitLog("button configured")
+	for _, want := range []string{"apptrol.button=M8", "apptrol.button_mode=hold_to_talk", "apptrol.button_talk_over=true",
+		"apptrol.button=●", "apptrol.button_mode=launcher", "apptrol.launcher.desktop_id=com.obsproject.Studio"} {
+		e.waitLog(want)
+	}
+	// Hold-to-talk reaches the mixer: muted from the start, live while M8 is held (INPUT-03).
+	e.waitApplied(mixer.SetDeviceMute{Device: goxlr.Name, Muted: true})
+	e.send(mixer.ButtonPressed{Button: mixer.ButtonM, Column: 8})
+	e.waitApplied(mixer.SetDeviceMute{Device: goxlr.Name, Muted: false})
+}
+
 func TestCFG07_InvalidReloadKeepsSettings(t *testing.T) {
 	e := newEnv(t, testConfig).start()
 	e.waitLog("stream matched")

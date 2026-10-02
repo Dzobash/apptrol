@@ -50,6 +50,7 @@ match = ["steam"]
 name  = "Microphone"
 type  = "input"                    # "app" (default) or "input"
 match = ["GoXLR"]                  # part of the input device's name
+# talk_over_volume = 25            # % apps go down to during talk-over (0–100, default 25)
 
 # ── Layouts ───────────────────────────────────────────────────────────────────
 # Phase 1 uses only the layout called "default".
@@ -62,3 +63,35 @@ slider2 = "browser"
 slider3 = "discord"
 slider4 = "games"
 slider8 = "mic"
+
+# ── Buttons ───────────────────────────────────────────────────────────────────
+# Every button has a default; uncomment a line to change it. Full list: docs/config.md
+#
+# On a column with an app:  S = solo, M = mute, R = play / pause that app.
+# On a column with an input (microphone):
+#   M  "mute"         – press: muted, press again: live (default). Works as a
+#                       push-to-talk toggle.
+#      "hold_to_talk" – live only while you hold M; muted otherwise, also while
+#                       Apptrol is stopped.
+#      talk_over = true – other apps go down while the microphone is live through M.
+#   S  "cough"        – muted while you hold S (default; "off" with hold_to_talk)
+#      "talk_over"    – other apps go down while you hold S
+#      "off"
+#   R  "off" (default), or a launcher
+#
+# Launchers start an app: app = a desktop ID (`apptrol list apps` shows them), or
+# command = ["program", "argument"]. if_running = "start" (default) or "skip".
+# Record, the three Marker buttons and any R button can be launchers.
+# (Starting apps and the media keys arrive later in 0.2.0.)
+
+[layouts.default.buttons]
+# m8 = { mode = "hold_to_talk", talk_over = true }
+# s8 = { mode = "talk_over" }
+# r1 = { mode = "off" }                             # "play_pause" (default) or "off"
+# r4 = { app = "steam", if_running = "skip" }
+# record      = { app = "com.obsproject.Studio" }
+# marker_prev = { command = ["konsole", "-e", "htop"] }
+
+# ── Media keys ────────────────────────────────────────────────────────────────
+# [media]
+# player = "spotify"               # pin ◀◀ ▶▶ ■ ▶ to one app (default: the most recent player)

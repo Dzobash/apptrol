@@ -85,6 +85,7 @@ Defines something a control can act on. `<id>` is your own short name (letters, 
 | `type` | string | `"app"` | `"app"` for playback streams, `"input"` for a capture device (microphone). |
 | `match` | list of strings | — (required) | Case-insensitive name fragments. See below. |
 | `max_volume` | integer | `100` | Volume in percent with the control at the top, from 1 to 150. The control spans 0 to this value: with `150`, the middle is 75 %. Below 100 it works as a cap, e.g. `80` for games that are always too loud. Above 100 the audio is amplified in software and can distort. |
+| `talk_over_volume` | integer | `25` | Inputs only. The volume in percent (0–100) that apps go down to during talk-over (see [Buttons](#layoutsnamebuttons)). Apps already below it stay where they are. |
 
 ### How matching works
 
@@ -161,15 +162,76 @@ Rules checked on load:
 - Unassigned controls do nothing.
 - Apps whose match lists overlap get a warning (see "One app per stream" above).
 
+## `[layouts.<name>.buttons]`
+
+What the buttons do in this layout. Every button has a default; set only the ones you
+want to change. A value is either a **mode** or a **launcher** that starts an app.
+
+```toml
+[layouts.default.buttons]
+m8     = { mode = "hold_to_talk", talk_over = true }   # hold M8: mic live, music down
+s8     = { mode = "talk_over" }                        # hold S8: music down only
+r3     = { app = "discord", if_running = "skip" }      # R3 opens Discord unless it runs
+record = { app = "com.obsproject.Studio" }             # ● starts OBS
+```
+
+### Buttons on a column with an app
+
+| Button | Default | Can be |
+|---|---|---|
+| `s1` … `s8` | solo | — (always solo) |
+| `m1` … `m8` | mute | — (always mute) |
+| `r1` … `r8` | `play_pause` | `play_pause` (play or pause this app), `off`, or a launcher |
+
+### Buttons on a column with an input (microphone)
+
+| Button | Default | Can be |
+|---|---|---|
+| `m1` … `m8` | `mute` | `mute`: press to mute, press again to go live. Use it as a push-to-talk toggle. <br> `hold_to_talk`: live only while you hold M, muted otherwise (also while Apptrol is stopped). <br> Add `talk_over = true` to turn the other apps down while the microphone is live through M. |
+| `s1` … `s8` | `cough` (`off` with `hold_to_talk`) | `cough`: muted while you hold S. <br> `talk_over`: other apps go down while you hold S; the microphone stays as it is. <br> `off` |
+| `r1` … `r8` | `off` | `off`, or a launcher |
+
+The S and R LEDs of an input column stay lit, so you can see which column is the
+microphone; the M LED is lit while the microphone is live.
+
+**Talk-over** turns every app of the layout down to the input's `talk_over_volume`
+(default 25 %), never up. An app whose control you have not moved yet is muted instead,
+because Apptrol does not know its volume. Moving a control during talk-over takes effect
+when talk-over ends.
+
+### Launchers
+
+`record`, `marker_set`, `marker_prev`, `marker_next` and any `r` button can start an app:
+
+| Key | Description |
+|---|---|
+| `app` | A desktop ID, e.g. `"com.obsproject.Studio"` or `"firefox_firefox"` (`apptrol list apps` shows them). |
+| `command` | A program and its arguments, run without a shell: `["konsole", "-e", "htop"]`. Use `["sh", "-c", "…"]` for pipes. |
+| `if_running` | `"start"` (default): start it on every press. `"skip"`: not if it already runs. |
+
+Set `app` or `command`, not both. *Launchers are configured now; starting apps arrives
+later in 0.2.0.*
+
+Rules checked on load (each problem is reported on its own line):
+
+- Unknown button names and modes are rejected.
+- `m` and `s` settings need an input on that column's slider; they cannot start apps.
+- `play_pause` needs an app on the column's slider.
+- `talk_over = true` is only for M buttons; `if_running` only for launchers.
+- `cough` together with `hold_to_talk` is rejected: release M to mute.
+
+## `[media]`
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `player` | string | — | An app id from `[apps]`. The media keys (◀◀ ▶▶ ■ ▶) then control that app's player only; without it, the player that most recently started playing. *Media keys arrive later in 0.2.0.* |
+
 ---
 
 ## Reserved sections *(later)*
 
 | Section | Phase | Purpose |
 |---|---|---|
-| `[media]` | 1.5 | Media buttons; optional `player` to pin one MPRIS player. |
-| Buttons in `[layouts.<name>]` | 1.5 | Launchers for Record and the Marker buttons; R overrides per column (launcher, push-to-talk). |
-| Talk-over level | 1.5 | How far apps are turned down while S is held on an input column. |
 | `[osd]` | 1.6 | On-screen feedback on/off. |
 | `[layouts.<name>]` switch options | 2 | Behaviour on layout switch, fixed values, per-control overrides. |
 | `outputs` in `[apps.<id>]` | Backlog | Allowed outputs for an R override. |

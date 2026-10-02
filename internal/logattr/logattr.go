@@ -86,6 +86,11 @@ const (
 	KeyLogLevelSource = "apptrol.log.level_source"  // where it comes from: flag or config
 	KeyHeldReason     = "apptrol.held.reason"       // why a held state ended without a release
 	KeyTalkOver       = "apptrol.talk_over_percent" // the volume apps go down to during talk-over
+
+	KeyButtonMode        = "apptrol.button_mode"         // what a configured button does: a mode, or launcher
+	KeyButtonTalkOver    = "apptrol.button_talk_over"    // talk_over = true on an M button
+	KeyLauncherDesktopID = "apptrol.launcher.desktop_id" // the app a launcher starts
+	KeyLauncherCommand   = "apptrol.launcher.command"    // the command a launcher runs
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records

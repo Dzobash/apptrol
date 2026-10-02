@@ -31,8 +31,19 @@ type rawConfig struct {
 			MaxFiles *int    `toml:"max_files"`
 		} `toml:"file"`
 	} `toml:"log"`
-	Apps    map[string]rawApp            `toml:"apps"`
-	Layouts map[string]map[string]string `toml:"layouts"`
+	Apps map[string]rawApp `toml:"apps"`
+	// A layout holds "control = app" entries and a buttons table; each
+	// value is decoded once its type is known (see decodeLayouts).
+	Layouts map[string]map[string]toml.Primitive `toml:"layouts"`
+	Media   struct {
+		Player *string `toml:"player"`
+	} `toml:"media"`
+}
+
+// rawLayout is one [layouts.<name>] after decodeLayouts.
+type rawLayout struct {
+	controls map[string]string
+	buttons  map[string]rawButton
 }
 
 type rawApp struct {
@@ -40,6 +51,7 @@ type rawApp struct {
 	Type      *string   `toml:"type"`
 	Match     *[]string `toml:"match"`
 	MaxVolume *int      `toml:"max_volume"`
+	TalkOver  *int      `toml:"talk_over_volume"`
 }
 
 // Defaults (docs/config.md).
@@ -83,6 +95,7 @@ func parse(path string, data []byte) (*Config, []string, error) {
 
 	var errs problems
 	var warnings []string
+	layouts := decodeLayouts(md, raw.Layouts, &errs)
 
 	// Unknown keys are almost always typos; reject them (CFG-07).
 	for _, k := range md.Undecoded() {
@@ -143,28 +156,50 @@ func parse(path string, data []byte) (*Config, []string, error) {
 				errs.add("apps.%s.max_volume: %d is out of range (1–%d, in percent)", id, app.MaxVolume, MaxVolumeLimit)
 			}
 		}
+		if ra.TalkOver != nil {
+			app.TalkOverVolume = *ra.TalkOver
+			switch {
+			case app.Type != TypeInput:
+				errs.add("apps.%s.talk_over_volume: only an input (type = %q) has it", id, TypeInput)
+			case app.TalkOverVolume < 0 || app.TalkOverVolume > 100:
+				errs.add("apps.%s.talk_over_volume: %d is out of range (0–100, in percent)", id, app.TalkOverVolume)
+			}
+		} else if app.Type == TypeInput {
+			app.TalkOverVolume = DefaultTalkOverVolume
+		}
 		cfg.Apps[id] = app
+	}
+
+	// [media]
+	if p := raw.Media.Player; p != nil {
+		cfg.Media.Player = *p
+		switch app, ok := cfg.Apps[*p]; {
+		case !ok:
+			errs.add("media.player: app %q is not defined in [apps]", *p)
+		case app.Type != TypeApp:
+			errs.add("media.player: %q is an input; name an app that plays media", *p)
+		}
 	}
 
 	// [layouts.<name>]
 	if len(raw.Layouts) == 0 {
 		errs.add("layouts.%s: missing; assign apps to controls there", DefaultLayout)
 	}
-	names := make([]string, 0, len(raw.Layouts))
-	for name := range raw.Layouts {
+	names := make([]string, 0, len(layouts))
+	for name := range layouts {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	for _, name := range names {
 		layout := Layout{Name: name}
 		usedBy := map[string]string{} // app id -> control name
-		controls := make([]string, 0, len(raw.Layouts[name]))
-		for c := range raw.Layouts[name] {
+		controls := make([]string, 0, len(layouts[name].controls))
+		for c := range layouts[name].controls {
 			controls = append(controls, c)
 		}
 		sort.Strings(controls)
 		for _, key := range controls {
-			appID := raw.Layouts[name][key]
+			appID := layouts[name].controls[key]
 			ctl, validControl := parseControl(key)
 			if !validControl {
 				errs.add("layouts.%s.%s: unknown control (use slider1–slider%d or knob1–knob%d)", name, key, NumColumns, NumColumns)
@@ -184,6 +219,7 @@ func parse(path string, data []byte) (*Config, []string, error) {
 			layout.Assignments = append(layout.Assignments, Assignment{Control: ctl, AppID: appID})
 		}
 		sortAssignments(layout.Assignments)
+		layout.Buttons = parseButtons(name, layouts[name].buttons, layout, cfg.Apps, &errs)
 		cfg.Layouts[name] = layout
 		if name != DefaultLayout {
 			warnings = append(warnings, fmt.Sprintf("layouts.%s: only the %q layout is used in this version; %q is ignored", name, DefaultLayout, name))
@@ -214,6 +250,43 @@ func parse(path string, data []byte) (*Config, []string, error) {
 	}
 	warnings = append(warnings, overlaps(cfg)...)
 	return cfg, warnings, nil
+}
+
+// decodeLayouts decodes each [layouts.<name>]: "control = app" entries as
+// text, and the buttons table (CFG-13). It runs before the check for unknown
+// keys, which only sees what was decoded.
+func decodeLayouts(md toml.MetaData, raw map[string]map[string]toml.Primitive, errs *problems) map[string]rawLayout {
+	out := map[string]rawLayout{}
+	for name, entries := range raw {
+		l := rawLayout{controls: map[string]string{}}
+		for key, prim := range entries {
+			if key == "buttons" {
+				if err := md.PrimitiveDecode(prim, &l.buttons); err != nil {
+					errs.add("%s", valueError(err))
+				}
+				continue
+			}
+			var appID string
+			if err := md.PrimitiveDecode(prim, &appID); err != nil {
+				errs.add("layouts.%s.%s: expected an app id in quotes, e.g. %s = \"spotify\"", name, key, key)
+				continue
+			}
+			l.controls[key] = appID
+		}
+		out[name] = l
+	}
+	return out
+}
+
+var mismatchPattern = regexp.MustCompile(`line (\d+) \(last key "([^"]+)"\): type mismatch for [^:]+: expected (\w+) but found (\w+)`)
+
+// valueError describes a value of the wrong type inside a button table, with
+// its line and key.
+func valueError(err error) string {
+	if m := mismatchPattern.FindStringSubmatch(err.Error()); m != nil {
+		return fmt.Sprintf("line %s: %s: expected %s, found %s", m[1], m[2], describeGoType(m[3]), describeTOMLType(m[4]))
+	}
+	return tomlError(err)
 }
 
 func parseLog(raw *rawConfig, l *Log, errs *problems) {
@@ -375,6 +448,8 @@ func describeGoType(t string) string {
 		return "a whole number"
 	case "struct", "map":
 		return "a table ([section])"
+	case "table":
+		return `a table in braces, e.g. { mode = "mute" }`
 	}
 	return t
 }

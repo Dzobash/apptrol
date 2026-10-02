@@ -11,6 +11,8 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -207,6 +209,7 @@ func (s *service) loadConfig() (*config.Config, []byte) {
 	log.Info("configuration loaded", logattr.KeyFilePath, path, logattr.KeyControls, len(cfg.Layout().Assignments))
 	s.applyLogging(cfg)
 	s.configWarnings(path, warnings)
+	s.logButtons(cfg)
 	return cfg, data
 }
 
@@ -314,6 +317,7 @@ func (s *service) configChanged(ch config.Change) {
 	log.Info("configuration reloaded", logattr.KeyFilePath, path, logattr.KeyControls, len(cfg.Layout().Assignments))
 	s.applyLogging(cfg)
 	s.configWarnings(path, warnings)
+	s.logButtons(cfg)
 	if cfg.Controller.Port != s.port {
 		log.Warn("the controller setting changed; restart Apptrol to use it",
 			logattr.KeyPort, cfg.Controller.Port, logattr.KeyPortInUse, s.port)
@@ -352,6 +356,46 @@ func (s *service) do(a mixer.Action) {
 		s.saver.Request(s.m.Snapshot())
 	case mixer.Notice:
 		s.logFor(logattr.Mixer).Log(context.Background(), a.Level, a.Msg, a.Attrs...)
+	}
+}
+
+// transportLabels name the launcher buttons as the mixer's log does.
+var transportLabels = map[string]string{
+	"record":      mixer.Record.String(),
+	"marker_set":  mixer.MarkerSet.String(),
+	"marker_prev": mixer.MarkerPrev.String(),
+	"marker_next": mixer.MarkerNext.String(),
+}
+
+// logButtons logs every button set in the active layout, so the log shows why
+// a button acts as it does (CFG-13, LOG-15).
+func (s *service) logButtons(cfg *config.Config) {
+	log := s.logFor(logattr.Config)
+	layout := cfg.Layout()
+	names := make([]string, 0, len(layout.Buttons))
+	for n := range layout.Buttons {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		b := layout.Buttons[n]
+		label := transportLabels[n]
+		if label == "" {
+			label = strings.ToUpper(n)
+		}
+		attrs := []any{logattr.KeyLayout, layout.Name, logattr.KeyButton, label}
+		switch {
+		case b.App != "":
+			attrs = append(attrs, logattr.KeyButtonMode, "launcher", logattr.KeyLauncherDesktopID, b.App)
+		case len(b.Command) > 0:
+			attrs = append(attrs, logattr.KeyButtonMode, "launcher", logattr.KeyLauncherCommand, strings.Join(b.Command, " "))
+		default:
+			attrs = append(attrs, logattr.KeyButtonMode, b.Mode)
+		}
+		if b.TalkOver {
+			attrs = append(attrs, logattr.KeyButtonTalkOver, true)
+		}
+		log.Info("button configured", attrs...)
 	}
 }
 
