@@ -45,7 +45,7 @@ type rawApp struct {
 // Defaults (docs/config.md).
 const (
 	defaultPort        = "nanoKONTROL2"
-	defaultLevel       = "info"
+	defaultLevel       = "warn" // quiet in daily use; info shows what Apptrol does (LOG-02)
 	defaultJournaldFmt = "text"
 	defaultFileFmt     = "json"
 	defaultMaxSize     = 10 << 20

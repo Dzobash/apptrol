@@ -68,7 +68,7 @@ func TestDefaults(t *testing.T) {
 		t.Errorf("controller.port = %q, want nanoKONTROL2", cfg.Controller.Port)
 	}
 	l := cfg.Log
-	if l.Level != "info" || l.Journald.Format != "text" || l.File.Format != "json" {
+	if l.Level != "warn" || l.Journald.Format != "text" || l.File.Format != "json" {
 		t.Errorf("log defaults = %+v", l)
 	}
 	if len(l.Outputs) != 1 || l.Outputs[0] != OutputJournald {

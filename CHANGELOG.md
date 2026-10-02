@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: mutes made with M stay set while Apptrol is stopped; ADR 0006 records why.
 
 ### Changed
+- The default log level is `warn`: the journal stays quiet in daily use. Set
+  `level = "info"`, or run `apptrol --log-level info`, to see every mute, solo and app
+  found (LOG-02). Configuration files that set `level` keep their value.
 - ADR 0020 replaces the input column part of ADR 0019: M is the microphone button
   (`mute` or `hold_to_talk`), S coughs or talks over, R on an input column is `off` or a
   launcher. The input's talk-over setting is named `talk_over_volume`.

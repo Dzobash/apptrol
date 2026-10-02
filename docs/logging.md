@@ -41,7 +41,7 @@ The same line in the JSON log file:
 |---|---|---|
 | `error` | yes | Something failed: an invalid configuration, the audio server is gone, the controller cannot be opened. |
 | `warn` | yes | Something needs your attention: the controller is not plugged in, an app in the configuration matches nothing. |
-| `info` | yes | What Apptrol does: start and stop, configuration loaded, apps found, mute and solo. |
+| `info` | no (`level = "info"`, or `apptrol --log-level info` for one run) | What Apptrol does: start and stop, configuration loaded, apps found, mute and solo. |
 | `debug` | no (`level = "debug"`, or `apptrol --log-level debug` for one run) | Every volume change, every MIDI message, buttons that have no function. |
 
 ### Which part of Apptrol wrote it

@@ -172,14 +172,16 @@ run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they 
    `apptrol list` shows the names of the apps that are currently playing and of your input
    devices; `apptrol check` validates the file and shows which app is on which control.
    The [configuration reference](docs/config.md) explains every setting.
-2. **Try it** in a terminal: run `apptrol`, move a slider, and watch the log. Ctrl+C stops
-   it. `apptrol --log-level debug` shows every detail, for this run only.
+2. **Try it** in a terminal: run `apptrol --log-level info`, press an M button, and watch
+   the log. Ctrl+C stops it. `apptrol --log-level debug` shows every detail, for this run
+   only.
 3. **Start Apptrol** for your user, now and at every login:
    ```bash
    systemctl --user daemon-reload
    systemctl --user enable --now apptrol
    ```
-4. **Check the log** if something does not respond:
+4. **Check the log** if something does not respond. By default it shows only warnings and
+   errors; set `level = "info"` in the `[log]` section to see everything Apptrol does:
    ```bash
    journalctl --user -u apptrol -f
    ```
