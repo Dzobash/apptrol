@@ -239,6 +239,7 @@ func TestSVC03_ConnectReadUnplugReplug(t *testing.T) {
 	want := []mixer.Event{
 		mixer.ControlMoved{Control: mixer.Control{Kind: mixer.Slider, Column: 3}, Value: 100},
 		mixer.ButtonPressed{Button: mixer.ButtonS, Column: 1},
+		mixer.ButtonReleased{Button: mixer.ButtonS, Column: 1}, // INPUT-08
 	}
 	for _, w := range want {
 		if ev := h.next(); ev != w {
@@ -265,6 +266,9 @@ func TestSVC03_ConnectReadUnplugReplug(t *testing.T) {
 	h.set(false, nil)
 	p.unplug()
 	eventually(t, "disconnect", func() bool { return h.log.count("controller disconnected") == 1 })
+	if ev := h.next(); ev != (mixer.ControllerDisconnected{}) { // held states end (INPUT-07)
+		t.Fatalf("after unplug: %v, want ControllerDisconnected", ev)
+	}
 	eventually(t, "SetLED fails", func() bool {
 		return errors.Is(h.d.SetLED(mixer.LED{Button: mixer.ButtonS, Column: 1}, true), ErrNotConnected)
 	})
@@ -365,6 +369,9 @@ func TestLED07_ResyncStopsWithTheSession(t *testing.T) {
 	h.set(false, nil)
 	h.port().unplug()
 	eventually(t, "disconnect", func() bool { return h.log.count("controller disconnected") == 1 })
+	if ev := h.next(); ev != (mixer.ControllerDisconnected{}) {
+		t.Fatalf("after unplug: %v, want ControllerDisconnected", ev)
+	}
 	select {
 	case ev := <-h.events:
 		t.Errorf("event %v after the controller was unplugged", ev)

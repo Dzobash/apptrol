@@ -19,6 +19,8 @@ type Mixer struct {
 	positions map[Control]int  // known physical positions (PRIO-04: absent = unknown)
 	muted     map[Control]bool // user mutes: M (MUTE-01) or from outside Apptrol (MUTE-07)
 	solo      int              // soloed column, 0 = none (SOLO-*)
+	held      map[LED]bool     // M and S buttons held in a held mode (INPUT-*); never saved
+	stopping  bool             // Shutdown ran: talk-over is over (INPUT-07)
 
 	streams   map[uint32]*streamInfo
 	devices   map[string]Device // by name
@@ -42,6 +44,7 @@ func New(setup Setup, saved State) *Mixer {
 	m := &Mixer{
 		positions:      map[Control]int{},
 		muted:          map[Control]bool{},
+		held:           map[LED]bool{},
 		streams:        map[uint32]*streamInfo{},
 		devices:        map[string]Device{},
 		deviceFor:      map[string]string{},
@@ -62,11 +65,15 @@ func New(setup Setup, saved State) *Mixer {
 	if id, ok := m.setup.Assignments[Control{Slider, saved.Solo}]; ok && m.setup.Targets[id].Kind == App {
 		m.solo = saved.Solo
 	}
+	m.dropHoldToTalkMutes()
 	return m
 }
 
 func (m *Mixer) setSetup(s Setup) {
-	m.setup = Setup{Targets: map[string]Target{}, Assignments: map[Control]string{}}
+	m.setup = Setup{Layout: s.Layout, Targets: map[string]Target{}, Assignments: map[Control]string{}, Buttons: map[LED]Button{}}
+	for l, b := range s.Buttons {
+		m.setup.Buttons[l] = b
+	}
 	m.controlOf = map[string]Control{}
 	m.fragments = map[string][]string{}
 	for id, t := range s.Targets {
@@ -121,17 +128,28 @@ func (m *Mixer) ControlOf(targetID string) (Control, bool) {
 	return c, ok
 }
 
-// Shutdown ends solo and returns the actions that undo its silencing, so no app
-// stays muted while Apptrol is not running (SVC-07). The audio server
-// remembers mutes per app, so without this an app silenced by solo would stay
-// muted even after Apptrol exits. Take the Snapshot before calling Shutdown:
-// the saved state keeps the solo, and the next start restores it (STATE-04).
+// Shutdown ends solo and held states and returns the actions that undo them,
+// so no app stays muted or turned down while Apptrol is not running (SVC-07,
+// INPUT-07). The audio server remembers mutes per app, so without this an app
+// silenced by solo would stay muted even after Apptrol exits. Take the
+// Snapshot before calling Shutdown: the saved state keeps the solo, and the
+// next start restores it (STATE-04).
+//
+// A hold-to-talk input stays muted: a microphone that turns live by itself
+// would send what the user says without them knowing (ADR 0020).
 func (m *Mixer) Shutdown() []Action {
 	var a actions
-	if m.solo != 0 {
-		m.solo = 0
-		m.applyMutes(&a)
-		m.syncLEDs(&a, false)
+	before := m.talkOver()
+	undo := m.solo != 0 || len(m.held) > 0 || before.on
+	m.solo = 0
+	m.endHeld(&a, "stopping", func(LED) bool { return true })
+	m.stopping = true
+	for _, b := range m.holdToTalkButtons() {
+		a.notice(slog.LevelInfo, "hold-to-talk input stays muted while Apptrol is stopped",
+			m.about(Control{Slider, b.Column}, logattr.KeyButton, b.String())...)
+	}
+	if undo {
+		m.applyChange(&a, before, Control{})
 	}
 	return a
 }
@@ -144,11 +162,18 @@ func (m *Mixer) Handle(ev Event) []Action {
 		m.controlMoved(&a, e)
 	case ButtonPressed:
 		m.buttonPressed(&a, e)
+	case ButtonReleased:
+		m.buttonReleased(&a, e)
 	case TransportPressed:
 		// BTN-01: reserved for later phases.
 		a.notice(slog.LevelDebug, "button has no function yet", logattr.KeyButton, e.Button.String())
 	case ControllerConnected:
 		m.syncLEDs(&a, true) // LED-07
+	case ControllerDisconnected:
+		// The releases of held buttons will never arrive (INPUT-07).
+		before := m.talkOver()
+		m.endHeld(&a, "controller_disconnected", func(LED) bool { return true })
+		m.applyChange(&a, before, Control{})
 	case AudioSnapshot:
 		m.audioSnapshot(&a, e)
 		// A restart of PipeWire can reset the controller's LEDs: the audio
@@ -204,15 +229,22 @@ func (m *Mixer) controlMoved(a *actions, e ControlMoved) {
 	case App:
 		for _, s := range m.sortedStreams() {
 			if s.target == id {
-				a.add(SetStreamVolume{StreamID: s.ID, Volume: vol}) // CTRL-02, CTRL-04
+				m.applyStreamVolume(a, s) // CTRL-02, CTRL-04; during talk-over INPUT-06
 			}
+		}
+		if m.talkingOver() {
+			m.applyMutes(a) // a first move ends talk-over's mute of an unknown position (INPUT-04)
 		}
 	case Input:
 		if dev, ok := m.deviceFor[id]; ok {
 			a.add(SetDeviceVolume{Device: dev, Volume: vol}) // CTRL-05
 		}
 	}
-	a.notice(slog.LevelDebug, "volume changed", m.about(e.Control, logattr.KeyVolume, int(math.Round(vol*100)))...)
+	attrs := []any{logattr.KeyVolume, int(math.Round(vol * 100))}
+	if t.Kind == App && m.talkingOver() {
+		attrs = append(attrs, logattr.KeyTalkOver, m.talkOverPercent())
+	}
+	a.notice(slog.LevelDebug, "volume changed", m.about(e.Control, attrs...)...)
 	a.add(StateChanged{})
 }
 
@@ -255,6 +287,13 @@ func (m *Mixer) buttonPressed(a *actions, e ButtonPressed) {
 		return
 	}
 	button := LED{Button: e.Button, Column: e.Column}.String()
+	if m.isInputColumn(e.Column) {
+		switch b := (LED{Button: e.Button, Column: e.Column}); {
+		case e.Button == ButtonS, e.Button == ButtonM && m.holdToTalk(e.Column):
+			m.holdPressed(a, b) // INPUT-01, SOLO-07
+			return
+		}
+	}
 	switch e.Button {
 	case ButtonM:
 		m.toggleMute(a, e.Column, button)
@@ -295,6 +334,7 @@ func (m *Mixer) toggleMute(a *actions, col int, button string) {
 		a.notice(slog.LevelDebug, "button has no function: no app on this column", m.about(c, logattr.KeyButton, button)...)
 		return // MUTE-03
 	}
+	before := m.talkOver()
 	m.muted[c] = !m.muted[c]
 	if !m.muted[c] {
 		delete(m.muted, c)
@@ -304,8 +344,7 @@ func (m *Mixer) toggleMute(a *actions, col int, button string) {
 		msg = "muted"
 	}
 	a.notice(slog.LevelInfo, msg, m.about(c, logattr.KeyButton, button)...)
-	m.applyMutes(a) // MUTE-04, MUTE-05
-	m.syncLEDs(a, false)
+	m.applyChange(a, before, c) // MUTE-04, MUTE-05; talk-over may follow M (INPUT-04)
 	a.add(StateChanged{})
 }
 
@@ -314,7 +353,7 @@ func (m *Mixer) toggleSolo(a *actions, col int, button string) {
 	c := Control{Slider, col}
 	id, ok := m.setup.Assignments[c]
 	if !ok || m.setup.Targets[id].Kind != App {
-		// SOLO-07: S on an input column (or an empty one) does nothing
+		// S on an empty column does nothing; on an input column it is a held mode (SOLO-07)
 		a.notice(slog.LevelDebug, "button has no function: solo needs an app on this column", m.about(c, logattr.KeyButton, button)...)
 		return
 	}
@@ -383,6 +422,13 @@ func (m *Mixer) deviceMuteChanged(a *actions, e DeviceMuteChanged) {
 			return
 		}
 		m.deviceMuteSent[e.Name] = e.Muted
+		if c := m.controlOf[id]; c.Kind == Slider && m.holdToTalk(c.Column) {
+			// Apptrol alone decides in hold-to-talk: undo the change (INPUT-03).
+			a.notice(slog.LevelInfo, "changed outside Apptrol, but hold-to-talk decides",
+				m.aboutTarget(id, logattr.KeyDeviceName, e.Name, logattr.KeyMuted, e.Muted)...)
+			m.applyDeviceMute(a, e.Name, m.effectiveMute(id))
+			return
+		}
 		m.followMute(a, id, e.Muted, logattr.KeyDeviceName, e.Name)
 		return
 	}
@@ -391,6 +437,7 @@ func (m *Mixer) deviceMuteChanged(a *actions, e DeviceMuteChanged) {
 // followMute takes over a mute state set outside Apptrol for target id.
 func (m *Mixer) followMute(a *actions, id string, muted bool, attrs ...any) {
 	c := m.controlOf[id]
+	before := m.talkOver()
 	changed := false
 	if m.muted[c] != muted { // on a knob too: it has no M button, but can be muted outside (MUTE-07)
 		if muted {
@@ -408,8 +455,7 @@ func (m *Mixer) followMute(a *actions, id string, muted bool, attrs ...any) {
 		msg = "unmuted outside Apptrol, but solo keeps it silent"
 	}
 	a.notice(slog.LevelInfo, msg, m.aboutTarget(id, attrs...)...)
-	m.applyMutes(a) // the app's other streams follow; solo silences again
-	m.syncLEDs(a, false)
+	m.applyChange(a, before, c) // the app's other streams follow; solo silences again
 	if changed {
 		a.add(StateChanged{})
 	}
@@ -417,13 +463,26 @@ func (m *Mixer) followMute(a *actions, id string, muted bool, attrs ...any) {
 
 // effectiveMute: a target is muted when user-muted, or when solo is on and it is
 // another app (SOLO-02, SOLO-03, SOLO-06, MUTE-04).
+// An input is also muted while coughing, and in push-to-talk while its
+// button is not held (INPUT-05). An app whose control has not been moved yet
+// is muted during talk-over, as its volume is unknown (INPUT-04).
 func (m *Mixer) effectiveMute(id string) bool {
 	c := m.controlOf[id]
 	if m.muted[c] { // M on a slider column, or a mute from outside Apptrol (MUTE-07)
 		return true
 	}
-	if m.solo != 0 && m.setup.Targets[id].Kind == App && c != (Control{Slider, m.solo}) {
-		return true
+	switch m.setup.Targets[id].Kind {
+	case App:
+		if m.solo != 0 && c != (Control{Slider, m.solo}) {
+			return true
+		}
+		if _, known := m.positions[c]; !known && m.talkingOver() {
+			return true
+		}
+	case Input:
+		if c.Kind == Slider && m.heldMute(c.Column) {
+			return true
+		}
 	}
 	return false
 }
@@ -463,6 +522,223 @@ func (m *Mixer) applyDeviceMute(a *actions, dev string, want bool) {
 	a.add(SetDeviceMute{Device: dev, Muted: want})
 }
 
+// ---- microphone buttons and held states (INPUT-*, ADR 0020) -----------------
+
+// isInputColumn reports whether the column's slider holds an input.
+func (m *Mixer) isInputColumn(col int) bool {
+	id, ok := m.setup.Assignments[Control{Slider, col}]
+	return ok && m.setup.Targets[id].Kind == Input
+}
+
+// mode returns what M or S does on an input column: the configured mode or
+// the default (M: mute; S: cough, or off when M is in hold-to-talk). Other
+// buttons and columns have no mode (ModeOff).
+func (m *Mixer) mode(b LED) Mode {
+	if b.Transport != 0 || !m.isInputColumn(b.Column) {
+		return ModeOff
+	}
+	mode := m.setup.Buttons[b].Mode
+	switch {
+	case mode != ModeDefault:
+		return mode
+	case b.Button == ButtonM:
+		return ModeMute
+	case b.Button == ButtonS && m.mode(LED{Button: ButtonM, Column: b.Column}) == ModeMute:
+		return ModeCough
+	}
+	return ModeOff
+}
+
+// holdToTalk reports whether M on the column is in hold-to-talk mode.
+func (m *Mixer) holdToTalk(col int) bool {
+	return m.mode(LED{Button: ButtonM, Column: col}) == ModeHoldToTalk
+}
+
+// heldMute reports whether the input column is muted by a held state: S held
+// in cough mode, or hold-to-talk with M not held (INPUT-02, INPUT-03).
+func (m *Mixer) heldMute(col int) bool {
+	s := LED{Button: ButtonS, Column: col}
+	if m.held[s] && m.mode(s) == ModeCough {
+		return true
+	}
+	return m.holdToTalk(col) && !m.held[LED{Button: ButtonM, Column: col}]
+}
+
+// talkOverState is whether talk-over is active, its volume in percent, and
+// the input column it comes from (for the log).
+type talkOverState struct {
+	on      bool
+	percent int
+	col     int
+}
+
+// same reports whether talk-over is unchanged for the apps.
+func (t talkOverState) same(u talkOverState) bool { return t.on == u.on && t.percent == u.percent }
+
+// talkOver returns the talk-over state (INPUT-04): active while S in
+// talk-over mode is held, or, with talk_over on M, while the input is live
+// through M. A cough does not end it. With talk-over active from several
+// inputs, the lowest volume applies. It is never active once Apptrol stops.
+func (m *Mixer) talkOver() talkOverState {
+	var st talkOverState
+	if m.stopping {
+		return st
+	}
+	for col := 1; col <= NumColumns; col++ {
+		if !m.isInputColumn(col) {
+			continue
+		}
+		c := Control{Slider, col}
+		mb, sb := LED{Button: ButtonM, Column: col}, LED{Button: ButtonS, Column: col}
+		active := m.held[sb] && m.mode(sb) == ModeTalkOver
+		if m.setup.Buttons[mb].TalkOver {
+			if m.holdToTalk(col) {
+				active = active || m.held[mb]
+			} else {
+				active = active || !m.muted[c]
+			}
+		}
+		if !active {
+			continue
+		}
+		p := m.setup.Targets[m.setup.Assignments[c]].TalkOverVolume
+		if !st.on || p < st.percent {
+			st = talkOverState{on: true, percent: p, col: col}
+		}
+	}
+	return st
+}
+
+func (m *Mixer) talkingOver() bool    { return m.talkOver().on }
+func (m *Mixer) talkOverPercent() int { return m.talkOver().percent }
+
+// holdToTalkButtons lists every M button in hold-to-talk mode, in column order.
+func (m *Mixer) holdToTalkButtons() []LED {
+	var out []LED
+	for col := 1; col <= NumColumns; col++ {
+		if m.holdToTalk(col) {
+			out = append(out, LED{Button: ButtonM, Column: col})
+		}
+	}
+	return out
+}
+
+// dropHoldToTalkMutes drops the M mute of columns in hold-to-talk mode: the
+// button no longer toggles there, so the mute could never be undone (INPUT-03).
+func (m *Mixer) dropHoldToTalkMutes() {
+	for _, b := range m.holdToTalkButtons() {
+		delete(m.muted, Control{Slider, b.Column})
+	}
+}
+
+// holdPressed starts a held state: M in hold-to-talk, S in cough or
+// talk-over (INPUT-01).
+func (m *Mixer) holdPressed(a *actions, b LED) {
+	c := Control{Slider, b.Column}
+	mode := m.mode(b)
+	if mode == ModeOff {
+		a.notice(slog.LevelDebug, "button has no function: its mode is off", m.about(c, logattr.KeyButton, b.String())...)
+		return
+	}
+	if m.held[b] {
+		return // a repeated press without a release in between
+	}
+	before := m.talkOver()
+	m.held[b] = true
+	switch mode {
+	case ModeHoldToTalk:
+		a.notice(slog.LevelInfo, "hold-to-talk live", m.about(c, logattr.KeyButton, b.String())...)
+	case ModeCough:
+		a.notice(slog.LevelInfo, "cough on", m.about(c, logattr.KeyButton, b.String())...)
+	}
+	m.applyChange(a, before, c)
+}
+
+// buttonReleased ends a held state (INPUT-07, INPUT-08). Releases of other
+// buttons mean nothing.
+func (m *Mixer) buttonReleased(a *actions, e ButtonReleased) {
+	b := LED{Button: e.Button, Column: e.Column}
+	if !m.held[b] {
+		return
+	}
+	before := m.talkOver()
+	delete(m.held, b)
+	c := Control{Slider, b.Column}
+	switch m.mode(b) {
+	case ModeHoldToTalk:
+		a.notice(slog.LevelInfo, "hold-to-talk muted", m.about(c, logattr.KeyButton, b.String())...)
+	case ModeCough:
+		a.notice(slog.LevelInfo, "cough off", m.about(c, logattr.KeyButton, b.String())...)
+	}
+	m.applyChange(a, before, c)
+}
+
+// endHeld ends the held states for which end is true, without their release
+// (INPUT-07). The caller applies the result.
+func (m *Mixer) endHeld(a *actions, reason string, end func(LED) bool) {
+	for _, b := range sortedLEDs(m.held) {
+		if end(b) {
+			delete(m.held, b)
+			a.notice(slog.LevelInfo, "held state ended",
+				m.about(Control{Slider, b.Column}, logattr.KeyButton, b.String(), logattr.KeyHeldReason, reason)...)
+		}
+	}
+}
+
+// applyChange carries out a change of mutes or held states: mutes, LEDs and,
+// when talk-over started, ended or changed its volume, every app's volume.
+// c is the control the change came from, for the log; without one (a
+// disconnect, a reload, stopping) the log names the input column of talk-over.
+func (m *Mixer) applyChange(a *actions, before talkOverState, c Control) {
+	after := m.talkOver()
+	logAt := func(st talkOverState) Control {
+		if c.Valid() {
+			return c
+		}
+		return Control{Slider, st.col}
+	}
+	switch {
+	case after.same(before):
+	case !after.on:
+		a.notice(slog.LevelInfo, "talk-over off", m.about(logAt(before), logattr.KeyTalkOver, before.percent)...)
+	default:
+		a.notice(slog.LevelInfo, "talk-over on", m.about(logAt(after), logattr.KeyTalkOver, after.percent)...)
+		if !before.on {
+			m.logUnknownPositions(a)
+		}
+	}
+	m.applyMutes(a)
+	if !after.same(before) {
+		m.applyVolumes(a)
+	}
+	m.syncLEDs(a, false)
+}
+
+// logUnknownPositions names each app that talk-over mutes because its control
+// has not been moved yet (INPUT-04).
+func (m *Mixer) logUnknownPositions(a *actions) {
+	for _, c := range m.assignedControls() {
+		id := m.setup.Assignments[c]
+		if _, known := m.positions[c]; !known && m.setup.Targets[id].Kind == App {
+			a.notice(slog.LevelInfo, "talk-over mutes app: its control has not been moved yet", m.about(c)...)
+		}
+	}
+}
+
+func sortedLEDs(set map[LED]bool) []LED {
+	out := make([]LED, 0, len(set))
+	for l := range set {
+		out = append(out, l)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Column != out[j].Column {
+			return out[i].Column < out[j].Column
+		}
+		return out[i].Button < out[j].Button
+	})
+	return out
+}
+
 // ---- LEDs --------------------------------------------------------------------
 
 // ledStates computes every LED (LED-01 … LED-06).
@@ -476,8 +752,8 @@ func (m *Mixer) ledStates() []SetLED {
 				s = m.solo == col                  // LED-01
 				mu = m.muted[Control{Slider, col}] // LED-02
 			case Input:
-				s, r = true, true                   // LED-04: input columns are lit…
-				mu = !m.muted[Control{Slider, col}] // …and M goes dark when muted
+				s, r = true, true         // LED-04: input columns are lit…
+				mu = !m.effectiveMute(id) // …and M is lit only while the input is live
 			}
 		}
 		out = append(out,
@@ -543,13 +819,37 @@ func (m *Mixer) streamAdded(a *actions, s Stream) {
 
 // applyStream gives a stream its control's position (PRIO-03, or leaves the
 // volume alone when unknown, PRIO-04) and its mute (PRIO-05).
+// During talk-over, a new stream gets the lower of the talk-over level and its
+// control's position (INPUT-06).
 func (m *Mixer) applyStream(a *actions, s *streamInfo) {
-	if s.target != "" {
-		if v, ok := m.positions[m.controlOf[s.target]]; ok {
-			a.add(SetStreamVolume{StreamID: s.ID, Volume: m.volume(s.target, v)})
-		}
-	}
+	m.applyStreamVolume(a, s)
 	m.applyStreamMute(a, s)
+}
+
+// applyStreamVolume sets a stream's volume from its control's position, held
+// down to the talk-over level while talk-over is on (INPUT-04). A stream whose
+// control has not been moved is left alone (PRIO-04).
+func (m *Mixer) applyStreamVolume(a *actions, s *streamInfo) {
+	if s.target == "" {
+		return
+	}
+	v, ok := m.positions[m.controlOf[s.target]]
+	if !ok {
+		return
+	}
+	vol := m.volume(s.target, v)
+	if m.talkingOver() {
+		vol = math.Min(vol, float64(m.talkOverPercent())/100) // never up
+	}
+	a.add(SetStreamVolume{StreamID: s.ID, Volume: vol})
+}
+
+// applyVolumes sets the volume of every app stream; used when talk-over
+// starts or ends.
+func (m *Mixer) applyVolumes(a *actions) {
+	for _, s := range m.sortedStreams() {
+		m.applyStreamVolume(a, s)
+	}
 }
 
 func (m *Mixer) audioSnapshot(a *actions, e AudioSnapshot) {
@@ -566,6 +866,10 @@ func (m *Mixer) audioSnapshot(a *actions, e AudioSnapshot) {
 			a.notice(slog.LevelWarn, "no input device matches", m.aboutTarget(id,
 				logattr.KeyMatch, strings.Join(m.setup.Targets[id].Match, ", "))...)
 		}
+	}
+	if st := m.talkOver(); st.on {
+		// talk_over on M in mute mode: live since the start (INPUT-04)
+		a.notice(slog.LevelInfo, "talk-over on", m.about(Control{Slider, st.col}, logattr.KeyTalkOver, st.percent)...)
 	}
 	for _, s := range e.Streams {
 		m.streamAdded(a, s)
@@ -669,11 +973,22 @@ func contains(m map[string]string, v string) bool {
 func (m *Mixer) configChanged(a *actions, s Setup) {
 	old := m.setup.Assignments
 	oldControlOf := m.controlOf
+	talkBefore := m.talkOver()
+	oldModes := map[LED]Mode{} // modes of held buttons
+	for b := range m.held {
+		oldModes[b] = m.mode(b)
+	}
 	oldMax := map[string]float64{}
 	for id := range m.setup.Targets {
 		oldMax[id] = m.maxVolume(id)
 	}
 	m.setSetup(s)
+	// A held state ends when its button's mode or its column's input changes (INPUT-07).
+	m.endHeld(a, "config_changed", func(b LED) bool {
+		c := Control{Slider, b.Column}
+		return old[c] != m.setup.Assignments[c] || oldModes[b] != m.mode(b)
+	})
+	m.dropHoldToTalkMutes()
 	// maxChanged: the target's max_volume changed, so its volume must be set again.
 	maxChanged := func(id string) bool { return id != "" && oldMax[id] != m.maxVolume(id) }
 	for c := range m.muted {
@@ -714,8 +1029,7 @@ func (m *Mixer) configChanged(a *actions, s Setup) {
 			}
 		}
 	}
-	m.applyMutes(a)
-	m.syncLEDs(a, false)
+	m.applyChange(a, talkBefore, Control{}) // talk-over may have ended, or changed its volume
 	a.add(StateChanged{})
 }
 

@@ -226,3 +226,5 @@ Apptrol's own:
 | `apptrol.state.solo` | The restored solo, e.g. `slider1` |
 | `apptrol.log.level` | The log level set with `--log-level` (on the start line) |
 | `apptrol.log.level_source` | Where the log level comes from: `flag` (`--log-level`) or `config` (on the start line) |
+| `apptrol.held.reason` | Why a held button (cough, talk-over, hold-to-talk) ended without being released: `controller_disconnected`, `config_changed` or `stopping` |
+| `apptrol.talk_over_percent` | The volume apps go down to during talk-over |

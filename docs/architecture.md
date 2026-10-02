@@ -50,7 +50,9 @@ nothing from the adapters.
 ## Event flow
 
 1. An adapter produces an event: *slider 3 moved to 90*, *M pressed on column 2*,
-   *stream 57 (Spotify) appeared*, *config reloaded*, *controller connected*.
+   *S released on column 8*, *stream 57 (Spotify) appeared*, *config reloaded*,
+   *controller connected*, *controller disconnected*. Releases and disconnects only
+   matter for buttons that act while held (INPUT-*, ADR 0020).
 2. The service passes it to `mixer.Handle(event)`.
 3. The mixer updates its model and returns actions: *set stream 57 to 71 %*, *mute
    input "GoXLR"*, *LED M2 on*, *state changed*.

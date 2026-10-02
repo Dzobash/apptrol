@@ -32,8 +32,9 @@ knob8   = "mic"
 	}
 	want := mixer.Setup{
 		Targets: map[string]mixer.Target{
-			"music":  {ID: "music", Name: "Music", Kind: mixer.App, Match: []string{"spotify"}, MaxVolume: 1.5},
-			"mic":    {ID: "mic", Name: "Mic", Kind: mixer.Input, Match: []string{"GoXLR"}, MaxVolume: 1},
+			"music": {ID: "music", Name: "Music", Kind: mixer.App, Match: []string{"spotify"}, MaxVolume: 1.5},
+			"mic": {ID: "mic", Name: "Mic", Kind: mixer.Input, Match: []string{"GoXLR"}, MaxVolume: 1,
+				TalkOverVolume: mixer.DefaultTalkOverVolume}, // CFG-16 default
 			"unused": {ID: "unused", Name: "Unused", Kind: mixer.App, Match: []string{"x"}, MaxVolume: 1},
 		},
 		Layout: DefaultLayout,

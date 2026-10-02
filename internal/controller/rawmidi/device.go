@@ -120,6 +120,12 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 				return ctx.Err()
 			}
 			d.log.Info("controller disconnected", logattr.KeyMIDIDevice, path, logattr.KeyDisconnected, reason(err))
+			// Held buttons will never send their release (INPUT-07).
+			select {
+			case out <- mixer.ControllerDisconnected{}:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 		select {
 		case <-ctx.Done():
