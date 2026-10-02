@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	jpulse "github.com/jfreymuth/pulse"
+	"github.com/jfreymuth/pulse/proto"
 
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
@@ -200,32 +200,49 @@ func TestIntegration_MEDIA10_Cork(t *testing.T) {
 	})
 	next(t, events, func(mixer.AudioSnapshot) bool { return true })
 
-	// pacat cannot pause its stream, so play through the library's client.
+	// pacat cannot pause its stream, so the test creates one over its own
+	// connection and corks it with plain requests, as a player does. (The
+	// library's high-level PlaybackStream is not used: it has data races of
+	// its own, which -race reports.)
 	name := unique("TestCork")
-	c, err := jpulse.NewClient(jpulse.ClientApplicationName(name))
+	k, err := dial("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(c.Close)
-	silence := jpulse.Float32Reader(func(buf []float32) (int, error) { clear(buf); return len(buf), nil })
-	s, err := c.NewPlayback(silence)
-	if err != nil {
+	t.Cleanup(k.shutdown)
+	var created proto.CreatePlaybackStreamReply
+	if err := k.request(&proto.CreatePlaybackStream{
+		SinkIndex:             proto.Undefined,
+		ChannelMap:            proto.ChannelMap{proto.ChannelMono},
+		SampleSpec:            proto.SampleSpec{Format: proto.FormatFloat32LE, Channels: 1, Rate: 44100},
+		ChannelVolumes:        proto.ChannelVolumes{proto.VolumeNorm},
+		BufferMaxLength:       proto.Undefined,
+		BufferTargetLength:    proto.Undefined,
+		BufferPrebufferLength: proto.Undefined,
+		BufferMinimumRequest:  proto.Undefined,
+		Properties:            proto.PropList{"application.name": proto.PropListString(name)},
+	}, &created); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(s.Close)
-	s.Start()
+	cork := func(corked bool) {
+		t.Helper()
+		if err := k.request(&proto.CorkPlaybackStream{StreamIndex: created.StreamIndex, Corked: corked}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
 
-	// The library creates the stream corked and uncorks it on Start, so it
-	// may appear corked and then be reported as resumed.
 	added := next(t, events, func(e mixer.StreamAdded) bool { return e.Stream.AppName == name })
 	id := added.Stream.ID
+	if id != created.SinkInputIndex {
+		t.Fatalf("stream %d appeared, created %d", id, created.SinkInputIndex)
+	}
 	if added.Stream.Corked {
-		next(t, events, func(e mixer.StreamCorkChanged) bool { return e.ID == id && !e.Corked })
+		t.Error("a stream created uncorked is reported as corked")
 	}
 
-	s.Pause()
+	cork(true)
 	next(t, events, func(e mixer.StreamCorkChanged) bool { return e.ID == id && e.Corked })
-	s.Resume()
+	cork(false)
 	next(t, events, func(e mixer.StreamCorkChanged) bool { return e.ID == id && !e.Corked })
 }
 
