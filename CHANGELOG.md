@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **R** on an app's column plays or pauses that app through its media player: it pauses
+  every playing player of the app, or resumes the paused one that played last; a stopped
+  player is never started, as with a keyboard's play / pause key (MEDIA-04, MEDIA-07,
+  MEDIA-08). The R LED is lit while one of the app's players is playing, and goes off
+  as soon as it pauses, also when it is paused in the app itself (MEDIA-09, LED-03).
+  `r1 = { mode = "off" }` turns it off. README: *Known issues* explains why R pauses only
+  one browser tab.
 - Code of conduct (Contributor Covenant 2.0, GitHub's template), linked from the README
   and the contributing guide.
 - Apptrol connects to the desktop's D-Bus session bus and finds the media players

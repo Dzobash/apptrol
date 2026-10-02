@@ -2,14 +2,15 @@ package config
 
 import "github.com/Dzobash/apptrol/internal/mixer"
 
-// mixerModes maps the M and S modes of an input column to the mixer's
-// (INPUT-01). Other modes and launchers are not the mixer's business.
+// mixerModes maps the column buttons' modes to the mixer's (INPUT-01,
+// MEDIA-07). A launcher on R becomes ModeLauncher.
 var mixerModes = map[string]mixer.Mode{
 	ModeOff:        mixer.ModeOff,
 	ModeMute:       mixer.ModeMute,
 	ModeHoldToTalk: mixer.ModeHoldToTalk,
 	ModeCough:      mixer.ModeCough,
 	ModeTalkOver:   mixer.ModeTalkOver,
+	ModePlayPause:  mixer.ModePlayPause,
 }
 
 // Setup returns the part of the configuration the mixer needs: every app,
@@ -35,13 +36,13 @@ func (c *Config) Setup() mixer.Setup {
 	for _, b := range c.Layout().Buttons {
 		letter, col, ok := b.Column()
 		mode, known := mixerModes[b.Mode]
-		if !ok || !known || letter == 'r' {
+		if b.Launcher() {
+			mode, known = mixer.ModeLauncher, true
+		}
+		if !ok || !known {
 			continue
 		}
-		button := mixer.ButtonS
-		if letter == 'm' {
-			button = mixer.ButtonM
-		}
+		button := map[byte]mixer.ButtonKind{'r': mixer.ButtonR, 's': mixer.ButtonS, 'm': mixer.ButtonM}[letter]
 		s.Buttons[mixer.LED{Button: button, Column: col}] = mixer.Button{Mode: mode, TalkOver: b.TalkOver}
 	}
 	return s

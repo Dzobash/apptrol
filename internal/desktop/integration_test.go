@@ -3,6 +3,7 @@ package desktop
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -55,6 +56,9 @@ func newPlayer(t *testing.T, suffix, identity, desktopEntry, status string) *fak
 		t.Fatal(err)
 	}
 	p := &fakePlayer{conn: conn, props: props, name: mprisPrefix + suffix}
+	if err := conn.Export(playerMethods{p}, mprisPath, ifacePlayer); err != nil {
+		t.Fatal(err)
+	}
 	if reply, err := conn.RequestName(p.name, dbus.NameFlagDoNotQueue); err != nil || reply != dbus.RequestNameReplyPrimaryOwner {
 		t.Fatalf("RequestName(%s) = %v, %v", p.name, reply, err)
 	}
@@ -64,9 +68,16 @@ func newPlayer(t *testing.T, suffix, identity, desktopEntry, status string) *fak
 
 func (p *fakePlayer) setStatus(s string) { p.props.SetMust(ifacePlayer, "PlaybackStatus", s) }
 
+// playerMethods are the MPRIS commands of a fake player, exported on D-Bus.
+type playerMethods struct{ p *fakePlayer }
+
+func (m playerMethods) Play() *dbus.Error  { m.p.setStatus("Playing"); return nil }
+func (m playerMethods) Pause() *dbus.Error { m.p.setStatus("Paused"); return nil }
+
 // harness runs a Bus and collects its events and log.
 type harness struct {
 	t      *testing.T
+	bus    *Bus
 	events chan mixer.Event
 	log    *syncBuffer
 	cancel context.CancelFunc
@@ -95,6 +106,7 @@ func runBus(t *testing.T, address string) *harness {
 	h := &harness{t: t, events: make(chan mixer.Event, 64), log: &syncBuffer{}, done: make(chan struct{})}
 	b := New(slog.New(slog.NewTextHandler(h.log, &slog.HandlerOptions{Level: slog.LevelDebug})), address)
 	b.retryMin, b.retryMax = 20*time.Millisecond, 50*time.Millisecond
+	h.bus = b
 	ctx, cancel := context.WithCancel(context.Background())
 	h.cancel = cancel
 	go func() { _ = b.Run(ctx, h.events); close(h.done) }()
@@ -245,5 +257,49 @@ func TestIntegration_DESK02_ReconnectsAfterTheBusRestarts(t *testing.T) {
 	}
 	if n := strings.Count(h.log.String(), "connected to the session bus"); n != 2 {
 		t.Errorf("connected %d times, want 2", n)
+	}
+}
+
+func TestIntegration_MEDIA04_PlayAndPauseReachThePlayer(t *testing.T) {
+	requireBus(t)
+	spotify := newPlayer(t, "apptroltest_r_spotify", "Spotify", "spotify", "Paused")
+	h := runBus(t, "")
+	h.snapshot()
+
+	if err := h.bus.Apply(mixer.PlayerCommand{BusName: spotify.name, Command: mixer.CommandPlay}); err != nil {
+		t.Fatal(err)
+	}
+	if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: spotify.name, Status: "Playing"}) {
+		t.Fatalf("after Play: %v", ev)
+	}
+	if err := h.bus.Apply(mixer.PlayerCommand{BusName: spotify.name, Command: mixer.CommandPause}); err != nil {
+		t.Fatal(err)
+	}
+	if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: spotify.name, Status: "Paused"}) {
+		t.Fatalf("after Pause: %v", ev)
+	}
+}
+
+func TestIntegration_MEDIA04_ARefusedCommandIsLogged(t *testing.T) {
+	requireBus(t)
+	h := runBus(t, "")
+	h.snapshot()
+	gone := mprisPrefix + "apptroltest_gone"
+	if err := h.bus.Apply(mixer.PlayerCommand{BusName: gone, Command: mixer.CommandPlay}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(h.log.String(), "media_command_failed") {
+		if time.Now().After(deadline) {
+			t.Fatalf("no error logged; log:\n%s", h.log.String())
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestDESK02_ApplyWithoutBus(t *testing.T) {
+	b := New(slog.New(slog.DiscardHandler), "")
+	if err := b.Apply(mixer.PlayerCommand{BusName: "x", Command: mixer.CommandPlay}); !errors.Is(err, ErrNotConnected) {
+		t.Errorf("Apply without a connection = %v, want ErrNotConnected", err)
 	}
 }

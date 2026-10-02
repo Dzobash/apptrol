@@ -30,6 +30,8 @@ with no desktop mixer involved.
 - Per app, the top of the slider can be up to 150 % (a boost) or less than 100 % (a cap)
 - **M** mutes the app on that slider, **S** solos it. A mute stays set while Apptrol is
   stopped (the desktop's volume applet shows it); a solo ends.
+- **R** plays or pauses the app on that slider, through its media player; its LED is lit
+  while the app plays
 - On the microphone's slider, hold **S** to mute it while you cough; M can also be set to
   hold-to-talk, and the music can go down while you talk (talk-over)
 - The button LEDs show what is muted and soloed, also when you mute or unmute an app
@@ -48,9 +50,8 @@ What each control does in this version:
 
 It works alongside an audio interface such as a GoXLR, or on its own with a normal sound card.
 
-Planned later: media buttons, buttons that start apps, play / pause per slider,
-on-screen volume display, multiple layouts (e.g.
-*Work* and *Gaming*), a setup in the terminal and a tray icon.
+Planned later: media buttons, buttons that start apps, on-screen volume display, multiple
+layouts (e.g. *Work* and *Gaming*), a setup in the terminal and a tray icon.
 
 
 ## Why Apptrol exists
@@ -206,6 +207,11 @@ run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they 
   This is a bug in the Spotify client, and Apptrol deliberately does not work around it:
   a change that another program makes to an app's volume stays until you touch that app's
   slider or knob again. Touch Spotify's slider after a track change to set it back.
+
+- **R pauses only one browser tab.** A browser offers one media player for all its tabs,
+  and *Pause* reaches only the tab used last; the other tabs keep playing. M silences
+  every tab, because it acts on each tab's audio. This is how browsers implement the
+  media player interface (MPRIS), not something Apptrol can change.
 
 Found another problem? Please [open an issue](https://github.com/Dzobash/apptrol/issues).
 

@@ -253,9 +253,9 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | MEDIA-04 | Apptrol MUST send `Play` or `Pause` chosen from the player's `PlaybackStatus`, never the toggle `PlayPause`. | MUST |
 | MEDIA-05 | ▶ MUST play or pause the media-key player, ■ MUST send `Stop`, ◀◀ `Previous` and ▶▶ `Next`. Without a player, they do nothing (debug log). | MUST |
 | MEDIA-06 | The media-key player MUST be the player that most recently started playing; with `[media] player` set (CFG-15), the most recent of that app's players. | MUST |
-| MEDIA-07 | R on an app column (mode `play_pause`, the default) MUST pause every playing player of the column's app; if none plays, it MUST play the one that was active most recently. | MUST |
+| MEDIA-07 | R on an app column (mode `play_pause`, the default) MUST pause every playing player of the column's app; if none plays, it MUST play the paused player that started playing most recently, or without such history the first paused one by bus name. A stopped player MUST NOT be started. | MUST |
 | MEDIA-08 | If the column's app has no player (e.g. mpv without its MPRIS plugin), R MUST do nothing (debug log). | MUST |
-| MEDIA-09 | The R LED of an app column in mode `play_pause` MUST be lit while the column's app has a stream that is not corked **and** at least one player; otherwise off. It MUST follow streams being corked or uncorked and players appearing or disappearing. In mode `off` or as a launcher, it MUST be off. | MUST |
+| MEDIA-09 | The R LED of an app column in mode `play_pause` MUST be lit while one of the column's app's players reports `Playing`; otherwise off. It MUST follow status changes and players appearing or disappearing. In mode `off` or as a launcher, it MUST be off. *(Until 2026-10-02 planned to follow the corked state of the app's streams; see ADR 0018, notes.)* | MUST |
 | MEDIA-10 | The audio adapter MUST report whether each stream is corked, and every change of it. | MUST |
 
 ### 4.13 Launcher buttons *(Phase 1.5)*

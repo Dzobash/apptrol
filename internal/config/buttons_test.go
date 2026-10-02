@@ -57,17 +57,21 @@ s8          = { mode = "talk_over" }
 	}
 }
 
-func TestCFG13_SetupPassesMicButtons(t *testing.T) {
+func TestCFG13_SetupPassesColumnButtons(t *testing.T) {
 	cfg, _ := mustParse(t, withButtons(`
 r1 = { mode = "off" }
+r2 = { app = "discord" }
 m8 = { mode = "hold_to_talk", talk_over = true }
 s8 = { mode = "off" }
+record = { app = "com.obsproject.Studio" }
 `))
 	got := cfg.Setup().Buttons
 	want := map[mixer.LED]mixer.Button{
+		{Button: mixer.ButtonR, Column: 1}: {Mode: mixer.ModeOff},
+		{Button: mixer.ButtonR, Column: 2}: {Mode: mixer.ModeLauncher},
 		{Button: mixer.ButtonM, Column: 8}: {Mode: mixer.ModeHoldToTalk, TalkOver: true},
 		{Button: mixer.ButtonS, Column: 8}: {Mode: mixer.ModeOff},
-	}
+	} // record is no column button
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Setup().Buttons = %v, want %v", got, want)
 	}

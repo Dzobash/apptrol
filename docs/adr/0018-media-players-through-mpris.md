@@ -108,3 +108,17 @@ Measured on the reference system (Kubuntu, KDE Plasma, PipeWire) on 2026-10-02:
 - With `level = "debug"`, the log shows every player Apptrol sees and why it was matched,
   ignored or left alone, so a wrong or missing match can be found without a debugger:
   `journalctl --user -u apptrol | grep apptrol.player`.
+
+## Notes
+
+- 2026-10-02: The R LED follows the players' `PlaybackStatus`, not the streams (replaces
+  point 7): it is lit while one of the column's app's players reports *Playing*. Tested
+  on the reference system, Chromium-based apps cork their stream only about 10 seconds
+  after pausing, so an LED that followed the stream stayed lit after R paused the app.
+  The status arrives about 10 ms after the press. Lit now means "R pauses", dark means
+  "R resumes, or does nothing", which matches what pressing R does. A browser with two
+  playing tabs shows R dark once the last-used tab is paused, although the other tab is
+  still audible; R pausing only one tab is already a known issue.
+- 2026-10-02: R never starts a *Stopped* player, only resumes a *Paused* one, like a
+  keyboard's play / pause key: without history, the first paused player by name is
+  resumed (MEDIA-07).

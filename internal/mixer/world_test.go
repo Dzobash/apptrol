@@ -20,7 +20,8 @@ type world struct {
 	leds       map[LED]bool
 	saves      int
 	notices    []Notice
-	last       []Action // actions of the most recent event
+	commands   []PlayerCommand // media player commands sent
+	last       []Action        // actions of the most recent event
 }
 
 // Standard test setup: the example layout.
@@ -119,6 +120,8 @@ func (w *world) apply(acts []Action) {
 			w.saves++
 		case Notice:
 			w.notices = append(w.notices, a)
+		case PlayerCommand:
+			w.commands = append(w.commands, a)
 		default:
 			w.t.Fatalf("unknown action %T", a)
 		}

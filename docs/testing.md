@@ -85,8 +85,8 @@ slider 1, a browser on slider 2, the microphone on slider 8.
 | H-23 | Play music in Spotify, then a video in the browser. Press ▶, then ▶ again; then ▶▶ | The browser video pauses, then plays (it started playing most recently); ▶▶ goes to the next item in the browser | MEDIA-05, MEDIA-06 |
 | H-24 | Set `[media] player = "spotify"`, save; with the browser video playing last, press ▶ | Spotify pauses, the browser video keeps playing | MEDIA-06, CFG-15 |
 | H-25 | Press ■ while Spotify plays | Spotify stops | MEDIA-05 |
-| H-26 | With Spotify playing, press R1; then R1 again | Spotify pauses and the R1 LED goes off; then it plays and R1 lights | MEDIA-07, MEDIA-09 |
-| H-27 | Play videos in two browser tabs; press R2; then M2 | R2 pauses only the most recently used tab; the other keeps playing and R2 stays lit. M2 silences both tabs | MEDIA-07, MEDIA-09 |
+| H-26 | With Spotify playing, press R1; then R1 again; then pause Spotify in its own window | Spotify pauses and the R1 LED goes off at once; then it plays and R1 lights; pausing in Spotify turns R1 off too | MEDIA-07, MEDIA-09 |
+| H-27 | Play videos in two browser tabs; press R2; then M2 | R2 pauses only the most recently used tab; the other keeps playing (known issue), R2 goes off. M2 silences both tabs | MEDIA-07, MEDIA-09 |
 | H-28 | Put an app without MPRIS on a slider (e.g. mpv without its plugin, or Discord) and play sound; press its R | Nothing happens; its R LED stays off; the log says there is no media player for the app | MEDIA-08, MEDIA-09 |
 | H-29 | Restart the browser and play a video again; press R2 | R2 pauses it (the player's new instance number is found) | MEDIA-01, MEDIA-03 |
 | H-30 | If KDE Connect is used: play Spotify on the phone; press R1 and ▶ | Neither affects the phone; the log shows the phone's player as ignored (`other_device`) | MEDIA-02 |

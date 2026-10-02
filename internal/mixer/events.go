@@ -125,6 +125,19 @@ type SetStreamVolume struct {
 	Volume   float64
 }
 
+// PlayerCommand tells a media player to play or pause (MEDIA-04): always
+// one of the two, never the toggle PlayPause.
+type PlayerCommand struct {
+	BusName string
+	Command string // CommandPlay or CommandPause
+}
+
+// Player commands (MPRIS method names).
+const (
+	CommandPlay  = "Play"
+	CommandPause = "Pause"
+)
+
 // SetStreamMute mutes or unmutes a playback stream.
 type SetStreamMute struct {
 	StreamID uint32
@@ -166,3 +179,4 @@ func (SetDeviceMute) isAction()   {}
 func (SetLED) isAction()          {}
 func (StateChanged) isAction()    {}
 func (Notice) isAction()          {}
+func (PlayerCommand) isAction()   {}

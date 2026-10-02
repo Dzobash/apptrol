@@ -27,6 +27,7 @@ type Mixer struct {
 	deviceFor map[string]string // input target id -> chosen device name
 
 	players        map[string]*playerInfo // media players by bus name (MEDIA-01, MEDIA-03)
+	playSeq        int                    // counts players starting to play (lastPlaying)
 	deviceMuteSent map[string]bool        // last mute sent per device
 	leds           map[LED]bool           // last LED state sent
 }
@@ -304,8 +305,7 @@ func (m *Mixer) buttonPressed(a *actions, e ButtonPressed) {
 	case ButtonS:
 		m.toggleSolo(a, e.Column, button)
 	case ButtonR:
-		// BTN-01: reserved.
-		a.notice(slog.LevelDebug, "button has no function yet", m.about(Control{Slider, e.Column}, logattr.KeyButton, button)...)
+		m.rPressed(a, e.Column, button) // MEDIA-07
 	}
 }
 
@@ -396,7 +396,7 @@ func (m *Mixer) streamMuteChanged(a *actions, e StreamMuteChanged) {
 }
 
 // streamCorkChanged keeps track of whether a stream's app has paused it
-// (MEDIA-10). The R LED will use it to show that an app plays (MEDIA-09).
+// (MEDIA-10), and logs it.
 func (m *Mixer) streamCorkChanged(a *actions, e StreamCorkChanged) {
 	s, known := m.streams[e.ID]
 	if !known {
@@ -755,6 +755,7 @@ func (m *Mixer) ledStates() []SetLED {
 			case App:
 				s = m.solo == col                  // LED-01
 				mu = m.muted[Control{Slider, col}] // LED-02
+				r = m.rLit(col, id)                // LED-03, MEDIA-09
 			case Input:
 				s, r = true, true         // LED-04: input columns are lit…
 				mu = !m.effectiveMute(id) // …and M is lit only while the input is live
