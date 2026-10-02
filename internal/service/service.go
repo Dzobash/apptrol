@@ -35,6 +35,11 @@ type Audio interface {
 	Apply(a mixer.Action) error
 }
 
+// Desktop is the session bus: media players (internal/desktop, ADR 0017).
+type Desktop interface {
+	Run(ctx context.Context, out chan<- mixer.Event) error
+}
+
 // Controller is the MIDI controller (internal/controller/rawmidi).
 type Controller interface {
 	Run(ctx context.Context, out chan<- mixer.Event) error
@@ -59,6 +64,7 @@ type Options struct {
 
 	Audio         Audio
 	NewController func(port string) Controller
+	Desktop       Desktop // may be nil: no media players
 
 	// Zero values mean the defaults: the file is checked every second, and the
 	// state is saved at most once per second.
@@ -133,13 +139,17 @@ func Run(ctx context.Context, o Options) error {
 	events := make(chan mixer.Event, maxBatch)
 	changes := make(chan config.Change, 4)
 	var wg sync.WaitGroup
-	for _, run := range []func(){
+	runs := []func(){
 		func() { _ = o.Audio.Run(actx, events) },
 		func() { _ = s.ctl.Run(actx, events) },
 		func() {
 			config.Watch(actx, o.ConfigPath, cfgData, o.WatchInterval, o.WatchInterval/4, changes)
 		},
-	} {
+	}
+	if o.Desktop != nil {
+		runs = append(runs, func() { _ = o.Desktop.Run(actx, events) })
+	}
+	for _, run := range runs {
 		wg.Add(1)
 		go func() { defer wg.Done(); run() }()
 	}

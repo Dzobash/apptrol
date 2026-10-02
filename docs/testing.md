@@ -11,6 +11,7 @@ of [requirements.md](requirements.md#51-quality-assurance).
 | `make check` | Format check, `go vet`, `golangci-lint`, tests — the same checks CI runs |
 | `make test` | Tests with the race detector |
 | `make test-audio` | Integration tests against your running PipeWire (they add a silent test output and inputs and remove them afterwards) |
+| `make test-desktop` | D-Bus integration tests in a private session bus (`dbus-run-session`); your desktop's bus and media players are not touched |
 | `make cover` | Tests with coverage; fails below the minimum; writes `coverage.html` to open in a browser |
 | `make vulncheck` | Scans dependencies for known vulnerabilities |
 | `make lint` | `golangci-lint` only ([install it](https://golangci-lint.run/welcome/install/) first) |
@@ -31,7 +32,9 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](..
 
 - **No hardware, no network, no desktop.** Tests use fakes for the controller and the audio
   server. Integration tests are the only exception: they talk to a real audio server and
-  run only when `APPTROL_PULSE_TEST=1` is set (see `internal/audio/pulse/integration_test.go`).
+  run only when `APPTROL_PULSE_TEST=1` is set (see `internal/audio/pulse/integration_test.go`),
+  and against a private D-Bus with fake media players when `APPTROL_DBUS_TEST=1` is set
+  (see `internal/desktop/integration_test.go`). CI runs both.
 - **Table-driven.** One test function, a table of cases — see `cmd/apptrol/main_test.go`.
 - **Name tests after requirements** where one applies, e.g. `TestSOLO05_PressingSoloAgainTurnsItOff`.
 - **Bug fixes** come with a test that fails without the fix.

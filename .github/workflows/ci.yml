@@ -51,7 +51,7 @@ jobs:
         with:
           go-version-file: ${{ matrix.go-version-file }}
           go-version: ${{ matrix.go-version }}
-      - name: Start a headless PipeWire for the integration tests (QA-09)
+      - name: Start a session bus and a headless PipeWire for the integration tests (QA-09)
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q --no-install-recommends \
@@ -71,6 +71,7 @@ jobs:
             echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
             echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS"
             echo "APPTROL_PULSE_TEST=1"
+            echo "APPTROL_DBUS_TEST=1"
           } >> "$GITHUB_ENV"
       - name: Vet
         run: go vet ./...

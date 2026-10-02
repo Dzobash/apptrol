@@ -32,11 +32,12 @@ How the service is put together. Decisions and their reasons are in
 | Package | Responsibility |
 |---|---|
 | `cmd/apptrol` | Command line: `run`, `list`, `check`, `test`, `version`; wires everything together |
-| `internal/service` | Event loop; the `Controller` and `Audio` interfaces; turns mixer actions into adapter calls; config reload; shutdown |
+| `internal/service` | Event loop; the `Controller`, `Audio` and `Desktop` interfaces; turns mixer actions into adapter calls; config reload; shutdown |
 | `internal/mixer` | Core logic (pure): matching, positions, `max_volume`, user mutes, solo, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write |
 | `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`); reconnects; `apptrol list` data |
+| `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them; reconnects; never starts a service |
 | `internal/config` | TOML loading, validation (including overlap warnings), file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
 | `internal/logging` | Log outputs (journald, rotating file) and formats; keeps every record on one line |

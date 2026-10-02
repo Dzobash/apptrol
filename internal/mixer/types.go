@@ -217,6 +217,14 @@ func SameStream(a, b Stream) bool {
 	return a.ID == b.ID && a.AppName == b.AppName && a.Binary == b.Binary
 }
 
+// Player is a media player on the session bus (MPRIS, ADR 0018).
+type Player struct {
+	BusName      string // org.mpris.MediaPlayer2.<name>
+	Identity     string // a name for people, e.g. "Spotify"
+	DesktopEntry string // its desktop ID, if it reports one
+	Status       string // PlaybackStatus: Playing, Paused or Stopped
+}
+
 // Device is a capture device (a PulseAudio "source").
 type Device struct {
 	Name        string // unique name, e.g. alsa_input.usb-…
