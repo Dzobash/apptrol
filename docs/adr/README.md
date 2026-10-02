@@ -27,3 +27,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0016](0016-log-records-follow-opentelemetry.md) | Log records follow the OpenTelemetry semantic conventions | Accepted |
 | [0017](0017-desktop-services-over-dbus.md) | Talk to desktop services over D-Bus with godbus | Accepted |
 | [0018](0018-media-players-through-mpris.md) | Media players through MPRIS: finding, matching and controlling them | Accepted |
+| [0019](0019-launcher-and-column-buttons.md) | Launcher buttons, input column buttons and their configuration | Accepted |
