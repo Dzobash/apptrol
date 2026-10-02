@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Code of conduct (Contributor Covenant 2.0, GitHub's template), linked from the README
+  and the contributing guide.
 - Apptrol connects to the desktop's D-Bus session bus and finds the media players
   (MPRIS), following them as they start, stop and change between playing and paused
   (DESK-01 to DESK-03, MEDIA-01). Nothing uses them yet; the media buttons follow.
