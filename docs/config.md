@@ -231,7 +231,7 @@ Rules checked on load (each problem is reported on its own line):
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `player` | string | — | An app id from `[apps]`. The media keys (◀◀ ▶▶ ■ ▶) then control that app's player only; without it, the player that most recently started playing. *Media keys arrive later in 0.2.0.* |
+| `player` | string | — | An app id from `[apps]`, on a control or not. The media keys (◀◀ ▶▶ ■ ▶) then control that app's player only, and do nothing while it is not running; without it, the player that most recently started playing. |
 
 ---
 

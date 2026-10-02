@@ -125,17 +125,20 @@ type SetStreamVolume struct {
 	Volume   float64
 }
 
-// PlayerCommand tells a media player to play or pause (MEDIA-04): always
-// one of the two, never the toggle PlayPause.
+// PlayerCommand sends a command to a media player. Play and pause are always
+// one of the two, never the toggle PlayPause (MEDIA-04).
 type PlayerCommand struct {
 	BusName string
-	Command string // CommandPlay or CommandPause
+	Command string // one of the Command constants
 }
 
 // Player commands (MPRIS method names).
 const (
-	CommandPlay  = "Play"
-	CommandPause = "Pause"
+	CommandPlay     = "Play"
+	CommandPause    = "Pause"
+	CommandStop     = "Stop"
+	CommandNext     = "Next"
+	CommandPrevious = "Previous"
 )
 
 // SetStreamMute mutes or unmutes a playback stream.

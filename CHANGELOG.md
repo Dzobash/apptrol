@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Media keys ◀◀ ▶▶ ■ ▶** control the player that most recently started playing, on a
+  control or not; with `[media] player` set, only that app's player, and nothing while it
+  is not running (MEDIA-05, MEDIA-06). ▶ plays or pauses, ■ stops, ◀◀ and ▶▶ go to the
+  previous and next track. The ▶ LED is lit while that player plays (LED-06). README:
+  *Known issues* notes that ■ only pauses Spotify.
 - **R** on an app's column plays or pauses that app through its media player: it pauses
   every playing player of the app, or resumes the paused one that played last; a stopped
   player is never started, as with a keyboard's play / pause key (MEDIA-04, MEDIA-07,

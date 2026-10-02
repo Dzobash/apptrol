@@ -73,6 +73,7 @@ type playerMethods struct{ p *fakePlayer }
 
 func (m playerMethods) Play() *dbus.Error  { m.p.setStatus("Playing"); return nil }
 func (m playerMethods) Pause() *dbus.Error { m.p.setStatus("Paused"); return nil }
+func (m playerMethods) Stop() *dbus.Error  { m.p.setStatus("Stopped"); return nil }
 
 // harness runs a Bus and collects its events and log.
 type harness struct {
@@ -277,6 +278,13 @@ func TestIntegration_MEDIA04_PlayAndPauseReachThePlayer(t *testing.T) {
 	}
 	if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: spotify.name, Status: "Paused"}) {
 		t.Fatalf("after Pause: %v", ev)
+	}
+	// The media keys' commands go the same way (MEDIA-05).
+	if err := h.bus.Apply(mixer.PlayerCommand{BusName: spotify.name, Command: mixer.CommandStop}); err != nil {
+		t.Fatal(err)
+	}
+	if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: spotify.name, Status: "Stopped"}) {
+		t.Fatalf("after Stop: %v", ev)
 	}
 }
 

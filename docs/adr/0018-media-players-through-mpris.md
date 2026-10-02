@@ -122,3 +122,9 @@ Measured on the reference system (Kubuntu, KDE Plasma, PipeWire) on 2026-10-02:
 - 2026-10-02: R never starts a *Stopped* player, only resumes a *Paused* one, like a
   keyboard's play / pause key: without history, the first paused player by name is
   resumed (MEDIA-07).
+- 2026-10-02: Media keys (point 6). ▶ sends *Play* also to a stopped player, as the MPRIS
+  specification expects after *Stop*: VLC and Elisa then start the track again; Spotify
+  treats *Stop* as a pause (README, *Known issues*). A pinned app (`[media] player`) that
+  is not running makes the media keys do nothing; they never fall back to another
+  player. Players on no control count too. The ▶ LED is lit while the media-key player
+  plays (LED-06), as R's LED is for its app.

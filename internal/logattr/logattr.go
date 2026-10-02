@@ -101,7 +101,8 @@ const (
 	KeyPlayers             = "apptrol.desktop.players"       // number of media players found
 	KeyPlayerMatchedBy     = "apptrol.player.matched_by"     // bus_name, identity or desktop_entry
 	KeyPlayerIgnoredReason = "apptrol.player.ignored_reason" // other_device, proxy or duplicate
-	KeyPlayerCommand       = "apptrol.player.command"        // Play or Pause, sent to a player
+	KeyPlayerCommand       = "apptrol.player.command"        // Play, Pause, Stop, Next or Previous, sent to a player
+	KeyPlayerSelection     = "apptrol.player.selection"      // how the media keys chose their player: most_recent or pinned
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records
