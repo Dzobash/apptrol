@@ -70,3 +70,32 @@ state file unless a step says otherwise.
 | H-20 | Set `max_volume = 150` for the app on slider 1, save, move slider 1 to the top | The desktop mixer shows 150 %; with the slider in the middle, 75 % | CTRL-03, CFG-06 |
 | H-21 | Assign two apps whose match lists overlap (`"fire"` and `"firefox"`); run `apptrol check` | Warning names both apps and which one gets the streams | CFG-12 |
 | H-22 | With music on slider 1: press M1, then unmute the app in the Plasma volume applet; then mute it there again. Also mute the mic with the desktop (or `pactl set-source-mute`) | M1 turns off, then on again, following the applet; the mic's M LED turns off; each change is logged as "muted/unmuted outside Apptrol" and survives a restart | MUTE-07, LED-02 |
+
+### Phase 1.5
+
+Set the log level to `debug` (`[log] level`, or `apptrol --log-level debug` in a terminal)
+so the reasons in the log can be checked too. Unless a step says otherwise: Spotify on
+slider 1, a browser on slider 2, the microphone on slider 8.
+
+| # | Step | Expected | Req. |
+|---|---|---|---|
+| H-23 | Play music in Spotify, then a video in the browser. Press ▶, then ▶ again; then ▶▶ | The browser video pauses, then plays (it started playing most recently); ▶▶ goes to the next item in the browser | MEDIA-05, MEDIA-06 |
+| H-24 | Set `[media] player = "spotify"`, save; with the browser video playing last, press ▶ | Spotify pauses, the browser video keeps playing | MEDIA-06, CFG-15 |
+| H-25 | Press ■ while Spotify plays | Spotify stops | MEDIA-05 |
+| H-26 | With Spotify playing, press R1; then R1 again | Spotify pauses and the R1 LED goes off; then it plays and R1 lights | MEDIA-07, MEDIA-09 |
+| H-27 | Play videos in two browser tabs; press R2; then M2 | R2 pauses only the most recently used tab; the other keeps playing and R2 stays lit. M2 silences both tabs | MEDIA-07, MEDIA-09 |
+| H-28 | Put an app without MPRIS on a slider (e.g. mpv without its plugin, or Discord) and play sound; press its R | Nothing happens; its R LED stays off; the log says there is no media player for the app | MEDIA-08, MEDIA-09 |
+| H-29 | Restart the browser and play a video again; press R2 | R2 pauses it (the player's new instance number is found) | MEDIA-01, MEDIA-03 |
+| H-30 | If KDE Connect is used: play Spotify on the phone; press R1 and ▶ | Neither affects the phone; the log shows the phone's player as ignored (`other_device`) | MEDIA-02 |
+| H-31 | Set `record = { app = "<desktop ID>" }` (find it with `apptrol list apps <name>`), save, press ● | The app starts; the Record LED flashes briefly; the log names the unit | LAUNCH-01, LAUNCH-04, LAUNCH-08, LAUNCH-09 |
+| H-32 | With that app open: `systemctl --user restart apptrol` | The app keeps running | LAUNCH-04 |
+| H-33 | Set `if_running = "skip"`; with the app open from the menu, press ●; then close it, start it from a terminal and press ● again | Not started a second time either way; the log says how it was found (`unit`, then `process`) | LAUNCH-06, LAUNCH-07 |
+| H-34 | Set `marker_prev = { command = ["konsole", "-e", "htop"] }` (or another terminal) and press Marker ◀ | The command runs in a new window | LAUNCH-05 |
+| H-35 | Set a desktop ID that is not installed; run `apptrol check` | A warning names it; the rest of the configuration is valid | LAUNCH-10 |
+| H-36 | Hold R8 while speaking (watch the desktop's microphone level or a recording), release | The mic is muted only while R8 is held; M8 is off while held, lit after | INPUT-02, LED-04 |
+| H-37 | Set `r8 = { mode = "push_to_talk" }`, save; speak, then hold R8 and speak | Muted (M8 off) until R8 is held; live (M8 lit) while held | INPUT-03, LED-04 |
+| H-38 | Press M8 (mic muted), then hold and release R8 in cough mode | The mic stays muted throughout and after | INPUT-05 |
+| H-39 | Music at about 80 %: hold S8; while holding, move slider 1 to the middle; release | While held, apps drop to 25 % (desktop mixer); slider 1's move has no effect until release, then Spotify is at its new position | INPUT-04, INPUT-06, CFG-16 |
+| H-40 | Hold R8 (cough) and unplug the controller | The mic is live again; the log says the held state ended (`controller_disconnected`) | INPUT-07 |
+| H-41 | Run `apptrol --log-level debug` in a terminal (service stopped), then Ctrl+C and start the service | Debug lines in the terminal; the start record says the level came from the flag; the config file is unchanged; the service logs at the configured level | LOG-16 |
+| H-42 | With `debug` set, check the log after H-23 to H-40 | Every player is listed as matched (with `matched_by`), not matched or ignored (with the reason); D-Bus records carry `apptrol.component=desktop` | LOG-10, LOG-15 |
