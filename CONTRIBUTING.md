@@ -1,6 +1,7 @@
 # Contributing to Apptrol
 
 Thanks for your interest! Apptrol is a small project; issues and pull requests are welcome.
+Please follow the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## Before you start
 
