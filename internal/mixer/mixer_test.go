@@ -242,13 +242,11 @@ func TestSOLO06_SoloedAppKeepsItsOwnMute(t *testing.T) {
 	w.wantMuted(true, spotify.ID, firefox.ID)
 }
 
-func TestSOLO07_SOnInputColumnDoesNothing(t *testing.T) {
+func TestSOLO07_SOnInputColumnDoesNotSolo(t *testing.T) {
 	w := started(t)
-	w.press(ButtonS, 8)
-	if len(effects(w.last)) != 0 {
-		t.Errorf("S on the input column produced %v", w.last)
-	}
-	w.wantMuted(false, spotify.ID)
+	w.press(ButtonS, 8) // coughs instead (INPUT-01)
+	w.wantMuted(false, spotify.ID, firefox.ID, discord.ID, steam.ID)
+	w.wantLEDs(1, false, false, false)
 }
 
 // ---- LEDs --------------------------------------------------------------------

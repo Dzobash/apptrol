@@ -11,8 +11,12 @@ func (c *Config) Setup() mixer.Setup {
 		if app.Type == TypeInput {
 			kind = mixer.Input
 		}
-		s.Targets[id] = mixer.Target{ID: id, Name: app.Name, Kind: kind, Match: append([]string(nil), app.Match...),
+		t := mixer.Target{ID: id, Name: app.Name, Kind: kind, Match: append([]string(nil), app.Match...),
 			MaxVolume: float64(app.MaxVolume) / 100}
+		if kind == mixer.Input {
+			t.TalkOverVolume = mixer.DefaultTalkOverVolume // CFG-16; the file cannot set it yet
+		}
+		s.Targets[id] = t
 	}
 	for _, a := range c.Layout().Assignments {
 		kind := mixer.Slider

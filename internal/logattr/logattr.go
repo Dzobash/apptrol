@@ -81,9 +81,11 @@ const (
 	KeySolo         = "apptrol.state.solo"      // restored soloed control, "" = none
 	KeyDisconnected = "apptrol.controller.reason"
 
-	KeyStreamCorked   = "apptrol.stream.corked"    // the stream is paused by its app
-	KeyLogLevel       = "apptrol.log.level"        // the log level in use
-	KeyLogLevelSource = "apptrol.log.level_source" // where it comes from: flag or config
+	KeyStreamCorked   = "apptrol.stream.corked"     // the stream is paused by its app
+	KeyLogLevel       = "apptrol.log.level"         // the log level in use
+	KeyLogLevelSource = "apptrol.log.level_source"  // where it comes from: flag or config
+	KeyHeldReason     = "apptrol.held.reason"       // why a held state ended without a release
+	KeyTalkOver       = "apptrol.talk_over_percent" // the volume apps go down to during talk-over
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records

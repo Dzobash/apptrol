@@ -82,6 +82,8 @@ func TestHW01_Decode(t *testing.T) {
 		{CC{0, 32, 127}, mixer.ButtonPressed{Button: mixer.ButtonS, Column: 1}},
 		{CC{0, 55, 127}, mixer.ButtonPressed{Button: mixer.ButtonM, Column: 8}},
 		{CC{0, 66, 127}, mixer.ButtonPressed{Button: mixer.ButtonR, Column: 3}},
+		{CC{0, 32, 0}, mixer.ButtonReleased{Button: mixer.ButtonS, Column: 1}}, // INPUT-08
+		{CC{0, 66, 0}, mixer.ButtonReleased{Button: mixer.ButtonR, Column: 3}},
 		{CC{0, 58, 127}, mixer.TransportPressed{Button: mixer.TrackPrev}},
 		{CC{0, 45, 127}, mixer.TransportPressed{Button: mixer.Record}},
 		{CC{5, 1, 64}, mixer.ControlMoved{Control: mixer.Control{Kind: mixer.Slider, Column: 2}, Value: 64}}, // any channel
@@ -92,7 +94,7 @@ func TestHW01_Decode(t *testing.T) {
 			t.Errorf("Decode(%v) = %v, %v; want %v", tt.cc, got, ok, tt.want)
 		}
 	}
-	for _, cc := range []CC{{0, 32, 0}, {0, 58, 0}, {0, 8, 10}, {0, 100, 127}} {
+	for _, cc := range []CC{{0, 58, 0}, {0, 8, 10}, {0, 100, 127}} {
 		if ev, ok := m.Decode(cc); ok {
 			t.Errorf("Decode(%v) = %v, want nothing (release or unknown)", cc, ev)
 		}

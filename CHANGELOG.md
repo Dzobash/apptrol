@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- On a microphone's slider, holding **S** mutes the microphone while you cough
+  (INPUT-02). The M LED goes dark while it is muted; S and R stay lit to mark the
+  column as an input (LED-04).
+- The mixer can also do hold-to-talk on M, talk-over (other apps go down while you
+  talk) on S or with M, and button modes per input column (INPUT-*, ADR 0020). They
+  become usable when the button configuration arrives (CFG-13).
+- Held buttons end when the controller is unplugged, the configuration changes their
+  mode, or Apptrol stops; the log says why (`apptrol.held.reason`).
 - `apptrol --log-level debug` (or `info`, `warn`, `error`) sets the log level for one run,
   without changing the configuration file; it also holds when the configuration is
   reloaded. The first log line says where the level comes from (LOG-16).
@@ -17,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: mutes made with M stay set while Apptrol is stopped; ADR 0006 records why.
 
 ### Changed
+- ADR 0020 replaces the input column part of ADR 0019: M is the microphone button
+  (`mute` or `hold_to_talk`), S coughs or talks over, R on an input column is `off` or a
+  launcher. The input's talk-over setting is named `talk_over_volume`.
 - Roadmap: the on-screen display gets its own release (Phase 1.6, `0.3.0`) after the
   media buttons (`0.2.0`); layouts move to `0.4.0`, the GUI to `0.5.0`.
 - Roadmap: `0.2.0` also plans app launchers on Record and the Marker buttons, play /

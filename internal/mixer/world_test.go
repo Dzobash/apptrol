@@ -34,7 +34,7 @@ func testSetup() Setup {
 			"browser": {ID: "browser", Name: "Browser", Kind: App, Match: []string{"firefox", "Vivaldi"}},
 			"discord": {ID: "discord", Name: "Discord", Kind: App, Match: []string{"discord", "vesktop"}},
 			"games":   {ID: "games", Name: "Games", Kind: App, Match: []string{"steam"}},
-			"mic":     {ID: "mic", Name: "Microphone", Kind: Input, Match: []string{"goxlr"}},
+			"mic":     {ID: "mic", Name: "Microphone", Kind: Input, Match: []string{"goxlr"}, TalkOverVolume: DefaultTalkOverVolume},
 			"spare":   {ID: "spare", Name: "Spare", Kind: App, Match: []string{"spare"}},
 		},
 		Assignments: map[Control]string{
@@ -84,33 +84,45 @@ func (w *world) do(evs ...Event) *world {
 	w.last = nil
 	for _, ev := range evs {
 		w.forgetGone(ev)
-		acts := w.m.Handle(ev)
-		w.last = append(w.last, acts...)
-		for _, a := range acts {
-			switch a := a.(type) {
-			case SetStreamVolume:
-				if a.Volume < 0 || a.Volume > MaxBoost {
-					w.t.Fatalf("volume out of range: %v", a)
-				}
-				w.streamVol[a.StreamID] = a.Volume
-			case SetStreamMute:
-				w.streamMute[a.StreamID] = a.Muted
-			case SetDeviceVolume:
-				w.devVol[a.Device] = a.Volume
-			case SetDeviceMute:
-				w.devMute[a.Device] = a.Muted
-			case SetLED:
-				w.leds[a.LED] = a.On
-			case StateChanged:
-				w.saves++
-			case Notice:
-				w.notices = append(w.notices, a)
-			default:
-				w.t.Fatalf("unknown action %T", a)
-			}
-		}
+		w.apply(w.m.Handle(ev))
 	}
 	return w
+}
+
+// shutdown stops the mixer like the service does (SVC-07).
+func (w *world) shutdown() {
+	w.t.Helper()
+	w.last = nil
+	w.apply(w.m.Shutdown())
+}
+
+// apply carries out the mixer's actions.
+func (w *world) apply(acts []Action) {
+	w.t.Helper()
+	w.last = append(w.last, acts...)
+	for _, a := range acts {
+		switch a := a.(type) {
+		case SetStreamVolume:
+			if a.Volume < 0 || a.Volume > MaxBoost {
+				w.t.Fatalf("volume out of range: %v", a)
+			}
+			w.streamVol[a.StreamID] = a.Volume
+		case SetStreamMute:
+			w.streamMute[a.StreamID] = a.Muted
+		case SetDeviceVolume:
+			w.devVol[a.Device] = a.Volume
+		case SetDeviceMute:
+			w.devMute[a.Device] = a.Muted
+		case SetLED:
+			w.leds[a.LED] = a.On
+		case StateChanged:
+			w.saves++
+		case Notice:
+			w.notices = append(w.notices, a)
+		default:
+			w.t.Fatalf("unknown action %T", a)
+		}
+	}
 }
 
 // forgetGone models the audio server: a stream or device that disappears takes
@@ -161,6 +173,8 @@ func (w *world) move(k ControlKind, col, value int) *world {
 }
 
 func (w *world) press(b ButtonKind, col int) *world { return w.do(ButtonPressed{b, col}) }
+
+func (w *world) release(b ButtonKind, col int) { w.do(ButtonReleased{b, col}) }
 
 func (w *world) volume(id uint32) (float64, bool) {
 	v, ok := w.streamVol[id]

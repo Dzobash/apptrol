@@ -11,8 +11,15 @@ type ControlMoved struct {
 	Value   int
 }
 
-// ButtonPressed reports a column button press (releases are not events).
+// ButtonPressed reports a column button press.
 type ButtonPressed struct {
+	Button ButtonKind
+	Column int
+}
+
+// ButtonReleased reports that a column button was let go. Only held states
+// use it (INPUT-08); the controller's buttons must be Momentary (HW-01).
+type ButtonReleased struct {
 	Button ButtonKind
 	Column int
 }
@@ -24,6 +31,10 @@ type TransportPressed struct{ Button TransportButton }
 // sent. Resync marks the repeats sent shortly after a connect, because the
 // controller ignores LED messages while it starts up (LED-07).
 type ControllerConnected struct{ Resync bool }
+
+// ControllerDisconnected reports that the controller is gone. Held states
+// end: their release would never arrive (INPUT-07).
+type ControllerDisconnected struct{}
 
 // AudioSnapshot carries the full list of streams and devices, sent on
 // (re)connect to the audio server. It replaces everything the mixer knew (SVC-04).
@@ -69,19 +80,21 @@ type DeviceMuteChanged struct {
 // ConfigChanged carries a new, valid configuration (CFG-06).
 type ConfigChanged struct{ Setup Setup }
 
-func (ControlMoved) isEvent()        {}
-func (ButtonPressed) isEvent()       {}
-func (TransportPressed) isEvent()    {}
-func (ControllerConnected) isEvent() {}
-func (AudioSnapshot) isEvent()       {}
-func (StreamAdded) isEvent()         {}
-func (StreamRemoved) isEvent()       {}
-func (DeviceAdded) isEvent()         {}
-func (DeviceRemoved) isEvent()       {}
-func (StreamMuteChanged) isEvent()   {}
-func (StreamCorkChanged) isEvent()   {}
-func (DeviceMuteChanged) isEvent()   {}
-func (ConfigChanged) isEvent()       {}
+func (ControlMoved) isEvent()           {}
+func (ButtonPressed) isEvent()          {}
+func (ButtonReleased) isEvent()         {}
+func (ControllerDisconnected) isEvent() {}
+func (TransportPressed) isEvent()       {}
+func (ControllerConnected) isEvent()    {}
+func (AudioSnapshot) isEvent()          {}
+func (StreamAdded) isEvent()            {}
+func (StreamRemoved) isEvent()          {}
+func (DeviceAdded) isEvent()            {}
+func (DeviceRemoved) isEvent()          {}
+func (StreamMuteChanged) isEvent()      {}
+func (StreamCorkChanged) isEvent()      {}
+func (DeviceMuteChanged) isEvent()      {}
+func (ConfigChanged) isEvent()          {}
 
 // Action is something the service must do.
 type Action interface{ isAction() }

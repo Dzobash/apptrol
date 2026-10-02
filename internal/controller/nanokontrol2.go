@@ -64,8 +64,9 @@ func (m *Map) index() *Map {
 }
 
 // Decode turns a Control Change into a mixer event. Buttons send a value
-// above 0 when pressed and 0 when released (Momentary, HW-01); releases give
-// no event. ok is false for messages that mean nothing to Apptrol.
+// above 0 when pressed and 0 when released (Momentary, HW-01); a column
+// button's release becomes ButtonReleased (INPUT-08), a transport button's
+// gives no event. ok is false for messages that mean nothing to Apptrol.
 func (m *Map) Decode(cc CC) (ev mixer.Event, ok bool) {
 	ev, ok = m.lookup[cc.Controller]
 	if !ok {
@@ -75,9 +76,14 @@ func (m *Map) Decode(cc CC) (ev mixer.Event, ok bool) {
 	case mixer.ControlMoved:
 		e.Value = int(cc.Value)
 		return e, true
+	case mixer.ButtonPressed:
+		if cc.Value == 0 {
+			return mixer.ButtonReleased(e), true
+		}
+		return e, true
 	default:
 		if cc.Value == 0 {
-			return nil, false // button released
+			return nil, false // transport button released
 		}
 		return ev, true
 	}

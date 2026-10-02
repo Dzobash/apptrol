@@ -152,6 +152,37 @@ type Target struct {
 	// MaxVolume is the volume at the top of the control: 1 = 100 %, up to
 	// MaxBoost. 0 means 1.
 	MaxVolume float64
+	// TalkOverVolume is, on an input, the volume in percent (0–100) that apps
+	// go down to during talk-over (INPUT-04, CFG-16). The configuration sets
+	// it, DefaultTalkOverVolume unless the file says otherwise.
+	TalkOverVolume int
+}
+
+// DefaultTalkOverVolume is the talk-over volume of an input that sets none (CFG-16).
+const DefaultTalkOverVolume = 25
+
+// Mode is what M or S does on an input column (INPUT-01, ADR 0020).
+type Mode int
+
+// Button modes. ModeDefault is the button's default: mute for M; cough for S,
+// or off when M is in hold-to-talk.
+const (
+	ModeDefault    Mode = iota
+	ModeOff             // the button does nothing
+	ModeMute            // M: press to mute, press again to go live
+	ModeHoldToTalk      // M: live only while held
+	ModeCough           // S: muted while held
+	ModeTalkOver        // S: apps go down while held
+)
+
+var modeNames = [...]string{"default", "off", "mute", "hold_to_talk", "cough", "talk_over"}
+
+// String is the name the configuration uses, e.g. "hold_to_talk".
+func (m Mode) String() string {
+	if int(m) < len(modeNames) {
+		return modeNames[m]
+	}
+	return fmt.Sprintf("mode%d", int(m))
 }
 
 // Setup is the part of the configuration the mixer needs.
@@ -159,6 +190,16 @@ type Setup struct {
 	Layout      string             // name of the active layout, for the log; "" = "default"
 	Targets     map[string]Target  // by id
 	Assignments map[Control]string // control -> target id
+	// Buttons sets M and S on input columns, keyed by button (Column 1–8);
+	// a missing entry is the default.
+	Buttons map[LED]Button
+}
+
+// Button is the setting of an M or S button on an input column.
+type Button struct {
+	Mode Mode
+	// TalkOver, on M: apps go down while the input is live through M (INPUT-04).
+	TalkOver bool
 }
 
 // Stream is a playback stream (a PulseAudio "sink input").
