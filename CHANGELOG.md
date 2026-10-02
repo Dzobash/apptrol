@@ -11,9 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On a microphone's slider, holding **S** mutes the microphone while you cough
   (INPUT-02). The M LED goes dark while it is muted; S and R stay lit to mark the
   column as an input (LED-04).
-- The mixer can also do hold-to-talk on M, talk-over (other apps go down while you
-  talk) on S or with M, and button modes per input column (INPUT-*, ADR 0020). They
-  become usable when the button configuration arrives (CFG-13).
+- Buttons are configured per layout in `[layouts.<name>.buttons]` (CFG-13): on a
+  microphone's column, M can be `hold_to_talk` (live only while held) and turn the other
+  apps down while you talk (`talk_over = true`); S can be `talk_over` or `off`. The
+  input's `talk_over_volume` sets how far apps go down (default 25 %). Launchers,
+  `play_pause` on R and `[media] player` are checked already and work later in 0.2.0.
+- `apptrol check` rejects wrong button settings, one line per problem, and lists the
+  buttons that are set (CFG-14). Every configured button is logged on load
+  (`button configured`).
 - Held buttons end when the controller is unplugged, the configuration changes their
   mode, or Apptrol stops; the log says why (`apptrol.held.reason`).
 - `apptrol --log-level debug` (or `info`, `warn`, `error`) sets the log level for one run,

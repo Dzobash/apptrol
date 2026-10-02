@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -158,6 +159,39 @@ func cmdRun(configPath string, level *slog.Level, levelName string) error {
 var defaultLog = config.Log{Level: "info", Outputs: []string{config.OutputJournald},
 	Journald: config.JournaldOutput{Format: "text"}}
 
+// printButtons lists the buttons the layout sets (CFG-13); the others keep
+// their defaults.
+func printButtons(w io.Writer, l config.Layout) error {
+	if len(l.Buttons) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(l.Buttons))
+	for n := range l.Buttons {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	fmt.Fprintln(w, "Buttons:")
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	for _, n := range names {
+		b := l.Buttons[n]
+		what := b.Mode
+		switch {
+		case b.App != "":
+			what = "starts " + b.App
+		case len(b.Command) > 0:
+			what = "runs " + strings.Join(b.Command, " ")
+		}
+		if b.Launcher() && b.IfRunning == config.IfRunningSkip {
+			what += ", unless it runs"
+		}
+		if b.TalkOver {
+			what += ", talk_over"
+		}
+		fmt.Fprintf(tw, "  %s\t%s\n", n, what)
+	}
+	return tw.Flush()
+}
+
 // cmdCheck validates the configuration file and prints what it assigns (CFG-11).
 func cmdCheck(configPath string, stdout io.Writer) error {
 	path, err := resolveConfigPath(configPath)
@@ -192,6 +226,9 @@ func cmdCheck(configPath string, stdout io.Writer) error {
 	}
 	if len(cfg.Layout().Assignments) == 0 {
 		fmt.Fprintln(stdout, "  (no controls assigned)")
+	}
+	if err := printButtons(stdout, cfg.Layout()); err != nil {
+		return err
 	}
 	fmt.Fprintf(stdout, "Logging: %s to %s\n", cfg.Log.Level, strings.Join(cfg.Log.Outputs, " and "))
 	for _, w := range warnings {

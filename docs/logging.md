@@ -228,3 +228,7 @@ Apptrol's own:
 | `apptrol.log.level_source` | Where the log level comes from: `flag` (`--log-level`) or `config` (on the start line) |
 | `apptrol.held.reason` | Why a held button (cough, talk-over, hold-to-talk) ended without being released: `controller_disconnected`, `config_changed` or `stopping` |
 | `apptrol.talk_over_percent` | The volume apps go down to during talk-over |
+| `apptrol.button_mode` | What a button from the configuration does: its mode, or `launcher` (on `button configured`) |
+| `apptrol.button_talk_over` | `true` when an M button also turns apps down (`talk_over = true`) |
+| `apptrol.launcher.desktop_id` | The app a launcher starts |
+| `apptrol.launcher.command` | The command a launcher runs |

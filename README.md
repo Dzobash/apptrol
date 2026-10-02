@@ -30,7 +30,8 @@ with no desktop mixer involved.
 - Per app, the top of the slider can be up to 150 % (a boost) or less than 100 % (a cap)
 - **M** mutes the app on that slider, **S** solos it. A mute stays set while Apptrol is
   stopped (the desktop's volume applet shows it); a solo ends.
-- On the microphone's slider, hold **S** to mute it while you cough
+- On the microphone's slider, hold **S** to mute it while you cough; M can also be set to
+  hold-to-talk, and the music can go down while you talk (talk-over)
 - The button LEDs show what is muted and soloed, also when you mute or unmute an app
   somewhere else, e.g. in the desktop's volume applet
 - Apps that start later get the slider's volume straight away
@@ -48,7 +49,7 @@ What each control does in this version:
 It works alongside an audio interface such as a GoXLR, or on its own with a normal sound card.
 
 Planned later: media buttons, buttons that start apps, play / pause per slider,
-hold-to-talk and talk-over for the microphone, on-screen volume display, multiple layouts (e.g.
+on-screen volume display, multiple layouts (e.g.
 *Work* and *Gaming*) and a GUI.
 
 

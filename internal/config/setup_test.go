@@ -37,7 +37,8 @@ knob8   = "mic"
 				TalkOverVolume: mixer.DefaultTalkOverVolume}, // CFG-16 default
 			"unused": {ID: "unused", Name: "Unused", Kind: mixer.App, Match: []string{"x"}, MaxVolume: 1},
 		},
-		Layout: DefaultLayout,
+		Layout:  DefaultLayout,
+		Buttons: map[mixer.LED]mixer.Button{},
 		Assignments: map[mixer.Control]string{
 			{Kind: mixer.Slider, Column: 1}: "music",
 			{Kind: mixer.Knob, Column: 8}:   "mic",

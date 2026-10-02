@@ -37,6 +37,14 @@ type Config struct {
 	Apps map[string]App
 	// Layouts by name. Phase 1 uses only DefaultLayout.
 	Layouts map[string]Layout
+	Media   Media
+}
+
+// Media configures the media keys (ADR 0018).
+type Media struct {
+	// Player is the id of the app the media keys are pinned to; "" = the
+	// player that most recently started playing (CFG-15, MEDIA-06).
+	Player string
 }
 
 // Controller identifies the MIDI controller.
@@ -76,12 +84,16 @@ type App struct {
 	// MaxVolume is the volume in percent at the top of the control, 1–150
 	// (CTRL-03). Default 100.
 	MaxVolume int
+	// TalkOverVolume is, on an input, the volume in percent (0–100) apps go
+	// down to during talk-over (CFG-16). Default DefaultTalkOverVolume.
+	TalkOverVolume int
 }
 
 // Layout assigns apps to controls.
 type Layout struct {
 	Name        string
-	Assignments []Assignment // sorted: sliders 1–8, then knobs 1–8
+	Assignments []Assignment      // sorted: sliders 1–8, then knobs 1–8
+	Buttons     map[string]Button // [layouts.<name>.buttons] by button name (CFG-13)
 }
 
 // Assignment binds one control to one app.

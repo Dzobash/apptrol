@@ -73,6 +73,10 @@ match = ["spare"]
 [layouts.default]
 slider1 = "spotify"
 slider8 = "mic"
+
+[layouts.default.buttons]
+record = { app = "com.obsproject.Studio", if_running = "skip" }
+m8     = { mode = "hold_to_talk", talk_over = true }
 `)
 	invalid := writeConfig(t, "[layouts.default]\nslider9 = \"ghost\"\n")
 	missing := filepath.Join(t.TempDir(), "none.toml")
@@ -86,6 +90,7 @@ slider8 = "mic"
 	}{
 		{"valid", []string{"--config", valid, "check"}, 0,
 			[]string{": OK", "Controller: nanoKONTROL2", "slider1  Spotify", "app: spotify  max 150 %", "slider8  mic", "input: GoXLR",
+				"Buttons:", "m8      hold_to_talk, talk_over", "record  starts com.obsproject.Studio, unless it runs",
 				"Logging: warn to journald", "warning: apps.spare: not assigned"}, nil},
 		{"invalid", []string{"--config", invalid, "check"}, 1,
 			nil, []string{"apptrol check:", "slider9: unknown control", `app "ghost" is not defined`}},
