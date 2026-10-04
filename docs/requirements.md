@@ -82,6 +82,7 @@ the [roadmap](roadmap.md).
 | HW-05 | The controller MUST be found by its ALSA card id (from `[controller] port`), not by a fixed card or device number. | MUST | 1 |
 | HW-06 | If the controller's MIDI device is busy (held by another program), Apptrol MUST log a clear error naming the device and retry. | MUST | 1 |
 | HW-07 | A command `apptrol test` SHOULD show what the controller sends and toggle the LED of each pressed button, so the controller and its settings can be checked without a configuration. | SHOULD | 1 |
+| HW-08 | Within 5 seconds of the controller's device appearing (plugged in while Apptrol runs), a "permission denied" when opening it MUST be logged at debug and retried every 100 ms, as access is granted a moment later; afterwards, or if the device was present at start, it MUST be logged as the error of HW-06's kind (`controller_permission_denied`). *(Until 0.2.0: always an error.)* | MUST | 1 |
 
 Factory CC numbers of the nanoKONTROL2 (MIDI channel 1). Buttons send 127 on press and 0 on release.
 

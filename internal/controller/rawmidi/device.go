@@ -34,6 +34,16 @@ var defaultResync = []time.Duration{500 * time.Millisecond, 2 * time.Second}
 // the controller drops some of a burst of LED messages.
 const defaultLEDGap = 2 * time.Millisecond
 
+// Right after the controller is plugged in, its device file exists before the
+// system grants the user at the screen access to it (udev's uaccess). Within
+// defaultAccessGrace of the file appearing, "permission denied" means "not
+// ready yet": it is logged at debug and retried every defaultAccessPoll
+// (HW-08, ADR 0015).
+const (
+	defaultAccessGrace = 5 * time.Second
+	defaultAccessPoll  = 100 * time.Millisecond
+)
+
 // Device is the controller, connected through raw MIDI. Run and SetLED may be
 // called from different goroutines.
 type Device struct {
@@ -46,6 +56,9 @@ type Device struct {
 
 	resync []time.Duration // see defaultResync
 	ledGap time.Duration   // see defaultLEDGap
+
+	accessGrace time.Duration // see defaultAccessGrace
+	accessPoll  time.Duration // see defaultAccessPoll
 
 	find func() (string, error)
 	open func(path string) (io.ReadWriteCloser, error)
@@ -67,8 +80,11 @@ func New(log *slog.Logger, port string) *Device {
 		procDir: DefaultProcDir,
 		resync:  defaultResync,
 		ledGap:  defaultLEDGap,
-		find:    func() (string, error) { return Find(DefaultProcDir, DefaultDevDir, port) },
-		open:    openRaw,
+
+		accessGrace: defaultAccessGrace,
+		accessPoll:  defaultAccessPoll,
+		find:        func() (string, error) { return Find(DefaultProcDir, DefaultDevDir, port) },
+		open:        openRaw,
 	}
 }
 
@@ -96,17 +112,32 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 			lastProblem = key
 		}
 	}
+	// appeared is when the device file was found after it had been missing,
+	// i.e. the controller was just plugged in; zero if it was there at start.
+	var appeared time.Time
+	missing := false
 	for {
+		wait := d.poll
 		path, err := d.find()
+		if err == nil && missing {
+			appeared, missing = time.Now(), false
+		}
 		if err != nil {
+			missing = true
 			report(slog.LevelWarn, "controller not found; waiting for it to be plugged in",
 				logattr.KeyPort, d.port, logattr.KeySoundCards, cardList(d.procDir))
 		} else if f, err := d.open(path); err != nil {
+			denied := errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM)
 			switch {
+			case denied && !appeared.IsZero() && time.Since(appeared) < d.accessGrace:
+				// Just plugged in: access is granted a moment later (HW-08, ADR 0015).
+				report(slog.LevelDebug, "controller not accessible yet; retrying",
+					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerDenied, err))
+				wait = d.accessPoll
 			case errors.Is(err, syscall.EBUSY):
 				report(slog.LevelError, "the controller is in use by another program; retrying (`fuser <device>` names it)",
 					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerBusy, err)) // HW-06
-			case errors.Is(err, syscall.EACCES), errors.Is(err, syscall.EPERM):
+			case denied:
 				report(slog.LevelError, "no permission to open the controller; see the README section on permissions",
 					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerDenied, err))
 			default:
@@ -130,7 +161,7 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(d.poll):
+		case <-time.After(wait):
 		}
 	}
 }

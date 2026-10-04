@@ -28,7 +28,7 @@ change the first user's apps. A second user's own Apptrol cannot get the control
 
 ### "No permission to open the controller" right after plugging it in
 
-*In 0.1.0 and 0.2.0; to be fixed in 0.2.1 ([#75](https://github.com/Dzobash/apptrol/issues/75)).*
+*In 0.1.0 and 0.2.0; fixed in 0.2.1 ([#75](https://github.com/Dzobash/apptrol/issues/75)).*
 
 Sometimes Apptrol logs this error when the controller is plugged in, then connects a second
 later. The system grants access to the controller a moment after it appears; Apptrol was
