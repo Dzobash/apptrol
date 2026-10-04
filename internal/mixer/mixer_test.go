@@ -3,6 +3,7 @@ package mixer
 import (
 	"fmt"
 	"log/slog"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -357,6 +358,69 @@ func TestSTATE03_RestoredStateIsApplied(t *testing.T) {
 	if !near(w.devVol[goxlr.Name], 1) {
 		t.Errorf("mic volume = %v", w.devVol[goxlr.Name])
 	}
+}
+
+// waitingWorld: Apptrol started without a valid configuration, with the
+// controller connected and apps playing (STATE-08).
+func waitingWorld(t *testing.T, saved State) *world {
+	t.Helper()
+	w := newWorld(t, Setup{}, State{})
+	w.m = NewWithoutConfig(saved)
+	w.do(ControllerConnected{}, AudioSnapshot{Streams: []Stream{spotify, firefox, discord}, Devices: []Device{goxlr}})
+	return w
+}
+
+func savedForSTATE08() State {
+	return State{
+		Positions: map[Control]int{{Slider, 1}: 64, {Slider, 3}: 32, {Slider, 8}: 127},
+		Muted:     map[Control]bool{{Slider, 3}: true},
+		Solo:      2,
+	}
+}
+
+func TestSTATE08_SavedStateIsKeptWithoutAValidConfiguration(t *testing.T) {
+	saved := savedForSTATE08()
+	w := waitingWorld(t, saved)
+	if !w.m.Waiting() {
+		t.Fatal("Waiting() = false without a configuration")
+	}
+	if got := w.m.Snapshot(); !reflect.DeepEqual(got, saved) {
+		t.Errorf("Snapshot() = %+v, want the saved state unchanged %+v", got, saved)
+	}
+	// Nothing is controlled meanwhile.
+	w.noActionFor(spotify.ID)
+	w.noActionFor(discord.ID)
+}
+
+func TestSTATE08_TheFirstValidConfigurationAppliesTheSavedState(t *testing.T) {
+	w := waitingWorld(t, savedForSTATE08())
+	w.do(ConfigChanged{Setup: testSetup()})
+	if w.m.Waiting() {
+		t.Error("still waiting after a valid configuration")
+	}
+	w.wantVolume(spotify.ID, 64.0/127)
+	w.wantMuted(true, discord.ID)     // M3 restored
+	w.wantMuted(true, spotify.ID)     // silenced by the restored solo on column 2
+	w.wantMuted(false, firefox.ID)    // the soloed app
+	w.wantLEDs(2, true, false, false) // S2 lit
+	w.wantLEDs(3, false, true, false) // M3 lit
+	if !near(w.devVol[goxlr.Name], 1) {
+		t.Errorf("mic volume = %v, want the saved position", w.devVol[goxlr.Name])
+	}
+	// From now on, the state is the mixer's own again (STATE-07 applies).
+	if got := w.m.Snapshot(); got.Solo != 2 || got.Positions[Control{Slider, 1}] != 64 || !got.Muted[Control{Slider, 3}] {
+		t.Errorf("Snapshot() after the configuration = %+v", got)
+	}
+}
+
+func TestSTATE08_AControlMovedWhileWaitingKeepsItsNewPosition(t *testing.T) {
+	w := waitingWorld(t, savedForSTATE08())
+	w.do(ControlMoved{Control{Slider, 1}, 100})
+	if got := w.m.Snapshot().Positions[Control{Slider, 1}]; got != 100 {
+		t.Errorf("saved position of slider1 = %d, want the newer 100", got)
+	}
+	w.do(ConfigChanged{Setup: testSetup()})
+	w.wantVolume(spotify.ID, 100.0/127)
 }
 
 func TestSTATE04_SoloIsSavedAndRestored(t *testing.T) {

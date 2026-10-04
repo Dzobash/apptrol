@@ -180,6 +180,7 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | STATE-05 | If the state file is missing or unreadable, Apptrol MUST start with all positions *unknown* and no user mutes, leave current volumes unchanged, and log a warning (unless it is the first start). | MUST |
 | STATE-06 | The state file MUST be stored at `$XDG_STATE_HOME/apptrol/state.json` (default `~/.local/state/apptrol/state.json`). | MUST |
 | STATE-07 | State of controls whose assignment was removed from the config SHOULD be discarded. | SHOULD |
+| STATE-08 | While no valid configuration is loaded (invalid, unreadable or missing at start), the saved state MUST stay unchanged, except for the positions of controls moved meanwhile, and MUST be applied when the first valid configuration arrives; only then does STATE-07 apply. An invalid input must never cause a write (ADR 0025). *(Until 0.2.0: a start with an invalid configuration erased the saved state.)* | MUST |
 
 ### 4.8 Configuration
 

@@ -8,7 +8,7 @@ around. Found another one? Please [open an issue](https://github.com/Dzobash/app
 
 ### A restart with an invalid configuration loses the saved state
 
-*In 0.1.0 and 0.2.0; to be fixed in 0.2.1 ([#77](https://github.com/Dzobash/apptrol/issues/77)).*
+*In 0.1.0 and 0.2.0; fixed in 0.2.1 ([#77](https://github.com/Dzobash/apptrol/issues/77)).*
 
 If Apptrol starts while `config.toml` has an error, it runs without assignments and waits
 for a valid file, as intended. But it also saves that empty state, so the slider positions,
