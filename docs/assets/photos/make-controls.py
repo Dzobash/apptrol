@@ -48,20 +48,20 @@ box(603,40,1592,352,GREEN,18); badge(1,603,40,GREEN)
 # 2 R buttons
 for i in range(8):
     x=613+i*118
-    box(x-5,275,x+45,328,AMBER,10)
-badge(2,597,301,AMBER)
+    box(x-5,275,x+45,328,GREEN,10)
+badge(2,597,301,GREEN)
 # 3 media keys
-box(247,267,509,333,AMBER); badge(3,247,333,AMBER)
+box(247,267,509,333,GREEN); badge(3,247,333,GREEN)
 # 4 layouts: track + cycle
 box(247,160,377,256,VERM); badge(4,247,160,VERM)
 # 5 marker + record: launchers
-box(380,210,578,258,AMBER,12); box(513,267,576,333,AMBER,10); badge(5,578,210,AMBER)
+box(380,210,578,258,GREEN,12); box(513,267,576,333,GREEN,10); badge(5,578,210,GREEN)
 # Legend: edit the colours and texts here when a phase is released.
-items=[(1,GREEN,'Works now','Sliders and knobs set each app’s volume; S solos, M mutes; the LEDs show it.'),
-       (2,AMBER,'Planned for 0.2.0','R plays / pauses the app on its slider; on a microphone: hold to mute.'),
-       (3,AMBER,'Planned for 0.2.0','◀◀ ▶▶ ■ ▶ control the music player that is playing.'),
+items=[(1,GREEN,'Since 0.1.0','Sliders and knobs set volumes; S solos, M mutes; on a mic: talk or cough.'),
+       (2,GREEN,'Since 0.2.0','R plays / pauses the app on its slider, or starts an app.'),
+       (3,GREEN,'Since 0.2.0','◀◀ ▶▶ ■ ▶ control the music player that is playing.'),
        (4,VERM,'Planned for 0.4.0','Track ◀ ▶ and Cycle switch between layouts.'),
-       (5,AMBER,'Planned for 0.2.0','Marker buttons and Record start an app of your choice.')]
+       (5,GREEN,'Since 0.2.0','Marker buttons and Record start an app of your choice.')]
 y0=PAD_T+PH+PAD_B
 colx=[60,840]
 for k,(n,col,title,text) in enumerate(items):

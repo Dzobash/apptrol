@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-04
+
 ### Added
 - **Launchers start nothing while the screen is locked.** The lock screen does not stop
   the controller, so a press there would start an app or command unseen, by anyone.
@@ -230,5 +232,6 @@ First release: Phase 1, the core mixer.
 - Example configuration and configuration reference: `[controller] port` is the ALSA
   card id from `/proc/asound/cards`, not a name from `aseqdump -l`.
 
-[Unreleased]: https://github.com/Dzobash/apptrol/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Dzobash/apptrol/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Dzobash/apptrol/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Dzobash/apptrol/releases/tag/v0.1.0
