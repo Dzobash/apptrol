@@ -12,14 +12,58 @@ import (
 // not tied to a control: they act on any player that is not ignored.
 
 // launch starts the app of a launcher button; without one, the button does
-// nothing (LAUNCH-01). The launcher logs what it starts.
+// nothing (LAUNCH-01). Only while the screen is unlocked, or, with
+// when_locked, also while it is locked or another session is in front; never
+// while it cannot be told (LAUNCH-13, LAUNCH-14, ADR 0024). Every press while
+// locked is a warning (LAUNCH-15). The launcher logs what it starts.
 func (m *Mixer) launch(a *actions, b LED) {
 	l, ok := m.setup.Launchers[b]
 	if !ok {
 		a.notice(slog.LevelDebug, "button has no function: no launcher configured", logattr.KeyButton, b.String())
 		return
 	}
+	switch {
+	case m.screen == ScreenUnlocked:
+	case m.screenLocked() && l.WhenLocked:
+		a.notice(slog.LevelWarn, "launcher pressed while the screen is locked; started (when_locked)",
+			m.lockedLaunch(b, l)...)
+	case m.screenLocked():
+		a.notice(slog.LevelWarn, "launcher pressed while the screen is locked; nothing started",
+			m.lockedLaunch(b, l)...)
+		return
+	default:
+		a.notice(slog.LevelInfo, "launcher not started: the screen is not known to be unlocked",
+			logattr.KeyButton, b.String(), logattr.KeyScreenState, string(m.screen))
+		return
+	}
 	a.add(LaunchApp{Button: b, Launch: l})
+}
+
+// lockedLaunch returns the attributes of a launcher pressed while locked.
+func (m *Mixer) lockedLaunch(b LED, l Launch) []any {
+	attrs := []any{logattr.KeyButton, b.String(), logattr.KeyScreenState, string(m.screen)}
+	if l.DesktopID != "" {
+		return append(attrs, logattr.KeyLauncherDesktopID, l.DesktopID)
+	}
+	return append(attrs, logattr.KeyLauncherCommand, strings.Join(l.Command, " "))
+}
+
+// screenLocked reports whether the screen is known to be locked, or another
+// session is in front.
+func (m *Mixer) screenLocked() bool { return m.screen == ScreenLocked || m.screen == ScreenInactive }
+
+// lockedPress warns about a button pressed while the screen is locked
+// (LAUNCH-15). Launchers warn in launch, with what they did; sliders and
+// knobs are not reported.
+func (m *Mixer) lockedPress(a *actions, b LED) {
+	if !m.screenLocked() {
+		return
+	}
+	if _, launcher := m.setup.Launchers[b]; launcher {
+		return
+	}
+	a.notice(slog.LevelWarn, "button pressed while the screen is locked",
+		logattr.KeyButton, b.String(), logattr.KeyScreenState, string(m.screen))
 }
 
 // mediaKeyCommands maps the media keys to player commands; ▶ is decided by

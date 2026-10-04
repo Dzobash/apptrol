@@ -30,6 +30,7 @@ type Mixer struct {
 	playSeq        int                    // counts players starting to play (lastPlaying)
 	deviceMuteSent map[string]bool        // last mute sent per device
 	leds           map[LED]bool           // last LED state sent
+	screen         ScreenState            // launchers start only while unlocked (LAUNCH-13)
 }
 
 type streamInfo struct {
@@ -53,6 +54,7 @@ func New(setup Setup, saved State) *Mixer {
 		players:        map[string]*playerInfo{},
 		deviceMuteSent: map[string]bool{},
 		leds:           map[LED]bool{},
+		screen:         ScreenUnknown, // until the session adapter knows (LAUNCH-13)
 	}
 	m.setSetup(setup)
 	for c, v := range saved.Positions {
@@ -168,15 +170,22 @@ func (m *Mixer) Handle(ev Event) []Action {
 	case ControlMoved:
 		m.controlMoved(&a, e)
 	case ButtonPressed:
+		m.lockedPress(&a, LED{Button: e.Button, Column: e.Column})
 		m.buttonPressed(&a, e)
 	case ButtonReleased:
 		m.buttonReleased(&a, e)
 	case TransportPressed:
+		m.lockedPress(&a, LED{Transport: e.Button})
 		m.transportPressed(&a, e.Button)
 	case ControllerConnected:
 		m.syncLEDs(&a, true) // LED-07
 	case SystemResumed:
 		m.syncLEDs(&a, true) // LED-09
+	case ScreenChanged:
+		m.screen = e.State
+		if m.screen == "" {
+			m.screen = ScreenUnknown
+		}
 	case ControllerDisconnected:
 		// The releases of held buttons will never arrive (INPUT-07).
 		before := m.talkOver()

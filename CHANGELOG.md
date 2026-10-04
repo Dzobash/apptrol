@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Launchers start nothing while the screen is locked.** The lock screen does not stop
+  the controller, so a press there would start an app or command unseen, by anyone.
+  Apptrol follows the lock state of your login session through logind and starts a
+  launcher only while the screen is unlocked; when it cannot tell (no system bus, no
+  graphical session), it starts nothing. `when_locked = true` on a launcher lets that one
+  start anyway, with a warning on every configuration load. Everything else keeps
+  working at the lock screen (LAUNCH-13, LAUNCH-14, ADR 0024).
+- **Presses at the lock screen are logged:** every button pressed while the screen is
+  locked, or another user's session is in front, is a warning in the log (shown at the
+  default level), launchers with whether they started; sliders and knobs are not
+  reported (LAUNCH-15).
 - `if_running = "skip"`: a launcher does not start an app that already runs. Apptrol
   looks for the app's systemd unit (menu, Flatpak, Snap, Apptrol), then for its process
   (started from a terminal); Steam games are passed to Steam, which never starts a game
@@ -102,7 +113,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   afterwards came back (e.g. M8, but not S8 and R8). Apptrol now hears the wake-up from
   systemd-logind on the D-Bus system bus and sends every LED, again while the controller
   starts (LED-09, ADR 0023). The log shows `system resumed; sending LEDs again`
-  (component `session`); without a system bus it warns and everything else works.
+  (component `session`); without a system bus it warns.
 
 ## [0.1.0] - 2026-09-30
 

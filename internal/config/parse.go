@@ -249,6 +249,9 @@ func parse(path string, data []byte) (*Config, []string, error) {
 		return nil, nil, &ValidationError{Path: path, Problems: errs}
 	}
 	warnings = append(warnings, overlaps(cfg)...)
+	for _, at := range cfg.WhenLockedLaunchers() {
+		warnings = append(warnings, at+": when_locked = true: this button starts its app also while the screen is locked, for anyone at the controller")
+	}
 	return cfg, warnings, nil
 }
 

@@ -165,10 +165,17 @@ type env struct {
 	session      fakeSession
 }
 
-// fakeSession passes on the wake-ups a test sends (internal/session).
-type fakeSession struct{ in chan mixer.Event }
+// fakeSession reports an unlocked screen, as on a desktop, then passes on
+// the events a test sends (internal/session). ready is closed once the
+// unlocked screen is queued, ahead of anything the test sends.
+type fakeSession struct {
+	in    chan mixer.Event
+	ready chan struct{}
+}
 
 func (f *fakeSession) Run(ctx context.Context, out chan<- mixer.Event) error {
+	out <- mixer.ScreenChanged{State: mixer.ScreenUnlocked}
+	close(f.ready)
 	for {
 		select {
 		case ev := <-f.in:
@@ -229,7 +236,7 @@ slider8 = "mic"
 // newEnv prepares a service; config is written unless it is empty.
 func newEnv(t *testing.T, cfg string) *env {
 	e := &env{t: t, dir: t.TempDir(), out: &syncBuf{}, logs: &fakeLogs{}, done: make(chan error, 1),
-		session: fakeSession{in: make(chan mixer.Event, 4)}}
+		session: fakeSession{in: make(chan mixer.Event, 4), ready: make(chan struct{})}}
 	e.cfg = filepath.Join(e.dir, "config", "config.toml")
 	if cfg != "" {
 		e.write(cfg)
@@ -278,6 +285,7 @@ func (e *env) start() *env {
 	go func() { e.done <- Run(ctx, o) }()
 	e.t.Cleanup(e.stop)
 	e.waitLog("Apptrol running")
+	<-e.session.ready
 	return e
 }
 
@@ -477,6 +485,29 @@ func TestLED09_WakeUpSendsEveryLEDAgain(t *testing.T) {
 		return e.ctl.led(s8) && e.ctl.led(mixer.LED{Button: mixer.ButtonM, Column: 8}) &&
 			e.ctl.led(mixer.LED{Button: mixer.ButtonR, Column: 8})
 	})
+}
+
+func TestLAUNCH13_RecordAtTheLockScreenStartsNothing(t *testing.T) {
+	e := newEnv(t, testConfig+`
+[layouts.default.buttons]
+record = { app = "discord" }
+`).start()
+	rec := mixer.LED{Transport: mixer.Record}
+	e.eventually("Record LED off at start", func() bool { return e.ctl.setCount(rec) > 0 && !e.ctl.led(rec) })
+	before := e.ctl.setCount(rec)
+	// Through the controller fake, so they arrive in order with the presses.
+	e.send(mixer.ScreenChanged{State: mixer.ScreenLocked})
+	e.send(mixer.TransportPressed{Button: mixer.Record})
+	e.waitLog("launcher pressed while the screen is locked; nothing started")
+	if n := e.launcher.count(); n != 0 {
+		t.Errorf("%d apps started at the lock screen", n)
+	}
+	if e.ctl.setCount(rec) != before {
+		t.Error("the Record LED flashed although nothing started")
+	}
+	e.send(mixer.ScreenChanged{State: mixer.ScreenUnlocked})
+	e.send(mixer.TransportPressed{Button: mixer.Record})
+	e.eventually("launch after unlocking", func() bool { return e.launcher.count() == 1 })
 }
 
 func TestLAUNCH10_LaunchersOfMissingAppsAreWarnedAbout(t *testing.T) {

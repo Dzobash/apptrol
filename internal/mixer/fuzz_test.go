@@ -8,13 +8,20 @@ func FuzzMixer(f *testing.F) {
 	f.Add([]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
 	f.Add([]byte{3, 0, 3, 1, 3, 0, 4, 2, 9, 9, 3, 0})
 	f.Add([]byte{10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21})
+	f.Add([]byte{14, 0, 15, 0, 14, 1, 15, 0, 14, 3, 15, 0})
 	pool := []Stream{spotify, firefox, ffTab2, discord, steam, viber}
 	devices := []Device{goxlr, webcam}
+	screens := []ScreenState{ScreenUnlocked, ScreenLocked, ScreenInactive, ScreenUnknown}
 	f.Fuzz(func(t *testing.T, data []byte) {
-		w := newWorld(t, testSetup(), State{})
+		setup := testSetup()
+		setup.Launchers = map[LED]Launch{
+			{Transport: Record}:    {DesktopID: "com.obsproject.Studio"},
+			{Transport: MarkerSet}: {Command: []string{"lights-off"}, WhenLocked: true},
+		}
+		w := newWorld(t, setup, State{})
 		w.do(ControllerConnected{})
 		for i := 0; i+1 < len(data); i += 2 {
-			op, arg := data[i]%14, int(data[i+1])
+			op, arg := data[i]%16, int(data[i+1])
 			var ev Event
 			switch op {
 			case 0:
@@ -60,9 +67,25 @@ func FuzzMixer(f *testing.F) {
 				// Paused or resumed by its app (MEDIA-10), also for streams the
 				// mixer does not know (yet).
 				ev = StreamCorkChanged{ID: pool[arg%len(pool)].ID, Corked: arg%2 == 0}
+			case 14:
+				ev = ScreenChanged{State: screens[arg%len(screens)]}
+			case 15:
+				ev = TransportPressed{Button: []TransportButton{Record, MarkerSet}[arg%2]}
 			}
+			launched := len(w.launched)
 			w.do(ev)
 			checkInvariants(t, w)
+			// Launchers start apps only while the screen is unlocked; with
+			// when_locked also while locked, but never while unknown
+			// (LAUNCH-13, LAUNCH-14).
+			for _, l := range w.launched[launched:] {
+				switch {
+				case w.m.screen == ScreenUnlocked:
+				case w.m.screenLocked() && l.Launch.WhenLocked:
+				default:
+					t.Fatalf("%s launched while the screen is %q", l.Button, w.m.screen)
+				}
+			}
 		}
 	})
 }

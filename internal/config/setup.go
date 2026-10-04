@@ -54,7 +54,7 @@ func (c *Config) Setup() mixer.Setup {
 		if b.Launcher() {
 			if l, ok := launcherLED(b.Name); ok {
 				s.Launchers[l] = mixer.Launch{DesktopID: b.App, Command: append([]string(nil), b.Command...),
-					SkipIfRunning: b.IfRunning == IfRunningSkip}
+					SkipIfRunning: b.IfRunning == IfRunningSkip, WhenLocked: b.WhenLocked}
 			}
 		}
 		letter, col, ok := b.Column()

@@ -217,6 +217,19 @@ run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they 
   every tab, because it acts on each tab's audio. This is how browsers implement the
   media player interface (MPRIS), not something Apptrol can change.
 
+- **Some lock screens are not recognised.** Apptrol learns that the screen is locked
+  from logind, the login manager, which the lock screens of KDE Plasma and GNOME tell.
+  Some lock programs on minimal window manager setups do not; there Apptrol sees an
+  unlocked screen, so launchers work and nothing is logged as pressed at the lock screen.
+  To check: lock the screen, and from a second computer over SSH run
+  `loginctl show-session "$(loginctl show-user "$USER" -p Display --value)" -p LockedHint`;
+  it should say `LockedHint=yes`.
+
+- **Launchers never start without a graphical login session.** If logind has no
+  graphical session for you (some setups started without a display manager), Apptrol
+  cannot tell whether the screen is locked and, to be safe, starts nothing. The log
+  says `apptrol.screen.reason=no_graphical_session`.
+
 - **■ only pauses Spotify.** The media player standard says *Stop* stops, and *Play*
   then starts the track again from the beginning; VLC and Elisa do this. Spotify treats
   *Stop* as a pause instead, so ▶ continues where it was.
@@ -260,6 +273,10 @@ what you write, with your user's rights. Apptrol refuses a few catastrophic comm
 (see [Blocked commands](docs/config.md#blocked-commands)), but that is a safety net
 against accidents, not protection: the authors accept no liability for what a command
 you configure does.
+
+**Launchers start nothing while the screen is locked**, unless you set
+`when_locked = true` on a button; every button pressed at the lock screen is logged as a
+warning ([At the lock screen](docs/config.md#launchers)).
 
 ## License
 

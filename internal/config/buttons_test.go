@@ -94,6 +94,8 @@ func TestCFG14_ButtonProblems(t *testing.T) {
 		{`r1 = { mode = "pause" }`, `buttons.r1.mode: "pause" is not valid here`},
 		{`r1 = { app = "a", if_running = "never" }`, `buttons.r1.if_running: "never" is not valid`},
 		{`r1 = { mode = "off", if_running = "skip" }`, "buttons.r1.if_running: only a launcher"},
+		{`r1 = { mode = "off", when_locked = true }`, "buttons.r1.when_locked: only a launcher"},
+		{`r1 = { app = "a", when_locked = "yes" }`, "layouts.default.buttons.r1.when_locked: expected boolean, found text"},
 		{`r1 = { command = [] }`, "buttons.r1.command: give the program"},
 		{`r8 = { mode = "play_pause" }`, `buttons.r8: "play_pause" needs an app on slider8; slider8 holds the input "mic"`},
 		{`r5 = { mode = "play_pause" }`, `buttons.r5: "play_pause" needs an app on slider5; nothing is assigned there`},
@@ -112,6 +114,32 @@ func TestCFG14_ButtonProblems(t *testing.T) {
 		t.Run(tc.buttons, func(t *testing.T) {
 			requireProblem(t, problemsOf(t, withButtons(tc.buttons)), tc.want)
 		})
+	}
+}
+
+func TestLAUNCH14_WhenLocked(t *testing.T) {
+	cfg, warnings := mustParse(t, withButtons(`
+record     = { command = ["lights-off"], when_locked = true }
+marker_set = { app = "discord", when_locked = false }
+r2         = { app = "discord" }
+`))
+	l := cfg.Setup().Launchers
+	if !l[mixer.LED{Transport: mixer.Record}].WhenLocked {
+		t.Error("record: when_locked = true did not reach the mixer")
+	}
+	if l[mixer.LED{Transport: mixer.MarkerSet}].WhenLocked || l[mixer.LED{Button: mixer.ButtonR, Column: 2}].WhenLocked {
+		t.Error("when_locked is on without being set to true")
+	}
+	// A warning on every load, for each launcher allowed while locked.
+	var found []string
+	for _, w := range warnings {
+		if strings.Contains(w, "when_locked") {
+			found = append(found, w)
+		}
+	}
+	want := "layouts.default.buttons.record: when_locked = true: this button starts its app also while the screen is locked, for anyone at the controller"
+	if len(found) != 1 || found[0] != want {
+		t.Errorf("when_locked warnings = %q, want only %q", found, want)
 	}
 }
 

@@ -112,6 +112,9 @@ const (
 	KeyPlayerSelection     = "apptrol.player.selection"      // how the media keys chose their player: most_recent or pinned
 
 	KeySessionBusAddress = "apptrol.session.bus_address" // the system bus address in use
+	KeySessionID         = "apptrol.session.id"          // logind's id of the user's graphical session
+	KeyScreenState       = "apptrol.screen.state"        // unlocked, locked, inactive or unknown
+	KeyScreenReason      = "apptrol.screen.reason"       // why the state is unknown
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records
@@ -138,6 +141,7 @@ const (
 	ErrAppStart             = "app_start_failed"
 	ErrSystemBusUnreachable = "system_bus_unreachable"
 	ErrSystemBusLost        = "system_bus_lost"
+	ErrScreenUnreadable     = "screen_state_unreadable"
 )
 
 // Component returns the apptrol.component attribute.
