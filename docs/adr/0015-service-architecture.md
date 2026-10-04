@@ -47,3 +47,11 @@ sequencer bridge is not subscribed to it.
   actions can take long, so the service hands them over without waiting and the adapters
   log the outcome; the mixer stays pure and without a clock, and the service times the
   Record LED's flash. `docs/architecture.md` describes both.
+- 2026-10-04: Right after the controller is plugged in, its device file exists a moment
+  before the system grants the user at the screen access to it (udev's `uaccess`), so
+  opening it can fail with "permission denied" although nothing is wrong
+  ([#75](https://github.com/Dzobash/apptrol/issues/75)). Within 5 seconds of the device
+  file appearing, that is logged at debug (`controller not accessible yet; retrying`)
+  and retried every 100 ms; later, or when the device was there at start, it is the
+  error as before (HW-08). A refinement of how the controller is opened, not a new
+  decision.

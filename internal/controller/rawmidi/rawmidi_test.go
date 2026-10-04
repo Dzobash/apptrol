@@ -111,6 +111,12 @@ func (l *logBuf) Write(p []byte) (int, error) {
 	return l.b.Write(p)
 }
 
+func (l *logBuf) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
+}
+
 func (l *logBuf) count(s string) int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -135,12 +141,24 @@ type harness struct {
 func newHarness(t *testing.T) *harness { return newHarnessWith(t, make(chan mixer.Event, 64)) }
 
 func newHarnessWith(t *testing.T, events chan mixer.Event) *harness {
-	h := &harness{t: t, log: &logBuf{}, events: events, done: make(chan error, 1)}
+	return newHarnessAt(t, events, false, nil, 0)
+}
+
+// newHarnessAt starts the adapter with the controller already present (or
+// not), opening it failing with openErr, and the grace period after plugging
+// in (0: 50 ms).
+func newHarnessAt(t *testing.T, events chan mixer.Event, present bool, openErr error, grace time.Duration) *harness {
+	h := &harness{t: t, log: &logBuf{}, events: events, done: make(chan error, 1), present: present, openErr: openErr}
 	h.d = New(slog.New(slog.NewTextHandler(h.log, &slog.HandlerOptions{Level: slog.LevelDebug})), "nanoKONTROL2")
 	h.d.poll = 5 * time.Millisecond
 	h.d.procDir = t.TempDir()
 	h.d.resync = nil // tested on its own
 	h.d.ledGap = 0
+	h.d.accessGrace = 50 * time.Millisecond
+	if grace > 0 {
+		h.d.accessGrace = grace
+	}
+	h.d.accessPoll = 5 * time.Millisecond
 	h.d.find = func() (string, error) {
 		h.mu.Lock()
 		defer h.mu.Unlock()
@@ -308,6 +326,45 @@ func TestOpenErrors(t *testing.T) {
 			want := map[string]string{"permission": "no permission", "other": "cannot open the controller"}[name]
 			eventually(t, want, func() bool { return h.log.count(want) == 1 })
 		})
+	}
+}
+
+var denied = &os.PathError{Op: "open", Path: "/dev/snd/midiC1D0", Err: syscall.EACCES}
+
+func TestHW08_PermissionRightAfterPluggingInIsRetriedQuietly(t *testing.T) {
+	h := newHarnessAt(t, make(chan mixer.Event, 64), false, nil, time.Minute) // grace longer than the test
+	eventually(t, "not-found warning", func() bool { return h.log.count("controller not found") == 1 })
+	h.set(true, denied) // plugged in; access not granted yet
+	eventually(t, "debug retry", func() bool { return h.log.count("controller not accessible yet") == 1 })
+	h.set(true, nil) // access granted
+	if ev := h.next(); ev != (mixer.ControllerConnected{}) {
+		t.Fatalf("got %v, want ControllerConnected", ev)
+	}
+	if n := h.log.count("no permission"); n != 0 {
+		t.Errorf("permission error logged %d times right after plugging in, want none:\n%s", n, h.log.String())
+	}
+	if h.log.count("level=DEBUG msg=\"controller not accessible yet") != 1 {
+		t.Errorf("the retry is not logged once at debug:\n%s", h.log.String())
+	}
+}
+
+func TestHW08_PermissionStillDeniedAfterTheGraceIsAnError(t *testing.T) {
+	h := newHarness(t)
+	eventually(t, "not-found warning", func() bool { return h.log.count("controller not found") == 1 })
+	h.set(true, denied)
+	eventually(t, "permission error", func() bool { return h.log.count("no permission") == 1 })
+	time.Sleep(30 * time.Millisecond) // several more polls
+	if n := h.log.count("no permission"); n != 1 {
+		t.Errorf("permission error logged %d times, want once", n)
+	}
+}
+
+func TestHW08_PermissionDeniedAtStartIsAnErrorAtOnce(t *testing.T) {
+	// The grace must not apply: the device was there at start.
+	h := newHarnessAt(t, make(chan mixer.Event, 64), true, denied, time.Minute)
+	eventually(t, "permission error", func() bool { return h.log.count("no permission") == 1 })
+	if n := h.log.count("not accessible yet"); n != 0 {
+		t.Errorf("treated as just plugged in although present at start:\n%s", h.log.String())
 	}
 }
 

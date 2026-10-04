@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mutes and solo. Apptrol keeps them unchanged while it waits for a valid configuration
   and applies them when one arrives; the log says `saved state kept until a valid
   configuration is loaded`, then `saved state applied` (STATE-08, ADR 0025, #77).
+- Plugging in the controller no longer logs a false "no permission to open the
+  controller" error. The system grants access a moment after the controller appears;
+  within 5 seconds of that, Apptrol retries quietly every 100 ms (a debug line), so it
+  also connects faster. A real permission problem is still reported (HW-08, #75).
 
 ## [0.2.0] - 2026-10-04
 
