@@ -162,6 +162,21 @@ type env struct {
 
 	logLevelFlag string // Options.LogLevelFlag
 	launcher     fakeLauncher
+	power        fakePower
+}
+
+// fakePower passes on the wake-ups a test sends (internal/power).
+type fakePower struct{ in chan mixer.Event }
+
+func (f *fakePower) Run(ctx context.Context, out chan<- mixer.Event) error {
+	for {
+		select {
+		case ev := <-f.in:
+			out <- ev
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
 
 // fakeLauncher records the apps it is asked to start.
@@ -213,7 +228,8 @@ slider8 = "mic"
 
 // newEnv prepares a service; config is written unless it is empty.
 func newEnv(t *testing.T, cfg string) *env {
-	e := &env{t: t, dir: t.TempDir(), out: &syncBuf{}, logs: &fakeLogs{}, done: make(chan error, 1)}
+	e := &env{t: t, dir: t.TempDir(), out: &syncBuf{}, logs: &fakeLogs{}, done: make(chan error, 1),
+		power: fakePower{in: make(chan mixer.Event, 4)}}
 	e.cfg = filepath.Join(e.dir, "config", "config.toml")
 	if cfg != "" {
 		e.write(cfg)
@@ -257,6 +273,7 @@ func (e *env) start() *env {
 		// Only Discord is installed in the tests, whatever the machine has.
 		InstalledApps: func() launcher.Apps { return launcher.Apps{"discord": {ID: "discord", Name: "Discord"}} },
 		Launcher:      &e.launcher,
+		Power:         &e.power,
 	}
 	go func() { e.done <- Run(ctx, o) }()
 	e.t.Cleanup(e.stop)
@@ -445,6 +462,21 @@ record = { app = "discord" }
 	e.eventually("launch", func() bool { return e.launcher.count() == 1 })
 	e.eventually("flash on", func() bool { return e.ctl.setCount(rec) > before })
 	e.eventually("flash off", func() bool { return e.ctl.setCount(rec) >= before+2 && !e.ctl.led(rec) })
+}
+
+func TestLED09_WakeUpSendsEveryLEDAgain(t *testing.T) {
+	e := newEnv(t, testConfig).start()
+	s8 := mixer.LED{Button: mixer.ButtonS, Column: 8}
+	// Sent on connect, on the audio snapshot and on the resync after it.
+	e.eventually("startup LEDs", func() bool { return e.ctl.setCount(s8) >= 3 })
+	e.ctl.mu.Lock()
+	e.ctl.leds = map[mixer.LED]bool{} // the controller lost power while the computer slept
+	e.ctl.mu.Unlock()
+	e.power.in <- mixer.SystemResumed{}
+	e.eventually("mic column lit again", func() bool {
+		return e.ctl.led(s8) && e.ctl.led(mixer.LED{Button: mixer.ButtonM, Column: 8}) &&
+			e.ctl.led(mixer.LED{Button: mixer.ButtonR, Column: 8})
+	})
 }
 
 func TestLAUNCH10_LaunchersOfMissingAppsAreWarnedAbout(t *testing.T) {

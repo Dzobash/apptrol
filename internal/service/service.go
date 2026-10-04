@@ -42,6 +42,11 @@ type Desktop interface {
 	Apply(a mixer.Action) error // does not wait for the player's answer
 }
 
+// Power is the system bus: it reports wake-ups (internal/power, ADR 0023).
+type Power interface {
+	Run(ctx context.Context, out chan<- mixer.Event) error
+}
+
 // Launcher starts apps for launcher buttons (internal/launcher, ADR 0019);
 // it does not wait for them.
 type Launcher interface {
@@ -76,6 +81,7 @@ type Options struct {
 	Audio         Audio
 	NewController func(port string) Controller
 	Desktop       Desktop // may be nil: no media players
+	Power         Power   // may be nil: LEDs are not sent again after sleep
 	// InstalledApps lists the installed apps, for the launchers' warnings
 	// (LAUNCH-10); nil means launcher.Installed.
 	InstalledApps func() launcher.Apps
@@ -165,6 +171,9 @@ func Run(ctx context.Context, o Options) error {
 	}
 	if o.Desktop != nil {
 		runs = append(runs, func() { _ = o.Desktop.Run(actx, events) })
+	}
+	if o.Power != nil {
+		runs = append(runs, func() { _ = o.Power.Run(actx, events) })
 	}
 	for _, run := range runs {
 		wg.Add(1)

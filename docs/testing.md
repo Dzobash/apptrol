@@ -11,7 +11,7 @@ of [requirements.md](requirements.md#51-quality-assurance).
 | `make check` | Format check, `go vet`, `golangci-lint`, tests — the same checks CI runs |
 | `make test` | Tests with the race detector |
 | `make test-audio` | Integration tests against your running PipeWire (they add a silent test output and inputs and remove them afterwards) |
-| `make test-desktop` | D-Bus integration tests in a private session bus (`dbus-run-session`); your desktop's bus and media players are not touched |
+| `make test-desktop` | D-Bus integration tests in a private session bus (`dbus-run-session`): media players, and a fake logind standing in for the system bus; your desktop's buses and media players are not touched |
 | `make test-launcher` | Starts harmless test units (`true`) in your systemd user manager and checks they are removed; CI has no user systemd, so run it before a release |
 | `make cover` | Tests with coverage; fails below the minimum; writes `coverage.html` to open in a browser |
 | `make vulncheck` | Scans dependencies for known vulnerabilities |
@@ -34,8 +34,9 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](..
 - **No hardware, no network, no desktop.** Tests use fakes for the controller and the audio
   server. Integration tests are the only exception: they talk to a real audio server and
   run only when `APPTROL_PULSE_TEST=1` is set (see `internal/audio/pulse/integration_test.go`),
-  and against a private D-Bus with fake media players when `APPTROL_DBUS_TEST=1` is set
-  (see `internal/desktop/integration_test.go`). CI runs both.
+  and against a private D-Bus with fake media players or a fake logind when
+  `APPTROL_DBUS_TEST=1` is set (see `internal/desktop/integration_test.go` and
+  `internal/power/power_test.go`). CI runs both.
 - **Table-driven.** One test function, a table of cases — see `cmd/apptrol/main_test.go`.
 - **Name tests after requirements** where one applies, e.g. `TestSOLO05_PressingSoloAgainTurnsItOff`.
 - **Bug fixes** come with a test that fails without the fix.
@@ -104,3 +105,4 @@ slider 1, a browser on slider 2, the microphone on slider 8.
 | H-40 | Set `m8 = { mode = "hold_to_talk", talk_over = true }`: hold M8 and unplug the controller; then plug it in, and stop Apptrol | While held, the mic is live and the music down; on unplug, the mic is muted, the music back, and the log says the held state ended (`controller_disconnected`). After stopping, the mic is still muted | INPUT-03, INPUT-04, INPUT-07 |
 | H-41 | Run `apptrol --log-level debug` in a terminal (service stopped), then Ctrl+C and start the service | Debug lines in the terminal; the start record says the level came from the flag; the config file is unchanged; the service logs at the configured level | LOG-16 |
 | H-42 | With `debug` set, check the log after H-23 to H-40 | Every player is listed as matched (with `matched_by`), not matched or ignored (with the reason); D-Bus records carry `apptrol.component=desktop` | LOG-10, LOG-15 |
+| H-44 | Mute the app on slider 1 (M1 lit; S8, M8, R8 lit). `systemctl suspend`, wait a minute, wake the computer; look at the controller before touching it (lock screen still up). Repeat with `systemctl hibernate` if hibernation is set up | Within about 5 seconds of waking up, M1 and S8, M8, R8 are lit again without pressing anything. No `controller disconnected` in the log; it shows `system going to sleep` (debug), then `system resumed; sending LEDs again` with `apptrol.component=power` | LED-09 |

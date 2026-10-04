@@ -62,3 +62,7 @@ records.
 - 2026-10-02: There will be no GUI program ([ADR 0021](0021-no-desktop-gui.md)). The
   session bus connection serves the media players, the on-screen display and
   notifications (Phase 1.6) and the tray icon (Phase 3), all inside the service.
+- 2026-10-04: Resume from sleep is followed through logind's `PrepareForSleep` signal on
+  the **system bus**, with a connection of its own in `internal/power`
+  ([ADR 0023](0023-leds-after-resume-from-sleep.md)). The session bus connection stays
+  shared by everything on the session bus.

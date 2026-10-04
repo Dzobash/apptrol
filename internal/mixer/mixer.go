@@ -175,6 +175,8 @@ func (m *Mixer) Handle(ev Event) []Action {
 		m.transportPressed(&a, e.Button)
 	case ControllerConnected:
 		m.syncLEDs(&a, true) // LED-07
+	case SystemResumed:
+		m.syncLEDs(&a, true) // LED-09
 	case ControllerDisconnected:
 		// The releases of held buttons will never arrive (INPUT-07).
 		before := m.talkOver()

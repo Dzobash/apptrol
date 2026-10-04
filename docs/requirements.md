@@ -162,6 +162,7 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | LED-06 | Transport button LEDs MUST be off, except the ▶ LED, lit while the media-key player plays (MEDIA-06), and the Record LED's flash when it starts an app (LAUNCH-08). *(Until 0.1.x: always off.)* | MUST |
 | LED-07 | LEDs MUST be re-sent whenever the controller (re)connects, the audio server (re)connects, and the configuration or state changes. After a controller connect they MUST be sent again once the controller has started up (it ignores LED messages for a moment after being plugged in); after an audio server connect, again 2 seconds later (a PipeWire restart can reset the controller's LEDs). | MUST |
 | LED-08 | When Apptrol stops, it SHOULD turn all LEDs off, so no LED shows a state that no longer applies. | SHOULD |
+| LED-09 | When the computer wakes from sleep or hibernation, Apptrol MUST send every LED again, and again once the controller has started up (it loses power during sleep and starts with its LEDs off). Apptrol learns of the wake-up from systemd-logind on the D-Bus system bus; without a system bus it MUST log a warning, keep working and reconnect (ADR 0023). | MUST |
 
 ### 4.6 Other buttons
 
@@ -216,7 +217,7 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | LOG-07 | The file output MUST rotate by size, keeping a configurable number of old files. | MUST |
 | LOG-08 | Log level and outputs MUST be updated on config reload without restarting. | MUST |
 | LOG-09 | Events MUST be logged at these levels: **info** — start/stop, config loaded/reloaded, controller connected/disconnected, stream matched to a control, mute/solo changes; **warn** — config entry that matches nothing, controller not found, state file unreadable; **error** — invalid config, lost connection to the audio server; **debug** — every volume change, raw MIDI message and button press without a function. | MUST |
-| LOG-10 | Every log record MUST carry `apptrol.component`: `service`, `config`, `state`, `audio`, `controller`, `desktop`, `launcher` or `mixer` (ADR 0016). *(Until 0.1.x: without `desktop` and `launcher`.)* | MUST |
+| LOG-10 | Every log record MUST carry `apptrol.component`: `service`, `config`, `state`, `audio`, `controller`, `desktop`, `power`, `launcher` or `mixer` (ADR 0016). *(Until 0.1.x: without `desktop`, `power` and `launcher`.)* | MUST |
 | LOG-11 | Attribute names MUST follow the OpenTelemetry semantic conventions: their attribute where one exists (`error.type`, `exception.message`, `file.path`, …), otherwise a name in the `apptrol.` namespace; lower case, dot-separated, snake_case within a part. No name may be the start of another, and each name MUST always carry the same type of value, so that log stores can map them. | MUST |
 | LOG-12 | Every record about an error MUST carry `error.type` (a fixed word for the kind of error) and, where there is an error message, `exception.message`. | MUST |
 | LOG-13 | Every record MUST be one line with a fixed message; values go into attributes. Several problems (e.g. in the configuration) MUST be logged as one record each. | MUST |
@@ -240,7 +241,7 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 
 | ID | Requirement | Level |
 |---|---|---|
-| DESK-01 | Apptrol MUST connect to the D-Bus session bus at start; every feature that needs D-Bus MUST share this connection, except calls to systemd, which go through go-systemd (ADR 0017). | MUST |
+| DESK-01 | Apptrol MUST connect to the D-Bus session bus at start; every feature that needs D-Bus MUST share this connection, except calls to systemd, which go through go-systemd (ADR 0017), and the wake-up signal from the system bus (LED-09, ADR 0023). | MUST |
 | DESK-02 | Without a session bus, or when the connection is lost, sliders, knobs, M, S and the input modes MUST keep working; features that need D-Bus do nothing. Apptrol MUST log an error and reconnect, then find the media players again. | MUST |
 | DESK-03 | Apptrol MUST NOT start a D-Bus service as a side effect: names that are only activatable are never called. | MUST |
 

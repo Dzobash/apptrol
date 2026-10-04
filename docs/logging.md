@@ -56,6 +56,7 @@ Every line has `apptrol.component`:
 | `audio` | The connection to PipeWire |
 | `controller` | The nanoKONTROL2: found, connected, unplugged, MIDI messages |
 | `desktop` | The D-Bus session bus: connected, lost, and the media players found, gone or changing status (debug) |
+| `power` | The D-Bus system bus: connected, lost, and the computer going to sleep (debug) and waking up, when every LED is sent again |
 | `launcher` | Starting apps from launcher buttons: which app, in which systemd unit, and failures |
 | `mixer` | What your sliders, knobs and buttons do: volume, mute, solo, matching apps |
 
@@ -92,6 +93,8 @@ A configuration with several problems gives one line per problem.
 | `media_player_unreadable` | A media player did not answer when asked for its name; it is ignored. |
 | `media_command_failed` | A media player refused *Play* or *Pause*, or did not answer in time. |
 | `app_start_failed` | A launcher's app could not be started: not installed, a broken `Exec` line, a program that does not exist, or systemd refused; `exception.message` says which. |
+| `power_bus_unreachable` | No D-Bus system bus (warning); everything works, but after the computer wakes up the LEDs are not sent again until they change. |
+| `power_bus_lost` | The connection to the system bus broke (warning); Apptrol reconnects by itself. |
 
 ## Examples
 
@@ -118,6 +121,14 @@ An app starts playing and is found:
 
 ```text
 INFO stream matched apptrol.component=mixer apptrol.layout=default apptrol.control=slider2 apptrol.app.id=browser apptrol.app.name=Browser apptrol.app.type=app apptrol.stream.id=11 apptrol.stream.app_name=Firefox process.executable.name=firefox
+```
+
+The computer sleeps and wakes up; the controller lost power, so every LED is sent again
+(the first line at `debug`):
+
+```text
+DEBU system going to sleep apptrol.component=power
+INFO system resumed; sending LEDs again apptrol.component=power
 ```
 
 A slider moves (level `debug`):
@@ -253,3 +264,4 @@ Apptrol's own:
 | `apptrol.player.ignored_reason` | Why a media player is never used: `other_device` (e.g. a phone through KDE Connect), `proxy` (`playerctld`) or `duplicate` (`plasma-browser-integration`) |
 | `apptrol.player.command` | `Play`, `Pause`, `Stop`, `Next` or `Previous`, sent to a media player |
 | `apptrol.player.selection` | How the media keys chose their player: `most_recent`, or `pinned` with `[media] player` |
+| `apptrol.power.bus_address` | The system bus Apptrol connected to, to learn when the computer wakes up |
