@@ -7,7 +7,7 @@ Each phase ends with a tagged release. Detailed requirements live in
 |---|---|---|---|
 | 0 | Project setup | 0.0.1 | ✅ Done |
 | 1 | Core mixer: sliders, knobs, M, S | 0.1.0 | ✅ Released 2026-09-30 |
-| 1.5 | Media, launcher and column buttons | 0.2.0 | ⚪ Planned |
+| 1.5 | Media, launcher and column buttons | 0.2.0 | ✅ Released 2026-10-04 |
 | 1.6 | On-screen display | 0.3.0 | ⚪ Planned |
 | 2 | Layouts | 0.4.0 | ⚪ Planned |
 | 3 | Setup and tray | 0.5.0 | ⚪ Planned |
@@ -16,7 +16,7 @@ Each phase ends with a tagged release. Detailed requirements live in
 `1.0.0` is released once Phases 1–3 are stable and the config format is frozen.
 
 <p align="center">
-  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by phase: sliders, knobs, S and M work now (Phase 1); transport buttons as media keys, R buttons, Marker and Record as launchers in 0.2.0; Track and Cycle for layouts in 0.4.0" width="800">
+  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by version: sliders, knobs, S and M since 0.1.0; R buttons, the transport buttons as media keys, and Marker and Record as launchers since 0.2.0; Track and Cycle for layouts planned for 0.4.0" width="800">
 </p>
 
 ---

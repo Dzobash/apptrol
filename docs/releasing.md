@@ -45,14 +45,18 @@ The service is **not** enabled automatically; each user runs
 
 1. Check that CI is green on `main` and, from Phase 1 on, that the
    [hardware checklist](testing.md#manual-hardware-checklist) passes.
-2. In [CHANGELOG.md](../CHANGELOG.md), rename `## [Unreleased]` to
-   `## [0.1.0] - YYYY-MM-DD` and add a new empty `## [Unreleased]` above it. Commit:
+2. On a branch `chore/release-v0.1.0`, in [CHANGELOG.md](../CHANGELOG.md), add
+   `## [0.1.0] - YYYY-MM-DD` below `## [Unreleased]`, so that the entries move under it
+   and `[Unreleased]` stays, empty, above; update the links at the end of the file.
+   Mark the phase as released in the
+   [roadmap](roadmap.md), and redraw the controls picture if features changed
+   (`docs/assets/photos/make-controls.py`). Open a pull request
+   `chore: release v0.1.0`: `main` accepts changes only through pull requests.
+3. The release must contain the code of the candidate that passed: only docs may differ.
+   After the merge, check it, then tag the merge commit:
    ```bash
-   git commit -am "chore: release v0.1.0"
-   git push
-   ```
-3. Create and push the tag:
-   ```bash
+   git switch main && git pull
+   git diff --stat v0.1.0-rc1 HEAD      # only *.md files and docs/ may appear
    git tag -a v0.1.0 -m "v0.1.0"
    git push origin v0.1.0
    ```
@@ -71,7 +75,9 @@ Before a new version, publish a release candidate and test the installed package
 2. GitHub publishes it as a **pre-release**. Install the package, enable the service and
    complete the [hardware checklist](testing.md#manual-hardware-checklist).
 3. Fix what fails, merge, and tag `v0.1.0-rc2`. When a candidate passes, make the release
-   as described above, on the same commit.
+   as described above, with the same code. Problems that are not new in this version,
+   or that are harmless, need no new candidate: open an issue and fix them in the next
+   PATCH release.
 
 ## Trying it locally first
 

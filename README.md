@@ -49,7 +49,7 @@ with no desktop mixer involved.
 What each control does in this version:
 
 <p align="center">
-  <img src="docs/assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked: sliders, knobs, S and M work now; the transport buttons as media keys, the R buttons, and Marker and Record as app launchers are planned for 0.2.0; Track and Cycle are planned for 0.4.0 to switch layouts" width="800">
+  <img src="docs/assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked: sliders, knobs, S and M since 0.1.0; the R buttons, the transport buttons as media keys, and Marker and Record as app launchers since 0.2.0; Track and Cycle are planned for 0.4.0 to switch layouts" width="800">
 </p>
 
 It works alongside an audio interface such as a GoXLR, or on its own with a normal sound card.
