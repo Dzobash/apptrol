@@ -8,7 +8,9 @@ Read these instead of guessing; this file only links to them:
 
 | Topic | Where |
 |---|---|
-| What it does, install, Known issues | [README.md](README.md) |
+| What it does | [README.md](README.md) |
+| Install, controller settings, permissions | [docs/install.md](docs/install.md) |
+| Known issues | [docs/known-issues.md](docs/known-issues.md) |
 | Branches, commits, project layout, log rules | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Requirements with IDs | [docs/requirements.md](docs/requirements.md) |
 | Packages and event flow | [docs/architecture.md](docs/architecture.md) |
@@ -81,8 +83,9 @@ The owner wants to keep learning while working, not just receive finished result
   Pushing still needs the owner's OK first (see Workflow).
 - **Hardware tests** (controller, LEDs, listening) need the owner: tell them exactly what
   to do and what to look for, then read the logs yourself and explain what they show.
-- No workarounds for bugs in other apps (e.g. Spotify). Document them under
-  *Known issues* in the README instead.
+- No workarounds for bugs in other apps (e.g. Spotify). Document them in
+  [docs/known-issues.md](docs/known-issues.md) instead; the README lists only the most
+  common ones in one line each.
 - Only access files inside this repository, never elsewhere in the home folder (not even
   Go's module cache; look at libraries through the GitHub API).
 - **Privacy:** never publish data from the owner's system in commits, docs, issues or

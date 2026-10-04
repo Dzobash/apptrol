@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The README is shorter: what Apptrol does, why it exists, how to install it and the first
+  steps. The details moved to a new [installation guide](docs/install.md) (requirements,
+  controller settings, permissions, upgrading, building, removing, and a fix for desktops
+  where launched apps open no window) and a new page of [known issues](docs/known-issues.md)
+  with their causes and workarounds, including those found in 0.2.0.
+
 ## [0.2.0] - 2026-10-04
 
 ### Added

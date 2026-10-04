@@ -10,242 +10,118 @@
   A per-app volume mixer for PipeWire, built for the Korg nanoKONTROL2.
 </p>
 
-> **Status: first release.** Everything in Phase 1 works: sliders and knobs, mute, solo,
-> LED feedback, saved positions, automatic configuration reload. It is young software, so
-> please [report problems](https://github.com/Dzobash/apptrol/issues). See the
-> [roadmap](docs/roadmap.md) for what comes next.
+> **Version 0.2.0:** sliders and knobs, mute and solo, media keys, app launchers and
+> microphone buttons all work. It is young software, so please
+> [report problems](https://github.com/Dzobash/apptrol/issues). The
+> [roadmap](docs/roadmap.md) shows what comes next.
 
 ## What it does
 
 <p align="center">
-  <img src="docs/assets/photos/nanokontrol2.png" alt="A Korg nanoKONTROL2: eight columns, each with a knob, a slider and S, M and R buttons, plus transport buttons on the left" width="800"><br>
-  <sub>The Korg nanoKONTROL2. Photo: jzohsuh / <a href="https://www.ifixit.com/Guide/Korg+nanoKONTROL2+Disassembly/117910">iFixit</a>, <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</a>, background removed.</sub>
+  <img src="docs/assets/photos/nanokontrol2-controls.png" alt="The Korg nanoKONTROL2 with its controls marked: sliders, knobs, S and M since 0.1.0; the R buttons, the transport buttons as media keys, and Marker and Record as app launchers since 0.2.0; Track and Cycle are planned for 0.4.0 to switch layouts" width="800"><br>
+  <sub>Photo: jzohsuh / <a href="https://www.ifixit.com/Guide/Korg+nanoKONTROL2+Disassembly/117910">iFixit</a>, <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</a>, annotated.</sub>
 </p>
 
 Put Spotify on the first slider, your browser on the second, Discord on the third and your
 microphone on the last one. Moving a slider or knob changes that app's volume directly,
 with no desktop mixer involved.
 
-- Every slider and knob can control one app or one input (e.g. your microphone)
-- Per app, the top of the slider can be up to 150 % (a boost) or less than 100 % (a cap)
-- **M** mutes the app on that slider, **S** solos it. A mute stays set while Apptrol is
-  stopped (the desktop's volume applet shows it); a solo ends.
-- **R** plays or pauses the app on that slider, through its media player; its LED is lit
-  while the app plays
-- **◀◀ ▶▶ ■ ▶** are media keys for the player that started playing last, or for one app
-  you choose; ▶ is lit while it plays
-- **●** (Record), the three **Marker** buttons and any **R** can start an app or a command
-- On the microphone's slider, hold **S** to mute it while you cough; M can also be set to
-  hold-to-talk, and the music can go down while you talk (talk-over)
-- The button LEDs show what is muted and soloed, also when you mute or unmute an app
-  somewhere else, e.g. in the desktop's volume applet
-- Apps that start later get the slider's volume straight away
-- `apptrol list` shows the names to put in the config, `apptrol list apps` the installed
-  apps; `apptrol test` checks the controller
-- Settings live in a simple TOML file that is reloaded when you save it
-- Runs quietly in the background as a systemd user service
-- Works on any desktop (KDE Plasma, GNOME, …), Wayland or X11
-
-What each control does in this version:
-
-<p align="center">
-  <img src="docs/assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked: sliders, knobs, S and M since 0.1.0; the R buttons, the transport buttons as media keys, and Marker and Record as app launchers since 0.2.0; Track and Cycle are planned for 0.4.0 to switch layouts" width="800">
-</p>
-
-It works alongside an audio interface such as a GoXLR, or on its own with a normal sound card.
-
-Planned later: on-screen volume display, multiple layouts (e.g. *Work* and *Gaming*), a
-setup in the terminal and a tray icon.
-
+- **Sliders and knobs** each control one app or one input, such as your microphone.
+- **M** mutes, **S** solos, **R** plays or pauses the app; the LEDs show it, also when you
+  change something in the desktop's volume settings.
+- **◀◀ ▶▶ ■ ▶** control the music player that played last.
+- **●**, the **Marker** buttons and any **R** can start an app, but not while the screen is
+  locked.
+- On the **microphone**, hold S to cough, or hold M to talk while the music goes down.
+- Settings live in a small text file that is reloaded when you save it. Apptrol runs
+  quietly in the background, on any desktop.
 
 ## Why Apptrol exists
 
-I use a GoXLR Mini as my main audio deck. It has faders for a few fixed channels, but not
-for every app I use: music, browser, Discord, games and chat all compete for the same few
-sliders. So I bought a Korg nanoKONTROL2 (eight faders, eight knobs, lit buttons) hoping to
-find an open-source app that would turn each of its sliders into the volume control for one
-app, on Linux.
+I use a GoXLR Mini as my audio deck, but its few faders can't give every app its own:
+music, browser, Discord and games all have to share them. So I bought a Korg
+nanoKONTROL2, with eight faders, eight knobs and lit buttons, and looked for an
+open-source app that would make each fader the volume of one app on Linux.
 
-I didn't find one. Windows has tools like this; on Linux, projects such as
-[deej](https://github.com/omriharel/deej) need a self-built Arduino mixer, and generic MIDI
-tools don't know about per-app volume in PipeWire. So Apptrol was built to fill that gap:
-it turns an off-the-shelf MIDI controller into a per-app mixer that runs quietly next to
-whatever else controls your audio.
+I didn't find one, so I made Apptrol: I designed it and made every decision, and AI coding
+assistants wrote most of the code. It turns an off-the-shelf MIDI controller into a
+per-app mixer that runs quietly next to whatever else controls your audio.
 
 And there's a simpler reason, too: it's satisfying to reach out and pull a real fader
 down, instead of opening a mixer window and chasing a tiny slider with the mouse. Every app
 gets its own place under your fingers, and you can adjust it without looking away from
 what you're doing.
 
+## What's next
+
+- **0.3.0:** an on-screen display when you move a slider or mute an app
+- **0.4.0:** several layouts, e.g. *Work* and *Gaming*, switched with Track and Cycle
+- **0.5.0:** a setup in the terminal and a tray icon
+
+The [roadmap](docs/roadmap.md) has the details.
+
 ## Before you install
 
-**Your system needs** — every normal Linux desktop already has these:
+- **Your system:** any normal Linux desktop with PipeWire (or PulseAudio) and systemd. No
+  extra libraries are needed.
+- **The controller:** set its **LED mode to External**, so the LEDs can show mute and
+  solo. Everything else works with the factory settings. `apptrol test` checks it.
+- **Permissions:** your normal desktop login can use the controller. Only unusual setups,
+  such as running Apptrol over SSH, need your user in the `audio` group.
 
-- PipeWire with `pipewire-pulse` (the default on Ubuntu, Kubuntu, Fedora, Mint), or PulseAudio
-- The kernel's USB audio/MIDI support, which makes the controller appear as a MIDI device
-- systemd, to run Apptrol in the background (you can also start `apptrol` by hand)
-
-**You do not need** any extra libraries: Apptrol is a single self-contained program.
-`alsa-utils` is optional but handy for troubleshooting — `amidi -l` shows whether the
-controller is detected.
-
-**Tested on one system only.** So far, Apptrol has been tried on one real computer: the
-author's desktop with Kubuntu, KDE Plasma and PipeWire on an amd64 PC, with a Korg
-nanoKONTROL2 and a GoXLR Mini. The automated tests also run against PipeWire on Ubuntu in
-CI. Other distributions and desktops, PulseAudio instead of PipeWire, and the arm64
-packages should work, but nobody has tried them yet. If you run Apptrol somewhere else,
-please [open an issue](https://github.com/Dzobash/apptrol/issues) and say whether it
-worked — that helps everyone.
-
-**Controller settings.** The nanoKONTROL2 stores these itself; the factory defaults are
-fine except for the LED mode:
-
-| Setting | Needed | Why |
-|---|---|---|
-| Mode: **CC** (not a DAW mode) | Yes — factory default | Apptrol understands the controller's CC messages |
-| Buttons: **Momentary** | Yes — factory default | Apptrol acts on the button press; with *Toggle*, every second press is ignored |
-| LED mode: **External** | Only for LED feedback | Without it, all controls work, but the button LEDs only light while held instead of showing mute and solo |
-
-To change a setting on Linux, use [SysEx Controls](https://github.com/soyersoyer/sysex-controls)
-(`flatpak install flathub hu.irl.sysex-controls`, or `sysex-controls` in the AUR). On
-Windows or macOS, Korg's KONTROL Editor does the same. The setting stays stored in the
-controller, so it is a one-time step.
-
-To check the controller and its settings, run `apptrol test`: it shows every slider, knob
-and button you touch, and turns a button's LED on and off with each press. If an LED
-lights only while you hold the button, the LED mode is still *Internal*.
-
-**Permissions.** Your normal desktop login can use the controller automatically. Only in
-unusual setups — such as running Apptrol from an SSH session — add your user to the
-`audio` group.
+The [installation guide](docs/install.md) explains each point, how to change the LED mode,
+and which systems Apptrol has been tested on.
 
 ## Installation
 
 Download the package for your system from the
-[Releases](https://github.com/Dzobash/apptrol/releases) page and install it:
+[Releases](https://github.com/Dzobash/apptrol/releases) page, install it, and start
+Apptrol for your user:
 
 ```bash
 sudo apt install ./apptrol_*_amd64.deb      # Debian, Ubuntu, Kubuntu
 sudo dnf install ./apptrol-*.x86_64.rpm     # Fedora
-```
 
-To upgrade, install the newer package the same way, then restart Apptrol (as your user):
-
-```bash
-systemctl --user daemon-reload
-systemctl --user restart apptrol
-```
-
-### Building from source
-
-You need [Go](https://go.dev/dl/) 1.24 or newer, `git` and `make`; nothing else, as Apptrol
-is pure Go without C libraries. (Ubuntu and Kubuntu 25.04 or newer ship a recent enough Go
-as `golang-go`; on older releases, install it from go.dev.)
-
-```bash
-git clone https://github.com/Dzobash/apptrol.git
-cd apptrol
-git checkout v0.1.0        # optional: a release instead of the newest code
-make build                 # creates bin/apptrol
-./bin/apptrol --version
-```
-
-`./bin/apptrol` runs it in the terminal. To run it as a service, as the packages do, install
-the program and the systemd unit for your user:
-
-```bash
-install -Dm755 bin/apptrol ~/.local/bin/apptrol
-install -Dm644 packaging/systemd/apptrol.service ~/.config/systemd/user/apptrol.service
-sed -i "s|/usr/bin/apptrol|$HOME/.local/bin/apptrol|" ~/.config/systemd/user/apptrol.service
 systemctl --user daemon-reload
 systemctl --user enable --now apptrol
 ```
 
-To update, pull the new code, run `make build` and the first `install` line again, then
-`systemctl --user restart apptrol`. To remove it, `systemctl --user disable --now apptrol`
-and delete the two installed files. To build your own `.deb` and `.rpm` packages instead,
-run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they end up in
-`dist/`. For changing the code, see [CONTRIBUTING.md](CONTRIBUTING.md).
+Upgrading, building from source, checking a download and removing Apptrol are in the
+[installation guide](docs/install.md).
 
 ## First steps
 
-1. **Write your configuration** in `~/.config/apptrol/config.toml`. Apptrol creates it from
-   the example on its first start; to begin editing before that, copy the example:
-   ```bash
-   mkdir -p ~/.config/apptrol
-   cp /usr/share/doc/apptrol/examples/config.toml ~/.config/apptrol/
-   ```
-   `apptrol list` shows the names of the apps that are currently playing and of your input
-   devices; `apptrol check` validates the file and shows which app is on which control.
-   The [configuration reference](docs/config.md) explains every setting.
-2. **Try it** in a terminal: run `apptrol --log-level info`, press an M button, and watch
-   the log. Ctrl+C stops it. `apptrol --log-level debug` shows every detail, for this run
-   only.
-3. **Start Apptrol** for your user, now and at every login:
-   ```bash
-   systemctl --user daemon-reload
-   systemctl --user enable --now apptrol
-   ```
-4. **Check the log** if something does not respond. By default it shows only warnings and
-   errors; set `level = "info"` in the `[log]` section to see everything Apptrol does:
-   ```bash
-   journalctl --user -u apptrol -f
-   ```
-   Each line says which part of Apptrol wrote it and, for your controls, which slider or
-   knob and which app it is about:
-   ```text
-   INFO muted apptrol.component=mixer apptrol.layout=default apptrol.control=slider2 apptrol.app.id=browser apptrol.app.name=Browser apptrol.app.type=app apptrol.button=M2
-   ```
-   [Reading Apptrol's logs](docs/logging.md) explains every part of a line and how to find
-   the lines you need.
+1. **Find the names** of the apps that are playing: `apptrol list`.
+2. **Assign them** in `~/.config/apptrol/config.toml`, which Apptrol creates on its first
+   start. The [configuration reference](docs/config.md) explains every setting.
+3. **Check the file** with `apptrol check`; Apptrol picks up the changes when you save.
+
+If a control does nothing, [Reading Apptrol's logs](docs/logging.md) shows how to find out
+why.
 
 ## Known issues
 
-- **Spotify resets the volume when the track changes.** On Linux with PipeWire, Spotify
-  does not keep its own volume setting in sync with the volume of its audio stream. While
-  a track plays, the stream's volume can be changed from outside (by Apptrol, or by the
-  desktop's volume settings) and the change is heard at once. But as soon as the next
-  track starts, whether on its own or through *Next*, Spotify applies the volume stored
-  in its own settings again and overwrites the stream's volume.
+- **Spotify resets its volume when the track changes** ([#67](https://github.com/Dzobash/apptrol/issues/67)).
+  Touch its slider to set it back.
+- **R pauses only one browser tab**, the one whose player you used last ([#68](https://github.com/Dzobash/apptrol/issues/68)).
+- **In 0.2.0, a restart with an invalid configuration loses the saved slider positions and
+  mutes** ([#77](https://github.com/Dzobash/apptrol/issues/77)). Run `apptrol check`
+  before restarting.
+- **In 0.2.0, after *Switch user* the controller still acts on the first user's apps**
+  ([#78](https://github.com/Dzobash/apptrol/issues/78)).
 
-  This is a bug in the Spotify client, and Apptrol deliberately does not work around it:
-  a change that another program makes to an app's volume stays until you touch that app's
-  slider or knob again. Touch Spotify's slider after a track change to set it back. ([#67](https://github.com/Dzobash/apptrol/issues/67))
-
-- **R pauses only one browser tab.** A browser offers one media player for all its tabs,
-  and *Pause* reaches only the tab used last; the other tabs keep playing. M silences
-  every tab, because it acts on each tab's audio. This is how browsers implement the
-  media player interface (MPRIS), not something Apptrol can change. ([#68](https://github.com/Dzobash/apptrol/issues/68))
-
-- **Some lock screens are not recognised.** Apptrol learns that the screen is locked
-  from logind, the login manager, which the lock screens of KDE Plasma and GNOME tell.
-  Some lock programs on minimal window manager setups do not; there Apptrol sees an
-  unlocked screen, so launchers work and nothing is logged as pressed at the lock screen.
-  To check: lock the screen, and from a second computer over SSH run
-  `loginctl show-session "$(loginctl show-user "$USER" -p Display --value)" -p LockedHint`;
-  it should say `LockedHint=yes`.
-
-- **Launchers never start without a graphical login session.** If logind has no
-  graphical session for you (some setups started without a display manager), Apptrol
-  cannot tell whether the screen is locked and, to be safe, starts nothing. The log
-  says `apptrol.screen.reason=no_graphical_session`.
-
-- **■ only pauses Spotify.** The media player standard says *Stop* stops, and *Play*
-  then starts the track again from the beginning; VLC and Elisa do this. Spotify treats
-  *Stop* as a pause instead, so ▶ continues where it was. ([#69](https://github.com/Dzobash/apptrol/issues/69))
-
-Found another problem? Please [open an issue](https://github.com/Dzobash/apptrol/issues).
+All known issues, with their causes and workarounds: [Known issues](docs/known-issues.md).
+Found another one? Please [open an issue](https://github.com/Dzobash/apptrol/issues).
 
 ## Documentation
 
-- [Requirements](docs/requirements.md)
-- [Architecture](docs/architecture.md)
-- [Roadmap](docs/roadmap.md)
+- [Installation guide](docs/install.md) and [known issues](docs/known-issues.md)
 - [Configuration reference](docs/config.md) and [example config](examples/config.toml)
 - [Reading the logs](docs/logging.md)
-- [Decision records](docs/adr/)
-- [Testing](docs/testing.md)
-- [Releasing](docs/releasing.md)
+- [Roadmap](docs/roadmap.md), [requirements](docs/requirements.md) and
+  [architecture](docs/architecture.md)
+- [Decision records](docs/adr/), [testing](docs/testing.md) and
+  [releasing](docs/releasing.md)
 - [Brand guide](docs/brand.md) (logo, colours, type)
 
 ## Contributing
@@ -260,30 +136,18 @@ Apptrol is a hobby project developed with substantial help from AI coding assist
 [decision records](docs/adr/); the code is covered by automated tests and checks, but it
 has not been audited.
 
-## Disclaimer
+## License and disclaimer
 
-Apptrol is provided **as is, without warranty of any kind**, and you use it at your own
-risk. It has been tested on one system only (see [Before you install](#before-you-install)). The authors are not responsible for any problems or damage that may result from using
-it — including changes to your audio setup or to your controller's settings (for example
-when using third-party tools such as SysEx Controls). The full terms are in the
-[MIT license](LICENSE).
+[MIT](LICENSE). Apptrol is provided **as is, without warranty of any kind**, and you use it
+at your own risk; the authors are not responsible for problems or damage it may cause,
+including changes to your audio setup or to your controller's settings. Commands you set
+up for launcher buttons run with your rights and are your responsibility (see
+[Blocked commands](docs/config.md#blocked-commands)).
 
-**Commands you configure are your responsibility.** A launcher's `command` runs exactly
-what you write, with your user's rights. Apptrol refuses a few catastrophic commands
-(see [Blocked commands](docs/config.md#blocked-commands)), but that is a safety net
-against accidents, not protection: the authors accept no liability for what a command
-you configure does.
-
-**Launchers start nothing while the screen is locked**, unless you set
-`when_locked = true` on a button; every button pressed at the lock screen is logged as a
-warning ([At the lock screen](docs/config.md#launchers)).
-
-## License
-
-[MIT](LICENSE). The controller photo is not part of that: it is licensed under
-CC BY-NC-SA 3.0, see [docs/assets/photos](docs/assets/photos/README.md). The libraries
-compiled into Apptrol keep their own licenses (MIT, BSD, Apache-2.0); the packages and
-archives contain them in `THIRD_PARTY_LICENSES` (`make third-party-licenses` writes it).
+The controller photo is licensed under CC BY-NC-SA 3.0, see
+[docs/assets/photos](docs/assets/photos/README.md). The libraries compiled into Apptrol
+keep their own licenses (MIT, BSD, Apache-2.0); the packages and archives contain them in
+`THIRD_PARTY_LICENSES`.
 
 ---
 
