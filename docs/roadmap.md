@@ -69,8 +69,8 @@ problems. Anything found later ships as a patch release, `0.1.x`.)
 
 Every button except the layout buttons gets a function.
 
-Requirement areas: DESK, MEDIA, LAUNCH, INPUT; CFG-13 to CFG-17, LOG-15, LOG-16.
-Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-media-players-through-mpris.md), [ADR 0019](adr/0019-launcher-and-column-buttons.md), [ADR 0020](adr/0020-microphone-column-buttons.md), [ADR 0022](adr/0022-launcher-command-safety.md).
+Requirement areas: DESK, MEDIA, LAUNCH, INPUT; CFG-13 to CFG-17, LOG-15, LOG-16, LED-09.
+Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-media-players-through-mpris.md), [ADR 0019](adr/0019-launcher-and-column-buttons.md), [ADR 0020](adr/0020-microphone-column-buttons.md), [ADR 0022](adr/0022-launcher-command-safety.md), [ADR 0023](adr/0023-leds-after-resume-from-sleep.md), [ADR 0024](adr/0024-launchers-only-when-unlocked.md).
 
 - [x] Decision records (ADR 0017–0019), requirements and hardware checklist (H-23 to H-42)
 - [x] D-Bus connection in the service, following the media players (DESK-01 to DESK-03, MEDIA-01; also used by Phases 1.6 and 3)
@@ -83,6 +83,8 @@ Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-
 - [x] M on an input column: mute (toggle) or hold-to-talk, optionally turning apps down while you talk
 - [x] S on an input column: hold to mute (cough), or hold to turn apps down (talk-over)
 - [x] `--log-level` flag for one run (LOG-16)
+- [x] LEDs are sent again after the computer wakes from sleep, told by logind (LED-09)
+- [x] Launchers start nothing while the screen is locked, unless set to `when_locked`; presses at the lock screen are logged as warnings (LAUNCH-13 to LAUNCH-15)
 
 ## Phase 1.6 — On-screen display (`0.3.0`)
 
