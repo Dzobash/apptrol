@@ -85,7 +85,7 @@ A configuration with several problems gives one line per problem.
 | `audio_connection_lost` | The connection to PipeWire broke; Apptrol reconnects by itself. |
 | `audio_change_failed` | PipeWire refused a volume or mute change. |
 | `controller_busy` | Another program holds the controller; `fuser <device>` names it. |
-| `controller_permission_denied` | You may not open the controller (see the README on permissions). |
+| `controller_permission_denied` | You may not open the controller (see [Permissions](install.md#permissions)). |
 | `controller_open_failed` | The controller could not be opened for another reason. |
 | `led_failed` | An LED could not be set (debug level). |
 | `desktop_bus_unreachable` | No D-Bus session bus (is a desktop session running?); media players are not available, everything else works. |

@@ -238,7 +238,7 @@ record = { command = ["~/bin/lights-off"], when_locked = true }
 
 Each such button is a warning on every configuration load and in `apptrol check`, and
 each of its presses at the lock screen is a warning in the log. When Apptrol cannot tell
-whether the screen is locked (see *Known issues* in the README), no launcher starts,
+whether the screen is locked (see [Known issues](known-issues.md#the-lock-screen)), no launcher starts,
 `when_locked` or not.
 
 **How `"skip"` knows an app runs:** when you press the button, Apptrol looks for a running

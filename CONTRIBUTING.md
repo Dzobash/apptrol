@@ -23,7 +23,7 @@ done. Open one for:
 2. **An idea or task that is not done right away**, so it is not lost. Ideas without a
    planned release get the label `backlog`.
 3. **A problem caused by another program** that Apptrol does not work around (see the
-   README, *Known issues*), with the label `upstream`, closed right away as *not
+   [known issues](docs/known-issues.md)), with the label `upstream`, closed right away as *not
    planned*: it can be found, without promising a fix.
 
 An idea that is dropped is closed as *not planned*, with the reason, and removed from the
@@ -89,7 +89,7 @@ ADR lists its records (level, message, attributes); see ADR 0018, point 9.
 ## Code
 
 Requires Go 1.24 or newer. Building and installing without changing the code is described
-in the README, under [Building from source](README.md#building-from-source).
+in the installation guide, under [Building from source](docs/install.md#building-from-source).
 
 ```bash
 make check    # the same checks CI runs: format, vet, lint, tests

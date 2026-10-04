@@ -335,8 +335,8 @@ before the phase starts. See the [roadmap](roadmap.md).
 Specified in full: sections 4.11–4.14 and the requirements marked *Phase 1.5* (CFG-13 to
 CFG-17, LOG-15, LOG-16), with changes to SOLO-07, LED-03, LED-04, LED-06, BTN-01 and LOG-10.
 Desktops that do not pass the display to systemd user services (e.g. some Hyprland and
-Sway setups) need one line in their config so started apps can open windows; the README
-explains it with the feature.
+Sway setups) need one line in their config so started apps can open windows;
+[docs/install.md](install.md#launched-apps-do-not-open-a-window) explains it.
 
 ### Phase 1.6 — On-screen display
 - On-screen feedback when a volume or mute changes: KDE's native volume OSD when available, a desktop notification elsewhere (e.g. GNOME).
