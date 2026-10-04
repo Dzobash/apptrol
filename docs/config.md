@@ -215,8 +215,31 @@ when talk-over ends.
 | `app` | A desktop ID, e.g. `"com.obsproject.Studio"` or `"firefox_firefox"` (`apptrol list apps` shows them). |
 | `command` | A program and its arguments, run without a shell: `["konsole", "-e", "htop"]`. Use `["sh", "-c", "…"]` for pipes. |
 | `if_running` | `"start"` (default): start it on every press. `"skip"`: not if it already runs. |
+| `when_locked` | `false` (default): the button starts nothing while the screen is locked. `true`: it does, for anyone at the controller; see below. |
 
 Set `app` or `command`, not both.
+
+**At the lock screen** launchers start nothing: the lock screen does not stop the
+controller, and an app or command started there runs unseen, by whoever pressed the
+button. Everything else (sliders, knobs, M, S, the media keys, the microphone buttons)
+keeps working. Every button pressed while the screen is locked is written to the log as a
+warning, so you can see afterwards what was touched:
+
+```text
+WARN button pressed while the screen is locked apptrol.component=mixer apptrol.button=M2 apptrol.screen.state=locked
+```
+
+For a launcher that is useful while you are away, such as a script that turns the lights
+off, set `when_locked = true` on that button only:
+
+```toml
+record = { command = ["~/bin/lights-off"], when_locked = true }
+```
+
+Each such button is a warning on every configuration load and in `apptrol check`, and
+each of its presses at the lock screen is a warning in the log. When Apptrol cannot tell
+whether the screen is locked (see *Known issues* in the README), no launcher starts,
+`when_locked` or not.
 
 **How `"skip"` knows an app runs:** when you press the button, Apptrol looks for a running
 systemd unit with the app's desktop ID in its name (apps started from the menu, by

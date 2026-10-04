@@ -56,7 +56,7 @@ Every line has `apptrol.component`:
 | `audio` | The connection to PipeWire |
 | `controller` | The nanoKONTROL2: found, connected, unplugged, MIDI messages |
 | `desktop` | The D-Bus session bus: connected, lost, and the media players found, gone or changing status (debug) |
-| `power` | The D-Bus system bus: connected, lost, and the computer going to sleep (debug) and waking up, when every LED is sent again |
+| `session` | logind, the login manager, on the D-Bus system bus: connected, lost; the computer going to sleep (debug) and waking up, when every LED is sent again; the screen locked or unlocked, which blocks or allows launchers |
 | `launcher` | Starting apps from launcher buttons: which app, in which systemd unit, and failures |
 | `mixer` | What your sliders, knobs and buttons do: volume, mute, solo, matching apps |
 
@@ -93,8 +93,9 @@ A configuration with several problems gives one line per problem.
 | `media_player_unreadable` | A media player did not answer when asked for its name; it is ignored. |
 | `media_command_failed` | A media player refused *Play* or *Pause*, or did not answer in time. |
 | `app_start_failed` | A launcher's app could not be started: not installed, a broken `Exec` line, a program that does not exist, or systemd refused; `exception.message` says which. |
-| `power_bus_unreachable` | No D-Bus system bus (warning); everything works, but after the computer wakes up the LEDs are not sent again until they change. |
-| `power_bus_lost` | The connection to the system bus broke (warning); Apptrol reconnects by itself. |
+| `system_bus_unreachable` | No D-Bus system bus (warning). Launchers are blocked, because Apptrol cannot tell whether the screen is locked, and after the computer wakes up the LEDs are not sent again until they change; everything else works. |
+| `system_bus_lost` | The connection to the system bus broke (warning); launchers are blocked until Apptrol has reconnected by itself. |
+| `screen_state_unreadable` | logind did not say whether the screen is locked (warning); launchers are blocked, and Apptrol asks again every 5 seconds. |
 
 ## Examples
 
@@ -127,8 +128,26 @@ The computer sleeps and wakes up; the controller lost power, so every LED is sen
 (the first line at `debug`):
 
 ```text
-DEBU system going to sleep apptrol.component=power
-INFO system resumed; sending LEDs again apptrol.component=power
+DEBU system going to sleep apptrol.component=session
+INFO system resumed; sending LEDs again apptrol.component=session
+```
+
+Someone uses the controller while the screen is locked. Every button press is a warning,
+so you see it at the default level; sliders and knobs are not reported. A launcher starts
+nothing, unless it has `when_locked = true`:
+
+```text
+INFO launchers blocked: the screen is not known to be unlocked apptrol.component=session apptrol.screen.state=locked
+WARN button pressed while the screen is locked apptrol.component=mixer apptrol.button=M2 apptrol.screen.state=locked
+WARN launcher pressed while the screen is locked; nothing started apptrol.component=mixer apptrol.button=R1 apptrol.screen.state=locked apptrol.launcher.desktop_id=discord
+WARN launcher pressed while the screen is locked; started (when_locked) apptrol.component=mixer apptrol.button=● apptrol.screen.state=locked apptrol.launcher.command=~/bin/lights-off
+INFO launchers allowed: the screen is unlocked apptrol.component=session apptrol.session.id=<id>
+```
+
+To see only what happened while the screen was locked:
+
+```bash
+journalctl --user -u apptrol | grep 'while the screen is locked'
 ```
 
 A slider moves (level `debug`):
@@ -264,4 +283,7 @@ Apptrol's own:
 | `apptrol.player.ignored_reason` | Why a media player is never used: `other_device` (e.g. a phone through KDE Connect), `proxy` (`playerctld`) or `duplicate` (`plasma-browser-integration`) |
 | `apptrol.player.command` | `Play`, `Pause`, `Stop`, `Next` or `Previous`, sent to a media player |
 | `apptrol.player.selection` | How the media keys chose their player: `most_recent`, or `pinned` with `[media] player` |
-| `apptrol.power.bus_address` | The system bus Apptrol connected to, to learn when the computer wakes up |
+| `apptrol.session.bus_address` | The system bus Apptrol connected to, to learn when the computer wakes up and whether the screen is locked |
+| `apptrol.session.id` | logind's id of your graphical login session, whose lock state Apptrol follows |
+| `apptrol.screen.state` | `unlocked`; `locked`; `inactive` (another user's session is in front); `unknown` (it cannot be told). Launchers start apps only when `unlocked`, or with `when_locked` also when `locked` or `inactive` |
+| `apptrol.screen.reason` | Why the state is `unknown`: `no_system_bus`, `system_bus_lost`, `no_graphical_session` (e.g. logged in only over SSH) or `unreadable` |

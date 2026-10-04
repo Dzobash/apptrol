@@ -25,7 +25,7 @@ const (
 	Audio      = "audio"      // audio server connection
 	Controller = "controller" // MIDI controller
 	Desktop    = "desktop"    // session bus: media players (ADR 0017)
-	Power      = "power"      // system bus: sleep and wake-up (ADR 0023)
+	Session    = "session"    // logind on the system bus: sleep, wake-up (ADR 0023)
 	Launcher   = "launcher"   // starting apps (ADR 0019)
 	Mixer      = "mixer"      // volume, mute, solo, matching
 )
@@ -111,33 +111,37 @@ const (
 	KeyPlayerCommand       = "apptrol.player.command"        // Play, Pause, Stop, Next or Previous, sent to a player
 	KeyPlayerSelection     = "apptrol.player.selection"      // how the media keys chose their player: most_recent or pinned
 
-	KeyPowerBusAddress = "apptrol.power.bus_address" // the system bus address in use
+	KeySessionBusAddress = "apptrol.session.bus_address" // the system bus address in use
+	KeySessionID         = "apptrol.session.id"          // logind's id of the user's graphical session
+	KeyScreenState       = "apptrol.screen.state"        // unlocked, locked, inactive or unknown
+	KeyScreenReason      = "apptrol.screen.reason"       // why the state is unknown
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records
 // can be filtered by it.
 const (
-	ErrConfigInvalid      = "config_invalid"
-	ErrConfigUnreadable   = "config_unreadable"
-	ErrConfigRemoved      = "config_removed"
-	ErrExampleNotCreated  = "example_not_created"
-	ErrLogSetup           = "log_setup_failed"
-	ErrStateUnreadable    = "state_unreadable"
-	ErrStateNotSaved      = "state_not_saved"
-	ErrAudioUnreachable   = "audio_server_unreachable"
-	ErrAudioLost          = "audio_connection_lost"
-	ErrAudioApply         = "audio_change_failed"
-	ErrControllerBusy     = "controller_busy"
-	ErrControllerDenied   = "controller_permission_denied"
-	ErrControllerOpen     = "controller_open_failed"
-	ErrLEDFailed          = "led_failed"
-	ErrDesktopUnreachable = "desktop_bus_unreachable"
-	ErrDesktopLost        = "desktop_bus_lost"
-	ErrPlayerUnreadable   = "media_player_unreadable"
-	ErrMediaCommand       = "media_command_failed"
-	ErrAppStart           = "app_start_failed"
-	ErrPowerUnreachable   = "power_bus_unreachable"
-	ErrPowerLost          = "power_bus_lost"
+	ErrConfigInvalid        = "config_invalid"
+	ErrConfigUnreadable     = "config_unreadable"
+	ErrConfigRemoved        = "config_removed"
+	ErrExampleNotCreated    = "example_not_created"
+	ErrLogSetup             = "log_setup_failed"
+	ErrStateUnreadable      = "state_unreadable"
+	ErrStateNotSaved        = "state_not_saved"
+	ErrAudioUnreachable     = "audio_server_unreachable"
+	ErrAudioLost            = "audio_connection_lost"
+	ErrAudioApply           = "audio_change_failed"
+	ErrControllerBusy       = "controller_busy"
+	ErrControllerDenied     = "controller_permission_denied"
+	ErrControllerOpen       = "controller_open_failed"
+	ErrLEDFailed            = "led_failed"
+	ErrDesktopUnreachable   = "desktop_bus_unreachable"
+	ErrDesktopLost          = "desktop_bus_lost"
+	ErrPlayerUnreadable     = "media_player_unreadable"
+	ErrMediaCommand         = "media_command_failed"
+	ErrAppStart             = "app_start_failed"
+	ErrSystemBusUnreachable = "system_bus_unreachable"
+	ErrSystemBusLost        = "system_bus_lost"
+	ErrScreenUnreadable     = "screen_state_unreadable"
 )
 
 // Component returns the apptrol.component attribute.

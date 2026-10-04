@@ -18,15 +18,16 @@ How the service is put together. Decisions and their reasons are in
  session bus ───► desktop ─────┤
   (media players appear / go,  │
    playing or paused)          │
- system bus ────► power ───────┘
-  (the computer woke up)
+ system bus ────► session ─────┘
+  (the computer woke up,
+   the screen locked / unlocked)
 ```
 
 - **`mixer`** holds all behaviour: assignments, mute, solo, the held microphone buttons,
   which media player belongs to which control, what R, the media keys and the launcher
   buttons do, and every LED. It receives events and returns actions. It does no I/O and
   has no clock, so it is tested completely with plain unit tests.
-- **Adapters** (`controller`, `audio`, `desktop`, `power`, `launcher`, `config`, `state`,
+- **Adapters** (`controller`, `audio`, `desktop`, `session`, `launcher`, `config`, `state`,
   `logging`) talk to the outside world. The service uses them through small interfaces
   (`service.Controller`, `service.Audio`, `service.Desktop`, `service.Power`,
   `service.Launcher`); tests use
@@ -48,7 +49,7 @@ How the service is put together. Decisions and their reasons are in
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write |
 | `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`); reconnects; `apptrol list` data |
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
-| `internal/power` | D-Bus system bus (`godbus`, ADR 0023): hears logind's `PrepareForSleep` and reports each wake-up, repeated while the controller starts; reconnects |
+| `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, and whether the user's graphical session is unlocked, locked, behind another session or unknown; reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
 | `internal/config` | TOML loading, validation (including button rules, blocked commands and overlap warnings), file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
@@ -65,7 +66,7 @@ nothing from the adapters.
 1. An adapter produces an event: *slider 3 moved to 90*, *M pressed on column 2*,
    *S released on column 8*, *stream 57 (Spotify) appeared*, *media player Spotify now
    playing*, *config reloaded*, *controller connected*, *controller disconnected*,
-   *the computer woke up*.
+   *the computer woke up*, *the screen is locked*.
    Releases and disconnects only matter for buttons that act while held (INPUT-*,
    ADR 0020).
 2. The service passes it to `mixer.Handle(event)`.
@@ -153,7 +154,7 @@ controller starts again on wake-up with every LED off, but the kernel keeps the 
 Apptrol's open raw MIDI file: no disconnect is seen, so the re-send after a connect
 (LED-07) does not run, and the mixer, which sends only changed LEDs, would leave them dark.
 
-- **Hearing the wake-up:** `internal/power` connects to the system bus
+- **Hearing the wake-up:** `internal/session` connects to the system bus
   (`DBUS_SYSTEM_BUS_ADDRESS`, or `/run/dbus/system_bus_socket`) and subscribes to
   `org.freedesktop.login1.Manager.PrepareForSleep` from logind: `true` before sleep,
   `false` after waking. It arrives whether or not the screen is locked; a wake-up continues
@@ -164,6 +165,28 @@ Apptrol's open raw MIDI file: no disconnect is seen, so the re-send after a conn
 - **Its own connection:** separate from the session bus connection, so either can be lost
   without the other. Without a system bus Apptrol logs a warning and reconnects;
   everything else works.
+
+## The lock screen
+
+The lock screen guards the screen and the keyboard, not the controller: Apptrol keeps
+receiving it. Launchers therefore start apps only while the screen is unlocked
+(LAUNCH-13 to LAUNCH-15, [ADR 0024](adr/0024-launchers-only-when-unlocked.md)):
+
+- **Lock state:** `internal/session` asks logind for the user (`GetUser`), follows the
+  user's `Display` (the graphical session) and that session's `LockedHint` and `Active`
+  through `PropertiesChanged`, and reads everything again when logind (re)starts
+  (`NameOwnerChanged`) or, while a read fails, every 5 seconds. It reports `unlocked`,
+  `locked`, `inactive` (another session in front) or `unknown` as `mixer.ScreenChanged`,
+  only on a change.
+- **Fail closed:** the mixer starts in `unknown`. Without a system bus, without a
+  graphical session, after a lost connection or a failed read, the state is `unknown`,
+  and no launcher starts, whatever the configuration.
+- **Deciding:** every launcher press goes through one place in the mixer (`launch`). It
+  starts the app when the screen is `unlocked`, or when it is `locked` or `inactive` and
+  the launcher has `when_locked = true`.
+- **Audit:** while `locked` or `inactive`, every button press is a warning, launchers
+  with what they did. Sliders and knobs are not reported; nothing is reported while
+  `unknown`.
 
 ## Starting apps
 
@@ -217,9 +240,12 @@ dialog.
 - `audio/pulse`: integration tests against a headless PipeWire in CI.
 - `desktop`: integration tests in a private session bus with fake media players, locally
   (`make test-desktop`) and in CI; a bus restart and a missing bus included.
-- `power`: the same private bus stands in for the system bus, with a fake logind sending
-  the sleep signal: wake-ups and their repeats, a signal from another program, a bus
-  restart; a missing bus without one.
+- `session`: the same private bus stands in for the system bus, with a fake logind that
+  sends the sleep signal and offers a user and a graphical session: wake-ups and their
+  repeats, a signal from another program, lock, unlock, another session in front, no
+  graphical session, an unknown user, an unreadable session, logind starting late, a bus
+  restart; a missing bus without one. The mixer's fuzz test checks that no launcher ever
+  starts in a state that does not allow it.
 - `launcher`: desktop files and `Exec` parsing against temporary folders, with fuzzing;
   starting apps against a fake systemd, and against the real user manager with harmless
   units (`make test-launcher`, not in CI, which has no user systemd).

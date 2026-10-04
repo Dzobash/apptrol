@@ -35,6 +35,9 @@ type Button struct {
 	App       string   // a desktop ID
 	Command   []string // a program and its arguments
 	IfRunning string   // IfRunningStart or IfRunningSkip; launchers only
+	// WhenLocked lets a launcher start its app while the screen is locked or
+	// another user's session is in front (LAUNCH-14, ADR 0024); launchers only.
+	WhenLocked bool
 }
 
 // Launcher reports whether the button starts an app.
@@ -59,6 +62,22 @@ func (c *Config) LauncherApps() map[string]map[string]string {
 	return out
 }
 
+// WhenLockedLaunchers returns the launchers allowed while the screen is
+// locked, as "layouts.<layout>.buttons.<button>", sorted. Each is a warning
+// on every load (LAUNCH-14, ADR 0024).
+func (c *Config) WhenLockedLaunchers() []string {
+	var out []string
+	for name, l := range c.Layouts {
+		for button, b := range l.Buttons {
+			if b.WhenLocked && b.Launcher() {
+				out = append(out, fmt.Sprintf("layouts.%s.buttons.%s", name, button))
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
 // Column returns the column of r1–r8, s1–s8 and m1–m8, and the button letter;
 // ok is false for other buttons.
 func (b Button) Column() (letter byte, col int, ok bool) { return buttonColumn(b.Name) }
@@ -75,11 +94,12 @@ func buttonColumn(name string) (letter byte, col int, ok bool) {
 }
 
 type rawButton struct {
-	Mode      *string   `toml:"mode"`
-	TalkOver  *bool     `toml:"talk_over"`
-	App       *string   `toml:"app"`
-	Command   *[]string `toml:"command"`
-	IfRunning *string   `toml:"if_running"`
+	Mode       *string   `toml:"mode"`
+	TalkOver   *bool     `toml:"talk_over"`
+	App        *string   `toml:"app"`
+	Command    *[]string `toml:"command"`
+	IfRunning  *string   `toml:"if_running"`
+	WhenLocked *bool     `toml:"when_locked"`
 }
 
 // parseButtons checks the buttons of one layout against its assignments
@@ -144,6 +164,12 @@ func parseButtons(layout string, raw map[string]rawButton, l Layout, apps map[st
 				errs.add("%s.if_running: only a launcher (app or command) has it", at(name))
 			case b.IfRunning != IfRunningStart && b.IfRunning != IfRunningSkip:
 				errs.add("%s.if_running: %q is not valid (use %s)", at(name), b.IfRunning, orList([]string{IfRunningStart, IfRunningSkip}))
+			}
+		}
+		if rb.WhenLocked != nil {
+			b.WhenLocked = *rb.WhenLocked
+			if !launcher {
+				errs.add("%s.when_locked: only a launcher (app or command) has it", at(name))
 			}
 		}
 		if rb.TalkOver != nil {

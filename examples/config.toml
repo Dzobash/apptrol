@@ -83,6 +83,10 @@ slider8 = "mic"
 # command = ["program", "argument"]. if_running = "start" (default) or "skip".
 # Record, the three Marker buttons and any R button can be launchers.
 #
+# While the screen is locked, launchers start nothing, and every button pressed is
+# logged as a warning. when_locked = true lets one launcher start anyway, for anyone
+# at the controller; it is a warning on every load. docs/config.md, "At the lock screen".
+#
 # A command runs exactly what you write, with your user's rights: you are
 # responsible for it, the authors accept no liability. A few catastrophic commands
 # (rm -rf ~, mkfs, curl … | sh, sudo, …) are refused; docs/config.md lists them under

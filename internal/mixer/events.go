@@ -42,6 +42,23 @@ type ControllerDisconnected struct{}
 // not come (LED-09).
 type SystemResumed struct{}
 
+// ScreenChanged reports whether the user's screen is unlocked, locked, behind
+// another user's session, or unknown. Launchers start apps only while it is
+// unlocked (LAUNCH-13, ADR 0024).
+type ScreenChanged struct{ State ScreenState }
+
+// ScreenState is the state of the user's graphical session, as logind
+// reports it.
+type ScreenState string
+
+// The screen states (ADR 0024).
+const (
+	ScreenUnlocked ScreenState = "unlocked" // unlocked and in front: launchers start
+	ScreenLocked   ScreenState = "locked"   // LockedHint is true
+	ScreenInactive ScreenState = "inactive" // another session is in front (Active is false)
+	ScreenUnknown  ScreenState = "unknown"  // it cannot be told
+)
+
 // AudioSnapshot carries the full list of streams and devices, sent on
 // (re)connect to the audio server. It replaces everything the mixer knew (SVC-04).
 type AudioSnapshot struct {
@@ -109,6 +126,7 @@ func (ControllerDisconnected) isEvent() {}
 func (TransportPressed) isEvent()       {}
 func (ControllerConnected) isEvent()    {}
 func (SystemResumed) isEvent()          {}
+func (ScreenChanged) isEvent()          {}
 func (AudioSnapshot) isEvent()          {}
 func (StreamAdded) isEvent()            {}
 func (StreamRemoved) isEvent()          {}

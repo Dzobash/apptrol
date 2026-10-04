@@ -32,3 +32,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0021](0021-no-desktop-gui.md) | No desktop GUI: a terminal setup and a tray icon in the service | Accepted |
 | [0022](0022-launcher-command-safety.md) | Launcher commands: the user's responsibility, and a denylist of catastrophic commands | Accepted |
 | [0023](0023-leds-after-resume-from-sleep.md) | Send every LED again when the computer wakes up, told by logind | Accepted |
+| [0024](0024-launchers-only-when-unlocked.md) | Launchers start apps only while the screen is unlocked, unless opted in | Accepted |
