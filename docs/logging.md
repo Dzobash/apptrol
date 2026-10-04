@@ -124,12 +124,15 @@ An app starts playing and is found:
 INFO stream matched apptrol.component=mixer apptrol.layout=default apptrol.control=slider2 apptrol.app.id=browser apptrol.app.name=Browser apptrol.app.type=app apptrol.stream.id=11 apptrol.stream.app_name=Firefox process.executable.name=firefox
 ```
 
-The computer sleeps and wakes up; the controller lost power, so every LED is sent again
-(the first line at `debug`):
+The computer sleeps and wakes up; the controller lost power, so every LED is sent again,
+and repeated three times while the controller starts up (the `DEBU` lines at `debug`):
 
 ```text
 DEBU system going to sleep apptrol.component=session
 INFO system resumed; sending LEDs again apptrol.component=session
+DEBU LEDs sent again after waking up apptrol.component=session apptrol.session.resend=1
+DEBU LEDs sent again after waking up apptrol.component=session apptrol.session.resend=2
+DEBU LEDs sent again after waking up apptrol.component=session apptrol.session.resend=3
 ```
 
 Someone uses the controller while the screen is locked. Every button press is a warning,
@@ -284,6 +287,7 @@ Apptrol's own:
 | `apptrol.player.command` | `Play`, `Pause`, `Stop`, `Next` or `Previous`, sent to a media player |
 | `apptrol.player.selection` | How the media keys chose their player: `most_recent`, or `pinned` with `[media] player` |
 | `apptrol.session.bus_address` | The system bus Apptrol connected to, to learn when the computer wakes up and whether the screen is locked |
+| `apptrol.session.resend` | After a wake-up, which repeat of sending every LED this is: `1`, `2` or `3` (0.5, 2 and 5 seconds after waking up; debug) |
 | `apptrol.session.id` | logind's id of your graphical login session, whose lock state Apptrol follows |
 | `apptrol.screen.state` | `unlocked`; `locked`; `inactive` (another user's session is in front); `unknown` (it cannot be told). Launchers start apps only when `unlocked`, or with `when_locked` also when `locked` or `inactive` |
 | `apptrol.screen.reason` | Why the state is `unknown`: `no_system_bus`, `system_bus_lost`, `no_graphical_session` (e.g. logged in only over SSH) or `unreadable` |

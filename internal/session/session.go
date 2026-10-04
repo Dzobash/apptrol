@@ -230,6 +230,9 @@ func (w *Watcher) session(ctx context.Context, conn *dbus.Conn, addr string, scr
 				return ctx.Err()
 			}
 		case <-resend:
+			// Each repeat is logged, so a log shows whether they ran when LEDs
+			// come back late or not at all (LED-09, ADR 0023).
+			w.log.Debug("LEDs sent again after waking up", logattr.KeySessionResend, next+1)
 			if !send(ctx, scr.out, mixer.SystemResumed{}) {
 				return ctx.Err()
 			}
