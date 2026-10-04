@@ -36,6 +36,12 @@ type ControllerConnected struct{ Resync bool }
 // end: their release would never arrive (INPUT-07).
 type ControllerDisconnected struct{}
 
+// SystemResumed reports that the computer woke up from sleep or hibernation;
+// all LEDs are sent. The controller lost power while the computer slept and
+// starts with its LEDs off, but stays connected, so ControllerConnected does
+// not come (LED-09).
+type SystemResumed struct{}
+
 // AudioSnapshot carries the full list of streams and devices, sent on
 // (re)connect to the audio server. It replaces everything the mixer knew (SVC-04).
 type AudioSnapshot struct {
@@ -102,6 +108,7 @@ func (ButtonReleased) isEvent()         {}
 func (ControllerDisconnected) isEvent() {}
 func (TransportPressed) isEvent()       {}
 func (ControllerConnected) isEvent()    {}
+func (SystemResumed) isEvent()          {}
 func (AudioSnapshot) isEvent()          {}
 func (StreamAdded) isEvent()            {}
 func (StreamRemoved) isEvent()          {}

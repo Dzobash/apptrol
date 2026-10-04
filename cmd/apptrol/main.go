@@ -34,6 +34,7 @@ import (
 	"github.com/Dzobash/apptrol/internal/desktop"
 	"github.com/Dzobash/apptrol/internal/launcher"
 	"github.com/Dzobash/apptrol/internal/logging"
+	"github.com/Dzobash/apptrol/internal/power"
 	"github.com/Dzobash/apptrol/internal/service"
 	"github.com/Dzobash/apptrol/internal/state"
 	"github.com/Dzobash/apptrol/internal/version"
@@ -160,6 +161,7 @@ func cmdRun(configPath string, level *slog.Level, levelName string) error {
 		LogLevelFlag: levelName,
 		Audio:        pulse.New(log, ""),
 		Desktop:      desktop.New(log, ""),
+		Power:        power.New(log, ""),
 		Launcher:     launcher.NewStarter(log),
 		NewController: func(port string) service.Controller {
 			return rawmidi.New(log, port)

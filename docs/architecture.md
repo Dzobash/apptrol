@@ -15,18 +15,21 @@ How the service is put together. Decisions and their reasons are in
                    watch)      │     actions    └───────┘ ├──► launcher ───► systemd
  PipeWire ──────► audio ───────┤                          │    (start an app in its own unit)
   (streams appear / go)        │                          └──► state ──────► state.json
- session bus ───► desktop ─────┘
-  (media players appear / go,
-   playing or paused)
+ session bus ───► desktop ─────┤
+  (media players appear / go,  │
+   playing or paused)          │
+ system bus ────► power ───────┘
+  (the computer woke up)
 ```
 
 - **`mixer`** holds all behaviour: assignments, mute, solo, the held microphone buttons,
   which media player belongs to which control, what R, the media keys and the launcher
   buttons do, and every LED. It receives events and returns actions. It does no I/O and
   has no clock, so it is tested completely with plain unit tests.
-- **Adapters** (`controller`, `audio`, `desktop`, `launcher`, `config`, `state`,
+- **Adapters** (`controller`, `audio`, `desktop`, `power`, `launcher`, `config`, `state`,
   `logging`) talk to the outside world. The service uses them through small interfaces
-  (`service.Controller`, `service.Audio`, `service.Desktop`, `service.Launcher`); tests use
+  (`service.Controller`, `service.Audio`, `service.Desktop`, `service.Power`,
+  `service.Launcher`); tests use
   in-memory fakes (QA-06).
 - **`service`** runs one event loop that owns all state: it takes events from the adapters,
   passes them to the mixer, and carries out the returned actions. One goroutine owns the
@@ -39,12 +42,13 @@ How the service is put together. Decisions and their reasons are in
 | Package | Responsibility |
 |---|---|
 | `cmd/apptrol` | Command line: `run`, `list`, `check`, `test`, `version`; wires everything together |
-| `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop` and `Launcher` interfaces; turns mixer actions into adapter calls; the Record LED's flash (the mixer has no clock); config reload and its warnings; shutdown |
+| `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop`, `Power` and `Launcher` interfaces; turns mixer actions into adapter calls; the Record LED's flash (the mixer has no clock); config reload and its warnings; shutdown |
 | `internal/mixer` | Core logic (pure): matching streams, inputs and media players to controls, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write |
 | `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`); reconnects; `apptrol list` data |
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
+| `internal/power` | D-Bus system bus (`godbus`, ADR 0023): hears logind's `PrepareForSleep` and reports each wake-up, repeated while the controller starts; reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
 | `internal/config` | TOML loading, validation (including button rules, blocked commands and overlap warnings), file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
@@ -60,7 +64,8 @@ nothing from the adapters.
 
 1. An adapter produces an event: *slider 3 moved to 90*, *M pressed on column 2*,
    *S released on column 8*, *stream 57 (Spotify) appeared*, *media player Spotify now
-   playing*, *config reloaded*, *controller connected*, *controller disconnected*.
+   playing*, *config reloaded*, *controller connected*, *controller disconnected*,
+   *the computer woke up*.
    Releases and disconnects only matter for buttons that act while held (INPUT-*,
    ADR 0020).
 2. The service passes it to `mixer.Handle(event)`.
@@ -141,6 +146,25 @@ The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
   milliseconds after a command, not the audio stream, which apps pause only seconds
   later (ADR 0018, notes).
 
+## Sleep and wake-up
+
+While the computer sleeps (suspend or hibernation), its USB ports lose power. The
+controller starts again on wake-up with every LED off, but the kernel keeps the device and
+Apptrol's open raw MIDI file: no disconnect is seen, so the re-send after a connect
+(LED-07) does not run, and the mixer, which sends only changed LEDs, would leave them dark.
+
+- **Hearing the wake-up:** `internal/power` connects to the system bus
+  (`DBUS_SYSTEM_BUS_ADDRESS`, or `/run/dbus/system_bus_socket`) and subscribes to
+  `org.freedesktop.login1.Manager.PrepareForSleep` from logind: `true` before sleep,
+  `false` after waking. It arrives whether or not the screen is locked; a wake-up continues
+  the same login session (ADR 0023).
+- **Sending the LEDs:** after a wake-up the adapter sends `mixer.SystemResumed` at once and
+  after 0.5, 2 and 5 seconds, while the controller starts; going to sleep again stops the
+  repeats. The mixer sends every LED for each one (LED-09).
+- **Its own connection:** separate from the session bus connection, so either can be lost
+  without the other. Without a system bus Apptrol logs a warning and reconnects;
+  everything else works.
+
 ## Starting apps
 
 Launcher buttons (ADR 0019, LAUNCH-*):
@@ -193,6 +217,9 @@ dialog.
 - `audio/pulse`: integration tests against a headless PipeWire in CI.
 - `desktop`: integration tests in a private session bus with fake media players, locally
   (`make test-desktop`) and in CI; a bus restart and a missing bus included.
+- `power`: the same private bus stands in for the system bus, with a fake logind sending
+  the sleep signal: wake-ups and their repeats, a signal from another program, a bus
+  restart; a missing bus without one.
 - `launcher`: desktop files and `Exec` parsing against temporary folders, with fuzzing;
   starting apps against a fake systemd, and against the real user manager with harmless
   units (`make test-launcher`, not in CI, which has no user systemd).

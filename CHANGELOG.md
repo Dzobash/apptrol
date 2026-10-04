@@ -96,6 +96,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and license texts of every library compiled into Apptrol, and of Go's standard library,
   as their licenses require. 0.1.0 shipped only Apptrol's own license (#33, NFR-08). It
   is generated on every release, and CI fails on a library with an unknown license.
+- After the computer wakes from sleep or hibernation, the controller's LEDs are lit
+  again. The controller loses power while the computer sleeps and starts with its LEDs
+  off, but it stays connected, so Apptrol did not send them again; only LEDs that changed
+  afterwards came back (e.g. M8, but not S8 and R8). Apptrol now hears the wake-up from
+  systemd-logind on the D-Bus system bus and sends every LED, again while the controller
+  starts (LED-09, ADR 0023). The log shows `system resumed; sending LEDs again`
+  (component `power`); without a system bus it warns and everything else works.
 
 ## [0.1.0] - 2026-09-30
 

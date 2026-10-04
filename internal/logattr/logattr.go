@@ -25,6 +25,7 @@ const (
 	Audio      = "audio"      // audio server connection
 	Controller = "controller" // MIDI controller
 	Desktop    = "desktop"    // session bus: media players (ADR 0017)
+	Power      = "power"      // system bus: sleep and wake-up (ADR 0023)
 	Launcher   = "launcher"   // starting apps (ADR 0019)
 	Mixer      = "mixer"      // volume, mute, solo, matching
 )
@@ -109,6 +110,8 @@ const (
 	KeyPlayerIgnoredReason = "apptrol.player.ignored_reason" // other_device, proxy or duplicate
 	KeyPlayerCommand       = "apptrol.player.command"        // Play, Pause, Stop, Next or Previous, sent to a player
 	KeyPlayerSelection     = "apptrol.player.selection"      // how the media keys chose their player: most_recent or pinned
+
+	KeyPowerBusAddress = "apptrol.power.bus_address" // the system bus address in use
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records
@@ -133,6 +136,8 @@ const (
 	ErrPlayerUnreadable   = "media_player_unreadable"
 	ErrMediaCommand       = "media_command_failed"
 	ErrAppStart           = "app_start_failed"
+	ErrPowerUnreachable   = "power_bus_unreachable"
+	ErrPowerLost          = "power_bus_lost"
 )
 
 // Component returns the apptrol.component attribute.

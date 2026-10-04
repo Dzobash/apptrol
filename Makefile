@@ -32,7 +32,7 @@ test-audio: ## Run the audio integration tests against your running PipeWire/Pul
 	APPTROL_PULSE_TEST=1 go test -race -count=1 -run Integration -v ./internal/audio/pulse
 
 test-desktop: ## Run the D-Bus integration tests in a private session bus (not your desktop's)
-	dbus-run-session -- env APPTROL_DBUS_TEST=1 go test -race -count=1 -run Integration -v ./internal/desktop
+	dbus-run-session -- env APPTROL_DBUS_TEST=1 go test -race -count=1 -run Integration -v ./internal/desktop ./internal/power
 
 test-launcher: ## Start harmless test units (`true`) in your systemd user manager, to check starting apps
 	APPTROL_SYSTEMD_TEST=1 go test -race -count=1 -run Integration -v ./internal/launcher

@@ -755,6 +755,42 @@ func TestLED07_ResyncSendsEveryLEDAgain(t *testing.T) {
 	w.wantLEDs(8, true, true, true)
 }
 
+func TestLED09_ResumeSendsEveryLEDAgain(t *testing.T) {
+	// The computer slept: the controller lost power and forgot its LEDs, but
+	// stayed connected. The microphone's device went away and came back.
+	w := started(t)
+	w.press(ButtonM, 1)
+	w.leds = map[LED]bool{}
+	w.do(DeviceRemoved{Name: goxlr.Name}, DeviceAdded{Device: goxlr})
+	if w.led(ButtonS, 8) || w.led(ButtonR, 8) {
+		t.Fatal("S8 or R8 sent without a resume; the test no longer shows the problem")
+	}
+	w.do(SystemResumed{})
+	var n int
+	for _, a := range w.last {
+		if _, ok := a.(SetLED); ok {
+			n++
+		}
+	}
+	if want := 3*NumColumns + len(AllTransport); n != want {
+		t.Errorf("resume sent %d LEDs, want all %d", n, want)
+	}
+	w.wantLEDs(1, false, true, false)
+	w.wantLEDs(8, true, true, true)
+}
+
+func TestLED09_ResumeChangesNothingElse(t *testing.T) {
+	w := started(t)
+	w.press(ButtonM, 1)
+	w.do(SystemResumed{})
+	for _, a := range w.last {
+		if _, ok := a.(SetLED); !ok {
+			t.Errorf("resume did %T, want only LEDs", a)
+		}
+	}
+	w.wantMuted(true, spotify.ID)
+}
+
 func TestLED07_AudioReconnectSendsEveryLEDAgain(t *testing.T) {
 	// A restart of PipeWire can reset the controller's LEDs, while solo stays on.
 	w := started(t)
