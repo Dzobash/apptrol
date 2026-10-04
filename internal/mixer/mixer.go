@@ -30,7 +30,7 @@ type Mixer struct {
 	playSeq        int                    // counts players starting to play (lastPlaying)
 	deviceMuteSent map[string]bool        // last mute sent per device
 	leds           map[LED]bool           // last LED state sent
-	screen         ScreenState            // launchers start only while unlocked (LAUNCH-13)
+	screen         ScreenState            // launchers start only while unlocked (LAUNCH-13, ADR 0024)
 }
 
 type streamInfo struct {
@@ -54,7 +54,7 @@ func New(setup Setup, saved State) *Mixer {
 		players:        map[string]*playerInfo{},
 		deviceMuteSent: map[string]bool{},
 		leds:           map[LED]bool{},
-		screen:         ScreenUnknown, // until the session adapter knows (LAUNCH-13)
+		screen:         ScreenUnknown, // until the session adapter knows: fail closed (LAUNCH-13, ADR 0024)
 	}
 	m.setSetup(setup)
 	for c, v := range saved.Positions {

@@ -36,10 +36,10 @@ const (
 const callTimeout = 2 * time.Second
 
 // unreadableRetry is how long after a failed read of the screen state it is
-// read again; launchers stay blocked meanwhile.
+// read again; launchers stay blocked meanwhile (ADR 0024).
 const unreadableRetry = 5 * time.Second
 
-// Why the screen state is unknown (apptrol.screen.reason).
+// Why the screen state is unknown (apptrol.screen.reason, ADR 0024).
 const (
 	reasonNoBus      = "no_system_bus"
 	reasonBusLost    = "system_bus_lost"
@@ -49,7 +49,7 @@ const (
 
 // defaultResend: after a wake-up, mixer.SystemResumed is sent at once and
 // again after each of these delays. The controller starts again some seconds
-// after the wake-up and ignores LED messages while it starts (LED-09).
+// after the wake-up and ignores LED messages while it starts (LED-09, ADR 0023).
 var defaultResend = []time.Duration{500 * time.Millisecond, 2 * time.Second, 5 * time.Second}
 
 // Watcher keeps a connection to the system bus and reports wake-ups and the
@@ -89,7 +89,7 @@ func (w *Watcher) busAddress() string {
 // Run connects and keeps the connection until ctx is canceled. It sends
 // mixer.SystemResumed after every wake-up, and mixer.ScreenChanged whenever
 // the screen state changes; without a connection the state is unknown, so
-// launchers are blocked (LAUNCH-13). Without a bus, or when the connection
+// launchers are blocked (LAUNCH-13, ADR 0024). Without a bus, or when the connection
 // breaks, it logs a warning and reconnects. It returns ctx's error.
 func (w *Watcher) Run(ctx context.Context, out chan<- mixer.Event) error {
 	scr := &screen{log: w.log, out: out}
@@ -153,7 +153,8 @@ func (w *Watcher) session(ctx context.Context, conn *dbus.Conn, addr string, scr
 		dbus.WithMatchMember("PropertiesChanged")); err != nil {
 		return fmt.Errorf("subscribe to session changes: %w", err)
 	}
-	// logind starting (again): its objects are new, so everything is read again.
+	// logind starting (again): its objects are new, so everything is read again
+	// (ADR 0024).
 	if err := conn.AddMatchSignalContext(ctx, dbus.WithMatchSender("org.freedesktop.DBus"),
 		dbus.WithMatchInterface("org.freedesktop.DBus"), dbus.WithMatchMember("NameOwnerChanged"),
 		dbus.WithMatchArg(0, login1Name)); err != nil {

@@ -36,7 +36,7 @@ type Button struct {
 	Command   []string // a program and its arguments
 	IfRunning string   // IfRunningStart or IfRunningSkip; launchers only
 	// WhenLocked lets a launcher start its app while the screen is locked or
-	// another user's session is in front (LAUNCH-14); launchers only.
+	// another user's session is in front (LAUNCH-14, ADR 0024); launchers only.
 	WhenLocked bool
 }
 
@@ -64,7 +64,7 @@ func (c *Config) LauncherApps() map[string]map[string]string {
 
 // WhenLockedLaunchers returns the launchers allowed while the screen is
 // locked, as "layouts.<layout>.buttons.<button>", sorted. Each is a warning
-// on every load (LAUNCH-14).
+// on every load (LAUNCH-14, ADR 0024).
 func (c *Config) WhenLockedLaunchers() []string {
 	var out []string
 	for name, l := range c.Layouts {

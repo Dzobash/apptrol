@@ -53,7 +53,7 @@ func (m *Mixer) lockedLaunch(b LED, l Launch) []any {
 func (m *Mixer) screenLocked() bool { return m.screen == ScreenLocked || m.screen == ScreenInactive }
 
 // lockedPress warns about a button pressed while the screen is locked
-// (LAUNCH-15). Launchers warn in launch, with what they did; sliders and
+// (LAUNCH-15, ADR 0024). Launchers warn in launch, with what they did; sliders and
 // knobs are not reported.
 func (m *Mixer) lockedPress(a *actions, b LED) {
 	if !m.screenLocked() {

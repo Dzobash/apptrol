@@ -211,7 +211,7 @@ type Launch struct {
 	DesktopID     string
 	Command       []string
 	SkipIfRunning bool // if_running = "skip" (LAUNCH-06)
-	WhenLocked    bool // when_locked = true: also while locked (LAUNCH-14)
+	WhenLocked    bool // when_locked = true: also while locked (LAUNCH-14, ADR 0024)
 }
 
 // Button is the setting of an M or S button on an input column.
