@@ -83,6 +83,13 @@ The configuration file is checked once a second; after a change the loop reloads
 start restores), ends solo and turns the LEDs off before the adapters are stopped (SVC-05,
 STATE-04, SVC-07, LED-08).
 
+**An invalid input never causes a write** ([ADR 0025](adr/0025-state-kept-while-config-invalid.md)).
+An invalid file on reload is rejected and the running settings stay. Without a valid
+configuration at start, the mixer is created with `mixer.NewWithoutConfig`: it controls
+nothing and keeps the saved state unchanged, so its snapshot equals what is on disk and
+the saver writes nothing (apart from positions of controls moved meanwhile). The first
+valid configuration applies the kept state like a normal start (STATE-08).
+
 ## Controller access
 
 Raw MIDI (`/dev/snd/midiC<card>D<device>`), in pure Go:

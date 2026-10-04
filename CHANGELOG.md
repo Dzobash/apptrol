@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   where launched apps open no window) and a new page of [known issues](docs/known-issues.md)
   with their causes and workarounds, including those found in 0.2.0.
 
+### Fixed
+- A restart with an invalid configuration no longer erases the saved slider positions,
+  mutes and solo. Apptrol keeps them unchanged while it waits for a valid configuration
+  and applies them when one arrives; the log says `saved state kept until a valid
+  configuration is loaded`, then `saved state applied` (STATE-08, ADR 0025, #77).
+
 ## [0.2.0] - 2026-10-04
 
 ### Added

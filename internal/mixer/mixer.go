@@ -31,6 +31,10 @@ type Mixer struct {
 	deviceMuteSent map[string]bool        // last mute sent per device
 	leds           map[LED]bool           // last LED state sent
 	screen         ScreenState            // launchers start only while unlocked (LAUNCH-13, ADR 0024)
+	// waiting is the saved state, kept unchanged while no valid configuration
+	// is loaded and applied with the first one; nil once applied (STATE-08,
+	// ADR 0025).
+	waiting *State
 }
 
 type streamInfo struct {
@@ -57,7 +61,40 @@ func New(setup Setup, saved State) *Mixer {
 		screen:         ScreenUnknown, // until the session adapter knows: fail closed (LAUNCH-13, ADR 0024)
 	}
 	m.setSetup(setup)
+	m.restore(saved)
+	return m
+}
+
+// NewWithoutConfig creates a mixer for a start without a valid configuration
+// (CFG-07). It controls nothing, and it keeps saved as it is: Snapshot returns
+// it, so nothing is lost by saving, and the first ConfigChanged applies it as
+// New would. An invalid input must never cause a write (STATE-08, ADR 0025).
+func NewWithoutConfig(saved State) *Mixer {
+	m := New(Setup{}, State{})
+	w := State{Positions: map[Control]int{}, Muted: map[Control]bool{}, Solo: saved.Solo}
 	for c, v := range saved.Positions {
+		w.Positions[c] = v
+	}
+	for c, on := range saved.Muted {
+		w.Muted[c] = on
+	}
+	m.waiting = &w
+	return m
+}
+
+// Waiting reports whether the mixer still waits for a valid configuration
+// and keeps the saved state for it (STATE-08, ADR 0025).
+func (m *Mixer) Waiting() bool { return m.waiting != nil }
+
+// restore applies a saved state to the current setup: positions and user mutes
+// of assigned controls (STATE-03, STATE-07) and the soloed column (STATE-04).
+// A position already known, because the control was moved since the start,
+// is newer and is kept.
+func (m *Mixer) restore(saved State) {
+	for c, v := range saved.Positions {
+		if _, known := m.positions[c]; known {
+			continue
+		}
 		if _, ok := m.setup.Assignments[c]; ok && c.Valid() {
 			m.positions[c] = clamp(v)
 		}
@@ -71,7 +108,6 @@ func New(setup Setup, saved State) *Mixer {
 		m.solo = saved.Solo
 	}
 	m.dropHoldToTalkMutes()
-	return m
 }
 
 func (m *Mixer) setSetup(s Setup) {
@@ -104,6 +140,21 @@ func (m *Mixer) setSetup(s Setup) {
 // Snapshot returns the state to persist (STATE-01): positions and user mutes of
 // assigned controls only (STATE-07), and the soloed column (STATE-04).
 func (m *Mixer) Snapshot() State {
+	if m.waiting != nil {
+		// The saved state, unchanged, except for controls moved since the
+		// start: their position is newer (STATE-08, ADR 0025).
+		s := State{Positions: map[Control]int{}, Muted: map[Control]bool{}, Solo: m.waiting.Solo}
+		for c, v := range m.waiting.Positions {
+			s.Positions[c] = v
+		}
+		for c, v := range m.positions {
+			s.Positions[c] = v
+		}
+		for c, on := range m.waiting.Muted {
+			s.Muted[c] = on
+		}
+		return s
+	}
 	s := State{Positions: map[Control]int{}, Muted: map[Control]bool{}, Solo: m.solo}
 	for c, v := range m.positions {
 		if _, ok := m.setup.Assignments[c]; ok {
@@ -1022,6 +1073,12 @@ func (m *Mixer) configChanged(a *actions, s Setup) {
 		if !ok || old[c] != id || m.setup.Targets[id].Kind != App {
 			m.solo = 0
 		}
+	}
+	if m.waiting != nil {
+		// The first valid configuration: apply the state kept since the
+		// start, before the streams and inputs get their volumes (STATE-08, ADR 0025).
+		m.restore(*m.waiting)
+		m.waiting = nil
 	}
 	for _, info := range m.sortedStreams() {
 		before, beforeControl := info.target, oldControlOf[info.target]

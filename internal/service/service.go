@@ -147,7 +147,15 @@ func Run(ctx context.Context, o Options) error {
 	}
 
 	saved := s.loadState()
-	s.m = mixer.New(setup, saved)
+	if cfg != nil {
+		s.m = mixer.New(setup, saved)
+	} else {
+		// No valid configuration: keep the saved state as it is, and apply it
+		// with the first valid one (STATE-08, ADR 0025).
+		s.m = mixer.NewWithoutConfig(saved)
+		s.logFor(logattr.State).Info("saved state kept until a valid configuration is loaded",
+			logattr.KeyFilePath, o.StatePath, logattr.KeyPositions, len(saved.Positions), logattr.KeyMutes, len(saved.Muted))
+	}
 	s.saver = state.NewSaver(o.StatePath, o.SaveDelay, func(err error) {
 		s.logFor(logattr.State).Warn("could not save the state",
 			logattr.KeyFilePath, o.StatePath, logattr.Error(logattr.ErrStateNotSaved, err))
@@ -385,7 +393,13 @@ func (s *service) configChanged(ch config.Change) {
 		log.Warn("the controller setting changed; restart Apptrol to use it",
 			logattr.KeyPort, cfg.Controller.Port, logattr.KeyPortInUse, s.port)
 	}
+	waiting := s.m.Waiting()
 	s.handle(mixer.ConfigChanged{Setup: cfg.Setup()})
+	if waiting {
+		st := s.m.Snapshot()
+		s.logFor(logattr.State).Info("saved state applied",
+			logattr.KeyFilePath, s.o.StatePath, logattr.KeyPositions, len(st.Positions), logattr.KeyMutes, len(st.Muted))
+	}
 }
 
 // handle passes one event to the mixer and carries out its actions.

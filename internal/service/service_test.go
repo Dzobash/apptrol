@@ -376,6 +376,47 @@ func TestSTATE03_StateRestoredOnStart(t *testing.T) {
 	e.waitApplied(mixer.SetStreamMute{StreamID: spotify.ID, Muted: true})
 }
 
+// TestSTATE08_InvalidConfigurationKeepsTheSavedState: two restarts with an
+// invalid configuration, as seen in the v0.2.0-rc1 checklist (#77), leave the
+// state file as it was; the first valid configuration applies it.
+func TestSTATE08_InvalidConfigurationKeepsTheSavedState(t *testing.T) {
+	const invalid = "[apps.x]\nname = 1\n"
+	e := newEnv(t, invalid)
+	st := mixer.State{
+		Positions: map[mixer.Control]int{{Kind: mixer.Slider, Column: 2}: 0},
+		Muted:     map[mixer.Control]bool{{Kind: mixer.Slider, Column: 1}: true},
+	}
+	if err := state.Save(e.statePath(), st); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(e.statePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		e.start()
+		e.waitLog("saved state kept until a valid configuration is loaded")
+		e.stop()
+		after, err := os.ReadFile(e.statePath())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(after, before) {
+			t.Fatalf("state file changed by a start with an invalid configuration:\nbefore %s\nafter  %s", before, after)
+		}
+		// A fresh run: its own log, and the fakes ready to start again.
+		e.out = &syncBuf{}
+		e.done = make(chan error, 1)
+		e.session.ready = make(chan struct{})
+	}
+	e.start()
+	e.waitLog("saved state kept")
+	e.write(testConfig)
+	e.waitLog("saved state applied")
+	e.waitApplied(mixer.SetStreamVolume{StreamID: firefox.ID, Volume: 0})
+	e.waitApplied(mixer.SetStreamMute{StreamID: spotify.ID, Muted: true})
+}
+
 func TestSTATE05_DamagedState(t *testing.T) {
 	e := newEnv(t, testConfig)
 	if err := os.MkdirAll(filepath.Dir(e.statePath()), 0o700); err != nil {
