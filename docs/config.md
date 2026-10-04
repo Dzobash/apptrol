@@ -296,4 +296,3 @@ shell rewrites it.
 |---|---|---|
 | `[osd]` | 1.6 | On-screen feedback on/off. |
 | `[layouts.<name>]` switch options | 2 | Behaviour on layout switch, fixed values, per-control overrides. |
-| `outputs` in `[apps.<id>]` | Backlog | Allowed outputs for an R override. |

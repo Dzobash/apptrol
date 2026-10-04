@@ -115,9 +115,8 @@ No desktop GUI ([ADR 0021](adr/0021-no-desktop-gui.md)): the binary stays pure G
 
 ## Backlog
 
-- R override: move an app between a per-app list of outputs (needs discussion; Q-2, Q-3)
-- Recording control beyond starting an app (e.g. OBS WebSocket, Record LED shows recording state)
-- Read the controller's LED mode over SysEx and warn only when it is "Internal" (see HW-03)
-- Support for other MIDI controllers
-- Native journald protocol for structured log fields (Q-5)
-- Man page and shell completions (bash, zsh, fish) in the packages, written without a command-line framework (ADR 0021)
+- Recording control beyond starting an app (e.g. OBS WebSocket, Record LED shows recording state) ([#62](https://github.com/Dzobash/apptrol/issues/62))
+- Read the controller's LED mode over SysEx and warn only when it is "Internal" (see HW-03) ([#63](https://github.com/Dzobash/apptrol/issues/63))
+- Support for other MIDI controllers ([#64](https://github.com/Dzobash/apptrol/issues/64))
+- Native journald protocol for structured log fields (Q-5) ([#65](https://github.com/Dzobash/apptrol/issues/65))
+- Man page and shell completions (bash, zsh, fish) in the packages, written without a command-line framework (ADR 0021) ([#66](https://github.com/Dzobash/apptrol/issues/66))

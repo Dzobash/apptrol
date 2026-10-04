@@ -61,8 +61,7 @@ and works just as well with a plain internal sound card.
 ### 2.2 Out of scope for Phase 1
 
 Media buttons, launcher buttons, functions for R and for S on an input column, on-screen
-popups, multiple layouts, pick-up, a terminal setup and a tray icon, moving apps between
-outputs. See section 6 and
+popups, multiple layouts, pick-up, a terminal setup and a tray icon. See section 6 and
 the [roadmap](roadmap.md).
 
 ### 2.3 Never in scope
@@ -358,7 +357,6 @@ explains it with the feature.
 - A man page and shell completions (bash, zsh, fish) in the packages, written without a command-line framework (ADR 0021).
 
 ### Backlog (unscheduled)
-- **Move app to another output**, as a further R override: cycle an app through a per-app list of allowed output devices; R LED shows when the app is not on its home output. Needs further discussion.
 - Recording control beyond starting an app (e.g. start/stop recording in OBS via its WebSocket API, with the Record LED showing the state).
 - Read the controller's LED mode over SysEx (read-only) and log a **warning** only when it is "Internal", replacing the HW-03 hint.
 - Support for other MIDI controllers.
@@ -368,8 +366,8 @@ explains it with the feature.
 | # | Question | Phase |
 |---|---|---|
 | Q-1 | When switching from a layout where an app is user-muted to a layout that does not contain that app, should the app stay muted or become audible until you switch back? | 2 |
-| Q-2 | Should R also cycle an input column between input devices? | Backlog |
-| Q-3 | Should an output move made with R persist after the app restarts, and is it per layout or global? | Backlog |
+| Q-2 | Should R also cycle an input column between input devices? **No longer applies (2026-10-04):** moving apps or inputs between devices with R is dropped; R plays or pauses its column's app or starts an app (ADR 0019, ADR 0020), so it has no press left for it ([#61](https://github.com/Dzobash/apptrol/issues/61)). | – |
+| Q-3 | Should an output move made with R persist after the app restarts, and is it per layout or global? **No longer applies (2026-10-04):** see Q-2. | – |
 | Q-4 | How does the GUI talk to the service (D-Bus or a local socket)? **Decided 2026-10-02: D-Bus** (session bus), recorded in ADR 0017. **No longer applies** since ADR 0021: there is no GUI program. | 3 |
 | Q-5 | Should the journald output use the native journal protocol (structured fields) instead of stdout with severity prefixes? Phase 1 uses severity prefixes. | Backlog |
 | Q-6 | Where do settings live when they can be changed outside the file? **Decided 2026-10-02: in `config.toml` only** (ADR 0021): `apptrol setup` edits the file, keeping its comments; nothing overrides it. Open: how to write the file without losing comments. | 3 |

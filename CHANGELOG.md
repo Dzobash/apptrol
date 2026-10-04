@@ -75,6 +75,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README: mutes made with M stay set while Apptrol is stopped; ADR 0006 records why.
 
 ### Changed
+- CONTRIBUTING: when to open an issue (bugs, ideas left for later, bugs in other apps);
+  the roadmap's backlog and the README's *Known issues* link their issues (#62–#69).
+- Dropped from the backlog: moving an app to another output with R. R now plays or
+  pauses its column's app or starts an app, so it has no press left for it (#61); the
+  reserved `outputs` setting and open questions Q-2 and Q-3 go with it.
 - The default log level is `warn`: the journal stays quiet in daily use. Set
   `level = "info"`, or run `apptrol --log-level info`, to see every mute, solo and app
   found (LOG-02). Configuration files that set `level` keep their value.

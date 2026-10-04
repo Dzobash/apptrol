@@ -13,3 +13,4 @@
 - [ ] `CHANGELOG.md` updated under **Unreleased** (for user-visible changes)
 - [ ] Docs updated (`docs/`, `README.md`) if behaviour or configuration changed
 - [ ] New design decision recorded as an ADR, if there is one
+- [ ] Open issues checked: the ones this fixes, finishes, conflicts with or makes obsolete are named above

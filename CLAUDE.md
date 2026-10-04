@@ -26,6 +26,13 @@ Read these instead of guessing; this file only links to them:
   A ruleset on `main` enforces this.
 - The owner reviews and merges PRs. **Ask before pushing, opening a PR or creating
   issues.**
+- Suggest an issue for every bug found, every idea or task left for later, and every
+  bug in another app (rules in [CONTRIBUTING.md](CONTRIBUTING.md#issues)); a fix's PR
+  says `Fixes #n`.
+- **Check the open issues** (`gh issue list`) when planning a feature or an ADR and
+  before opening a PR: does the change make one obsolete, conflict with one, or finish
+  one? Say so in the plan and the PR, and suggest updating or closing it (e.g. R's
+  play/pause and launchers left no press for moving apps between outputs, #61).
 - After a merge: `git switch main && git pull`, then delete the local branch.
 - Releases: release candidates (`vX.Y.Z-rcN`) first, the hardware checklist in
   [docs/testing.md](docs/testing.md) on an installed candidate, then the release as in

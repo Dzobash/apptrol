@@ -210,16 +210,16 @@ run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they 
 
   This is a bug in the Spotify client, and Apptrol deliberately does not work around it:
   a change that another program makes to an app's volume stays until you touch that app's
-  slider or knob again. Touch Spotify's slider after a track change to set it back.
+  slider or knob again. Touch Spotify's slider after a track change to set it back. ([#67](https://github.com/Dzobash/apptrol/issues/67))
 
 - **R pauses only one browser tab.** A browser offers one media player for all its tabs,
   and *Pause* reaches only the tab used last; the other tabs keep playing. M silences
   every tab, because it acts on each tab's audio. This is how browsers implement the
-  media player interface (MPRIS), not something Apptrol can change.
+  media player interface (MPRIS), not something Apptrol can change. ([#68](https://github.com/Dzobash/apptrol/issues/68))
 
 - **■ only pauses Spotify.** The media player standard says *Stop* stops, and *Play*
   then starts the track again from the beginning; VLC and Elisa do this. Spotify treats
-  *Stop* as a pause instead, so ▶ continues where it was.
+  *Stop* as a pause instead, so ▶ continues where it was. ([#69](https://github.com/Dzobash/apptrol/issues/69))
 
 Found another problem? Please [open an issue](https://github.com/Dzobash/apptrol/issues).
 

@@ -12,6 +12,26 @@ Please follow the [code of conduct](CODE_OF_CONDUCT.md).
 - Decisions that affect the design are recorded as [ADRs](docs/adr/). If your change
   alters one, add a new record that supersedes it.
 
+## Issues
+
+Issues are the project's public memory: what users search for, and what waits to be
+done. Open one for:
+
+1. **A bug found in Apptrol**, even if it is fixed the same day: the fix's pull request
+   says `Fixes #n`, and users of the released version find the cause and a workaround.
+   A bug that was never in a release needs no issue.
+2. **An idea or task that is not done right away**, so it is not lost. Ideas without a
+   planned release get the label `backlog`.
+3. **A problem caused by another program** that Apptrol does not work around (see the
+   README, *Known issues*), with the label `upstream`, closed right away as *not
+   planned*: it can be found, without promising a fix.
+
+An idea that is dropped is closed as *not planned*, with the reason, and removed from the
+roadmap and requirements in the same change.
+
+Small changes made right away (docs, refactoring) need no issue; the pull request is
+enough.
+
 ## Branches and pull requests
 
 `main` must always build and pass CI, so a release can be tagged from it at any time.
