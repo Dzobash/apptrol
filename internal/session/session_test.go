@@ -1,4 +1,4 @@
-package power
+package session
 
 import (
 	"bytes"
@@ -168,7 +168,7 @@ func TestLED09_NoBusWarnsOnceThenRetries(t *testing.T) {
 	if n := strings.Count(log, "cannot connect to the system bus"); n != 1 {
 		t.Errorf("warning logged %d times, want once (retries at debug):\n%s", n, log)
 	}
-	for _, want := range []string{"level=WARN", "error.type=power_bus_unreachable", "apptrol.component=power"} {
+	for _, want := range []string{"level=WARN", "error.type=system_bus_unreachable", "apptrol.component=session"} {
 		if !strings.Contains(log, want) {
 			t.Errorf("log lacks %q:\n%s", want, log)
 		}
@@ -193,7 +193,7 @@ func TestIntegration_LED09_WakeUpIsReportedAndRepeated(t *testing.T) {
 		t.Errorf("%d SystemResumed after waking up, want 4 (at once and 3 repeats)", n)
 	}
 	log := h.log.String()
-	for _, want := range []string{"system resumed; sending LEDs again", "apptrol.component=power", "apptrol.power.bus_address="} {
+	for _, want := range []string{"system resumed; sending LEDs again", "apptrol.component=session", "apptrol.session.bus_address="} {
 		if !strings.Contains(log, want) {
 			t.Errorf("log lacks %q:\n%s", want, log)
 		}
@@ -262,7 +262,7 @@ func TestIntegration_LED09_ReconnectsAfterTheBusRestarts(t *testing.T) {
 	_ = daemon.Wait()
 	startDaemon(t, addr)
 	h.waitLog("connected to the system bus", 2)
-	for _, want := range []string{"lost the connection to the system bus", "error.type=power_bus_lost"} {
+	for _, want := range []string{"lost the connection to the system bus", "error.type=system_bus_lost"} {
 		if !strings.Contains(h.log.String(), want) {
 			t.Errorf("log lacks %q:\n%s", want, h.log.String())
 		}

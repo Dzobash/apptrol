@@ -1,7 +1,8 @@
-// Package power is the adapter for the D-Bus system bus (ADR 0023): it learns
+// Package session is the adapter for logind, the login manager, on the D-Bus
+// system bus (ADR 0023): it learns
 // from systemd-logind when the computer wakes up from sleep or hibernation,
 // and reports it to the mixer, which sends every LED again (LED-09).
-package power
+package session
 
 import (
 	"context"
@@ -43,7 +44,7 @@ type Watcher struct {
 // New returns a Watcher. address is the system bus address; "" finds it as
 // SystemBusAddress does.
 func New(log *slog.Logger, address string) *Watcher {
-	return &Watcher{log: log.With(logattr.Component(logattr.Power)), address: address,
+	return &Watcher{log: log.With(logattr.Component(logattr.Session)), address: address,
 		retryMin: 500 * time.Millisecond, retryMax: 30 * time.Second, resend: defaultResend}
 }
 
@@ -77,10 +78,10 @@ func (w *Watcher) Run(ctx context.Context, out chan<- mixer.Event) error {
 			}
 			if !failed {
 				w.log.Warn("cannot connect to the system bus; LEDs are not sent again after sleep, retrying",
-					logattr.Error(logattr.ErrPowerUnreachable, err))
+					logattr.Error(logattr.ErrSystemBusUnreachable, err))
 				failed = true
 			} else {
-				w.log.Debug("system bus still unreachable", logattr.Error(logattr.ErrPowerUnreachable, err),
+				w.log.Debug("system bus still unreachable", logattr.Error(logattr.ErrSystemBusUnreachable, err),
 					logattr.KeyRetryDelay, wait.Seconds())
 			}
 		} else {
@@ -90,7 +91,7 @@ func (w *Watcher) Run(ctx context.Context, out chan<- mixer.Event) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			w.log.Warn("lost the connection to the system bus; reconnecting", logattr.Error(logattr.ErrPowerLost, err))
+			w.log.Warn("lost the connection to the system bus; reconnecting", logattr.Error(logattr.ErrSystemBusLost, err))
 			failed = true // already reported; retries are logged at debug level
 		}
 		select {
@@ -114,7 +115,7 @@ func (w *Watcher) session(ctx context.Context, conn *dbus.Conn, addr string, out
 		return fmt.Errorf("subscribe to %s: %w", sleepSignal, err)
 	}
 	// Logged once subscribed: from here on, no wake-up is missed.
-	w.log.Info("connected to the system bus", logattr.KeyPowerBusAddress, addr)
+	w.log.Info("connected to the system bus", logattr.KeySessionBusAddress, addr)
 
 	var resend <-chan time.Time // the next repeat of SystemResumed
 	var next int                // index into w.resend of the repeat after that

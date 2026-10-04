@@ -90,3 +90,12 @@ INFO system resumed; sending LEDs again apptrol.component=power
 - On a system without systemd-logind (e.g. elogind setups are compatible, other init
   systems may not be) nothing sends the signal; Apptrol works as before, and LEDs come
   back as soon as they change or the controller is replugged.
+
+## Notes
+
+- 2026-10-04: Renamed before the first release that contains it: the package
+  `internal/power` is now `internal/session`, the log component `power` is now `session`,
+  `apptrol.power.bus_address` is now `apptrol.session.bus_address`, and the error types
+  `power_bus_unreachable` and `power_bus_lost` are now `system_bus_unreachable` and
+  `system_bus_lost`. The same connection to logind now also follows the screen lock
+  ([ADR 0024](0024-launchers-only-when-unlocked.md)), so "power" no longer described it.

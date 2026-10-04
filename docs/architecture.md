@@ -18,7 +18,7 @@ How the service is put together. Decisions and their reasons are in
  session bus ───► desktop ─────┤
   (media players appear / go,  │
    playing or paused)          │
- system bus ────► power ───────┘
+ system bus ────► session ─────┘
   (the computer woke up)
 ```
 
@@ -26,7 +26,7 @@ How the service is put together. Decisions and their reasons are in
   which media player belongs to which control, what R, the media keys and the launcher
   buttons do, and every LED. It receives events and returns actions. It does no I/O and
   has no clock, so it is tested completely with plain unit tests.
-- **Adapters** (`controller`, `audio`, `desktop`, `power`, `launcher`, `config`, `state`,
+- **Adapters** (`controller`, `audio`, `desktop`, `session`, `launcher`, `config`, `state`,
   `logging`) talk to the outside world. The service uses them through small interfaces
   (`service.Controller`, `service.Audio`, `service.Desktop`, `service.Power`,
   `service.Launcher`); tests use
@@ -48,7 +48,7 @@ How the service is put together. Decisions and their reasons are in
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write |
 | `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`); reconnects; `apptrol list` data |
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
-| `internal/power` | D-Bus system bus (`godbus`, ADR 0023): hears logind's `PrepareForSleep` and reports each wake-up, repeated while the controller starts; reconnects |
+| `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023): hears logind's `PrepareForSleep` and reports each wake-up, repeated while the controller starts; reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
 | `internal/config` | TOML loading, validation (including button rules, blocked commands and overlap warnings), file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
@@ -153,7 +153,7 @@ controller starts again on wake-up with every LED off, but the kernel keeps the 
 Apptrol's open raw MIDI file: no disconnect is seen, so the re-send after a connect
 (LED-07) does not run, and the mixer, which sends only changed LEDs, would leave them dark.
 
-- **Hearing the wake-up:** `internal/power` connects to the system bus
+- **Hearing the wake-up:** `internal/session` connects to the system bus
   (`DBUS_SYSTEM_BUS_ADDRESS`, or `/run/dbus/system_bus_socket`) and subscribes to
   `org.freedesktop.login1.Manager.PrepareForSleep` from logind: `true` before sleep,
   `false` after waking. It arrives whether or not the screen is locked; a wake-up continues
@@ -217,7 +217,7 @@ dialog.
 - `audio/pulse`: integration tests against a headless PipeWire in CI.
 - `desktop`: integration tests in a private session bus with fake media players, locally
   (`make test-desktop`) and in CI; a bus restart and a missing bus included.
-- `power`: the same private bus stands in for the system bus, with a fake logind sending
+- `session`: the same private bus stands in for the system bus, with a fake logind sending
   the sleep signal: wake-ups and their repeats, a signal from another program, a bus
   restart; a missing bus without one.
 - `launcher`: desktop files and `Exec` parsing against temporary folders, with fuzzing;

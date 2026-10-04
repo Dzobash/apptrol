@@ -162,13 +162,13 @@ type env struct {
 
 	logLevelFlag string // Options.LogLevelFlag
 	launcher     fakeLauncher
-	power        fakePower
+	session      fakeSession
 }
 
-// fakePower passes on the wake-ups a test sends (internal/power).
-type fakePower struct{ in chan mixer.Event }
+// fakeSession passes on the wake-ups a test sends (internal/session).
+type fakeSession struct{ in chan mixer.Event }
 
-func (f *fakePower) Run(ctx context.Context, out chan<- mixer.Event) error {
+func (f *fakeSession) Run(ctx context.Context, out chan<- mixer.Event) error {
 	for {
 		select {
 		case ev := <-f.in:
@@ -229,7 +229,7 @@ slider8 = "mic"
 // newEnv prepares a service; config is written unless it is empty.
 func newEnv(t *testing.T, cfg string) *env {
 	e := &env{t: t, dir: t.TempDir(), out: &syncBuf{}, logs: &fakeLogs{}, done: make(chan error, 1),
-		power: fakePower{in: make(chan mixer.Event, 4)}}
+		session: fakeSession{in: make(chan mixer.Event, 4)}}
 	e.cfg = filepath.Join(e.dir, "config", "config.toml")
 	if cfg != "" {
 		e.write(cfg)
@@ -273,7 +273,7 @@ func (e *env) start() *env {
 		// Only Discord is installed in the tests, whatever the machine has.
 		InstalledApps: func() launcher.Apps { return launcher.Apps{"discord": {ID: "discord", Name: "Discord"}} },
 		Launcher:      &e.launcher,
-		Power:         &e.power,
+		Session:       &e.session,
 	}
 	go func() { e.done <- Run(ctx, o) }()
 	e.t.Cleanup(e.stop)
@@ -472,7 +472,7 @@ func TestLED09_WakeUpSendsEveryLEDAgain(t *testing.T) {
 	e.ctl.mu.Lock()
 	e.ctl.leds = map[mixer.LED]bool{} // the controller lost power while the computer slept
 	e.ctl.mu.Unlock()
-	e.power.in <- mixer.SystemResumed{}
+	e.session.in <- mixer.SystemResumed{}
 	e.eventually("mic column lit again", func() bool {
 		return e.ctl.led(s8) && e.ctl.led(mixer.LED{Button: mixer.ButtonM, Column: 8}) &&
 			e.ctl.led(mixer.LED{Button: mixer.ButtonR, Column: 8})

@@ -102,7 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   afterwards came back (e.g. M8, but not S8 and R8). Apptrol now hears the wake-up from
   systemd-logind on the D-Bus system bus and sends every LED, again while the controller
   starts (LED-09, ADR 0023). The log shows `system resumed; sending LEDs again`
-  (component `power`); without a system bus it warns and everything else works.
+  (component `session`); without a system bus it warns and everything else works.
 
 ## [0.1.0] - 2026-09-30
 
