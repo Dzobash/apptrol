@@ -115,7 +115,6 @@ No desktop GUI ([ADR 0021](adr/0021-no-desktop-gui.md)): the binary stays pure G
 
 ## Backlog
 
-- R override: move an app between a per-app list of outputs (needs discussion; Q-2, Q-3) ([#61](https://github.com/Dzobash/apptrol/issues/61))
 - Recording control beyond starting an app (e.g. OBS WebSocket, Record LED shows recording state) ([#62](https://github.com/Dzobash/apptrol/issues/62))
 - Read the controller's LED mode over SysEx and warn only when it is "Internal" (see HW-03) ([#63](https://github.com/Dzobash/apptrol/issues/63))
 - Support for other MIDI controllers ([#64](https://github.com/Dzobash/apptrol/issues/64))
