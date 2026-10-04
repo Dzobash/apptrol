@@ -23,7 +23,11 @@ done. Open one for:
 2. **An idea or task that is not done right away**, so it is not lost. Ideas without a
    planned release get the label `backlog`.
 3. **A problem caused by another program** that Apptrol does not work around (see the
-   README, *Known issues*), with the label `upstream`.
+   README, *Known issues*), with the label `upstream`, closed right away as *not
+   planned*: it can be found, without promising a fix.
+
+An idea that is dropped is closed as *not planned*, with the reason, and removed from the
+roadmap and requirements in the same change.
 
 Small changes made right away (docs, refactoring) need no issue; the pull request is
 enough.
