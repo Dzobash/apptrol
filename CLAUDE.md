@@ -26,6 +26,9 @@ Read these instead of guessing; this file only links to them:
   A ruleset on `main` enforces this.
 - The owner reviews and merges PRs. **Ask before pushing, opening a PR or creating
   issues.**
+- Suggest an issue for every bug found, every idea or task left for later, and every
+  bug in another app (rules in [CONTRIBUTING.md](CONTRIBUTING.md#issues)); a fix's PR
+  says `Fixes #n`.
 - After a merge: `git switch main && git pull`, then delete the local branch.
 - Releases: release candidates (`vX.Y.Z-rcN`) first, the hardware checklist in
   [docs/testing.md](docs/testing.md) on an installed candidate, then the release as in
