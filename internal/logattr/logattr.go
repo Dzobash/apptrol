@@ -112,6 +112,7 @@ const (
 	KeyPlayerSelection     = "apptrol.player.selection"      // how the media keys chose their player: most_recent or pinned
 
 	KeySessionBusAddress = "apptrol.session.bus_address" // the system bus address in use
+	KeySessionResend     = "apptrol.session.resend"      // which repeat of the LEDs after a wake-up: 1, 2, 3
 	KeySessionID         = "apptrol.session.id"          // logind's id of the user's graphical session
 	KeyScreenState       = "apptrol.screen.state"        // unlocked, locked, inactive or unknown
 	KeyScreenReason      = "apptrol.screen.reason"       // why the state is unknown

@@ -283,7 +283,10 @@ func TestIntegration_LED09_WakeUpIsReportedAndRepeated(t *testing.T) {
 		t.Errorf("%d SystemResumed after waking up, want 4 (at once and 3 repeats)", n)
 	}
 	log := h.log.String()
-	for _, want := range []string{"system resumed; sending LEDs again", "apptrol.component=session", "apptrol.session.bus_address="} {
+	for _, want := range []string{"system resumed; sending LEDs again", "apptrol.component=session", "apptrol.session.bus_address=",
+		`msg="LEDs sent again after waking up" apptrol.component=session apptrol.session.resend=1`,
+		`msg="LEDs sent again after waking up" apptrol.component=session apptrol.session.resend=2`,
+		`msg="LEDs sent again after waking up" apptrol.component=session apptrol.session.resend=3`} {
 		if !strings.Contains(log, want) {
 			t.Errorf("log lacks %q:\n%s", want, log)
 		}
@@ -300,6 +303,9 @@ func TestIntegration_LED09_SleepingAgainStopsTheRepeats(t *testing.T) {
 	logind.prepareForSleep(true)
 	if n := h.count(500 * time.Millisecond); n != 1 {
 		t.Errorf("%d SystemResumed, want 1: the repeats end when the computer sleeps again", n)
+	}
+	if strings.Contains(h.log.String(), "LEDs sent again after waking up") {
+		t.Errorf("a repeat was logged although none ran:\n%s", h.log.String())
 	}
 }
 

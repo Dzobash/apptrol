@@ -99,3 +99,6 @@ INFO system resumed; sending LEDs again apptrol.component=power
   `power_bus_unreachable` and `power_bus_lost` are now `system_bus_unreachable` and
   `system_bus_lost`. The same connection to logind now also follows the screen lock
   ([ADR 0024](0024-launchers-only-when-unlocked.md)), so "power" no longer described it.
+- 2026-10-04: Each repeat is logged too, at debug: `LEDs sent again after waking up` with
+  `apptrol.session.resend` (`1` to `3`), so a log shows whether the repeats ran when LEDs
+  come back late or not at all ([#59](https://github.com/Dzobash/apptrol/issues/59)).
