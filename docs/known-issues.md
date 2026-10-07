@@ -44,18 +44,23 @@ names to `.`, so `sha256sum -c` found no file. Final releases were not affected.
 
 ## Installing
 
-### Discover shows a downloaded package as `apptrol_0`, "Unknown author"
+### Discover shows a downloaded package as `apptrol_0`, and does not list it once installed
 
-*How KDE Discover shows a package file opened from a folder
+*How KDE Discover handles packages that do not come from a package source
 ([#97](https://github.com/Dzobash/apptrol/issues/97)).*
 
 Opened in Discover, `apptrol_0.2.1_amd64.deb` appears as **`apptrol_0`** (the file name up
-to its first dot), with **Unknown author**, **License: Unknown** and no icon. For a package
-file, Discover reads only its version and size; the name, developer, icon and description
-that Apptrol's package carries (AppStream metadata) are not read from the file.
+to its first dot), with **Unknown author**, **License: Unknown** and no icon: for a package
+file, Discover reads only its version and size. Once installed, Apptrol does not appear in
+Discover at all, not even under *Installed*.
+
+The package does carry a name, developer, icon and description (AppStream metadata), and
+the system finds them: `appstreamcli get io.github.dzobash.apptrol`. But Discover links an
+app to its package through a package source's catalog, and a downloaded package has none.
 
 **Nothing is wrong with the package:** installing it from Discover works as usual, and so
-does installing it in a terminal: `sudo apt install ./apptrol_*_amd64.deb`.
+does installing it in a terminal: `sudo apt install ./apptrol_*_amd64.deb`. Upgrade and
+remove it with `apt` as well ([installation guide](install.md#upgrading)).
 
 ## Volume
 
