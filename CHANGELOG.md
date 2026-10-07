@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the other user has logged in (CFG-24, SVC-10).
 
 ### Changed
+- [Known issues](docs/known-issues.md#discover-shows-a-downloaded-package-as-apptrol_0-and-does-not-list-it-once-installed):
+  KDE Discover shows a downloaded package file as `apptrol_0` with "Unknown author", and
+  does not list Apptrol once installed; the package is fine (#97).
 - A new [documentation overview](docs/README.md) groups every page by what you want to
   do: how-to guides, reference, explanation and the project's plans. The docs are ready
   to be shown on a future website (ADR 0028).
