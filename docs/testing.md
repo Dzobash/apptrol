@@ -51,6 +51,20 @@ its own volume to its stream, such as VLC or Elisa, not Spotify: Spotify resets 
 volume on every track change ([#67](https://github.com/Dzobash/apptrol/issues/67)), which
 would fail a step for a reason outside Apptrol.
 
+After installing a candidate, restart Apptrol in **every** user's session that runs it
+(`systemctl --user restart apptrol`, or log that user out): a running Apptrol keeps the
+version it started with, whatever is installed. Check the running version in the log, not
+only with `apptrol --version`, which shows the installed file:
+`journalctl --user -u apptrol | grep "Apptrol starting"` names `service.version`.
+
+For the steps with several users, set `level = "debug"` in every user's configuration, and
+read all users' logs in one timeline (as a member of the `adm` group, as the first user on
+Ubuntu is):
+
+```bash
+journalctl _SYSTEMD_USER_UNIT=apptrol.service --since "18:00" | grep -E "front|releas|taking|stays with|controller (connected|released)|still held|ERRO"
+```
+
 ### Phase 1
 
 | # | Step | Expected | Req. |

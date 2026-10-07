@@ -104,11 +104,9 @@ why.
 - **Spotify resets its volume when the track changes** ([#67](https://github.com/Dzobash/apptrol/issues/67)).
   Touch its slider to set it back.
 - **R pauses only one browser tab**, the one whose player you used last ([#68](https://github.com/Dzobash/apptrol/issues/68)).
-- **In 0.2.0, a restart with an invalid configuration loses the saved slider positions and
-  mutes** ([#77](https://github.com/Dzobash/apptrol/issues/77)). Run `apptrol check`
-  before restarting.
-- **In 0.2.0, after *Switch user* the controller still acts on the first user's apps**
-  ([#78](https://github.com/Dzobash/apptrol/issues/78)).
+- **In 0.2.1, a second user's Apptrol may log one false "no permission" error** when they
+  log in through *Switch user*; ignore it if `controller connected` follows
+  ([#104](https://github.com/Dzobash/apptrol/issues/104)).
 
 All known issues, with their causes and workarounds: [Known issues](docs/known-issues.md).
 Found another one? Please [open an issue](https://github.com/Dzobash/apptrol/issues).

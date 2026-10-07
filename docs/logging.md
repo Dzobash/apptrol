@@ -176,6 +176,10 @@ journalctl --user -u apptrol | grep apptrol.component=controller
 journalctl --user -u apptrol | grep apptrol.control=slider3
 # every configuration problem
 journalctl --user -u apptrol | grep error.type=config_invalid
+# every user's Apptrol in one timeline (needs the adm group), e.g. after Switch user
+journalctl _SYSTEMD_USER_UNIT=apptrol.service --since today
+# only one of them, by user id (id -u <user>)
+journalctl _SYSTEMD_USER_UNIT=apptrol.service _UID=1001
 # with the JSON log file and jq: all errors, one per line
 jq -c 'select(.level == "error") | {time, msg, "error.type"}' ~/.local/state/apptrol/apptrol.log
 ```

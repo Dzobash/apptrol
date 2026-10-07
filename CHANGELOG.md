@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-07
+
 ### Added
 - Software centers such as KDE Discover show Apptrol properly: its name, developer, icon,
   description and links, instead of the file name (`apptrol_0…`) and "unknown author".
@@ -22,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shows both as a timeline.
 
 ### Changed
+- [Known issues](docs/known-issues.md#a-no-permission-error-when-a-second-user-logs-in):
+  when a second user logs in through *Switch user*, their Apptrol may log one false
+  "no permission to open the controller" error before it connects (#104, fixed in 0.2.2).
 - [Known issues](docs/known-issues.md#discover-shows-a-downloaded-package-as-apptrol_0-and-does-not-list-it-once-installed):
   KDE Discover shows a downloaded package file as `apptrol_0` with "Unknown author", and
   does not list Apptrol once installed; the package is fine (#97).
@@ -293,6 +298,7 @@ First release: Phase 1, the core mixer.
 - Example configuration and configuration reference: `[controller] port` is the ALSA
   card id from `/proc/asound/cards`, not a name from `aseqdump -l`.
 
-[Unreleased]: https://github.com/Dzobash/apptrol/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Dzobash/apptrol/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Dzobash/apptrol/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Dzobash/apptrol/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Dzobash/apptrol/releases/tag/v0.1.0
