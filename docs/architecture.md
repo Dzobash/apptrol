@@ -208,8 +208,10 @@ controller follows the person in front of the computer
   seat, not only the user's own session, keeps an SSH-only login from taking the
   controller and lets a session without a display manager (`startx`) keep it.
 - **Deciding:** the mixer (`decideController`) lets go for `other_user`, and for
-  `login_screen` with `[controller] at_login_screen = "release"`; otherwise, also while
-  `unknown`, it holds the controller. It decides again on every `SeatChanged` and after
+  `login_screen` with `[controller] at_login_screen = "release"`. With `keep`, the login
+  screen changes nothing: whoever had the controller keeps it, so coming back from another
+  user, it is taken only once this user is in front. Otherwise, also while `unknown`, it
+  holds the controller. It decides again on every `SeatChanged` and after
   every configuration reload, and acts only on a change: it ends held states
   (`controller_released`), then returns `ReleaseController`, or `TakeController` when it
   ends.
@@ -217,9 +219,9 @@ controller follows the person in front of the computer
   then calls the controller's `Release`, which closes the device and stops looking for
   it; a `Release` that overtakes a session before it connects is seen under the
   device's lock. `Take` looks again at once; the connect brings the LEDs back (LED-07).
-  For 5 seconds after `Take`, "busy" means the other user's Apptrol has not let go yet:
-  it is logged at debug and retried every 100 ms, as for permissions after plugging in
-  (HW-08).
+  For 5 seconds after `Take`, "busy" (the other user's Apptrol has not let go yet) and
+  "permission denied" (the system has not given this user the rights yet) are logged at
+  debug and retried every 100 ms, as for permissions after plugging in (HW-08).
 
 ## Starting apps
 

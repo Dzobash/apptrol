@@ -590,3 +590,22 @@ func TestSVC11_BusyAfterTheGraceIsAnError(t *testing.T) {
 	h.d.Take()
 	eventually(t, "busy error", func() bool { return h.log.count("in use by another program") == 1 }) // HW-06
 }
+
+// Found on the v0.2.1-rc2 hardware checklist: back from another user, the
+// system gives this user the rights to the controller a moment after logind
+// says they are in front.
+func TestSVC11_PermissionDeniedRightAfterTakeIsRetriedQuietly(t *testing.T) {
+	h := connected(t, time.Minute) // grace longer than the test
+	h.d.Release()
+	eventually(t, "released", func() bool { return h.log.count("controller released") == 1 })
+	h.set(true, denied) // the rights are still with the other session
+	h.d.Take()
+	eventually(t, "debug retry", func() bool { return h.log.count("controller not accessible yet") == 1 })
+	h.set(true, nil) // granted
+	if ev := h.next(); ev != (mixer.ControllerConnected{}) {
+		t.Fatalf("got %v, want ControllerConnected", ev)
+	}
+	if n := h.log.count("no permission"); n != 0 {
+		t.Errorf("permission error logged right after Take:\n%s", h.log.String())
+	}
+}

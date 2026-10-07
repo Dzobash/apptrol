@@ -111,7 +111,27 @@ func TestCFG24_ReloadAppliesAtLoginScreenAtOnce(t *testing.T) {
 	setup.ReleaseAtLoginScreen = true
 	w.do(ConfigChanged{Setup: setup})
 	w.wantController(ReleaseController{})
+	// Back to "keep" while the login screen is still in front: the login
+	// screen changes nothing, so it stays released until this user is back.
 	w.do(ConfigChanged{Setup: testSetup()})
+	w.wantController(ReleaseController{})
+	w.do(alice)
+	w.wantController(ReleaseController{}, TakeController{})
+}
+
+// Found on the v0.2.1-rc2 hardware checklist: switching back from another user
+// goes through the login screen, and the controller was taken there already,
+// before this user was in front (and opening it failed: the login screen's
+// session has the rights to it then).
+func TestSVC10_KeepLeavesTheControllerWithWhoeverHadIt(t *testing.T) {
+	w := started(t).do(alice, bob) // Switch user to Bob: released
+	w.wantController(ReleaseController{})
+
+	w.do(SeatChanged{Front: FrontLoginScreen, SessionID: "c6"}) // Bob switches back: the login screen first
+	w.wantController(ReleaseController{})                       // not taken yet: Bob had it last
+	w.wantNotice(slog.LevelInfo, "login screen in front; the controller stays with the other user")
+
+	w.do(alice) // Alice logs in again
 	w.wantController(ReleaseController{}, TakeController{})
 }
 

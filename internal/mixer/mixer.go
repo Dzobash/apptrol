@@ -33,7 +33,7 @@ type Mixer struct {
 	screen         ScreenState            // launchers start only while unlocked (LAUNCH-13, ADR 0024)
 	front          SeatChanged            // whose session is in front at the seat (SVC-08, ADR 0029)
 	released       bool                   // the controller was let go for another user (SVC-09)
-	keptAtLogin    bool                   // the login screen is in front and the controller kept (SVC-10)
+	keptAtLogin    bool                   // the login screen is in front with "keep": nothing changes (SVC-10)
 	// waiting is the saved state, kept unchanged while no valid configuration
 	// is loaded and applied with the first one; nil once applied (STATE-08,
 	// ADR 0025).
@@ -1126,18 +1126,28 @@ func (m *Mixer) configChanged(a *actions, s Setup) {
 
 // decideController lets go of the controller while another user's session is
 // in front at the seat, or the login screen with at_login_screen = "release",
-// and takes it back when that ends (SVC-08 to SVC-10). When it cannot be
-// told, the controller is held as before (SVC-12). Only a change is acted on
-// and logged, with whose session is in front as the reason.
+// and takes it back when this user, or nobody, is in front again (SVC-08 to
+// SVC-10). With "keep", the login screen changes nothing: the controller
+// stays with whoever had it last, so coming back from another user through
+// the login screen, this Apptrol takes it only once this user is in front.
+// When it cannot be told, the controller is held as before (SVC-12). Only a
+// change is acted on and logged, with whose session is in front as the
+// reason.
 func (m *Mixer) decideController(a *actions) {
 	front := m.front.Front
-	release := front == FrontOtherUser || (front == FrontLoginScreen && m.setup.ReleaseAtLoginScreen)
-	keptAtLogin := front == FrontLoginScreen && !release
-	if keptAtLogin && !m.keptAtLogin {
-		a.notice(slog.LevelInfo, "login screen in front; keeping the controller",
-			logattr.KeySeatFront, string(front), logattr.KeyAtLoginScreen, "keep")
+	if front == FrontLoginScreen && !m.setup.ReleaseAtLoginScreen {
+		if !m.keptAtLogin {
+			msg := "login screen in front; keeping the controller"
+			if m.released {
+				msg = "login screen in front; the controller stays with the other user"
+			}
+			a.notice(slog.LevelInfo, msg, logattr.KeySeatFront, string(front), logattr.KeyAtLoginScreen, "keep")
+		}
+		m.keptAtLogin = true
+		return
 	}
-	m.keptAtLogin = keptAtLogin
+	m.keptAtLogin = false
+	release := front == FrontOtherUser || front == FrontLoginScreen
 	if release == m.released {
 		return
 	}

@@ -38,8 +38,9 @@ const defaultLEDGap = 2 * time.Millisecond
 // system grants the user at the screen access to it (udev's uaccess). Within
 // defaultAccessGrace of the file appearing, "permission denied" means "not
 // ready yet": it is logged at debug and retried every defaultAccessPoll
-// (HW-08, ADR 0015). The same applies to "busy" right after Take: the other
-// user's Apptrol may not have let go yet (SVC-11, ADR 0029).
+// (HW-08, ADR 0015). The same applies right after Take: the system may not
+// have given the rights to this user yet, and the other user's Apptrol may
+// not have let go ("busy") (SVC-11, ADR 0029).
 const (
 	defaultAccessGrace = 5 * time.Second
 	defaultAccessPoll  = 100 * time.Millisecond
@@ -182,12 +183,14 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 		} else if f, err := d.open(path); err != nil {
 			denied := errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM)
 			switch {
-			case denied && !appeared.IsZero() && time.Since(appeared) < d.accessGrace:
-				// Just plugged in: access is granted a moment later (HW-08, ADR 0015).
+			case denied && (justAfter(appeared, d.accessGrace) || justAfter(taken, d.accessGrace)):
+				// Just plugged in, or just taken back from another user: the
+				// system grants access to the user in front a moment later
+				// (HW-08, SVC-11; ADR 0015, ADR 0029).
 				report(slog.LevelDebug, "controller not accessible yet; retrying",
 					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerDenied, err))
 				wait = d.accessPoll
-			case errors.Is(err, syscall.EBUSY) && !taken.IsZero() && time.Since(taken) < d.accessGrace:
+			case errors.Is(err, syscall.EBUSY) && justAfter(taken, d.accessGrace):
 				// Just taken back: the other user's Apptrol may not have let go yet (SVC-11).
 				report(slog.LevelDebug, "controller still held by the other session; retrying",
 					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerBusy, err))
@@ -231,6 +234,9 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 		}
 	}
 }
+
+// justAfter reports whether t is set and less than d ago.
+func justAfter(t time.Time, d time.Duration) bool { return !t.IsZero() && time.Since(t) < d }
 
 // cardList names the sound cards there are, to help spot a wrong port.
 func cardList(procDir string) string {

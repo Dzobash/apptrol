@@ -151,6 +151,11 @@ the same on GitHub and on the website:
   Ask what the reader has in their hand: a problem → how-to; a word or value they are
   missing → reference; curiosity → explanation; nothing yet, they want to learn →
   tutorial.
+- **Show it, then explain it.** Where a setting or a behaviour can be drawn — a timeline,
+  the controller's LEDs, a sequence of states — add a plain-text diagram in a fenced
+  code block on top of the written explanation (e.g. *Several users* in
+  [docs/config.md](docs/config.md#several-users)). Keep it under about 100 characters
+  wide.
 - **[docs/roadmap.md](docs/roadmap.md) is the only roadmap.** Every new phase gets a
   pop-culture name (its topic stays as the subtitle), a one-line **Goal** and a
   **Done when** line. Dropped ideas go to *Out of roadmap* with the reason and a link.

@@ -15,9 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   checked for tampering, not only for damage:
   `gh attestation verify <file> --repo Dzobash/apptrol` (NFR-05, #74). The
   [installation guide](docs/install.md#checking-a-download) shows how.
-- `[controller] at_login_screen = "keep"` (default) or `"release"`: whether Apptrol keeps
-  the controller while the login screen is in front, e.g. after *Switch user* before
-  the other user has logged in (CFG-24, SVC-10).
+- `[controller] at_login_screen = "keep"` (default) or `"release"`: what happens to the
+  controller while the login screen is in front, e.g. after *Switch user* before anyone
+  has logged in. With `keep` it stays with whoever had it; with `release` it belongs to
+  nobody there (CFG-24, SVC-10). The [configuration reference](docs/config.md#several-users)
+  shows both as a timeline.
 
 ### Changed
 - [Known issues](docs/known-issues.md#discover-shows-a-downloaded-package-as-apptrol_0-and-does-not-list-it-once-installed):
