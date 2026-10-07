@@ -90,9 +90,20 @@ downloaded files:
 sha256sum -c checksums.txt --ignore-missing
 ```
 
-It should print `OK` for your package. This shows the download is complete and unchanged.
-(For release candidates the file names do not match yet; see
-[#74](https://github.com/Dzobash/apptrol/issues/74).)
+It should print `OK` for your package. This shows the download is complete and not
+damaged.
+
+From 0.2.1, every file also has a signed **attestation**: GitHub's confirmation that the
+file was built by this repository's release workflow. It shows the file was not swapped
+either, which a checksum alone cannot, as whoever could replace a package could replace
+`checksums.txt` too. It needs the [GitHub CLI](https://cli.github.com/) (`gh`, in most
+distributions' packages; log in once with `gh auth login`):
+
+```bash
+gh attestation verify apptrol_0.2.1_amd64.deb --repo Dzobash/apptrol
+```
+
+It should end with `✓ Verification succeeded!`.
 
 ## Upgrading
 

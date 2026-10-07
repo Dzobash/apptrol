@@ -341,7 +341,7 @@ Designed in [ADR 0027](adr/0027-output-volume.md).
 | NFR-02 | The service MUST NOT depend on a specific desktop environment. It MUST work on KDE Plasma and GNOME, on Wayland and X11. | MUST | 1 |
 | NFR-03 | Apptrol MUST be written in Go and ship as a single binary without runtime dependencies (no C libraries; the controller is read through the kernel's raw MIDI device). | MUST | 1 |
 | NFR-04 | CPU usage while idle SHOULD be close to 0 %; memory use SHOULD stay below 30 MB. | SHOULD | 1 |
-| NFR-05 | Releases MUST be built by CI and published with binaries for x86_64 and arm64, .deb and .rpm packages (including the systemd user unit) and checksums. | MUST | 0 |
+| NFR-05 | Releases MUST be built by CI and published with binaries for x86_64 and arm64, .deb and .rpm packages (including the systemd user unit), checksums, and a build provenance attestation for every file. The file names MUST be the names `checksums.txt` lists, also for pre-releases. *(Until 0.2.0: no attestations, and pre-release packages named with `~`, which GitHub renames, #74.)* | MUST | 0 |
 | NFR-06 | The project MUST be published under the MIT license. | MUST | 0 |
 | NFR-07 | Documentation MUST NOT use Korg trademarks in the project name or logo, and MUST state that the project is not affiliated with Korg. | MUST | 0 |
 | NFR-08 | Every release archive and package MUST contain the copyright notices and license texts of all libraries compiled into the binary, and of Go's standard library, generated at build time; a library with an unknown or restricted license MUST fail the build. *(Missing in 0.1.0, #33.)* | MUST | 1.5 |

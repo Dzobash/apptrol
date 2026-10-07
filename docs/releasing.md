@@ -14,6 +14,16 @@ Pushing a version tag is all it takes.
 | `apptrol_<version>_linux_amd64.tar.gz`, `…arm64.tar.gz` | Any distribution (binary plus docs) |
 | `checksums.txt` | SHA-256 of every file |
 
+Every file also gets a **build provenance attestation**, signed by GitHub for this
+repository's release workflow and kept with the repository (*Attestations*). Anyone can
+check a download with `gh attestation verify <file> --repo Dzobash/apptrol`
+([install guide](install.md#checking-a-download)); nothing needs to be managed, there is no
+key (NFR-05).
+
+A pre-release's Debian and RPM versions contain `~` (`0.2.1~rc1`), so they sort before the
+final release. GitHub does not allow `~` in file names, so the files are named with `-`
+instead, like the tag: `apptrol_0.2.1-rc1_amd64.deb`. The version inside keeps the `~`.
+
 The packages install:
 
 | File | Location |
@@ -72,8 +82,10 @@ Before a new version, publish a release candidate and test the installed package
    git tag -a v0.1.0-rc1 -m "v0.1.0-rc1"
    git push origin v0.1.0-rc1
    ```
-2. GitHub publishes it as a **pre-release**. Install the package, enable the service and
-   complete the [hardware checklist](testing.md#manual-hardware-checklist).
+2. GitHub publishes it as a **pre-release**. Check the download as users would
+   ([install guide](install.md#checking-a-download): `sha256sum -c` and
+   `gh attestation verify`), install the package, enable the service and complete the
+   [hardware checklist](testing.md#manual-hardware-checklist).
 3. Fix what fails, merge, and tag `v0.1.0-rc2`. When a candidate passes, make the release
    as described above, with the same code. Problems that are not new in this version,
    or that are harmless, need no new candidate: open an issue and fix them in the next

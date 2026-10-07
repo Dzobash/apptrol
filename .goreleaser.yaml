@@ -45,7 +45,11 @@ checksum:
 nfpms:
   - id: packages
     package_name: apptrol
-    file_name_template: "{{ .ConventionalFileName }}"
+    # Pre-release versions contain "~" (0.2.1~rc1), so Debian sorts them before
+    # 0.2.1. GitHub does not allow "~" in file names and would rename the
+    # upload, so checksums.txt would name a file that is not there (#74). The
+    # file name gets "-" instead, like the tag; the version inside keeps "~".
+    file_name_template: '{{ replace .ConventionalFileName "~" "-" }}'
     maintainer: Dzobash <42670400+Dzobash@users.noreply.github.com>
     homepage: https://github.com/Dzobash/apptrol
     description: |-
