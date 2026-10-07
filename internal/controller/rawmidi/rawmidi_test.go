@@ -488,3 +488,105 @@ func TestOpenRawFIFO(t *testing.T) {
 		t.Errorf("openRaw(missing) = %v", err)
 	}
 }
+
+// ---- another user in front (ADR 0029) -------------------------------------------
+
+// connected starts a harness with the controller present and waits until it
+// is connected.
+func connected(t *testing.T, grace time.Duration) *harness {
+	t.Helper()
+	h := newHarnessAt(t, make(chan mixer.Event, 64), true, nil, grace)
+	if ev := h.next(); ev != (mixer.ControllerConnected{}) {
+		t.Fatalf("got %v, want ControllerConnected", ev)
+	}
+	return h
+}
+
+func (h *harness) opened() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.ports)
+}
+
+func TestSVC09_ReleaseClosesTheControllerAndStopsLooking(t *testing.T) {
+	h := connected(t, 0)
+	h.d.Release()
+	eventually(t, "released", func() bool { return h.log.count("controller released") == 1 })
+	time.Sleep(30 * time.Millisecond) // several polls
+	if n := h.opened(); n != 1 {
+		t.Errorf("opened %d times while released, want only the first", n)
+	}
+	if n := h.log.count("controller disconnected"); n != 0 {
+		t.Errorf("a release was logged as a disconnect:\n%s", h.log.String())
+	}
+	select {
+	case ev := <-h.events:
+		t.Errorf("event %v after a release; held states are ended by the mixer", ev)
+	default:
+	}
+	if err := h.d.SetLED(mixer.LED{Button: mixer.ButtonS, Column: 1}, true); !errors.Is(err, ErrNotConnected) {
+		t.Errorf("SetLED while released = %v, want ErrNotConnected", err)
+	}
+	if !strings.Contains(h.log.String(), `msg="controller released" apptrol.component=controller apptrol.controller.device=/dev/snd/midiC1D0`) {
+		t.Errorf("release record:\n%s", h.log.String())
+	}
+}
+
+func TestSVC09_TakeConnectsAtOnce(t *testing.T) {
+	h := connected(t, 0)
+	h.d.poll = time.Minute // only Take may make it look again
+	h.d.Release()
+	eventually(t, "released", func() bool { return h.log.count("controller released") == 1 })
+	start := time.Now()
+	h.d.Take()
+	if ev := h.next(); ev != (mixer.ControllerConnected{}) { // the LEDs follow (LED-07)
+		t.Fatalf("got %v, want ControllerConnected", ev)
+	}
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("connected %v after Take, want at once", d)
+	}
+}
+
+func TestSVC09_ReleaseBeforeTheSessionStartsIsNotLost(t *testing.T) {
+	h := newHarnessAt(t, make(chan mixer.Event, 64), false, nil, 0)
+	h.d.Release() // before the controller is even found
+	h.set(true, nil)
+	time.Sleep(30 * time.Millisecond)
+	if n := h.opened(); n != 0 {
+		t.Errorf("opened %d times while released, want none", n)
+	}
+	h.d.Take()
+	if ev := h.next(); ev != (mixer.ControllerConnected{}) {
+		t.Fatalf("got %v, want ControllerConnected", ev)
+	}
+}
+
+var busy = &os.PathError{Op: "open", Path: "/dev/snd/midiC1D0", Err: syscall.EBUSY}
+
+func TestSVC11_BusyRightAfterTakeIsRetriedQuietly(t *testing.T) {
+	h := connected(t, time.Minute) // grace longer than the test
+	h.d.Release()
+	eventually(t, "released", func() bool { return h.log.count("controller released") == 1 })
+	h.set(true, busy) // the other user's Apptrol still has it
+	h.d.Take()
+	eventually(t, "debug retry", func() bool { return h.log.count("controller still held by the other session") == 1 })
+	h.set(true, nil) // it let go
+	if ev := h.next(); ev != (mixer.ControllerConnected{}) {
+		t.Fatalf("got %v, want ControllerConnected", ev)
+	}
+	if n := h.log.count("in use by another program"); n != 0 {
+		t.Errorf("busy logged as an error right after Take:\n%s", h.log.String())
+	}
+	if !strings.Contains(h.log.String(), `level=DEBUG msg="controller still held by the other session; retrying" apptrol.component=controller apptrol.controller.device=/dev/snd/midiC1D0 error.type=controller_busy`) {
+		t.Errorf("retry record:\n%s", h.log.String())
+	}
+}
+
+func TestSVC11_BusyAfterTheGraceIsAnError(t *testing.T) {
+	h := connected(t, 0) // grace 50 ms
+	h.d.Release()
+	eventually(t, "released", func() bool { return h.log.count("controller released") == 1 })
+	h.set(true, busy)
+	h.d.Take()
+	eventually(t, "busy error", func() bool { return h.log.count("in use by another program") == 1 }) // HW-06
+}
