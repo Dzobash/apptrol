@@ -27,7 +27,11 @@ PipeWire or PulseAudio.
    ([ADR 0026](0026-separate-tables-for-apps-inputs-outputs.md)) and assigned to a
    slider or knob like an app or input. The control sets the output device's volume,
    mapped as for any target, up to its `max_volume` (CTRL-02, CTRL-03). Stream volumes
-   are not changed.
+   are not changed. `max_volume` above 100 % is allowed, as on apps, but weighs more:
+   an app's volume is still scaled by its output afterwards, while an output's is the
+   last software volume before the speakers or headphones. The hearing-safety warning
+   (CFG-23) therefore covers outputs explicitly in the example configuration and in
+   `docs/config.md`.
 2. **A fixed device or the system's default**, exactly one of the two:
 
    ```toml
@@ -54,7 +58,8 @@ PipeWire or PulseAudio.
      `follow_default = true` (only yes or no, no room for later values).
 3. **Volume when the default changes.** The new default output keeps its own volume
    until the control is moved; the control's mute applies at once. Switching from
-   loud speakers to headphones must not put the speakers' level on the headphones.
+   loud speakers to headphones must not put the speakers' level on the headphones; this is a
+   hearing-safety rule, and the documentation explains it.
    The previous default keeps its volume; if Apptrol muted it and no other control
    holds it, it is unmuted. Without a default output (none reported), the control does
    nothing.
@@ -107,7 +112,8 @@ PipeWire or PulseAudio.
 
 ## Consequences
 
-- New requirements OUT-01 to OUT-13 and CFG-18 to CFG-22; when built, CTRL-06, SOLO-02,
+- New requirements OUT-01 to OUT-13 and CFG-18 to CFG-22 (CFG-23, the
+  hearing-safety warning, applies to `max_volume` already today); when built, CTRL-06, SOLO-02,
   SOLO-03, SVC-07, LED-05 and CFG-10 name outputs too.
 - The mixer tracks output devices and the default output next to input devices; the
   audio adapter reports sinks, their volume and mute, and changes of the default.

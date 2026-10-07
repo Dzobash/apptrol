@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- The example configuration and the [configuration reference](docs/config.md#hearing-safety)
+  warn about hearing safety at `max_volume`: above 100 % the sound is amplified in
+  software and can damage your hearing, and the first move of a control sets its volume
+  at once. 100 or less is recommended; you are responsible for the volumes you set
+  (CFG-23).
 - Roadmap: `0.3.0` also plans **output volume**: a slider or knob for a whole output
   device, either a fixed one (e.g. the speakers) or whatever output the system uses
   right now (`device = "default"`), with mute and solo; `apptrol list` will show outputs

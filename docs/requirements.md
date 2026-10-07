@@ -215,6 +215,7 @@ the released behaviour.
 | CFG-20 | *Phase 1.6.* An output MUST have exactly one of `match` and `device`; both or neither MUST be rejected. `device` MUST be `"default"` and MUST be rejected in `[apps]` and `[inputs]`. | MUST |
 | CFG-21 | *Phase 1.6.* A match fragment of an input or output that ends in `.monitor` SHOULD be warned about at every configuration load and in `apptrol check`, saying that a monitor records an output and is never matched; the configuration MUST stay valid. | SHOULD |
 | CFG-22 | *Phase 1.6.* The example configuration and `docs/config.md` MUST explain how to find the names of inputs and outputs (`apptrol list`; `pactl list short sources` and `pactl list short sinks` without Apptrol) and how `match` works for devices: a case-insensitive part of the name or description, the full name when a short part fits several devices, the first match used with a warning, monitors never matched. | MUST |
+| CFG-23 | The example configuration and `docs/config.md` MUST warn about hearing safety where `max_volume` is described: above 100 % the sound is amplified in software and can damage hearing, the first move of a control sets its volume at once, 100 or less is recommended, and the user is responsible for the volumes they set (the software comes without warranty). From Phase 1.6 this also covers outputs, where nothing limits the volume after Apptrol. | MUST |
 
 ### 4.9 Logging
 

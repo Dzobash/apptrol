@@ -84,8 +84,24 @@ Defines something a control can act on. `<id>` is your own short name (letters, 
 | `name` | string | the id | Display name, used in logs (and later in popups and `apptrol setup`). |
 | `type` | string | `"app"` | `"app"` for playback streams, `"input"` for a capture device (microphone). |
 | `match` | list of strings | — (required) | Case-insensitive name fragments. See below. |
-| `max_volume` | integer | `100` | Volume in percent with the control at the top, from 1 to 150. The control spans 0 to this value: with `150`, the middle is 75 %. Below 100 it works as a cap, e.g. `80` for games that are always too loud. Above 100 the audio is amplified in software and can distort. |
+| `max_volume` | integer | `100` | Volume in percent with the control at the top, from 1 to 150. The control spans 0 to this value: with `150`, the middle is 75 %. Below 100 it works as a cap, e.g. `80` for games that are always too loud. Above 100 the audio is amplified in software and can distort; read [Hearing safety](#hearing-safety) first. |
 | `talk_over_volume` | integer | `25` | Inputs only. The volume in percent (0–100) that apps go down to during talk-over (see [Buttons](#layoutsnamebuttons)). Apps already below it stay where they are. |
+
+### Hearing safety
+
+Apptrol sets volumes the moment a control moves. Keep this in mind before you raise
+`max_volume`:
+
+- **Above 100 % the sound is amplified in software**, past the level the app or device
+  normally reaches. Loud sound, above all on headphones, can damage your hearing.
+- **The first move of a control sets its volume at once** (the controller has priority).
+  If a slider sits at the top while the volume was turned down elsewhere, touching it
+  jumps straight to its full level.
+- **We recommend `max_volume` of 100 or less.** Use values above 100 only for a quiet
+  source, and keep the slider low until you have heard the result.
+
+You are responsible for the volumes you set. Apptrol is provided "as is", without
+warranty of any kind ([LICENSE](../LICENSE)).
 
 ### How matching works
 
