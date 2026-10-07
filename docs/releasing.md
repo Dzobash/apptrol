@@ -32,7 +32,7 @@ The packages install:
 | systemd user service | `/usr/lib/systemd/user/apptrol.service` |
 | Example configuration | `/usr/share/doc/apptrol/examples/config.toml` |
 | AppStream metadata (what software centers show) | `/usr/share/metainfo/io.github.dzobash.apptrol.metainfo.xml` |
-| Icon | `/usr/share/icons/hicolor/scalable/apps/io.github.dzobash.apptrol.svg` |
+| Icon | `/usr/share/icons/hicolor/scalable/apps/io.github.dzobash.apptrol.svg`, and the 16 px version in `…/16x16/apps/` |
 | README, changelog, license | `/usr/share/doc/apptrol/` (license under `/usr/share/licenses/apptrol/` on rpm) |
 | Third-party licenses | `/usr/share/doc/apptrol/THIRD_PARTY_LICENSES` (`/usr/share/licenses/apptrol/` on rpm), and in the archives |
 
