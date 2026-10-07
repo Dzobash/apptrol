@@ -33,6 +33,10 @@ max_files = 5                      # rotated files to keep
 name  = "Spotify"
 match = ["spotify"]
 # max_volume = 150                 # % at the top of the control (1–150, default 100)
+#   Hearing safety: above 100 % the sound is amplified in software. Loud sound,
+#   above all on headphones, can damage your hearing, and the first move of a
+#   control sets its volume at once. We recommend 100 or less. You are responsible
+#   for the volumes you set; Apptrol comes without warranty (see LICENSE).
 
 [apps.browser]
 name  = "Browser"

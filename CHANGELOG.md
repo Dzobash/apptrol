@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- The example configuration and the [configuration reference](docs/config.md#hearing-safety)
+  warn about hearing safety at `max_volume`: above 100 % the sound is amplified in
+  software and can damage your hearing, and the first move of a control sets its volume
+  at once. 100 or less is recommended; you are responsible for the volumes you set
+  (CFG-23).
+- Roadmap: `0.3.0` also plans **output volume**: a slider or knob for a whole output
+  device, either a fixed one (e.g. the speakers) or whatever output the system uses
+  right now (`device = "default"`), with mute and solo; `apptrol list` will show outputs
+  too (ADR 0027, #85). Inputs and outputs get their own configuration tables,
+  `[inputs.<id>]` and `[outputs.<id>]`; configurations with `type = "input"` keep
+  working, with a warning, until 1.0 (ADR 0026, #86).
 - The README is shorter: what Apptrol does, why it exists, how to install it and the first
   steps. The details moved to a new [installation guide](docs/install.md) (requirements,
   controller settings, permissions, upgrading, building, removing, and a fix for desktops

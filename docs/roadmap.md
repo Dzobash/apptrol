@@ -86,11 +86,14 @@ Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-
 - [x] LEDs are sent again after the computer wakes from sleep, told by logind (LED-09)
 - [x] Launchers start nothing while the screen is locked, unless set to `when_locked`; presses at the lock screen are logged as warnings (LAUNCH-13 to LAUNCH-15)
 
-## Phase 1.6 — On-screen display (`0.3.0`)
+## Phase 1.6 — On-screen display and output volume (`0.3.0`)
 
 Split from Phase 1.5 on 2026-10-02: the on-screen display differs per desktop and should
-not hold back the media buttons.
+not hold back the media buttons. Output volume added on 2026-10-07 (#85, #86).
 
+- [x] Decision records for separate configuration tables and output volume ([ADR 0026](adr/0026-separate-tables-for-apps-inputs-outputs.md), [ADR 0027](adr/0027-output-volume.md))
+- [ ] Separate tables `[apps]`, `[inputs]`, `[outputs]`; the old `type = "input"` still read with a warning until 1.0 (CFG-18 to CFG-22, #86)
+- [ ] Output volume on a slider or knob: a fixed device, or the system's default output; M, S and R on output columns; outputs in `apptrol list` (OUT-01 to OUT-13, #85)
 - [ ] On-screen feedback: KDE volume OSD, notification fallback for other desktops
 - [ ] Config switch to turn on-screen feedback off
 - [ ] Desktop notifications when something needs attention: invalid configuration, controller unplugged ([ADR 0021](adr/0021-no-desktop-gui.md))

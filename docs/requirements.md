@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | Phase 1 released (0.1.0); Phase 1.5 specified (0.2.0); later phases outlined |
-| **Last updated** | 2026-10-02 |
+| **Status** | Phase 1 (0.1.0) and Phase 1.5 (0.2.0) released; output volume and separate configuration tables specified for Phase 1.6 (0.3.0); later phases outlined |
+| **Last updated** | 2026-10-07 |
 | **Related** | [Roadmap](roadmap.md) · [Configuration reference](config.md) · [Decision records](adr/) |
 
 ## 1. Purpose
@@ -35,7 +35,9 @@ and works just as well with a plain internal sound card.
 |---|---|
 | **Control** | A physical slider or knob on the controller. |
 | **Column** | One of the eight vertical strips on the nanoKONTROL2: a slider, a knob above it, and the S / M / R buttons next to it. |
-| **Target** | What a control acts on: an *app* (one or more playback streams) or an *input* (a capture device such as a microphone). |
+| **Target** | What a control acts on: an *app* (one or more playback streams), an *input* (a capture device such as a microphone) or, from Phase 1.6, an *output* (a playback device such as speakers, headphones or a channel of an audio interface). |
+| **Default output** | The output the audio server plays new sound on, as chosen in the desktop's volume applet. |
+| **Monitor** | A capture device that records what an output plays, named `<output>.monitor`. Never an input or an output for Apptrol. |
 | **App** | A target defined in the config, matched against playback streams by name. |
 | **Layout** | A set of control → target assignments. Phase 1 has exactly one layout, `default`. |
 | **User mute** | Mute set by pressing a column's M button. |
@@ -102,7 +104,11 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 [0018](adr/0018-media-players-through-mpris.md),
 [0019](adr/0019-launcher-and-column-buttons.md),
 [0020](adr/0020-microphone-column-buttons.md) and
-[0022](adr/0022-launcher-command-safety.md).
+[0022](adr/0022-launcher-command-safety.md). Section 4.15 and the requirements marked
+*Phase 1.6* are planned for 0.3.0, designed in ADRs
+[0026](adr/0026-separate-tables-for-apps-inputs-outputs.md) and
+[0027](adr/0027-output-volume.md); until they are built, the other requirements describe
+the released behaviour.
 
 ### 4.1 Controls and volume
 
@@ -204,6 +210,12 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | CFG-15 | *Phase 1.5.* `[media] player` MAY name an app from `[apps]` to pin the media keys to (MEDIA-06); an unknown app MUST be rejected. | MUST |
 | CFG-16 | *Phase 1.5.* An input app MAY set `talk_over_volume`, the volume in percent (0–100) that apps go down to during talk-over; default 25. On an app, or outside 0–100, it MUST be rejected. | MUST |
 | CFG-17 | *Phase 1.5.* The example configuration (CFG-09) MUST document every Phase 1.5 setting: commented out, with an example value, the accepted values and the default. | MUST |
+| CFG-18 | *Phase 1.6.* Apps MUST be defined in `[apps.<id>]`, inputs in `[inputs.<id>]` and outputs in `[outputs.<id>]`, without a `type` key. An id MUST be unique over the three tables, as layouts and `[media] player` refer to targets by id alone; a duplicate MUST be rejected, naming both tables. `talk_over_volume` MUST be rejected outside `[inputs]` (ADR 0026). | MUST |
+| CFG-19 | *Phase 1.6.* Until 1.0, `[apps.<id>]` with `type = "input"` MUST still be read as an input, and `type = "app"` as an app; each such entry MUST get one warning at every configuration load and in `apptrol check`, naming the table to move it to. Any other `type` value in `[apps]`, and `type` in `[inputs]` or `[outputs]`, MUST be rejected. | MUST |
+| CFG-20 | *Phase 1.6.* An output MUST have exactly one of `match` and `device`; both or neither MUST be rejected. `device` MUST be `"default"` and MUST be rejected in `[apps]` and `[inputs]`. | MUST |
+| CFG-21 | *Phase 1.6.* A match fragment of an input or output that ends in `.monitor` SHOULD be warned about at every configuration load and in `apptrol check`, saying that a monitor records an output and is never matched; the configuration MUST stay valid. | SHOULD |
+| CFG-22 | *Phase 1.6.* The example configuration and `docs/config.md` MUST explain how to find the names of inputs and outputs (`apptrol list`; `pactl list short sources` and `pactl list short sinks` without Apptrol) and how `match` works for devices: a case-insensitive part of the name or description, the full name when a short part fits several devices, the first match used with a warning, monitors never matched. | MUST |
+| CFG-23 | The example configuration and `docs/config.md` MUST warn about hearing safety where `max_volume` is described: above 100 % the sound is amplified in software and can damage hearing, the first move of a control sets its volume at once, 100 or less is recommended, and the user is responsible for the volumes they set (the software comes without warranty). From Phase 1.6 this also covers outputs, where nothing limits the volume after Apptrol. | MUST |
 
 ### 4.9 Logging
 
@@ -294,6 +306,26 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 | INPUT-07 | A held state (M in `hold_to_talk`, S in `cough` or `talk_over`) MUST end when its button is released, when the controller disconnects, when a configuration reload changes the button's mode or the column's input, and when Apptrol stops. Held states MUST NOT be saved. | MUST |
 | INPUT-08 | Apptrol MUST act on the release message (value 0) of M and S on input columns; the controller's buttons must be set to Momentary (HW-01). | MUST |
 
+### 4.15 Output targets *(Phase 1.6)*
+
+Designed in [ADR 0027](adr/0027-output-volume.md).
+
+| ID | Requirement | Level |
+|---|---|---|
+| OUT-01 | A control assigned an output MUST set the output device's volume, mapped as for every target up to its `max_volume` (CTRL-02, CTRL-03). Stream volumes MUST NOT be changed; outputs on no control MUST NOT be touched. | MUST |
+| OUT-02 | An output with `match` MUST be matched by a case-insensitive part of the output device's name or description; monitors MUST NOT be matched. When several devices match, the first by name MUST be used and a warning MUST name all of them; the chosen device MUST be kept while it still matches. | MUST |
+| OUT-03 | An output with `device = "default"` MUST act on the audio server's default output and follow every change of it at once. The new default MUST keep its own volume until the control is moved; the control's mute MUST apply to it at once. The previous default MUST keep its volume and MUST be unmuted if Apptrol muted it and no other control holds it. Without a default output, the control MUST do nothing. | MUST |
+| OUT-04 | Two controls MAY act on the same output device (a `default` output that is also a fixed one); this MUST be logged once at info when it begins. Each control MUST set the volume when it is moved; the device MUST be muted while any of its controls mutes it. | MUST |
+| OUT-05 | PRIO-01, PRIO-02 and MUTE-07 MUST apply to outputs as to apps: outside volume changes are not reverted, outside mutes are taken over. A device that appears and matches a fixed output MUST get the control's known position and mute. | MUST |
+| OUT-06 | M on an output column MUST toggle the output's mute (MUTE-01); the mute is saved per control (STATE-01). An output on a knob MUST only be silenced by output solo or an outside mute. | MUST |
+| OUT-07 | S on an output column MUST solo the output: while it is on, every other output on the layout's controls MUST be muted. Only one output is soloed at a time; pressing S on another output column moves it, pressing it again ends it (SOLO-04, SOLO-05). Output solo MUST NOT touch apps or inputs, and app solo MUST NOT touch outputs; one of each MAY be on at the same time. The soloed output's device MUST NOT be muted by its own solo, even when another control holds it. | MUST |
+| OUT-08 | Output solo MUST be saved and restored like app solo (STATE-04), and ended on shutdown, unmuting every output it silenced (SVC-07). | MUST |
+| OUT-09 | R on an output column MUST be `off` (default) or a launcher; `play_pause` MUST be rejected. R MUST NOT change the output or the default output. | MUST |
+| OUT-10 | LEDs of an output column MUST behave as on an app column: S lit while soloed, M lit while muted with M (not when only silenced by solo), R off. | MUST |
+| OUT-11 | Talk-over (INPUT-04) MUST NOT change outputs. | MUST |
+| OUT-12 | `apptrol list` SHOULD print the output devices like the input devices: description, name, the control each is on, and `*` on the default output. Monitors MUST NOT be listed as inputs or outputs. | SHOULD |
+| OUT-13 | Every output decision MUST be logged with its reason (LOG-15): a device matched (info, with `apptrol.device.selected_by` `match` or `default`), several or no devices matching (warning), the default output changing and keeping its volume (info), no default output (info), two controls on one device (info), devices on no control (debug); records as in ADR 0027 (point 12). | MUST |
+
 ## 5. Non-functional requirements
 
 | ID | Requirement | Level | Phase |
@@ -340,7 +372,9 @@ Desktops that do not pass the display to systemd user services (e.g. some Hyprla
 Sway setups) need one line in their config so started apps can open windows;
 [docs/install.md](install.md#launched-apps-do-not-open-a-window) explains it.
 
-### Phase 1.6 — On-screen display
+### Phase 1.6 — On-screen display and output volume
+- Separate configuration tables and output volume: specified in full (CFG-18 to CFG-22,
+  section 4.15; ADR 0026, ADR 0027).
 - On-screen feedback when a volume or mute changes: KDE's native volume OSD when available, a desktop notification elsewhere (e.g. GNOME).
 - A desktop notification when something needs attention, e.g. an invalid configuration or the controller unplugged (ADR 0021).
 
