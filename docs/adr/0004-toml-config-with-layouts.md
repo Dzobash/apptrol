@@ -21,3 +21,10 @@ they do.
 - Phase 2 adds more `[layouts.*]` tables without breaking existing files.
 - An app's settings (match rules, later its allowed outputs) are shared by all layouts.
 - Slightly more structure than a single-layout tool strictly needs.
+
+## Notes
+
+- 2026-10-07: Inputs and outputs get their own tables, `[inputs.<id>]` and
+  `[outputs.<id>]`, next to `[apps.<id>]`; the old form is read with a warning until
+  1.0. See [ADR 0026](0026-separate-tables-for-apps-inputs-outputs.md). Layouts are
+  unchanged.

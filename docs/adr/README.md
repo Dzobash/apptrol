@@ -12,7 +12,7 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions | Accepted |
 | [0002](0002-use-go.md) | Write the service in Go | Accepted |
 | [0003](0003-pipewire-via-pulse-protocol.md) | Talk to PipeWire through the PulseAudio protocol | Accepted |
-| [0004](0004-toml-config-with-layouts.md) | TOML configuration with the layout structure from the start | Accepted |
+| [0004](0004-toml-config-with-layouts.md) | TOML configuration with the layout structure from the start | Accepted; the `[apps]` table for every target replaced by 0026 |
 | [0005](0005-controller-has-priority.md) | The controller always has priority; no pick-up in Phase 1 | Accepted |
 | [0006](0006-mute-and-solo.md) | Mute and solo semantics | Accepted |
 | [0007](0007-systemd-user-service.md) | Run as a systemd user service | Accepted |
@@ -34,3 +34,5 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0023](0023-leds-after-resume-from-sleep.md) | Send every LED again when the computer wakes up, told by logind | Accepted |
 | [0024](0024-launchers-only-when-unlocked.md) | Launchers start apps only while the screen is unlocked, unless opted in | Accepted |
 | [0025](0025-state-kept-while-config-invalid.md) | The saved state is kept while the configuration is invalid | Accepted |
+| [0026](0026-separate-tables-for-apps-inputs-outputs.md) | Separate configuration tables for apps, inputs and outputs | Accepted |
+| [0027](0027-output-volume.md) | Output volume: a control for a whole output device | Accepted |
