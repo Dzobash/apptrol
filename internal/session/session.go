@@ -2,7 +2,8 @@
 // system bus. It reports to the mixer when the computer wakes up from sleep
 // or hibernation, so every LED is sent again (LED-09, ADR 0023), and whether
 // the user's screen is unlocked, so launchers start apps only then
-// (LAUNCH-13, ADR 0024).
+// (LAUNCH-13, ADR 0024), and whose session is in front at the seat, so the
+// controller is let go while another user is there (SVC-08, ADR 0029).
 package session
 
 import (
@@ -26,11 +27,20 @@ const (
 	login1Iface  = "org.freedesktop.login1.Manager"
 	userIface    = "org.freedesktop.login1.User"
 	sessionIface = "org.freedesktop.login1.Session"
+	seatIface    = "org.freedesktop.login1.Seat"
 	propsIface   = "org.freedesktop.DBus.Properties"
 	sleepSignal  = "PrepareForSleep"
 	noSuchUser   = "org.freedesktop.login1.NoSuchUser"
+	noSuchSeat   = "org.freedesktop.login1.NoSuchSeat"
 	systemSocket = "unix:path=/run/dbus/system_bus_socket"
 )
+
+// seatName is the seat whose session in front is followed. Computers with
+// several seats are out of scope (ADR 0029).
+const seatName = "seat0"
+
+// greeterClass is the session class of the login screen (SVC-10).
+const greeterClass = "greeter"
 
 // callTimeout bounds every call to logind.
 const callTimeout = 2 * time.Second
@@ -87,12 +97,15 @@ func (w *Watcher) busAddress() string {
 }
 
 // Run connects and keeps the connection until ctx is canceled. It sends
-// mixer.SystemResumed after every wake-up, and mixer.ScreenChanged whenever
-// the screen state changes; without a connection the state is unknown, so
-// launchers are blocked (LAUNCH-13, ADR 0024). Without a bus, or when the connection
-// breaks, it logs a warning and reconnects. It returns ctx's error.
+// mixer.SystemResumed after every wake-up, mixer.ScreenChanged whenever the
+// screen state changes, and mixer.SeatChanged whenever another session comes
+// to the front; without a connection both are unknown, so launchers are
+// blocked (LAUNCH-13, ADR 0024) and the controller is held as before (SVC-12,
+// ADR 0029). Without a bus, or when the connection breaks, it logs a warning
+// and reconnects. It returns ctx's error.
 func (w *Watcher) Run(ctx context.Context, out chan<- mixer.Event) error {
 	scr := &screen{log: w.log, out: out}
+	st := &seat{log: w.log, out: out}
 	wait := w.retryMin
 	failed := false // the last attempt failed; don't repeat the warning
 	for {
@@ -110,19 +123,19 @@ func (w *Watcher) Run(ctx context.Context, out chan<- mixer.Event) error {
 				w.log.Debug("system bus still unreachable", logattr.Error(logattr.ErrSystemBusUnreachable, err),
 					logattr.KeyRetryDelay, wait.Seconds())
 			}
-			if !scr.set(ctx, mixer.ScreenUnknown, reasonNoBus, "") {
+			if !scr.set(ctx, mixer.ScreenUnknown, reasonNoBus, "") || !st.set(ctx, mixer.FrontUnknown, "", nil) {
 				return ctx.Err()
 			}
 		} else {
 			wait = w.retryMin
-			err = w.session(ctx, conn, addr, scr)
+			err = w.session(ctx, conn, addr, scr, st)
 			_ = conn.Close()
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
 			w.log.Warn("lost the connection to the system bus; reconnecting", logattr.Error(logattr.ErrSystemBusLost, err))
 			failed = true // already reported; retries are logged at debug level
-			if !scr.set(ctx, mixer.ScreenUnknown, reasonBusLost, "") {
+			if !scr.set(ctx, mixer.ScreenUnknown, reasonBusLost, "") || !st.set(ctx, mixer.FrontUnknown, "", nil) {
 				return ctx.Err()
 			}
 		}
@@ -136,8 +149,9 @@ func (w *Watcher) Run(ctx context.Context, out chan<- mixer.Event) error {
 }
 
 // session follows logind on one connection until it breaks or ctx ends: the
-// sleep signal, and the user's graphical session.
-func (w *Watcher) session(ctx context.Context, conn *dbus.Conn, addr string, scr *screen) error {
+// sleep signal, the user's graphical session, and the session in front at
+// the seat.
+func (w *Watcher) session(ctx context.Context, conn *dbus.Conn, addr string, scr *screen, st *seat) error {
 	signals := make(chan *dbus.Signal, 16)
 	conn.Signal(signals)
 	defer conn.RemoveSignal(signals)
@@ -146,8 +160,9 @@ func (w *Watcher) session(ctx context.Context, conn *dbus.Conn, addr string, scr
 		dbus.WithMatchMember(sleepSignal)); err != nil {
 		return fmt.Errorf("subscribe to %s: %w", sleepSignal, err)
 	}
-	// Changes of the user's Display and of the session's LockedHint and Active
-	// (all three emit changes). Subscribed before reading, so none is missed.
+	// Changes of the user's Display, of the session's LockedHint and Active,
+	// and of the seat's ActiveSession (all emit changes). Subscribed before
+	// reading, so none is missed.
 	if err := conn.AddMatchSignalContext(ctx, dbus.WithMatchSender(login1Name),
 		dbus.WithMatchPathNamespace(login1Path), dbus.WithMatchInterface(propsIface),
 		dbus.WithMatchMember("PropertiesChanged")); err != nil {
@@ -164,22 +179,19 @@ func (w *Watcher) session(ctx context.Context, conn *dbus.Conn, addr string, scr
 	w.log.Info("connected to the system bus", logattr.KeySessionBusAddress, addr)
 
 	g := &graphical{w: w, conn: conn, ctx: ctx}
-	if !g.update(scr) {
-		return ctx.Err()
-	}
-	var retry <-chan time.Time // the next read while the state is unreadable
-	if scr.reason == reasonUnreadable {
-		retry = time.After(unreadableRetry)
-	}
+	var retry <-chan time.Time // the next read while a state is unreadable
 	reread := func() bool {
 		retry = nil
-		if !g.update(scr) {
+		if !g.update(scr) || !g.updateSeat(st) {
 			return false
 		}
-		if scr.reason == reasonUnreadable {
+		if scr.reason == reasonUnreadable || st.unreadable {
 			retry = time.After(unreadableRetry)
 		}
 		return true
+	}
+	if !reread() {
+		return ctx.Err()
 	}
 
 	var resend <-chan time.Time // the next repeat of SystemResumed
@@ -196,7 +208,7 @@ func (w *Watcher) session(ctx context.Context, conn *dbus.Conn, addr string, scr
 				return errors.New("the system bus closed the connection")
 			}
 			if sig.Name == "org.freedesktop.DBus.NameOwnerChanged" {
-				g.user = "" // logind's objects may have changed
+				g.user, g.seat = "", "" // logind's objects may have changed
 				if !reread() {
 					return ctx.Err()
 				}
@@ -253,13 +265,14 @@ type graphical struct {
 	user    dbus.ObjectPath // the user's object, "" until found
 	session dbus.ObjectPath // the graphical session's object, "" if none
 	id      string          // its id
+	seat    dbus.ObjectPath // seat0's object, "" until found
 }
 
-// concerns reports whether a signal is a property change of the user or of
-// their graphical session.
+// concerns reports whether a signal is a property change of the user, of
+// their graphical session, or of the seat.
 func (g *graphical) concerns(sig *dbus.Signal) bool {
 	return sig.Name == propsIface+".PropertiesChanged" && sig.Path != "" &&
-		(sig.Path == g.user || sig.Path == g.session)
+		(sig.Path == g.user || sig.Path == g.session || sig.Path == g.seat)
 }
 
 // update reads the screen state again and reports it. It returns false when
@@ -324,6 +337,60 @@ func (g *graphical) read() (mixer.ScreenState, string, error) {
 // forget drops the graphical session, keeping the user's object.
 func (g *graphical) forget() { g.session, g.id = "", "" }
 
+// updateSeat reads whose session is in front and reports it. It returns false
+// when ctx ends.
+func (g *graphical) updateSeat(st *seat) bool {
+	front, id, err := g.readSeat()
+	return st.set(g.ctx, front, id, err)
+}
+
+// readSeat finds seat0 and reads its ActiveSession, then that session's User
+// and Class (SVC-08, SVC-10).
+func (g *graphical) readSeat() (front mixer.SeatFront, id string, err error) {
+	ctx, cancel := context.WithTimeout(g.ctx, callTimeout)
+	defer cancel()
+	if g.seat == "" {
+		var seat dbus.ObjectPath
+		err := g.conn.Object(login1Name, login1Path).CallWithContext(ctx, login1Iface+".GetSeat", 0, seatName).Store(&seat)
+		if errorName(err) == noSuchSeat {
+			return mixer.FrontNobody, "", nil // no seat, e.g. a server: nobody sits in front
+		}
+		if err != nil {
+			return mixer.FrontUnknown, "", fmt.Errorf("find %s: %w", seatName, err)
+		}
+		g.seat = seat
+	}
+	var active struct {
+		ID   string
+		Path dbus.ObjectPath
+	}
+	if err := g.get(ctx, g.seat, seatIface, "ActiveSession", &active); err != nil {
+		return mixer.FrontUnknown, "", fmt.Errorf("read the session in front: %w", err)
+	}
+	if active.ID == "" || active.Path == "" || active.Path == "/" {
+		return mixer.FrontNobody, "", nil
+	}
+	var user struct {
+		UID  uint32
+		Path dbus.ObjectPath
+	}
+	if err := g.get(ctx, active.Path, sessionIface, "User", &user); err != nil {
+		return mixer.FrontUnknown, active.ID, fmt.Errorf("read the user of the session in front: %w", err)
+	}
+	var class string
+	if err := g.get(ctx, active.Path, sessionIface, "Class", &class); err != nil {
+		return mixer.FrontUnknown, active.ID, fmt.Errorf("read the class of the session in front: %w", err)
+	}
+	switch {
+	case user.UID == g.w.uid:
+		// Any session of this user, graphical or not (e.g. startx), is theirs.
+		return mixer.FrontThisUser, active.ID, nil
+	case class == greeterClass:
+		return mixer.FrontLoginScreen, active.ID, nil
+	}
+	return mixer.FrontOtherUser, active.ID, nil
+}
+
 // errorName returns the D-Bus error name of err, "" if it is none.
 func errorName(err error) string {
 	var v dbus.Error
@@ -370,6 +437,32 @@ func (s *screen) set(ctx context.Context, state mixer.ScreenState, reason, id st
 		s.log.Info("launchers blocked: the screen is not known to be unlocked", logattr.KeyScreenState, string(state))
 	}
 	return send(ctx, s.out, mixer.ScreenChanged{State: state})
+}
+
+// seat remembers whose session was last reported in front, so that only
+// changes are logged and sent.
+type seat struct {
+	log        *slog.Logger
+	out        chan<- mixer.Event
+	front      mixer.SeatFront // "" until the first report
+	id         string
+	unreadable bool // the last read failed; warned once until it succeeds
+}
+
+// set reports who is in front; err is why it could not be read. It returns
+// false when ctx ends.
+func (s *seat) set(ctx context.Context, front mixer.SeatFront, id string, err error) bool {
+	if err != nil && !s.unreadable {
+		s.log.Warn("cannot read who is in front; holding the controller as before",
+			logattr.Error(logattr.ErrSeatUnreadable, err))
+	}
+	s.unreadable = err != nil
+	if front == s.front && id == s.id {
+		return true
+	}
+	s.front, s.id = front, id
+	s.log.Debug("session in front changed", logattr.KeySeatFront, string(front), logattr.KeySessionID, id)
+	return send(ctx, s.out, mixer.SeatChanged{Front: front, SessionID: id})
 }
 
 // sleepState reads a PrepareForSleep signal: true before sleep, false after

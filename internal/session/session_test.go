@@ -119,34 +119,73 @@ func (h *harness) waitScreen(state mixer.ScreenState) {
 	}
 }
 
+// waitSeat waits for a seat change to front; other events are skipped.
+func (h *harness) waitSeat(want mixer.SeatChanged) {
+	h.t.Helper()
+	timeout := time.After(5 * time.Second)
+	for {
+		select {
+		case ev := <-h.events:
+			if ev == want {
+				return
+			}
+			if sc, ok := ev.(mixer.SeatChanged); ok {
+				h.t.Logf("seat %+v on the way to %+v", sc, want)
+			}
+		case <-timeout:
+			h.t.Fatalf("no seat change to %+v within 5 s; log:\n%s", want, h.log.String())
+		}
+	}
+}
+
 // Made-up ids; logind's real ones look alike.
 const (
 	fakeUser    = dbus.ObjectPath("/org/freedesktop/login1/user/_1000")
 	fakeSession = dbus.ObjectPath("/org/freedesktop/login1/session/c1")
+	fakeSeat    = dbus.ObjectPath("/org/freedesktop/login1/seat/seat0")
+	bobSession  = dbus.ObjectPath("/org/freedesktop/login1/session/c2") // another user's
+	greeter     = dbus.ObjectPath("/org/freedesktop/login1/session/c3") // the login screen
 )
 
 // fakeLogind owns logind's name on the private bus, sends its sleep signal
-// and offers a user with one graphical session.
+// and offers a user with one graphical session, a seat, and two sessions of
+// others that can come to the front: another user's and the login screen.
 type fakeLogind struct {
 	t       *testing.T
 	conn    *dbus.Conn
 	user    *prop.Properties
 	session *prop.Properties
+	seat    *prop.Properties
 }
 
+// display is a (so) pair as logind uses it for Display and ActiveSession.
 type display struct {
 	ID   string
 	Path dbus.ObjectPath
 }
 
-// manager is logind's Manager: GetUser finds the user, unless noUser.
-type manager struct{ noUser bool }
+// userRef is a (uo) pair as logind uses it for a session's User.
+type userRef struct {
+	UID  uint32
+	Path dbus.ObjectPath
+}
+
+// manager is logind's Manager: GetUser finds the user, unless noUser;
+// GetSeat finds seat0, unless noSeat.
+type manager struct{ noUser, noSeat bool }
 
 func (m manager) GetUser(uint32) (dbus.ObjectPath, *dbus.Error) {
 	if m.noUser {
 		return "", dbus.NewError(noSuchUser, []any{"no such user"})
 	}
 	return fakeUser, nil
+}
+
+func (m manager) GetSeat(string) (dbus.ObjectPath, *dbus.Error) {
+	if m.noSeat {
+		return "", dbus.NewError(noSuchSeat, []any{"no such seat"})
+	}
+	return fakeSeat, nil
 }
 
 func newLogind(t *testing.T, address string, ownName bool) *fakeLogind {
@@ -168,9 +207,28 @@ func newLogind(t *testing.T, address string, ownName bool) *fakeLogind {
 	}}); err != nil {
 		t.Fatal(err)
 	}
+	me := uint32(os.Getuid())
 	if l.session, err = prop.Export(conn, fakeSession, prop.Map{sessionIface: {
 		"LockedHint": {Value: false, Emit: prop.EmitTrue},
 		"Active":     {Value: true, Emit: prop.EmitTrue},
+		"User":       {Value: userRef{me, fakeUser}, Emit: prop.EmitConst},
+		"Class":      {Value: "user", Emit: prop.EmitConst},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	for path, s := range map[dbus.ObjectPath]struct {
+		uid   uint32
+		class string
+	}{bobSession: {me + 1, "user"}, greeter: {me + 2, greeterClass}} {
+		if _, err := prop.Export(conn, path, prop.Map{sessionIface: {
+			"User":  {Value: userRef{s.uid, "/org/freedesktop/login1/user/_other"}, Emit: prop.EmitConst},
+			"Class": {Value: s.class, Emit: prop.EmitConst},
+		}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if l.seat, err = prop.Export(conn, fakeSeat, prop.Map{seatIface: {
+		"ActiveSession": {Value: display{"c1", fakeSession}, Emit: prop.EmitTrue},
 	}}); err != nil {
 		t.Fatal(err)
 	}
@@ -191,6 +249,10 @@ func (l *fakeLogind) lock(locked bool)    { l.session.SetMust(sessionIface, "Loc
 func (l *fakeLogind) active(active bool)  { l.session.SetMust(sessionIface, "Active", active) }
 func (l *fakeLogind) display(d display)   { l.user.SetMust(userIface, "Display", d) }
 func (l *fakeLogind) noUser(t *testing.T) { exportManager(t, l.conn, manager{noUser: true}) }
+func (l *fakeLogind) noSeat(t *testing.T) { exportManager(t, l.conn, manager{noSeat: true}) }
+
+// front puts a session in front at the seat; {"", "/"} is none.
+func (l *fakeLogind) front(d display) { l.seat.SetMust(seatIface, "ActiveSession", d) }
 
 func exportManager(t *testing.T, conn *dbus.Conn, m manager) {
 	t.Helper()
@@ -458,4 +520,78 @@ func TestIntegration_LAUNCH13_LogindStartingLaterIsNoticed(t *testing.T) {
 	}
 	newLogind(t, addr, true) // logind (re)starts
 	h.waitScreen(mixer.ScreenUnlocked)
+}
+
+// ---- the session in front at the seat (ADR 0029) --------------------------------
+
+func TestSVC12_NoBusReportsTheSeatUnknown(t *testing.T) {
+	h := run(t, "unix:path="+filepath.Join(t.TempDir(), "no-bus"))
+	h.waitScreen(mixer.ScreenUnknown)
+	h.waitSeat(mixer.SeatChanged{Front: mixer.FrontUnknown})
+	// The bus warning already says it; no second warning for the seat.
+	if strings.Contains(h.log.String(), "error.type=seat_unreadable") {
+		t.Errorf("seat_unreadable logged without a bus:\n%s", h.log.String())
+	}
+}
+
+func TestIntegration_SVC08_SVC10_SessionInFrontIsFollowed(t *testing.T) {
+	addr := requireBus(t)
+	logind := newLogind(t, addr, true)
+	h := run(t, addr)
+	h.waitScreen(mixer.ScreenUnlocked)
+	h.waitSeat(mixer.SeatChanged{Front: mixer.FrontThisUser, SessionID: "c1"})
+
+	for _, step := range []struct {
+		front display
+		want  mixer.SeatChanged
+	}{
+		{display{"c2", bobSession}, mixer.SeatChanged{Front: mixer.FrontOtherUser, SessionID: "c2"}}, // Switch user to Bob
+		{display{"c3", greeter}, mixer.SeatChanged{Front: mixer.FrontLoginScreen, SessionID: "c3"}},  // the login screen
+		{display{"", "/"}, mixer.SeatChanged{Front: mixer.FrontNobody}},                              // nobody
+		{display{"c1", fakeSession}, mixer.SeatChanged{Front: mixer.FrontThisUser, SessionID: "c1"}}, // back
+	} {
+		logind.front(step.front)
+		h.waitSeat(step.want)
+	}
+	log := h.log.String()
+	for _, want := range []string{
+		`msg="session in front changed" apptrol.component=session apptrol.seat.front=this_user apptrol.session.id=c1`,
+		`msg="session in front changed" apptrol.component=session apptrol.seat.front=other_user apptrol.session.id=c2`,
+		`msg="session in front changed" apptrol.component=session apptrol.seat.front=login_screen apptrol.session.id=c3`,
+		`msg="session in front changed" apptrol.component=session apptrol.seat.front=nobody`,
+	} {
+		if !strings.Contains(log, want) {
+			t.Errorf("log lacks %q:\n%s", want, log)
+		}
+	}
+}
+
+func TestIntegration_SVC08_NoSeatMeansNobodyInFront(t *testing.T) {
+	addr := requireBus(t)
+	logind := newLogind(t, addr, true)
+	logind.noSeat(t) // e.g. a server without a seat
+	h := run(t, addr)
+	h.waitScreen(mixer.ScreenUnlocked)
+	h.waitSeat(mixer.SeatChanged{Front: mixer.FrontNobody})
+}
+
+func TestIntegration_SVC12_UnreadableSeatWarnsOnceAndRecovers(t *testing.T) {
+	addr := requireBus(t)
+	logind := newLogind(t, addr, true)
+	logind.front(display{"c9", "/org/freedesktop/login1/session/c9"}) // a session that does not answer
+	h := run(t, addr)
+	h.waitScreen(mixer.ScreenUnlocked)
+	h.waitSeat(mixer.SeatChanged{Front: mixer.FrontUnknown, SessionID: "c9"})
+	logind.front(display{"c1", fakeSession})
+	h.waitSeat(mixer.SeatChanged{Front: mixer.FrontThisUser, SessionID: "c1"})
+
+	log := h.log.String()
+	if n := strings.Count(log, "cannot read who is in front; holding the controller as before"); n != 1 {
+		t.Errorf("warning logged %d times, want 1:\n%s", n, log)
+	}
+	for _, want := range []string{"level=WARN", "error.type=seat_unreadable", "apptrol.component=session"} {
+		if !strings.Contains(log, want) {
+			t.Errorf("log lacks %q:\n%s", want, log)
+		}
+	}
 }

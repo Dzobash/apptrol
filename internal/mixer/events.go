@@ -59,6 +59,27 @@ const (
 	ScreenUnknown  ScreenState = "unknown"  // it cannot be told
 )
 
+// SeatChanged reports whose session is in front at the computer's seat, as
+// logind reports it. Apptrol holds the controller unless another user's
+// session is in front (SVC-08, ADR 0029). SessionID is logind's id of the
+// session in front, "" if none.
+type SeatChanged struct {
+	Front     SeatFront
+	SessionID string
+}
+
+// SeatFront says whose session is in front at the seat (apptrol.seat.front).
+type SeatFront string
+
+// Who can be in front (ADR 0029).
+const (
+	FrontThisUser    SeatFront = "this_user"    // a session of the user running Apptrol
+	FrontOtherUser   SeatFront = "other_user"   // a session of another user
+	FrontLoginScreen SeatFront = "login_screen" // the login screen (a greeter session)
+	FrontNobody      SeatFront = "nobody"       // no session in front, or no seat
+	FrontUnknown     SeatFront = "unknown"      // it cannot be told: hold the controller as before (SVC-12)
+)
+
 // AudioSnapshot carries the full list of streams and devices, sent on
 // (re)connect to the audio server. It replaces everything the mixer knew (SVC-04).
 type AudioSnapshot struct {
@@ -127,6 +148,7 @@ func (TransportPressed) isEvent()       {}
 func (ControllerConnected) isEvent()    {}
 func (SystemResumed) isEvent()          {}
 func (ScreenChanged) isEvent()          {}
+func (SeatChanged) isEvent()            {}
 func (AudioSnapshot) isEvent()          {}
 func (StreamAdded) isEvent()            {}
 func (StreamRemoved) isEvent()          {}

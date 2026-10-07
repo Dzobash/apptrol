@@ -116,6 +116,7 @@ const (
 	KeySessionID         = "apptrol.session.id"          // logind's id of the user's graphical session
 	KeyScreenState       = "apptrol.screen.state"        // unlocked, locked, inactive or unknown
 	KeyScreenReason      = "apptrol.screen.reason"       // why the state is unknown
+	KeySeatFront         = "apptrol.seat.front"          // whose session is in front at the seat (ADR 0029)
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records
@@ -143,6 +144,7 @@ const (
 	ErrSystemBusUnreachable = "system_bus_unreachable"
 	ErrSystemBusLost        = "system_bus_lost"
 	ErrScreenUnreadable     = "screen_state_unreadable"
+	ErrSeatUnreadable       = "seat_unreadable"
 )
 
 // Component returns the apptrol.component attribute.
