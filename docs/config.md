@@ -30,7 +30,7 @@ A complete example is in [`examples/config.toml`](https://github.com/Dzobash/app
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `port` | string | `"nanoKONTROL2"` | ALSA card id of the controller (case-insensitive). It is the name in brackets in `cat /proc/asound/cards`. The card number can change between boots; the id does not. |
-| `at_login_screen` | string | `"keep"` | What happens to the controller while the login screen is in front, e.g. after *Switch user* before the other user has logged in: `"keep"` (sliders and mute keep working for you; launchers start nothing) or `"release"` (Apptrol lets go of it and turns its LEDs off, so nobody at the login screen changes your audio). The lock screen of your own session is not the login screen. See [Several users](#several-users). |
+| `at_login_screen` | string | `"keep"` | What happens to the controller while the login screen is in front, e.g. after *Switch user* before anyone has logged in: `"keep"` (the controller stays with whoever had it last; if that is you, sliders and mute keep working, launchers start nothing) or `"release"` (Apptrol lets go of it and turns its LEDs off, so nobody at the login screen changes your audio). The lock screen of your own session is not the login screen. See [Several users](#several-users). |
 
 ### Several users
 
@@ -40,6 +40,28 @@ whoever is in front of the computer. When another user's session comes to the fr
 your Apptrol turns its LEDs off and lets go of the controller; when you come back, it
 takes the controller again within a few seconds and sets its LEDs. An Apptrol in a login
 without a screen (e.g. over SSH) never takes the controller from the person at the desk.
+
+Apptrol does not react to the click on *Switch user* itself, but to who is in front of
+the computer, as the system reports it: your session, the login screen, or another user.
+`at_login_screen` decides what happens while the **login screen** is in front:
+
+```text
+In front:        you             login screen    other user      login screen    you
+                                 (you switch)    (logged in)     (they switch)   (you log in)
+
+keep (default):  yours           yours           theirs          theirs          yours
+release:         yours           nobody's        theirs          nobody's        yours
+```
+
+- **`keep`:** the login screen changes nothing; the controller stays with whoever had it.
+  Coming from you, your sliders and mute keep working there. Coming back from the other
+  user, it stays with them until you have logged in.
+- **`release`:** while the login screen is in front, the controller belongs to nobody: all
+  LEDs are off and it does nothing.
+
+When your session leaves the front, the system takes the speakers from it too, so music
+you were playing pauses. It does not resume by itself when you come back: press ▶ or the
+column's R.
 
 ---
 

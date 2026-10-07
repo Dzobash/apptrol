@@ -113,3 +113,16 @@ Questions and options:
   front, `keep`) takes the controller, and gives it up when someone logs in at the desk.
 - Shipped in 0.2.1 although it adds a setting: it is part of the fix for #78, and the
   default changes nothing for one user.
+
+## Notes
+
+- 2026-10-07: Point 4 corrected after the v0.2.1-rc2 hardware checklist. "With `keep`,
+  a `greeter` session in front does not count as another user" made an Apptrol that had
+  let go for another user take the controller back as soon as that user switched to the
+  login screen, before its own user was in front; opening it then failed with "permission
+  denied" (the login screen's session had the rights) and was logged as an error. Now,
+  with `keep`, the login screen changes nothing: the controller stays with whoever had it
+  (`login screen in front; the controller stays with the other user`, info). Point 5 also
+  covers "permission denied" right after taking it back: the system gives the user in
+  front the rights a moment after logind reports them. Unit tests had covered only the
+  way from this user to the login screen, not back from another user.
