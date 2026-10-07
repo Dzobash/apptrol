@@ -60,9 +60,34 @@ type fakeController struct {
 	port string
 	in   chan mixer.Event
 
-	mu   sync.Mutex
-	leds map[mixer.LED]bool
-	sets map[mixer.LED]int // how often each LED was set
+	mu    sync.Mutex
+	leds  map[mixer.LED]bool
+	sets  map[mixer.LED]int // how often each LED was set
+	calls []string          // "release" (with "lit" if an LED was still on) and "take", in order
+}
+
+func (f *fakeController) Release() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	call := "release"
+	for _, on := range f.leds {
+		if on {
+			call = "release lit"
+		}
+	}
+	f.calls = append(f.calls, call)
+}
+
+func (f *fakeController) Take() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, "take")
+}
+
+func (f *fakeController) callList() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return strings.Join(f.calls, ", ")
 }
 
 func (f *fakeController) Run(ctx context.Context, out chan<- mixer.Event) error {
@@ -772,4 +797,21 @@ func (h *checkHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 func (h *checkHandler) WithGroup(name string) slog.Handler {
 	h.t.Errorf("WithGroup(%q): groups would change attribute names", name)
 	return h
+}
+
+func TestSVC09_LEDsGoOffBeforeTheControllerIsReleased(t *testing.T) {
+	e := newEnv(t, testConfig).start()
+	e.send(mixer.ButtonPressed{Button: mixer.ButtonM, Column: 1})
+	e.eventually("M1 lit", func() bool { return e.ctl.led(mixer.LED{Button: mixer.ButtonM, Column: 1}) })
+
+	e.send(mixer.SeatChanged{Front: mixer.FrontOtherUser, SessionID: "c2"}) // Switch user
+	e.eventually("released", func() bool { return e.ctl.callList() != "" })
+	if got := e.ctl.callList(); got != "release" {
+		t.Fatalf("controller calls = %q, want a release with every LED off", got)
+	}
+	e.waitLog(`msg="another user is in front; releasing the controller" apptrol.component=mixer apptrol.seat.front=other_user apptrol.session.id=c2`)
+
+	e.send(mixer.SeatChanged{Front: mixer.FrontThisUser, SessionID: "c1"}) // back
+	e.eventually("taken", func() bool { return e.ctl.callList() == "release, take" })
+	e.waitLog(`msg="this user is in front again; taking the controller" apptrol.component=mixer apptrol.seat.front=this_user`)
 }
