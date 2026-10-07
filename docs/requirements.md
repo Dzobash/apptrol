@@ -107,8 +107,9 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 [0022](adr/0022-launcher-command-safety.md). Section 4.15 and the requirements marked
 *Phase 1.6* are planned for 0.3.0, designed in ADRs
 [0026](adr/0026-separate-tables-for-apps-inputs-outputs.md) and
-[0027](adr/0027-output-volume.md); until they are built, the other requirements describe
-the released behaviour.
+[0027](adr/0027-output-volume.md). The requirements marked *0.2.1* are planned for that
+release, designed in [ADR 0029](adr/0029-controller-follows-the-user-in-front.md). Until
+they are built, the other requirements describe the released behaviour.
 
 ### 4.1 Controls and volume
 
@@ -216,6 +217,7 @@ the released behaviour.
 | CFG-21 | *Phase 1.6.* A match fragment of an input or output that ends in `.monitor` SHOULD be warned about at every configuration load and in `apptrol check`, saying that a monitor records an output and is never matched; the configuration MUST stay valid. | SHOULD |
 | CFG-22 | *Phase 1.6.* The example configuration and `docs/config.md` MUST explain how to find the names of inputs and outputs (`apptrol list`; `pactl list short sources` and `pactl list short sinks` without Apptrol) and how `match` works for devices: a case-insensitive part of the name or description, the full name when a short part fits several devices, the first match used with a warning, monitors never matched. | MUST |
 | CFG-23 | The example configuration and `docs/config.md` MUST warn about hearing safety where `max_volume` is described: above 100 % the sound is amplified in software and can damage hearing, the first move of a control sets its volume at once, 100 or less is recommended, and the user is responsible for the volumes they set (the software comes without warranty). From Phase 1.6 this also covers outputs, where nothing limits the volume after Apptrol. | MUST |
+| CFG-24 | *0.2.1.* `[controller] at_login_screen` MUST accept `"keep"` (default) and `"release"` (SVC-10); any other value MUST be rejected. A reload MUST apply it at once. | MUST |
 
 ### 4.9 Logging
 
@@ -249,6 +251,11 @@ the released behaviour.
 | SVC-05 | Apptrol MUST shut down cleanly on SIGTERM/SIGINT, saving state first. | MUST |
 | SVC-06 | `apptrol --version` MUST print the version, commit and build date. | MUST |
 | SVC-07 | On shutdown, Apptrol MUST end solo and unmute every app it silenced by solo. The audio server remembers mutes per app, so otherwise those apps would stay muted after Apptrol exits. User mutes (M) stay. Both are saved first and restored on the next start (STATE-03, STATE-04). | MUST |
+| SVC-08 | *0.2.1.* Apptrol MUST hold the controller unless a session of another user is in front at seat `seat0` (logind's `Seat.ActiveSession` and that session's `User` and `Class`). A session of the same user in front, graphical or not, and no session in front MUST NOT count as another user (ADR 0029). | MUST |
+| SVC-09 | *0.2.1.* When another user's session comes to the front, Apptrol MUST turn every LED off, close the controller and stop looking for it; held states end (INPUT-07). When that is no longer so, it MUST look for the controller at once and connect as after plugging it in (LED-07). | MUST |
+| SVC-10 | *0.2.1.* A login screen (session class `greeter`) in front MUST count as another user with `at_login_screen = "release"`, and not with `"keep"` (CFG-24). The lock screen of the user's own session is not a login screen. | MUST |
+| SVC-11 | *0.2.1.* For 5 seconds after taking the controller back, "busy" when opening it MUST be logged at debug and retried every 100 ms; afterwards HW-06 applies. | MUST |
+| SVC-12 | *0.2.1.* Without a system bus, or while the seat cannot be read, Apptrol MUST hold the controller whenever it is free, as before, and log a warning once (`seat_unreadable`). Every release and take-back MUST be logged at info with its reason (`apptrol.seat.front`), as in ADR 0029 (point 9). | MUST |
 
 ### 4.11 Desktop connection *(Phase 1.5)*
 
