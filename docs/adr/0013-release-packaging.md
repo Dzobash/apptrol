@@ -28,3 +28,14 @@ process should be repeatable and not depend on anyone's machine.
   out to be necessary, cross-compiling for arm64 needs a C cross-compiler and this record
   must be revisited.
 - Package repositories (a PPA, AUR, COPR) are not covered; they can be added later.
+
+## Notes
+
+- 2026-10-07: Every release file also gets a build provenance attestation from GitHub
+  (`actions/attest-build-provenance`), keyless, checked with `gh attestation verify`. A
+  checksum shows damage, not tampering: whoever could replace a package could replace
+  `checksums.txt` too. A GPG signature was considered; it needs a key kept in the
+  repository's secrets, so it guards against the same threat, and its gain is that users
+  already have `gpg`. It is planned before 1.0 (#94). Pre-release packages are named with
+  `-` instead of `~`, which GitHub does not allow in file names; the version inside keeps
+  `~` (#74).

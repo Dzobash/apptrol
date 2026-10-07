@@ -46,7 +46,10 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
 
 Complete this on a real nanoKONTROL2 (CC mode, Momentary buttons, LED mode *External*)
 before each release and note the result in the release description. Start from an empty
-state file unless a step says otherwise.
+state file unless a step says otherwise. For steps about volume, use a player that ties
+its own volume to its stream, such as VLC or Elisa, not Spotify: Spotify resets its
+volume on every track change ([#67](https://github.com/Dzobash/apptrol/issues/67)), which
+would fail a step for a reason outside Apptrol.
 
 ### Phase 1
 
@@ -70,7 +73,7 @@ state file unless a step says otherwise.
 | H-15 | Edit and save the config (move an app to another slider) | Reload logged; new assignment works without restart | CFG-06 |
 | H-16 | Save an invalid config | Error logged; old config keeps working | CFG-07 |
 | H-17 | Mute an app, solo another (e.g. slider 1), restart the service (`systemctl --user restart apptrol`) | Mute restored; solo restored: S lit on the same column and only that app audible | STATE-03, STATE-04 |
-| H-18 | With an app muted and another soloed: `systemctl --user restart pipewire pipewire-pulse` while running | Reconnect logged; volumes, mutes and solo re-applied; within 2 seconds the LEDs show the same state as before | SVC-04, LED-07 |
+| H-18 | With an app muted and another soloed: `systemctl --user restart pipewire pipewire-pulse` while running | Reconnect logged; volumes, mutes and solo re-applied to every stream that comes back; within 2 seconds the LEDs show the same state as before. Some apps do not reconnect to the restarted audio server and stay silent until they are restarted themselves; that is outside Apptrol | SVC-04, LED-07 |
 | H-19 | Check `journalctl --user -u apptrol` and the log file, including the lines from H-16 and the button presses from H-08 to H-12 | Entries at the expected levels and formats, as in [`logging.md`](logging.md); every line has `apptrol.component`; each error has `error.type`; each configuration problem is its own single line; mute and solo lines name layout, control, app and button | LOG-* |
 | H-20 | Set `max_volume = 150` for the app on slider 1, save, move slider 1 to the top | The desktop mixer shows 150 %; with the slider in the middle, 75 % | CTRL-03, CFG-06 |
 | H-21 | Assign two apps whose match lists overlap (`"fire"` and `"firefox"`); run `apptrol check` | Warning names both apps and which one gets the streams | CFG-12 |
@@ -80,7 +83,8 @@ state file unless a step says otherwise.
 
 Set the log level to `debug` (`[log] level`, or `apptrol --log-level debug` in a terminal)
 so the reasons in the log can be checked too. Unless a step says otherwise: Spotify on
-slider 1, a browser on slider 2, the microphone on slider 8.
+slider 1, a browser on slider 2, the microphone on slider 8; for steps about volume (e.g.
+talk-over), VLC or Elisa on slider 1 instead of Spotify.
 
 | # | Step | Expected | Req. |
 |---|---|---|---|
@@ -95,7 +99,7 @@ slider 1, a browser on slider 2, the microphone on slider 8.
 | H-31 | Set `record = { app = "<desktop ID>" }` (find it with `apptrol list apps <name>`), save, press ● | The app starts; the Record LED flashes briefly; the log names the unit | LAUNCH-01, LAUNCH-04, LAUNCH-08, LAUNCH-09 |
 | H-32 | With that app open: `systemctl --user restart apptrol` | The app keeps running | LAUNCH-04 |
 | H-33 | Set `if_running = "skip"`; with the app open from the menu, press ●; then close it, start it from a terminal and press ● again; press ● a few more times in a row with the app closed | Not started a second time either way; the log says how it was found (`unit`, then `process`). Presses in a row all work | LAUNCH-04, LAUNCH-06, LAUNCH-07 |
-| H-43 | Put a Steam game's desktop ID on a launcher with `if_running = "skip"`; press it twice while the game runs; quit the game, leave Steam open, press it again | Steam does not start the game twice; after quitting, it starts again although Steam still runs | LAUNCH-07 |
+| H-43 | Put a Steam game's desktop ID on a launcher, as `apptrol list apps` shows it (Steam games are listed under their own name, not as `steam_app_<number>`), with `if_running = "skip"`; press it twice while the game runs; quit the game, leave Steam open, press it again | Steam does not start the game twice; after quitting, it starts again although Steam still runs | LAUNCH-07 |
 | H-34 | Set `marker_prev = { command = ["konsole", "-e", "htop"] }` (or another terminal) and press Marker ◀ | The command runs in a new window | LAUNCH-05 |
 | H-35 | Set a desktop ID that is not installed; run `apptrol check` | A warning names it; the rest of the configuration is valid | LAUNCH-10 |
 | H-36 | Hold S8 while speaking (watch the desktop's microphone level or a recording), release | The mic is muted only while S8 is held; M8 is off while held, lit after; S8 and R8 stay lit | INPUT-02, LED-04 |

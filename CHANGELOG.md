@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Every release file has a signed build provenance attestation, so a download can be
+  checked for tampering, not only for damage:
+  `gh attestation verify <file> --repo Dzobash/apptrol` (NFR-05, #74). The
+  [installation guide](docs/install.md#checking-a-download) shows how.
 - `[controller] at_login_screen = "keep"` (default) or `"release"`: whether Apptrol keeps
   the controller while the login screen is in front, e.g. after *Switch user* before
   the other user has logged in (CFG-24, SVC-10).
@@ -37,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with their causes and workarounds, including those found in 0.2.0.
 
 ### Fixed
+- Release candidates' packages are named like the tag (`apptrol_0.2.1-rc1_amd64.deb`), so
+  `sha256sum -c checksums.txt` finds them. GitHub used to rename the `~` in their names,
+  and the check found no file (#74).
 - On a computer with several users, the controller follows the person in front of it.
   After *Switch user*, Apptrol turns its LEDs off and lets go of the controller, so the
   other user's own Apptrol can use it; when you come back, it takes the controller again

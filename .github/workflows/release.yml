@@ -8,7 +8,9 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: write   # create the GitHub Release and upload files
+  contents: write      # create the GitHub Release and upload files
+  id-token: write      # sign the attestations (keyless, through Sigstore)
+  attestations: write  # store them with the repository
 
 jobs:
   release:
@@ -31,3 +33,14 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Build provenance for every file people download, so a download can be
+      # checked for tampering, not only for damage:
+      # gh attestation verify <file> --repo Dzobash/apptrol (NFR-05, #74).
+      - name: Attest the release files
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+            dist/checksums.txt

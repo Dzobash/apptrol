@@ -38,9 +38,9 @@ just too early. If the error is followed by `controller connected`, nothing is w
 
 ### Release candidates: `checksums.txt` does not match the file names
 
-*Only release candidates ([#74](https://github.com/Dzobash/apptrol/issues/74)).* GitHub
-renames `~` in the package names to `.`, so `sha256sum -c` finds no file. Final releases
-are not affected.
+*Release candidates of 0.2.0; fixed from 0.2.1-rc1
+([#74](https://github.com/Dzobash/apptrol/issues/74)).* GitHub renamed `~` in the package
+names to `.`, so `sha256sum -c` found no file. Final releases were not affected.
 
 ## Volume
 

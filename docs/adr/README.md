@@ -21,7 +21,7 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0010](0010-project-name.md) | Project name "Apptrol" | Accepted |
 | [0011](0011-phased-delivery.md) | Deliver in phases; layouts and GUI later | Accepted |
 | [0012](0012-testing-strategy.md) | Testing strategy | Accepted |
-| [0013](0013-release-packaging.md) | Releases and packaging with GoReleaser | Accepted |
+| [0013](0013-release-packaging.md) | Releases and packaging with GoReleaser | Accepted; attestations and pre-release file names: see notes |
 | [0014](0014-logo-and-visual-identity.md) | Logo and visual identity | Accepted |
 | [0015](0015-service-architecture.md) | Service architecture and controller access | Accepted |
 | [0016](0016-log-records-follow-opentelemetry.md) | Log records follow the OpenTelemetry semantic conventions | Accepted |
