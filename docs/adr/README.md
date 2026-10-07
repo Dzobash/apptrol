@@ -36,3 +36,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0025](0025-state-kept-while-config-invalid.md) | The saved state is kept while the configuration is invalid | Accepted |
 | [0026](0026-separate-tables-for-apps-inputs-outputs.md) | Separate configuration tables for apps, inputs and outputs | Accepted |
 | [0027](0027-output-volume.md) | Output volume: a control for a whole output device | Accepted |
+| [0028](0028-docs-as-code-for-the-website.md) | Docs as code for the website; the roadmap as its single source | Accepted |

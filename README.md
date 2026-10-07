@@ -115,6 +115,8 @@ Found another one? Please [open an issue](https://github.com/Dzobash/apptrol/iss
 
 ## Documentation
 
+All pages, grouped by what you want to do: [documentation overview](docs/README.md).
+
 - [Installation guide](docs/install.md) and [known issues](docs/known-issues.md)
 - [Configuration reference](docs/config.md) and [example config](examples/config.toml)
 - [Reading the logs](docs/logging.md)

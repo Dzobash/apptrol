@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- A new [documentation overview](docs/README.md) groups every page by what you want to
+  do: how-to guides, reference, explanation and the project's plans. The docs are ready
+  to be shown on a future website (ADR 0028).
+- The [roadmap](docs/roadmap.md) gives every phase a name (Phase 1 is *Turn Down for
+  What*), a goal and a "done when" line, and adds what is out of the roadmap, how the
+  roadmap changes, and the project's scope.
 - The example configuration and the [configuration reference](docs/config.md#hearing-safety)
   warn about hearing safety at `max_volume`: above 100 % the sound is amplified in
   software and can damage your hearing, and the first move of a control sets its volume

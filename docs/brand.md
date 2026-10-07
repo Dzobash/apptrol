@@ -172,6 +172,6 @@ Always render 16 px from `apptrol-mark-16.svg`.
 
 ## 11. Licence
 
-The logo and these files are part of Apptrol and covered by its [MIT license](../LICENSE).
+The logo and these files are part of Apptrol and covered by its [MIT license](https://github.com/Dzobash/apptrol/blob/main/LICENSE).
 The wordmark is Space Grotesk converted to outlines; the font itself is not included and is
 licensed separately under the SIL Open Font License.
