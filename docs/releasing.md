@@ -68,11 +68,12 @@ The service is **not** enabled automatically; each user runs
    [roadmap](roadmap.md), and redraw the controls picture if features changed
    (`docs/assets/photos/make-controls.py`). Open a pull request
    `chore: release v0.1.0`: `main` accepts changes only through pull requests.
-3. The release must contain the code of the candidate that passed: only docs may differ.
-   After the merge, check it, then tag the merge commit:
+3. The release must contain the code of the candidate that passed: only docs may differ,
+   and the `<release>` entry in the AppStream file (it describes the version, it changes
+   no behaviour). After the merge, check it, then tag the merge commit:
    ```bash
    git switch main && git pull
-   git diff --stat v0.1.0-rc1 HEAD      # only *.md files and docs/ may appear
+   git diff --stat v0.1.0-rc1 HEAD      # only *.md files, docs/ and packaging/appstream/ may appear
    git tag -a v0.1.0 -m "v0.1.0"
    git push origin v0.1.0
    ```

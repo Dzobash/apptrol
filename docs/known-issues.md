@@ -6,6 +6,16 @@ around. Found another one? Please [open an issue](https://github.com/Dzobash/app
 
 ## In Apptrol
 
+### A "no permission" error when a second user logs in
+
+*In 0.2.1; to be fixed in 0.2.2 ([#104](https://github.com/Dzobash/apptrol/issues/104)).*
+
+When a second user logs in through *Switch user*, their Apptrol starts at that moment and
+may log `no permission to open the controller; see the README section on permissions`,
+followed a second later by `controller connected`. The system gives the new user the
+rights to the controller a moment after their session comes to the front; Apptrol was just
+too early. If `controller connected` follows, nothing is wrong.
+
 ### A restart with an invalid configuration loses the saved state
 
 *In 0.1.0 and 0.2.0; fixed in 0.2.1 ([#77](https://github.com/Dzobash/apptrol/issues/77)).*
