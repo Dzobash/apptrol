@@ -107,9 +107,9 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 [0022](adr/0022-launcher-command-safety.md). Section 4.15 and the requirements marked
 *Phase 1.6* are planned for 0.3.0, designed in ADRs
 [0026](adr/0026-separate-tables-for-apps-inputs-outputs.md) and
-[0027](adr/0027-output-volume.md). The requirements marked *0.2.1* are planned for that
-release, designed in [ADR 0029](adr/0029-controller-follows-the-user-in-front.md). Until
-they are built, the other requirements describe the released behaviour.
+[0027](adr/0027-output-volume.md); until they are built, the other requirements describe
+the released behaviour. The requirements marked *0.2.1* come with that release, designed
+in [ADR 0029](adr/0029-controller-follows-the-user-in-front.md).
 
 ### 4.1 Controls and volume
 
@@ -167,7 +167,7 @@ they are built, the other requirements describe the released behaviour.
 | LED-04 | **Input column** — S, M and R LEDs MUST be lit by default so the column is recognisable as an input. S and R stay lit whatever their mode. The M LED MUST be lit only while the input is live: it turns off when the input is muted, with M or by a held state (INPUT-05). *(Until 0.1.x: only the M mute counted.)* | MUST |
 | LED-05 | Columns without a slider target MUST have all LEDs off. | MUST |
 | LED-06 | Transport button LEDs MUST be off, except the ▶ LED, lit while the media-key player plays (MEDIA-06), and the Record LED's flash when it starts an app (LAUNCH-08). *(Until 0.1.x: always off.)* | MUST |
-| LED-07 | LEDs MUST be re-sent whenever the controller (re)connects, the audio server (re)connects, and the configuration or state changes. After a controller connect they MUST be sent again once the controller has started up (it ignores LED messages for a moment after being plugged in); after an audio server connect, again 2 seconds later (a PipeWire restart can reset the controller's LEDs). | MUST |
+| LED-07 | LEDs MUST be re-sent whenever the controller (re)connects, the audio server (re)connects, and the configuration or state changes. After a controller connect they MUST be sent again once the controller has started up (it ignores LED messages for a moment after being plugged in); after an audio server connect, again 2 seconds later (a PipeWire restart can reset the controller's LEDs). Taking the controller back after another user was in front counts as a controller connect (SVC-09). | MUST |
 | LED-08 | When Apptrol stops, it SHOULD turn all LEDs off, so no LED shows a state that no longer applies. | SHOULD |
 | LED-09 | When the computer wakes from sleep or hibernation, Apptrol MUST send every LED again, and again once the controller has started up (it loses power during sleep and starts with its LEDs off). Apptrol learns of the wake-up from systemd-logind on the D-Bus system bus; without a system bus it MUST log a warning, keep working and reconnect (ADR 0023). | MUST |
 
@@ -246,7 +246,7 @@ they are built, the other requirements describe the released behaviour.
 |---|---|---|
 | SVC-01 | Apptrol MUST run as a **systemd user service** (per logged-in user, not as root). | MUST |
 | SVC-02 | Apptrol MUST NOT require root privileges for normal operation. | MUST |
-| SVC-03 | If the controller is not connected, Apptrol MUST keep running, wait for it, and pick it up when it is plugged in. Unplugging MUST be handled the same way. | MUST |
+| SVC-03 | If the controller is not connected, Apptrol MUST keep running, wait for it, and pick it up when it is plugged in. Unplugging MUST be handled the same way. While another user's session is in front, Apptrol does not look for it (SVC-09). | MUST |
 | SVC-04 | If the connection to the audio server is lost (e.g. PipeWire restart), Apptrol MUST reconnect and re-apply the current state. | MUST |
 | SVC-05 | Apptrol MUST shut down cleanly on SIGTERM/SIGINT, saving state first. | MUST |
 | SVC-06 | `apptrol --version` MUST print the version, commit and build date. | MUST |
@@ -296,9 +296,9 @@ they are built, the other requirements describe the released behaviour.
 | LAUNCH-10 | `apptrol check` and every configuration load SHOULD warn about desktop IDs that are not installed; this MUST NOT make the configuration invalid. | SHOULD |
 | LAUNCH-11 | An app that cannot be started MUST be logged as an error (`app_start_failed`); Apptrol keeps running. | MUST |
 | LAUNCH-12 | Validation MUST reject a launcher `command` that deletes everything (`rm` with `-r` and `-f` on `/`, `/*`, `~`, `$HOME` or `/home`), wipes a disk (`mkfs*`, `wipefs`, `dd` to `/dev/…`, writing to a disk device), is a fork bomb, runs a download (`curl`/`wget` piped to a shell), changes rights on everything (`chmod -R`/`chown -R` on `/`), or uses `sudo`, `su` or `doas`; also after wrappers and inside `sh -c` text. The error MUST name the group and point to docs/config.md. Desktop IDs are not checked. It is a safety net against accidents, not security (ADR 0022). | MUST |
-| LAUNCH-13 | A launcher MUST start its app while the user's graphical session is unlocked and in front: logind reports it with `LockedHint` false and `Active` true. While it is locked, or another session is in front, a launcher MUST start nothing unless it has `when_locked = true` (LAUNCH-14). Whenever this cannot be told (no system bus, no graphical session, a lost connection, before the first answer), no launcher may start, whatever the configuration, and the press MUST be logged. Every other control works whatever the screen state (ADR 0024). | MUST |
+| LAUNCH-13 | A launcher MUST start its app while the user's graphical session is unlocked and in front: logind reports it with `LockedHint` false and `Active` true. While it is locked, or another session is in front, a launcher MUST start nothing unless it has `when_locked = true` (LAUNCH-14). Whenever this cannot be told (no system bus, no graphical session, a lost connection, before the first answer), no launcher may start, whatever the configuration, and the press MUST be logged. Every other control works whatever the screen state (ADR 0024), as long as Apptrol holds the controller: while another user's session is in front, it does not (SVC-08), so `inactive` is only seen at the login screen with `at_login_screen = "keep"`. *(Until 0.2.0: Apptrol kept the controller while another user's session was in front.)* | MUST |
 | LAUNCH-14 | `when_locked = true` on a launcher (only there; default `false`) MUST let it start its app also while the screen is locked or another session is in front. Every configuration load and `apptrol check` MUST warn about each launcher that has it. | MUST |
-| LAUNCH-15 | While the screen is locked or another session is in front, every press of a button on the controller MUST be logged as a warning: a launcher with whether it started, any other button with its name. Releases, sliders and knobs are not reported, and nothing is reported while the screen state is unknown. | MUST |
+| LAUNCH-15 | While the screen is locked or another session is in front, every press of a button on the controller MUST be logged as a warning: a launcher with whether it started, any other button with its name. Releases, sliders and knobs are not reported, and nothing is reported while the screen state is unknown. While another user's session is in front, Apptrol does not hold the controller (SVC-08), so no presses reach it. | MUST |
 
 ### 4.14 Input column buttons *(Phase 1.5)*
 
@@ -310,7 +310,7 @@ they are built, the other requirements describe the released behaviour.
 | INPUT-04 | Talk-over is active while S in mode `talk_over` is held, and, with `talk_over = true` on M, while the input is live through M (`hold_to_talk`: M held; `mute`: not muted with M; a cough does not end it). While it is active, every app target of the layout MUST go down to the input's `talk_over_volume` (CFG-16), but never up: an app below it stays where it is. With talk-over active from several inputs, the lowest volume applies. An app whose control position is unknown (PRIO-04) MUST be muted instead, as its volume is unknown. When talk-over ends, every app MUST return to its control's position, and an app muted by talk-over MUST be unmuted unless it is muted otherwise (MUTE-04). Inputs are not changed. | MUST |
 | INPUT-05 | Held states MUST be kept apart from the M mute, like solo (MUTE-04): an input is muted when it is muted with M (mode `mute`), or coughing, or in `hold_to_talk` and M is not held. | MUST |
 | INPUT-06 | A control moved during talk-over MUST have its position remembered and applied when talk-over ends; a stream appearing during talk-over MUST get the lower of the talk-over volume and its control's position. | MUST |
-| INPUT-07 | A held state (M in `hold_to_talk`, S in `cough` or `talk_over`) MUST end when its button is released, when the controller disconnects, when a configuration reload changes the button's mode or the column's input, and when Apptrol stops. Held states MUST NOT be saved. | MUST |
+| INPUT-07 | A held state (M in `hold_to_talk`, S in `cough` or `talk_over`) MUST end when its button is released, when the controller disconnects or is released for another user (SVC-09), when a configuration reload changes the button's mode or the column's input, and when Apptrol stops. Held states MUST NOT be saved. | MUST |
 | INPUT-08 | Apptrol MUST act on the release message (value 0) of M and S on input columns; the controller's buttons must be set to Momentary (HW-01). | MUST |
 
 ### 4.15 Output targets *(Phase 1.6)*

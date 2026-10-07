@@ -38,7 +38,8 @@ const defaultLEDGap = 2 * time.Millisecond
 // system grants the user at the screen access to it (udev's uaccess). Within
 // defaultAccessGrace of the file appearing, "permission denied" means "not
 // ready yet": it is logged at debug and retried every defaultAccessPoll
-// (HW-08, ADR 0015).
+// (HW-08, ADR 0015). The same applies to "busy" right after Take: the other
+// user's Apptrol may not have let go yet (SVC-11, ADR 0029).
 const (
 	defaultAccessGrace = 5 * time.Second
 	defaultAccessPoll  = 100 * time.Millisecond
@@ -67,7 +68,15 @@ type Device struct {
 	cur     io.ReadWriteCloser
 	lastLED time.Time     // when the last LED message was written
 	channel atomic.Uint32 // MIDI channel the controller sends on; LEDs use it too
+
+	// released is set by Release while another user is in front, and cleared
+	// by Take (SVC-09, ADR 0029); wake tells Run about either at once.
+	released atomic.Bool
+	wake     chan struct{}
 }
+
+// errReleased ends a session that Release overtook before it connected.
+var errReleased = errors.New("released before connecting")
 
 // New returns a Device that looks for the sound card with id port.
 func New(log *slog.Logger, port string) *Device {
@@ -85,6 +94,34 @@ func New(log *slog.Logger, port string) *Device {
 		accessPoll:  defaultAccessPoll,
 		find:        func() (string, error) { return Find(DefaultProcDir, DefaultDevDir, port) },
 		open:        openRaw,
+		wake:        make(chan struct{}, 1),
+	}
+}
+
+// Release lets go of the controller while another user's session is in front:
+// it is closed, and not looked for until Take (SVC-09, ADR 0029). The service
+// turns its LEDs off before.
+func (d *Device) Release() {
+	d.released.Store(true)
+	d.mu.Lock()
+	if d.cur != nil {
+		_ = d.cur.Close() // ends the session's pending Read
+	}
+	d.mu.Unlock()
+	d.wakeUp()
+}
+
+// Take ends Release: the controller is looked for at once, and connects as
+// after being plugged in (LED-07).
+func (d *Device) Take() {
+	d.released.Store(false)
+	d.wakeUp()
+}
+
+func (d *Device) wakeUp() {
+	select {
+	case d.wake <- struct{}{}:
+	default: // already pending
 	}
 }
 
@@ -116,7 +153,23 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 	// i.e. the controller was just plugged in; zero if it was there at start.
 	var appeared time.Time
 	missing := false
+	// taken is when Take ended a Release; zero if there was none.
+	var taken time.Time
+	wasReleased := false
 	for {
+		if d.released.Load() {
+			// Another user is in front: not looked for until Take (SVC-09).
+			wasReleased = true
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-d.wake:
+			}
+			continue
+		}
+		if wasReleased {
+			wasReleased, taken, lastProblem = false, time.Now(), ""
+		}
 		wait := d.poll
 		path, err := d.find()
 		if err == nil && missing {
@@ -134,6 +187,11 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 				report(slog.LevelDebug, "controller not accessible yet; retrying",
 					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerDenied, err))
 				wait = d.accessPoll
+			case errors.Is(err, syscall.EBUSY) && !taken.IsZero() && time.Since(taken) < d.accessGrace:
+				// Just taken back: the other user's Apptrol may not have let go yet (SVC-11).
+				report(slog.LevelDebug, "controller still held by the other session; retrying",
+					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerBusy, err))
+				wait = d.accessPoll
 			case errors.Is(err, syscall.EBUSY):
 				report(slog.LevelError, "the controller is in use by another program; retrying (`fuser <device>` names it)",
 					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerBusy, err)) // HW-06
@@ -150,6 +208,13 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			if d.released.Load() {
+				// Let go on purpose; the mixer already ended held states (SVC-09).
+				if !errors.Is(err, errReleased) {
+					d.log.Info("controller released", logattr.KeyMIDIDevice, path)
+				}
+				continue
+			}
 			d.log.Info("controller disconnected", logattr.KeyMIDIDevice, path, logattr.KeyDisconnected, reason(err))
 			// Held buttons will never send their release (INPUT-07).
 			select {
@@ -162,6 +227,7 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(wait):
+		case <-d.wake: // Release or Take: act on it at once
 		}
 	}
 }
@@ -203,6 +269,13 @@ func reason(err error) string {
 // session reads one connected controller until it goes away or ctx ends.
 func (d *Device) session(ctx context.Context, path string, f io.ReadWriteCloser, out chan<- mixer.Event) error {
 	d.mu.Lock()
+	if d.released.Load() {
+		// Release came between opening and now; checked under the lock it
+		// takes, so one of the two always sees the other.
+		d.mu.Unlock()
+		_ = f.Close()
+		return errReleased
+	}
 	d.cur = f
 	d.mu.Unlock()
 	defer func() {

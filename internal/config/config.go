@@ -51,7 +51,17 @@ type Media struct {
 type Controller struct {
 	// Port is matched case-insensitively against the controller's ALSA card id (HW-05).
 	Port string
+	// AtLoginScreen says whether the controller is kept or let go while the
+	// login screen is in front: AtLoginScreenKeep or AtLoginScreenRelease
+	// (SVC-10, CFG-24, ADR 0029).
+	AtLoginScreen string
 }
+
+// The values of [controller] at_login_screen (CFG-24).
+const (
+	AtLoginScreenKeep    = "keep"    // the default: sliders keep working at the login screen
+	AtLoginScreenRelease = "release" // let go, as for another user's session
+)
 
 // Log configures logging (LOG-01 … LOG-08).
 type Log struct {

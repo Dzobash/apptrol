@@ -34,7 +34,8 @@ func launcherLED(name string) (mixer.LED, bool) {
 // the assignments of the active layout and its M and S buttons.
 func (c *Config) Setup() mixer.Setup {
 	s := mixer.Setup{Layout: DefaultLayout, Targets: map[string]mixer.Target{}, Assignments: map[mixer.Control]string{},
-		Buttons: map[mixer.LED]mixer.Button{}, MediaPlayer: c.Media.Player, Launchers: map[mixer.LED]mixer.Launch{}}
+		Buttons: map[mixer.LED]mixer.Button{}, MediaPlayer: c.Media.Player, Launchers: map[mixer.LED]mixer.Launch{},
+		ReleaseAtLoginScreen: c.Controller.AtLoginScreen == AtLoginScreenRelease}
 	for id, app := range c.Apps {
 		kind := mixer.App
 		if app.Type == TypeInput {

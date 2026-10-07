@@ -61,6 +61,10 @@ type Controller interface {
 	Run(ctx context.Context, out chan<- mixer.Event) error
 	SetLED(l mixer.LED, on bool) error
 	HasLED(l mixer.LED) bool
+	// Release lets go of the controller while another user is in front, and
+	// Take looks for it again at once (SVC-09, ADR 0029).
+	Release()
+	Take()
 }
 
 // Logs applies the logging part of the configuration (LOG-08).
@@ -447,6 +451,12 @@ func (s *service) do(a mixer.Action) {
 			s.logFor(logattr.Desktop).Debug("media player command not sent", logattr.KeyPlayerBusName, a.BusName,
 				logattr.KeyPlayerCommand, a.Command, logattr.Error(logattr.ErrMediaCommand, err))
 		}
+	case mixer.ReleaseController:
+		// LEDs first: once let go, the other user's Apptrol owns them (SVC-09).
+		s.ledsOff()
+		s.ctl.Release()
+	case mixer.TakeController:
+		s.ctl.Take() // ControllerConnected follows, and with it the LEDs (LED-07)
 	case mixer.StateChanged:
 		s.saver.Request(s.m.Snapshot())
 	case mixer.Notice:
@@ -505,6 +515,12 @@ func (s *service) shutdown() {
 		s.logFor(logattr.State).Error("could not save the state",
 			logattr.KeyFilePath, s.o.StatePath, logattr.Error(logattr.ErrStateNotSaved, err))
 	}
+	s.ledsOff()
+}
+
+// ledsOff turns every LED off, so none shows a state that no longer applies:
+// when Apptrol stops (LED-08), and before it lets go of the controller (SVC-09).
+func (s *service) ledsOff() {
 	for col := 1; col <= mixer.NumColumns; col++ {
 		for _, b := range []mixer.ButtonKind{mixer.ButtonS, mixer.ButtonM, mixer.ButtonR} {
 			_ = s.ctl.SetLED(mixer.LED{Button: b, Column: col}, false)

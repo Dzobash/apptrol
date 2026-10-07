@@ -59,6 +59,27 @@ const (
 	ScreenUnknown  ScreenState = "unknown"  // it cannot be told
 )
 
+// SeatChanged reports whose session is in front at the computer's seat, as
+// logind reports it. Apptrol holds the controller unless another user's
+// session is in front (SVC-08, ADR 0029). SessionID is logind's id of the
+// session in front, "" if none.
+type SeatChanged struct {
+	Front     SeatFront
+	SessionID string
+}
+
+// SeatFront says whose session is in front at the seat (apptrol.seat.front).
+type SeatFront string
+
+// Who can be in front (ADR 0029).
+const (
+	FrontThisUser    SeatFront = "this_user"    // a session of the user running Apptrol
+	FrontOtherUser   SeatFront = "other_user"   // a session of another user
+	FrontLoginScreen SeatFront = "login_screen" // the login screen (a greeter session)
+	FrontNobody      SeatFront = "nobody"       // no session in front, or no seat
+	FrontUnknown     SeatFront = "unknown"      // it cannot be told: hold the controller as before (SVC-12)
+)
+
 // AudioSnapshot carries the full list of streams and devices, sent on
 // (re)connect to the audio server. It replaces everything the mixer knew (SVC-04).
 type AudioSnapshot struct {
@@ -127,6 +148,7 @@ func (TransportPressed) isEvent()       {}
 func (ControllerConnected) isEvent()    {}
 func (SystemResumed) isEvent()          {}
 func (ScreenChanged) isEvent()          {}
+func (SeatChanged) isEvent()            {}
 func (AudioSnapshot) isEvent()          {}
 func (StreamAdded) isEvent()            {}
 func (StreamRemoved) isEvent()          {}
@@ -197,6 +219,15 @@ type SetLED struct {
 	On  bool
 }
 
+// ReleaseController tells the service to let go of the controller: another
+// user's session is in front (SVC-09, ADR 0029). The service turns every LED
+// off, then closes the controller and stops looking for it.
+type ReleaseController struct{}
+
+// TakeController tells the service to look for the controller again at once,
+// after ReleaseController; it connects as after being plugged in (LED-07).
+type TakeController struct{}
+
 // StateChanged tells the service that the persistent state changed; it saves it (debounced).
 type StateChanged struct{}
 
@@ -207,12 +238,14 @@ type Notice struct {
 	Attrs []any
 }
 
-func (SetStreamVolume) isAction() {}
-func (SetStreamMute) isAction()   {}
-func (SetDeviceVolume) isAction() {}
-func (SetDeviceMute) isAction()   {}
-func (SetLED) isAction()          {}
-func (StateChanged) isAction()    {}
-func (Notice) isAction()          {}
-func (PlayerCommand) isAction()   {}
-func (LaunchApp) isAction()       {}
+func (SetStreamVolume) isAction()   {}
+func (SetStreamMute) isAction()     {}
+func (SetDeviceVolume) isAction()   {}
+func (SetDeviceMute) isAction()     {}
+func (SetLED) isAction()            {}
+func (StateChanged) isAction()      {}
+func (Notice) isAction()            {}
+func (PlayerCommand) isAction()     {}
+func (LaunchApp) isAction()         {}
+func (ReleaseController) isAction() {}
+func (TakeController) isAction()    {}

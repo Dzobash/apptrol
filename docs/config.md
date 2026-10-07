@@ -30,6 +30,16 @@ A complete example is in [`examples/config.toml`](https://github.com/Dzobash/app
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `port` | string | `"nanoKONTROL2"` | ALSA card id of the controller (case-insensitive). It is the name in brackets in `cat /proc/asound/cards`. The card number can change between boots; the id does not. |
+| `at_login_screen` | string | `"keep"` | What happens to the controller while the login screen is in front, e.g. after *Switch user* before the other user has logged in: `"keep"` (sliders and mute keep working for you; launchers start nothing) or `"release"` (Apptrol lets go of it and turns its LEDs off, so nobody at the login screen changes your audio). The lock screen of your own session is not the login screen. See [Several users](#several-users). |
+
+### Several users
+
+Each user can run their own Apptrol, with their own configuration and saved state:
+`systemctl --user enable --now apptrol` once in their own login. The controller works for
+whoever is in front of the computer. When another user's session comes to the front,
+your Apptrol turns its LEDs off and lets go of the controller; when you come back, it
+takes the controller again within a few seconds and sets its LEDs. An Apptrol in a login
+without a screen (e.g. over SSH) never takes the controller from the person at the desk.
 
 ---
 

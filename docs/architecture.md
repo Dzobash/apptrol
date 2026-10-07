@@ -46,10 +46,10 @@ How the service is put together. Decisions and their reasons are in
 | `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop`, `Power` and `Launcher` interfaces; turns mixer actions into adapter calls; the Record LED's flash (the mixer has no clock); config reload and its warnings; shutdown |
 | `internal/mixer` | Core logic (pure): matching streams, inputs and media players to controls, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
-| `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write |
+| `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write; lets go of the controller and takes it back (ADR 0029) |
 | `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`); reconnects; `apptrol list` data |
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
-| `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, and whether the user's graphical session is unlocked, locked, behind another session or unknown; reconnects |
+| `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, whether the user's graphical session is unlocked, locked, behind another session or unknown, and whose session is in front at the seat (ADR 0029); reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
 | `internal/config` | TOML loading, validation (including button rules, blocked commands and overlap warnings), file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
@@ -194,6 +194,32 @@ receiving it. Launchers therefore start apps only while the screen is unlocked
 - **Audit:** while `locked` or `inactive`, every button press is a warning, launchers
   with what they did. Sliders and knobs are not reported; nothing is reported while
   `unknown`.
+
+## Several users
+
+A raw MIDI device has one reader at a time, and every user may run their own Apptrol. The
+controller follows the person in front of the computer
+([ADR 0029](adr/0029-controller-follows-the-user-in-front.md), SVC-08 to SVC-12):
+
+- **Who is in front:** `internal/session` also reads logind's `seat0` (`GetSeat`), its
+  `ActiveSession`, and that session's `User` and `Class`, on the same connection and
+  signals as the lock state. It reports `this_user`, `other_user`, `login_screen` (class
+  `greeter`), `nobody` or `unknown` as `mixer.SeatChanged`, only on a change. Reading the
+  seat, not only the user's own session, keeps an SSH-only login from taking the
+  controller and lets a session without a display manager (`startx`) keep it.
+- **Deciding:** the mixer (`decideController`) lets go for `other_user`, and for
+  `login_screen` with `[controller] at_login_screen = "release"`; otherwise, also while
+  `unknown`, it holds the controller. It decides again on every `SeatChanged` and after
+  every configuration reload, and acts only on a change: it ends held states
+  (`controller_released`), then returns `ReleaseController`, or `TakeController` when it
+  ends.
+- **Carrying it out:** the service turns every LED off first (`ledsOff`, as on shutdown),
+  then calls the controller's `Release`, which closes the device and stops looking for
+  it; a `Release` that overtakes a session before it connects is seen under the
+  device's lock. `Take` looks again at once; the connect brings the LEDs back (LED-07).
+  For 5 seconds after `Take`, "busy" means the other user's Apptrol has not let go yet:
+  it is logged at debug and retried every 100 ms, as for permissions after plugging in
+  (HW-08).
 
 ## Starting apps
 

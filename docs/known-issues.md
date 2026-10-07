@@ -20,11 +20,13 @@ editing the configuration.
 
 ### After *Switch user*, the controller still acts on the first user's apps
 
-*In 0.2.0; to be changed in 0.2.1 ([#78](https://github.com/Dzobash/apptrol/issues/78)).*
+*In 0.2.0; fixed in 0.2.1 ([#78](https://github.com/Dzobash/apptrol/issues/78)).*
 
 The first user's Apptrol keeps the controller while another user is in front. Launchers
 are blocked and every press is logged as a warning, but M, S, R and the media keys still
 change the first user's apps. A second user's own Apptrol cannot get the controller.
+From 0.2.1, Apptrol lets go of the controller while another user is in front, so each
+user can run their own Apptrol.
 
 ### "No permission to open the controller" right after plugging it in
 

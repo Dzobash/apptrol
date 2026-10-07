@@ -382,6 +382,7 @@ func TestLOG_InvalidSettings(t *testing.T) {
 		{"[log.file]\nmax_size = \"99999GB\"", "too large"},
 		{"[log.file]\nmax_files = -1", "log.file.max_files: -1 is out of range"},
 		{"[controller]\nport = \"  \"", "controller.port: must not be empty"},
+		{"[controller]\nat_login_screen = \"Release\"", `controller.at_login_screen: "Release" is not valid (use "keep" or "release")`}, // CFG-24
 	}
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
@@ -445,4 +446,20 @@ func FuzzParse(f *testing.F) {
 			}
 		}
 	})
+}
+
+func TestCFG24_AtLoginScreen(t *testing.T) {
+	for src, want := range map[string]bool{
+		"": false, // default keep
+		"[controller]\nat_login_screen = \"keep\"":    false,
+		"[controller]\nat_login_screen = \"release\"": true,
+	} {
+		cfg, _, err := Parse("test.toml", []byte(minimal+"\n"+src+"\n"))
+		if err != nil {
+			t.Fatalf("%q: %v", src, err)
+		}
+		if got := cfg.Setup().ReleaseAtLoginScreen; got != want {
+			t.Errorf("%q: ReleaseAtLoginScreen = %v, want %v", src, got, want)
+		}
+	}
 }
