@@ -32,6 +32,12 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.14
+      # The metadata software centers show for the packages (ADR 0013, notes).
+      - name: AppStream metadata
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq appstream
+          appstreamcli validate --no-net packaging/appstream/*.metainfo.xml
 
   test:
     name: Test (Go ${{ matrix.go }})

@@ -64,6 +64,16 @@ nfpms:
         dst: /usr/lib/systemd/user/apptrol.service
       - src: examples/config.toml
         dst: /usr/share/doc/apptrol/examples/config.toml
+      # What software centers such as KDE Discover show: name, developer, icon,
+      # links, releases (AppStream; ADR 0013, notes).
+      - src: packaging/appstream/io.github.dzobash.apptrol.metainfo.xml
+        dst: /usr/share/metainfo/io.github.dzobash.apptrol.metainfo.xml
+      - src: docs/assets/brand/apptrol-mark.svg
+        dst: /usr/share/icons/hicolor/scalable/apps/io.github.dzobash.apptrol.svg
+      # Below 20 px the regular mark blurs; the icon theme picks this one for
+      # 16 px (docs/brand.md).
+      - src: docs/assets/brand/apptrol-mark-16.svg
+        dst: /usr/share/icons/hicolor/16x16/apps/io.github.dzobash.apptrol.svg
       - src: README.md
         dst: /usr/share/doc/apptrol/README.md
       - src: CHANGELOG.md

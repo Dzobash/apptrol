@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream metadata: what software centers such as KDE Discover and GNOME
+  Software show for Apptrol (name, developer, icon, links, releases). Installed
+  to /usr/share/metainfo/ by the packages (ADR 0013, notes). Checked in CI with
+  `appstreamcli validate`. Add every release to <releases> (docs/releasing.md).
+  The id is permanent: software centers remember the app by it.
+-->
+<component type="console-application">
+  <id>io.github.dzobash.apptrol</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Apptrol</name>
+  <summary>Control each app's volume with a hardware MIDI controller</summary>
+  <developer id="io.github.dzobash">
+    <name>Dzobash</name>
+  </developer>
+
+  <description>
+    <p>
+      Apptrol turns a Korg nanoKONTROL2 into a volume mixer for PipeWire: every
+      slider and knob controls one app or microphone, so the desktop's mixer is no
+      longer needed for everyday volume changes.
+    </p>
+    <ul>
+      <li>Volume, mute and solo per app, with the controller's LEDs showing the state</li>
+      <li>Microphone buttons: mute, hold to talk, cough, and turning music down while you talk</li>
+      <li>Media keys and play or pause per app, through MPRIS</li>
+      <li>Buttons that start apps or commands</li>
+    </ul>
+    <p>
+      Apptrol runs in the background as a systemd user service and has no window: it is
+      set up in one configuration file. Enable it once with
+      systemctl --user enable --now apptrol.
+    </p>
+  </description>
+
+  <icon type="stock">io.github.dzobash.apptrol</icon>
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Mixer</category>
+  </categories>
+  <keywords>
+    <keyword>volume</keyword>
+    <keyword>mixer</keyword>
+    <keyword>MIDI</keyword>
+    <keyword>controller</keyword>
+    <keyword>PipeWire</keyword>
+    <keyword>nanoKONTROL2</keyword>
+  </keywords>
+
+  <url type="homepage">https://github.com/Dzobash/apptrol</url>
+  <url type="bugtracker">https://github.com/Dzobash/apptrol/issues</url>
+  <url type="vcs-browser">https://github.com/Dzobash/apptrol</url>
+
+  <provides>
+    <binary>apptrol</binary>
+  </provides>
+  <supports>
+    <control>console</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+
+  <releases>
+    <release version="0.2.0" date="2026-10-04">
+      <url type="details">https://github.com/Dzobash/apptrol/releases/tag/v0.2.0</url>
+    </release>
+    <release version="0.1.0" date="2026-09-30">
+      <url type="details">https://github.com/Dzobash/apptrol/releases/tag/v0.1.0</url>
+    </release>
+  </releases>
+</component>

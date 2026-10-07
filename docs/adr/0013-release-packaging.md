@@ -39,3 +39,12 @@ process should be repeatable and not depend on anyone's machine.
   already have `gpg`. It is planned before 1.0 (#94). Pre-release packages are named with
   `-` instead of `~`, which GitHub does not allow in file names; the version inside keeps
   `~` (#74).
+- 2026-10-07: The packages also install AppStream metadata
+  (`/usr/share/metainfo/io.github.dzobash.apptrol.metainfo.xml`) and the app icon, so
+  software centers such as KDE Discover show the name, developer, icon, links and
+  releases instead of the file name and "unknown author". The id
+  `io.github.dzobash.apptrol` follows the convention for projects on GitHub and is
+  permanent: software centers remember the app by it; a later move would need a
+  `<replaces>` entry, not a new id. The component is a `console-application` (no window).
+  CI validates the file (`appstreamcli validate`); every release adds itself to
+  `<releases>`.
