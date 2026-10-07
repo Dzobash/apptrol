@@ -147,7 +147,10 @@ the same on GitHub and on the website:
   (`https://github.com/Dzobash/apptrol/blob/main/LICENSE`), as that file is not on the
   website.
 - **Every new page gets a place in [docs/README.md](docs/README.md)**, in one group:
-  tutorial, how-to guide, reference, explanation or project.
+  tutorial, how-to guide, reference, explanation or project. Not sure where it belongs?
+  Ask what the reader has in their hand: a problem → how-to; a word or value they are
+  missing → reference; curiosity → explanation; nothing yet, they want to learn →
+  tutorial.
 - **[docs/roadmap.md](docs/roadmap.md) is the only roadmap.** Every new phase gets a
   pop-culture name (its topic stays as the subtitle), a one-line **Goal** and a
   **Done when** line. Dropped ideas go to *Out of roadmap* with the reason and a link.
