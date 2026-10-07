@@ -19,6 +19,7 @@ Read these instead of guessing; this file only links to them:
 | Releases and release candidates | [docs/releasing.md](docs/releasing.md) |
 | Log format and attributes | [docs/logging.md](docs/logging.md), [ADR 0016](docs/adr/0016-log-records-follow-opentelemetry.md) |
 | Decisions | [docs/adr/](docs/adr/) |
+| All docs by type (Diátaxis), docs rules | [docs/README.md](docs/README.md), [CONTRIBUTING.md › Documentation](CONTRIBUTING.md#documentation) |
 
 ## Workflow
 
@@ -57,6 +58,9 @@ Read these instead of guessing; this file only links to them:
   message, attributes ([ADR 0018](docs/adr/0018-media-players-through-mpris.md), point 9).
 - With every change, update what it affects: [CHANGELOG.md](CHANGELOG.md) (Unreleased),
   requirements, [docs/testing.md](docs/testing.md), architecture, README.
+- `docs/` is the website's source: follow
+  [CONTRIBUTING.md › Documentation](CONTRIBUTING.md#documentation) (plain Markdown, links,
+  a place in docs/README.md, phase name + Goal + Done when).
 - Before a PR: `make check`. For audio changes also `make test-audio` (runs against the
   owner's PipeWire; it adds a silent test output and inputs and removes them afterwards).
 - `internal/mixer` stays pure: no I/O, events in, actions out

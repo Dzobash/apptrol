@@ -32,3 +32,6 @@ Recording, output switching (R), bleep and Marker buttons stay in the backlog.
 - 2026-10-02: Phase 3 is no longer a GUI. It becomes *Setup and tray* (`0.5.0`): a
   terminal setup, `apptrol setup`, and a tray icon in the service; problem notifications
   join the on-screen display in Phase 1.6. See [ADR 0021](0021-no-desktop-gui.md).
+- 2026-10-07: Each phase has a pop-culture name next to its topic, a Goal and a Done
+  when line; the roadmap also lists what is out of roadmap and the scope. The phases
+  themselves are unchanged. See [ADR 0028](0028-docs-as-code-for-the-website.md).

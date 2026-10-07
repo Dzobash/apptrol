@@ -120,7 +120,7 @@ Project layout:
 | `internal/logging/` | Log outputs and formats |
 | `internal/logattr/` | Log attribute names and error types (ADR 0016) |
 | `internal/version/` | Build information (set at link time) |
-| `docs/` | Requirements, architecture, roadmap, configuration reference, ADRs |
+| `docs/` | The documentation, grouped in [docs/README.md](docs/README.md); also the website's source |
 | `docs/assets/` | Logo files (`brand/`, MIT) and third-party photos (`photos/`, each with its own license) |
 | `examples/` | Example configuration (built into the binary for the first start) |
 | `packaging/` | systemd unit and package scripts |
@@ -133,6 +133,24 @@ How the packages work together: [docs/architecture.md](docs/architecture.md).
 - New behaviour comes with tests; see [docs/testing.md](docs/testing.md).
 - Images you did not make yourself go in `docs/assets/photos/`, only under a license that
   allows it, with author, source, license and changes listed in its README.
+
+## Documentation
+
+`docs/` is also the source of the project's website, which pulls it at build time and
+renders it ([ADR 0028](docs/adr/0028-docs-as-code-for-the-website.md)). So that it reads
+the same on GitHub and on the website:
+
+- **Plain Markdown.** HTML only for images and line breaks (`<p align="center">`,
+  `<img>`, `<br>`); never `<script>`, `<iframe>`, `<style>` or `on…=` attributes.
+- **Relative links inside `docs/`** (`config.md#hearing-safety`, `assets/photos/…`).
+  A link to a file outside `docs/` is a full GitHub URL
+  (`https://github.com/Dzobash/apptrol/blob/main/LICENSE`), as that file is not on the
+  website.
+- **Every new page gets a place in [docs/README.md](docs/README.md)**, in one group:
+  tutorial, how-to guide, reference, explanation or project.
+- **[docs/roadmap.md](docs/roadmap.md) is the only roadmap.** Every new phase gets a
+  pop-culture name (its topic stays as the subtitle), a one-line **Goal** and a
+  **Done when** line. Dropped ideas go to *Out of roadmap* with the reason and a link.
 
 ## AI-assisted contributions
 

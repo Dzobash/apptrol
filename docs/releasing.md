@@ -1,8 +1,8 @@
 # Apptrol — Releasing
 
 Releases are built and published automatically by
-[`.github/workflows/release.yml`](../.github/workflows/release.yml) with
-[GoReleaser](https://goreleaser.com) (config: [`.goreleaser.yaml`](../.goreleaser.yaml)).
+[`.github/workflows/release.yml`](https://github.com/Dzobash/apptrol/blob/main/.github/workflows/release.yml) with
+[GoReleaser](https://goreleaser.com) (config: [`.goreleaser.yaml`](https://github.com/Dzobash/apptrol/blob/main/.goreleaser.yaml)).
 Pushing a version tag is all it takes.
 
 ## What a release contains
@@ -45,7 +45,7 @@ The service is **not** enabled automatically; each user runs
 
 1. Check that CI is green on `main` and, from Phase 1 on, that the
    [hardware checklist](testing.md#manual-hardware-checklist) passes.
-2. On a branch `chore/release-v0.1.0`, in [CHANGELOG.md](../CHANGELOG.md), add
+2. On a branch `chore/release-v0.1.0`, in [CHANGELOG.md](https://github.com/Dzobash/apptrol/blob/main/CHANGELOG.md), add
    `## [0.1.0] - YYYY-MM-DD` below `## [Unreleased]`, so that the entries move under it
    and `[Unreleased]` stays, empty, above; update the links at the end of the file.
    Mark the phase as released in the

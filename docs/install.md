@@ -134,7 +134,7 @@ systemctl --user enable --now apptrol
 To update, pull the new code, run `make build` and the first `install` line again, then
 `systemctl --user restart apptrol`. To build your own `.deb` and `.rpm` packages instead,
 run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they end up in
-`dist/`. For changing the code, see [CONTRIBUTING.md](../CONTRIBUTING.md).
+`dist/`. For changing the code, see [CONTRIBUTING.md](https://github.com/Dzobash/apptrol/blob/main/CONTRIBUTING.md).
 
 ## First start
 

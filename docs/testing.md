@@ -19,11 +19,11 @@ of [requirements.md](requirements.md#51-quality-assurance).
 
 ## What runs in CI
 
-Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](../.github/workflows/ci.yml):
+Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](https://github.com/Dzobash/apptrol/blob/main/.github/workflows/ci.yml):
 
 | Job | Checks |
 |---|---|
-| **Lint** | `golangci-lint` with the rules in [`.golangci.yml`](../.golangci.yml) (includes `gofmt` and `goimports`) |
+| **Lint** | `golangci-lint` with the rules in [`.golangci.yml`](https://github.com/Dzobash/apptrol/blob/main/.golangci.yml) (includes `gofmt` and `goimports`) |
 | **Test** | Starts a headless PipeWire, then `go vet` and all tests including the audio integration tests, with the race detector, on the minimum Go version and the latest stable; coverage report in the job summary; fails below the minimum |
 | **Fuzz** | Runs every fuzz test (config, saved state, MIDI decoding, mixer) for 20 seconds |
 | **Vulnerability check** | `govulncheck` |

@@ -18,7 +18,7 @@ Apptrol reads a single [TOML](https://toml.io) file:
 
   Unknown settings are rejected on purpose: they are almost always typos.
 
-A complete example is in [`examples/config.toml`](../examples/config.toml).
+A complete example is in [`examples/config.toml`](https://github.com/Dzobash/apptrol/blob/main/examples/config.toml).
 
 > This page describes the Phase 1 format. Sections marked *(later)* are reserved and
 > will be documented when the phase that uses them is built.
@@ -101,7 +101,7 @@ Apptrol sets volumes the moment a control moves. Keep this in mind before you ra
   source, and keep the slider low until you have heard the result.
 
 You are responsible for the volumes you set. Apptrol is provided "as is", without
-warranty of any kind ([LICENSE](../LICENSE)).
+warranty of any kind ([LICENSE](https://github.com/Dzobash/apptrol/blob/main/LICENSE)).
 
 ### How matching works
 
