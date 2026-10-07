@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Software centers such as KDE Discover show Apptrol properly: its name, developer, icon,
+  description and links, instead of the file name (`apptrol_0…`) and "unknown author".
+  The packages install AppStream metadata and the app icon.
 - Every release file has a signed build provenance attestation, so a download can be
   checked for tampering, not only for damage:
   `gh attestation verify <file> --repo Dzobash/apptrol` (NFR-05, #74). The

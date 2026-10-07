@@ -96,14 +96,21 @@ damaged.
 From 0.2.1, every file also has a signed **attestation**: GitHub's confirmation that the
 file was built by this repository's release workflow. It shows the file was not swapped
 either, which a checksum alone cannot, as whoever could replace a package could replace
-`checksums.txt` too. It needs the [GitHub CLI](https://cli.github.com/) (`gh`, in most
-distributions' packages; log in once with `gh auth login`):
+`checksums.txt` too. It needs the [GitHub CLI](https://cli.github.com/) (`gh`) **2.49 or
+newer**; log in once with `gh auth login`:
 
 ```bash
 gh attestation verify apptrol_0.2.1_amd64.deb --repo Dzobash/apptrol
 ```
 
-It should end with `✓ Verification succeeded!`.
+It should end with `✓ Verification succeeded!`. Some distributions ship an older `gh`
+(e.g. 2.46, which answers `unknown command "attestation"`; check with `gh --version`);
+GitHub's own package source has the current one ([installing gh on Linux](https://github.com/cli/cli/blob/trunk/docs/install_linux.md)).
+
+Without `gh`: the repository's [Attestations](https://github.com/Dzobash/apptrol/attestations)
+page lists every attested file with its SHA-256. Compare it with
+`sha256sum apptrol_0.2.1_amd64.deb`; if they match, the file is the one the release
+workflow built.
 
 ## Upgrading
 

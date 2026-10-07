@@ -31,6 +31,8 @@ The packages install:
 | Program | `/usr/bin/apptrol` |
 | systemd user service | `/usr/lib/systemd/user/apptrol.service` |
 | Example configuration | `/usr/share/doc/apptrol/examples/config.toml` |
+| AppStream metadata (what software centers show) | `/usr/share/metainfo/io.github.dzobash.apptrol.metainfo.xml` |
+| Icon | `/usr/share/icons/hicolor/scalable/apps/io.github.dzobash.apptrol.svg` |
 | README, changelog, license | `/usr/share/doc/apptrol/` (license under `/usr/share/licenses/apptrol/` on rpm) |
 | Third-party licenses | `/usr/share/doc/apptrol/THIRD_PARTY_LICENSES` (`/usr/share/licenses/apptrol/` on rpm), and in the archives |
 
@@ -58,6 +60,10 @@ The service is **not** enabled automatically; each user runs
 2. On a branch `chore/release-v0.1.0`, in [CHANGELOG.md](https://github.com/Dzobash/apptrol/blob/main/CHANGELOG.md), add
    `## [0.1.0] - YYYY-MM-DD` below `## [Unreleased]`, so that the entries move under it
    and `[Unreleased]` stays, empty, above; update the links at the end of the file.
+   Add the release at the top of `<releases>` in
+   `packaging/appstream/io.github.dzobash.apptrol.metainfo.xml`
+   (`<release version="0.1.0" date="YYYY-MM-DD">` with its release page as `details`), so
+   software centers such as KDE Discover show it.
    Mark the phase as released in the
    [roadmap](roadmap.md), and redraw the controls picture if features changed
    (`docs/assets/photos/make-controls.py`). Open a pull request
