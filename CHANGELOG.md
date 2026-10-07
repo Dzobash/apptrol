@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Planned for 0.2.1: on a computer shared by several users, the controller follows the
+  person in front of it. After *Switch user*, Apptrol lets go of the controller so the
+  other user's own Apptrol can use it, and takes it back when you return; a new setting,
+  `[controller] at_login_screen`, decides whether it is kept at the login screen
+  (ADR 0029, #78).
 - A new [documentation overview](docs/README.md) groups every page by what you want to
   do: how-to guides, reference, explanation and the project's plans. The docs are ready
   to be shown on a future website (ADR 0028).

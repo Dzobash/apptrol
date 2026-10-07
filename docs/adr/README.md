@@ -32,8 +32,9 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0021](0021-no-desktop-gui.md) | No desktop GUI: a terminal setup and a tray icon in the service | Accepted |
 | [0022](0022-launcher-command-safety.md) | Launcher commands: the user's responsibility, and a denylist of catastrophic commands | Accepted |
 | [0023](0023-leds-after-resume-from-sleep.md) | Send every LED again when the computer wakes up, told by logind | Accepted |
-| [0024](0024-launchers-only-when-unlocked.md) | Launchers start apps only while the screen is unlocked, unless opted in | Accepted |
+| [0024](0024-launchers-only-when-unlocked.md) | Launchers start apps only while the screen is unlocked, unless opted in | Accepted; another user in front: see 0029 |
 | [0025](0025-state-kept-while-config-invalid.md) | The saved state is kept while the configuration is invalid | Accepted |
 | [0026](0026-separate-tables-for-apps-inputs-outputs.md) | Separate configuration tables for apps, inputs and outputs | Accepted |
 | [0027](0027-output-volume.md) | Output volume: a control for a whole output device | Accepted |
 | [0028](0028-docs-as-code-for-the-website.md) | Docs as code for the website; the roadmap as its single source | Accepted |
+| [0029](0029-controller-follows-the-user-in-front.md) | The controller follows the user in front of the computer | Accepted |

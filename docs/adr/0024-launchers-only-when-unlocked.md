@@ -111,3 +111,11 @@ INFO launchers allowed: the screen is unlocked apptrol.component=session apptrol
 - New requirements LAUNCH-13 to LAUNCH-15; checklist rows H-45 to H-47. The service
   tests' fake for `internal/session` reports `unlocked`, as tests of launchers need it.
 - ADR 0023's warning about a missing system bus now also names the blocked launchers.
+
+## Notes
+
+- 2026-10-07: While another user's session is in front, Apptrol now releases the
+  controller instead of keeping it with launchers blocked; "everything other than
+  launchers works whatever the screen state" holds only while this user's session, or
+  the login screen with `at_login_screen = "keep"`, is in front. See
+  [ADR 0029](0029-controller-follows-the-user-in-front.md) (#78).
