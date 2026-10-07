@@ -42,6 +42,21 @@ just too early. If the error is followed by `controller connected`, nothing is w
 ([#74](https://github.com/Dzobash/apptrol/issues/74)).* GitHub renamed `~` in the package
 names to `.`, so `sha256sum -c` found no file. Final releases were not affected.
 
+## Installing
+
+### Discover shows a downloaded package as `apptrol_0`, "Unknown author"
+
+*How KDE Discover shows a package file opened from a folder
+([#97](https://github.com/Dzobash/apptrol/issues/97)).*
+
+Opened in Discover, `apptrol_0.2.1_amd64.deb` appears as **`apptrol_0`** (the file name up
+to its first dot), with **Unknown author**, **License: Unknown** and no icon. For a package
+file, Discover reads only its version and size; the name, developer, icon and description
+that Apptrol's package carries (AppStream metadata) are not read from the file.
+
+**Nothing is wrong with the package:** installing it from Discover works as usual, and so
+does installing it in a terminal: `sudo apt install ./apptrol_*_amd64.deb`.
+
 ## Volume
 
 ### An app's own volume control works on top of Apptrol's
