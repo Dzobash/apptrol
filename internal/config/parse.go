@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,7 +17,8 @@ import (
 // rawConfig mirrors the file layout. Pointers distinguish "missing" from "empty".
 type rawConfig struct {
 	Controller struct {
-		Port *string `toml:"port"`
+		Port          *string `toml:"port"`
+		AtLoginScreen *string `toml:"at_login_screen"`
 	} `toml:"controller"`
 	Log struct {
 		Level    *string   `toml:"level"`
@@ -74,11 +76,12 @@ var (
 	controlPattern = regexp.MustCompile(`^(slider|knob)([1-9][0-9]*)$`)
 	sizePattern    = regexp.MustCompile(`^\s*(\d+)\s*(B|KB|MB|GB)?\s*$`)
 
-	validLevels       = []string{"debug", "info", "warn", "error"}
-	validOutputs      = []string{OutputJournald, OutputFile}
-	validJournaldFmts = []string{"text", "logfmt"}
-	validFileFmts     = []string{"text", "json", "logfmt"}
-	validTypes        = []string{TypeApp, TypeInput}
+	validLevels        = []string{"debug", "info", "warn", "error"}
+	validAtLoginScreen = []string{AtLoginScreenKeep, AtLoginScreenRelease}
+	validOutputs       = []string{OutputJournald, OutputFile}
+	validJournaldFmts  = []string{"text", "logfmt"}
+	validFileFmts      = []string{"text", "json", "logfmt"}
+	validTypes         = []string{TypeApp, TypeInput}
 )
 
 // problems collects validation messages.
@@ -113,6 +116,13 @@ func parse(path string, data []byte) (*Config, []string, error) {
 		cfg.Controller.Port = strings.TrimSpace(*raw.Controller.Port)
 		if cfg.Controller.Port == "" {
 			errs.add("controller.port: must not be empty")
+		}
+	}
+	cfg.Controller.AtLoginScreen = AtLoginScreenKeep
+	if p := raw.Controller.AtLoginScreen; p != nil {
+		cfg.Controller.AtLoginScreen = *p
+		if !slices.Contains(validAtLoginScreen, *p) {
+			errs.add("controller.at_login_screen: %q is not valid (use %s)", *p, orList(validAtLoginScreen)) // CFG-24
 		}
 	}
 

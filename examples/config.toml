@@ -8,6 +8,11 @@
 # ALSA card id of the controller (case-insensitive). It is the name in brackets
 # in `cat /proc/asound/cards`, e.g. " 1 [nanoKONTROL2   ]: USB-Audio - nanoKONTROL2".
 port = "nanoKONTROL2"
+# Several users on this computer? While another user's session is in front
+# (Switch user), Apptrol lets go of the controller, so their own Apptrol can
+# use it. At the login screen it keeps the controller unless this says
+# "release": "keep" (default) or "release".
+# at_login_screen = "keep"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 [log]

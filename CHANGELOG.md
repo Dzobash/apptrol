@@ -7,12 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `[controller] at_login_screen = "keep"` (default) or `"release"`: whether Apptrol keeps
+  the controller while the login screen is in front, e.g. after *Switch user* before
+  the other user has logged in (CFG-24, SVC-10).
+
 ### Changed
-- Planned for 0.2.1: on a computer shared by several users, the controller follows the
-  person in front of it. After *Switch user*, Apptrol lets go of the controller so the
-  other user's own Apptrol can use it, and takes it back when you return; a new setting,
-  `[controller] at_login_screen`, decides whether it is kept at the login screen
-  (ADR 0029, #78).
 - A new [documentation overview](docs/README.md) groups every page by what you want to
   do: how-to guides, reference, explanation and the project's plans. The docs are ready
   to be shown on a future website (ADR 0028).
@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with their causes and workarounds, including those found in 0.2.0.
 
 ### Fixed
+- On a computer with several users, the controller follows the person in front of it.
+  After *Switch user*, Apptrol turns its LEDs off and lets go of the controller, so the
+  other user's own Apptrol can use it; when you come back, it takes the controller again
+  within a few seconds. An Apptrol in a login without a screen (e.g. over SSH) never
+  takes it from the person at the desk. Before, the first user's Apptrol kept it, and
+  the second user's logged `controller_busy` every second (SVC-08 to SVC-12, ADR 0029,
+  #78).
 - A restart with an invalid configuration no longer erases the saved slider positions,
   mutes and solo. Apptrol keeps them unchanged while it waits for a valid configuration
   and applies them when one arrives; the log says `saved state kept until a valid
