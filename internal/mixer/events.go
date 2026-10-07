@@ -219,6 +219,15 @@ type SetLED struct {
 	On  bool
 }
 
+// ReleaseController tells the service to let go of the controller: another
+// user's session is in front (SVC-09, ADR 0029). The service turns every LED
+// off, then closes the controller and stops looking for it.
+type ReleaseController struct{}
+
+// TakeController tells the service to look for the controller again at once,
+// after ReleaseController; it connects as after being plugged in (LED-07).
+type TakeController struct{}
+
 // StateChanged tells the service that the persistent state changed; it saves it (debounced).
 type StateChanged struct{}
 
@@ -229,12 +238,14 @@ type Notice struct {
 	Attrs []any
 }
 
-func (SetStreamVolume) isAction() {}
-func (SetStreamMute) isAction()   {}
-func (SetDeviceVolume) isAction() {}
-func (SetDeviceMute) isAction()   {}
-func (SetLED) isAction()          {}
-func (StateChanged) isAction()    {}
-func (Notice) isAction()          {}
-func (PlayerCommand) isAction()   {}
-func (LaunchApp) isAction()       {}
+func (SetStreamVolume) isAction()   {}
+func (SetStreamMute) isAction()     {}
+func (SetDeviceVolume) isAction()   {}
+func (SetDeviceMute) isAction()     {}
+func (SetLED) isAction()            {}
+func (StateChanged) isAction()      {}
+func (Notice) isAction()            {}
+func (PlayerCommand) isAction()     {}
+func (LaunchApp) isAction()         {}
+func (ReleaseController) isAction() {}
+func (TakeController) isAction()    {}

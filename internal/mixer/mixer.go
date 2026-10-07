@@ -31,6 +31,9 @@ type Mixer struct {
 	deviceMuteSent map[string]bool        // last mute sent per device
 	leds           map[LED]bool           // last LED state sent
 	screen         ScreenState            // launchers start only while unlocked (LAUNCH-13, ADR 0024)
+	front          SeatChanged            // whose session is in front at the seat (SVC-08, ADR 0029)
+	released       bool                   // the controller was let go for another user (SVC-09)
+	keptAtLogin    bool                   // the login screen is in front and the controller kept (SVC-10)
 	// waiting is the saved state, kept unchanged while no valid configuration
 	// is loaded and applied with the first one; nil once applied (STATE-08,
 	// ADR 0025).
@@ -58,7 +61,8 @@ func New(setup Setup, saved State) *Mixer {
 		players:        map[string]*playerInfo{},
 		deviceMuteSent: map[string]bool{},
 		leds:           map[LED]bool{},
-		screen:         ScreenUnknown, // until the session adapter knows: fail closed (LAUNCH-13, ADR 0024)
+		screen:         ScreenUnknown,                    // until the session adapter knows: fail closed (LAUNCH-13, ADR 0024)
+		front:          SeatChanged{Front: FrontUnknown}, // until it knows: hold the controller as before (SVC-12)
 	}
 	m.setSetup(setup)
 	m.restore(saved)
@@ -112,7 +116,7 @@ func (m *Mixer) restore(saved State) {
 
 func (m *Mixer) setSetup(s Setup) {
 	m.setup = Setup{Layout: s.Layout, Targets: map[string]Target{}, Assignments: map[Control]string{}, Buttons: map[LED]Button{},
-		MediaPlayer: s.MediaPlayer, Launchers: map[LED]Launch{}}
+		MediaPlayer: s.MediaPlayer, Launchers: map[LED]Launch{}, ReleaseAtLoginScreen: s.ReleaseAtLoginScreen}
 	for l, b := range s.Buttons {
 		m.setup.Buttons[l] = b
 	}
@@ -237,6 +241,12 @@ func (m *Mixer) Handle(ev Event) []Action {
 		if m.screen == "" {
 			m.screen = ScreenUnknown
 		}
+	case SeatChanged:
+		if e.Front == "" {
+			e.Front = FrontUnknown
+		}
+		m.front = e
+		m.decideController(&a)
 	case ControllerDisconnected:
 		// The releases of held buttons will never arrive (INPUT-07).
 		before := m.talkOver()
@@ -1108,7 +1118,45 @@ func (m *Mixer) configChanged(a *actions, s Setup) {
 		}
 	}
 	m.applyChange(a, talkBefore, Control{}) // talk-over may have ended, or changed its volume
+	m.decideController(a)                   // at_login_screen may have changed (CFG-24)
 	a.add(StateChanged{})
+}
+
+// ---- the user in front (ADR 0029) --------------------------------------------
+
+// decideController lets go of the controller while another user's session is
+// in front at the seat, or the login screen with at_login_screen = "release",
+// and takes it back when that ends (SVC-08 to SVC-10). When it cannot be
+// told, the controller is held as before (SVC-12). Only a change is acted on
+// and logged, with whose session is in front as the reason.
+func (m *Mixer) decideController(a *actions) {
+	front := m.front.Front
+	release := front == FrontOtherUser || (front == FrontLoginScreen && m.setup.ReleaseAtLoginScreen)
+	keptAtLogin := front == FrontLoginScreen && !release
+	if keptAtLogin && !m.keptAtLogin {
+		a.notice(slog.LevelInfo, "login screen in front; keeping the controller",
+			logattr.KeySeatFront, string(front), logattr.KeyAtLoginScreen, "keep")
+	}
+	m.keptAtLogin = keptAtLogin
+	if release == m.released {
+		return
+	}
+	m.released = release
+	if !release {
+		a.notice(slog.LevelInfo, "this user is in front again; taking the controller", logattr.KeySeatFront, string(front))
+		a.add(TakeController{}) // the LEDs follow with ControllerConnected (LED-07)
+		return
+	}
+	attrs := []any{logattr.KeySeatFront, string(front)}
+	if m.front.SessionID != "" {
+		attrs = append(attrs, logattr.KeySessionID, m.front.SessionID)
+	}
+	a.notice(slog.LevelInfo, "another user is in front; releasing the controller", attrs...)
+	// The releases of held buttons will never arrive (INPUT-07).
+	before := m.talkOver()
+	m.endHeld(a, "controller_released", func(LED) bool { return true })
+	m.applyChange(a, before, Control{})
+	a.add(ReleaseController{}) // the service turns every LED off first (SVC-09)
 }
 
 // ---- helpers -----------------------------------------------------------------

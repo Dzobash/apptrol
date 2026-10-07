@@ -203,6 +203,9 @@ type Setup struct {
 	// Launchers are the buttons that start apps: Record, the Marker buttons
 	// (LED{Transport: …}) and R buttons (LED{Button: ButtonR, …}) (LAUNCH-01).
 	Launchers map[LED]Launch
+	// ReleaseAtLoginScreen lets go of the controller while the login screen
+	// is in front: [controller] at_login_screen = "release" (SVC-10, CFG-24).
+	ReleaseAtLoginScreen bool
 }
 
 // Launch is what a launcher button starts: an installed app by its desktop

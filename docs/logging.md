@@ -267,7 +267,7 @@ Apptrol's own:
 | `apptrol.state.solo` | The restored solo, e.g. `slider1` |
 | `apptrol.log.level` | The log level set with `--log-level` (on the start line) |
 | `apptrol.log.level_source` | Where the log level comes from: `flag` (`--log-level`) or `config` (on the start line) |
-| `apptrol.held.reason` | Why a held button (cough, talk-over, hold-to-talk) ended without being released: `controller_disconnected`, `config_changed` or `stopping` |
+| `apptrol.held.reason` | Why a held button (cough, talk-over, hold-to-talk) ended without being released: `controller_disconnected`, `controller_released` (another user came to the front), `config_changed` or `stopping` |
 | `apptrol.talk_over_percent` | The volume apps go down to during talk-over |
 | `apptrol.button_mode` | What a button from the configuration does: its mode, or `launcher` (on `button configured`) |
 | `apptrol.button_talk_over` | `true` when an M button also turns apps down (`talk_over = true`) |
@@ -290,6 +290,7 @@ Apptrol's own:
 | `apptrol.session.bus_address` | The system bus Apptrol connected to, to learn when the computer wakes up and whether the screen is locked |
 | `apptrol.session.resend` | After a wake-up, which repeat of sending every LED this is: `1`, `2` or `3` (0.5, 2 and 5 seconds after waking up; debug) |
 | `apptrol.session.id` | logind's id of your graphical login session, whose lock state Apptrol follows; on `apptrol.seat.front` records, the session in front |
+| `apptrol.controller.at_login_screen` | `[controller] at_login_screen`: `keep` (the controller stays at the login screen) or `release` |
 | `apptrol.seat.front` | Whose session is in front of the computer: `this_user`; `other_user` (Apptrol lets go of the controller); `login_screen` (kept or let go, as `[controller] at_login_screen` says); `nobody`; `unknown` (it cannot be told: the controller is held as before) |
 | `apptrol.screen.state` | `unlocked`; `locked`; `inactive` (another user's session is in front); `unknown` (it cannot be told). Launchers start apps only when `unlocked`, or with `when_locked` also when `locked` or `inactive` |
 | `apptrol.screen.reason` | Why the state is `unknown`: `no_system_bus`, `system_bus_lost`, `no_graphical_session` (e.g. logged in only over SSH) or `unreadable` |
