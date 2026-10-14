@@ -120,6 +120,8 @@ not hold back the media buttons. Output volume added on 2026-10-07 (#85, #86).
 - [ ] Config switch to turn on-screen feedback off
 - [ ] Desktop notifications when something needs attention: invalid configuration, controller unplugged ([ADR 0021](adr/0021-no-desktop-gui.md))
 - [ ] Show microphone button states and hints, e.g. "cough has no use with hold-to-talk: release M to mute" (ADR 0020)
+- [x] Decision record for three screen states: locked, switched away, logged out ([ADR 0030](adr/0030-three-screen-states.md))
+- [ ] At the login screen after *Switch user*, the media buttons and R send nothing; each press is logged as a warning (ADR 0030, #60)
 
 **Done when:** all Phase 1.6 MUST requirements are met, volume and mute changes show on
 KDE and as a notification on GNOME, configurations in the old form still load with a
