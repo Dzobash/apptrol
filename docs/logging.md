@@ -261,6 +261,7 @@ Apptrol's own:
 | `apptrol.controller.device` | The controller's device file, e.g. `/dev/snd/midiC1D0` |
 | `apptrol.controller.sound_cards` | The sound cards there are, when the controller is not found |
 | `apptrol.controller.reason` | Why the controller disconnected, e.g. `unplugged` |
+| `apptrol.controller.grace` | Why opening the controller is retried at debug, not reported as an error: `started` (Apptrol just started), `plugged_in` (just plugged in) or `taken_back` (just taken back from another user); for 5 seconds after that moment |
 | `apptrol.midi.controller` | A MIDI message's controller number |
 | `apptrol.midi.value` | A MIDI message's value |
 | `apptrol.midi.channel` | A MIDI message's channel (1–16) |

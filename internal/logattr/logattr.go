@@ -83,6 +83,7 @@ const (
 	KeyMutes        = "apptrol.state.mutes"     // number of restored mutes
 	KeySolo         = "apptrol.state.solo"      // restored soloed control, "" = none
 	KeyDisconnected = "apptrol.controller.reason"
+	KeyGrace        = "apptrol.controller.grace" // why a failed open is retried quietly: started, plugged_in or taken_back
 
 	KeyStreamCorked   = "apptrol.stream.corked"     // the stream is paused by its app
 	KeyLogLevel       = "apptrol.log.level"         // the log level in use
