@@ -1,0 +1,19 @@
+# Test fixture "broken": invalid on purpose, with three problems.
+# For: an invalid configuration at start and on reload (the previous settings and the
+# saved state stay), and `apptrol check` listing every problem at once.
+# Applied by docs/testing/apply-fixture.sh; format of 0.2.x (docs/config.md).
+# TestFixturesAreValid in internal/config checks that it is rejected with these problems.
+
+[log]
+level   = "debug"
+outputs = ["journald"]
+colour  = "yes"                    # problem 1: unknown setting
+
+[apps.tone-a]
+name  = "Test tone A"
+match = ["apptrol-test-a"]
+
+[layouts.default]
+slider1 = "tone-a"
+slider9 = "tone-a"                 # problem 2: there is no slider 9
+knob1   = "tone-c"                 # problem 3: no app with this id

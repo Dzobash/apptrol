@@ -16,6 +16,7 @@ Read these instead of guessing; this file only links to them:
 | Packages and event flow | [docs/architecture.md](docs/architecture.md) |
 | Phases and what is next | [docs/roadmap.md](docs/roadmap.md) |
 | Tests, CI, hardware checklist | [docs/testing.md](docs/testing.md) |
+| Manual test cases, fixtures, runs | [docs/testing/](docs/testing/strategy.md), [ADR 0031](docs/adr/0031-manual-test-cases-as-docs.md); `/test-run vX.Y.Z` |
 | Releases and release candidates | [docs/releasing.md](docs/releasing.md) |
 | Log format and attributes | [docs/logging.md](docs/logging.md), [ADR 0016](docs/adr/0016-log-records-follow-opentelemetry.md) |
 | Decisions | [docs/adr/](docs/adr/) |
@@ -58,6 +59,10 @@ Read these instead of guessing; this file only links to them:
   message, attributes ([ADR 0018](docs/adr/0018-media-players-through-mpris.md), point 9).
 - With every change, update what it affects: [CHANGELOG.md](CHANGELOG.md) (Unreleased),
   requirements, [docs/testing.md](docs/testing.md), architecture, README.
+- **Whenever a new feature or behaviour change is added, also add or update its test
+  cases and fixtures in [docs/testing/](docs/testing/cases/README.md)** (same format), in
+  addition to docs, roadmap, changelog and ADR. Every roadmap phase must have test cases
+  before release (QA-14, ADR 0031).
 - `docs/` is the website's source: follow
   [CONTRIBUTING.md › Documentation](CONTRIBUTING.md#documentation) (plain Markdown, links,
   a place in docs/README.md, phase name + Goal + Done when).
@@ -85,6 +90,8 @@ The owner wants to keep learning while working, not just receive finished result
   `make test-audio`. Before each one, say in one or two sentences what you are doing and
   why; afterwards, explain the result: what passed, what failed and what it means.
   Pushing still needs the owner's OK first (see Workflow).
+  **During a manual test run only** (`/test-run`): also `docs/testing/apply-fixture.sh`
+  and reading Apptrol's journal (`journalctl --user -u apptrol`).
 - **Hardware tests** (controller, LEDs, listening) need the owner: tell them exactly what
   to do and what to look for, then read the logs yourself and explain what they show.
 - No workarounds for bugs in other apps (e.g. Spotify). Document them in

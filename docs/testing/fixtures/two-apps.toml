@@ -1,0 +1,23 @@
+# Test fixture "two-apps": two test tones on sliders 1 and 2.
+# For: mute, solo, priority and saved state, where one app must be told from the other.
+# Applied by docs/testing/apply-fixture.sh; format of 0.2.x (docs/config.md).
+# TestFixturesAreValid in internal/config checks that it loads.
+
+[controller]
+port = "nanoKONTROL2"
+
+[log]
+level   = "debug"
+outputs = ["journald"]
+
+[apps.tone-a]
+name  = "Test tone A"
+match = ["apptrol-test-a"]         # mpv --audio-client-name=apptrol-test-a
+
+[apps.tone-b]
+name  = "Test tone B"
+match = ["apptrol-test-b"]         # mpv --audio-client-name=apptrol-test-b
+
+[layouts.default]
+slider1 = "tone-a"
+slider2 = "tone-b"

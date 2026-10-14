@@ -1,0 +1,18 @@
+# Test fixture "minimal": one test tone on slider 1, nothing else.
+# For: the controller, the service, sliders and LEDs with the least around them.
+# Applied by docs/testing/apply-fixture.sh; format of 0.2.x (docs/config.md).
+# TestFixturesAreValid in internal/config checks that it loads.
+
+[controller]
+port = "nanoKONTROL2"
+
+[log]
+level   = "debug"                  # the cases read the log
+outputs = ["journald"]
+
+[apps.tone-a]
+name  = "Test tone A"
+match = ["apptrol-test-a"]         # mpv --audio-client-name=apptrol-test-a
+
+[layouts.default]
+slider1 = "tone-a"

@@ -68,6 +68,10 @@ Repository settings that support this (**Settings → General → Pull Requests*
   `feat: …`, `fix: …`, `docs: …`, `refactor: …`, `test: …`, `ci: …`, `chore: …`.
 - Reference requirement IDs where they apply, e.g. `feat: exclusive solo toggle (SOLO-04, SOLO-05)`.
 - Add an entry under **Unreleased** in [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
+- **Whenever a new feature or behaviour change is added, also add or update its test
+  cases and fixtures in [docs/testing/](docs/testing/cases/README.md)** (same format), in
+  addition to docs, roadmap, changelog and ADR. Every roadmap phase must have test cases
+  before release (QA-14, [ADR 0031](docs/adr/0031-manual-test-cases-as-docs.md)).
 - Keep pull requests focused on one thing.
 
 ## Log messages
