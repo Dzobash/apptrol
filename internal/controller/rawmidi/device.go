@@ -40,7 +40,9 @@ const defaultLEDGap = 2 * time.Millisecond
 // ready yet": it is logged at debug and retried every defaultAccessPoll
 // (HW-08, ADR 0015). The same applies right after Take: the system may not
 // have given the rights to this user yet, and the other user's Apptrol may
-// not have let go ("busy") (SVC-11, ADR 0029).
+// not have let go ("busy") (SVC-11, ADR 0029). And right after Apptrol
+// starts: a second user's Apptrol starts with their login, while their
+// session is still coming to the front (HW-08, SVC-11, #104).
 const (
 	defaultAccessGrace = 5 * time.Second
 	defaultAccessPoll  = 100 * time.Millisecond
@@ -157,6 +159,20 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 	// taken is when Take ended a Release; zero if there was none.
 	var taken time.Time
 	wasReleased := false
+	started := time.Now()
+	// grace says why a failed open may mean "not ready yet": the moment it
+	// follows, or "" once all of them are longer ago than accessGrace.
+	grace := func() string {
+		switch {
+		case justAfter(taken, d.accessGrace):
+			return "taken_back"
+		case justAfter(appeared, d.accessGrace):
+			return "plugged_in"
+		case justAfter(started, d.accessGrace):
+			return "started"
+		}
+		return ""
+	}
 	for {
 		if d.released.Load() {
 			// Another user is in front: not looked for until Take (SVC-09).
@@ -182,18 +198,23 @@ func (d *Device) Run(ctx context.Context, out chan<- mixer.Event) error {
 				logattr.KeyPort, d.port, logattr.KeySoundCards, cardList(d.procDir))
 		} else if f, err := d.open(path); err != nil {
 			denied := errors.Is(err, syscall.EACCES) || errors.Is(err, syscall.EPERM)
+			why := grace()
 			switch {
-			case denied && (justAfter(appeared, d.accessGrace) || justAfter(taken, d.accessGrace)):
-				// Just plugged in, or just taken back from another user: the
-				// system grants access to the user in front a moment later
+			case denied && why != "":
+				// Just started, plugged in, or taken back from another user:
+				// the system grants access to the user in front a moment later
 				// (HW-08, SVC-11; ADR 0015, ADR 0029).
 				report(slog.LevelDebug, "controller not accessible yet; retrying",
-					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerDenied, err))
+					logattr.KeyMIDIDevice, path, logattr.KeyGrace, why,
+					logattr.Error(logattr.ErrControllerDenied, err))
 				wait = d.accessPoll
-			case errors.Is(err, syscall.EBUSY) && justAfter(taken, d.accessGrace):
-				// Just taken back: the other user's Apptrol may not have let go yet (SVC-11).
+			case errors.Is(err, syscall.EBUSY) && (why == "taken_back" || why == "started"):
+				// Just taken back, or started with a login: the other user's
+				// Apptrol may not have let go yet (SVC-11). Not after plugging
+				// in: then no other session can have it.
 				report(slog.LevelDebug, "controller still held by the other session; retrying",
-					logattr.KeyMIDIDevice, path, logattr.Error(logattr.ErrControllerBusy, err))
+					logattr.KeyMIDIDevice, path, logattr.KeyGrace, why,
+					logattr.Error(logattr.ErrControllerBusy, err))
 				wait = d.accessPoll
 			case errors.Is(err, syscall.EBUSY):
 				report(slog.LevelError, "the controller is in use by another program; retrying (`fuser <device>` names it)",

@@ -8,7 +8,7 @@ around. Found another one? Please [open an issue](https://github.com/Dzobash/app
 
 ### A "no permission" error when a second user logs in
 
-*In 0.2.1; to be fixed in 0.2.2 ([#104](https://github.com/Dzobash/apptrol/issues/104)).*
+*In 0.2.1; fixed in 0.2.2 ([#104](https://github.com/Dzobash/apptrol/issues/104)).*
 
 When a second user logs in through *Switch user*, their Apptrol starts at that moment and
 may log `no permission to open the controller; see the README section on permissions`,

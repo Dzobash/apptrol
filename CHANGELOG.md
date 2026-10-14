@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- When a second user logs in through *Switch user*, their Apptrol no longer logs a false
+  `no permission to open the controller` error before connecting. For 5 seconds after
+  Apptrol starts, "permission denied" and "busy" are retried quietly (at debug), as after
+  plugging in or taking the controller back; a real permission problem is reported after
+  those 5 seconds. The debug record says which moment it follows
+  (`apptrol.controller.grace`) (HW-08, SVC-11, #104).
+
 ## [0.2.1] - 2026-10-07
 
 ### Added

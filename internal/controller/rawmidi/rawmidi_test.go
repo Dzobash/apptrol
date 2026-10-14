@@ -359,13 +359,55 @@ func TestHW08_PermissionStillDeniedAfterTheGraceIsAnError(t *testing.T) {
 	}
 }
 
-func TestHW08_PermissionDeniedAtStartIsAnErrorAtOnce(t *testing.T) {
-	// The grace must not apply: the device was there at start.
-	h := newHarnessAt(t, make(chan mixer.Event, 64), true, denied, time.Minute)
-	eventually(t, "permission error", func() bool { return h.log.count("no permission") == 1 })
-	if n := h.log.count("not accessible yet"); n != 0 {
-		t.Errorf("treated as just plugged in although present at start:\n%s", h.log.String())
+// Found on the v0.2.1-rc3 hardware checklist (#104): a second user's Apptrol
+// starts with their login, before the system gives them the rights to the
+// controller.
+func TestHW08_PermissionDeniedRightAfterStartIsRetriedQuietly(t *testing.T) {
+	h := newHarnessAt(t, make(chan mixer.Event, 64), true, denied, time.Minute) // grace longer than the test
+	eventually(t, "debug retry", func() bool { return h.log.count("controller not accessible yet") == 1 })
+	h.set(true, nil) // granted
+	if ev := h.next(); ev != (mixer.ControllerConnected{}) {
+		t.Fatalf("got %v, want ControllerConnected", ev)
 	}
+	if n := h.log.count("no permission"); n != 0 {
+		t.Errorf("permission error logged right after the start:\n%s", h.log.String())
+	}
+	if !strings.Contains(h.log.String(), `level=DEBUG msg="controller not accessible yet; retrying" apptrol.component=controller apptrol.controller.device=/dev/snd/midiC1D0 apptrol.controller.grace=started error.type=controller_permission_denied`) {
+		t.Errorf("retry record:\n%s", h.log.String())
+	}
+}
+
+func TestHW08_PermissionDeniedAfterTheStartGraceIsAnError(t *testing.T) {
+	h := newHarnessAt(t, make(chan mixer.Event, 64), true, denied, 0) // grace 50 ms
+	eventually(t, "permission error", func() bool { return h.log.count("no permission") == 1 })
+	time.Sleep(30 * time.Millisecond) // several more polls
+	if n := h.log.count("no permission"); n != 1 {
+		t.Errorf("permission error logged %d times, want once", n)
+	}
+}
+
+func TestSVC11_BusyRightAfterStartIsRetriedQuietly(t *testing.T) {
+	h := newHarnessAt(t, make(chan mixer.Event, 64), true, busy, time.Minute) // grace longer than the test
+	eventually(t, "debug retry", func() bool { return h.log.count("controller still held by the other session") == 1 })
+	h.set(true, nil) // the other user's Apptrol let go
+	if ev := h.next(); ev != (mixer.ControllerConnected{}) {
+		t.Fatalf("got %v, want ControllerConnected", ev)
+	}
+	if n := h.log.count("in use by another program"); n != 0 {
+		t.Errorf("busy logged as an error right after the start:\n%s", h.log.String())
+	}
+	if h.log.count("apptrol.controller.grace=started") != 1 {
+		t.Errorf("the retry does not say it follows the start:\n%s", h.log.String())
+	}
+}
+
+func TestHW06_BusyRightAfterPluggingInIsAnErrorAtOnce(t *testing.T) {
+	// No other session can hold a controller that was just plugged in. The
+	// plug-in is the latest moment, so it wins over the start's grace.
+	h := newHarnessAt(t, make(chan mixer.Event, 64), false, nil, time.Minute)
+	eventually(t, "not-found warning", func() bool { return h.log.count("controller not found") == 1 })
+	h.set(true, busy)
+	eventually(t, "busy error", func() bool { return h.log.count("in use by another program") == 1 })
 }
 
 func TestStopWhileConnected(t *testing.T) {
@@ -577,7 +619,7 @@ func TestSVC11_BusyRightAfterTakeIsRetriedQuietly(t *testing.T) {
 	if n := h.log.count("in use by another program"); n != 0 {
 		t.Errorf("busy logged as an error right after Take:\n%s", h.log.String())
 	}
-	if !strings.Contains(h.log.String(), `level=DEBUG msg="controller still held by the other session; retrying" apptrol.component=controller apptrol.controller.device=/dev/snd/midiC1D0 error.type=controller_busy`) {
+	if !strings.Contains(h.log.String(), `level=DEBUG msg="controller still held by the other session; retrying" apptrol.component=controller apptrol.controller.device=/dev/snd/midiC1D0 apptrol.controller.grace=taken_back error.type=controller_busy`) {
 		t.Errorf("retry record:\n%s", h.log.String())
 	}
 }

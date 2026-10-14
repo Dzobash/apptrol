@@ -221,7 +221,11 @@ controller follows the person in front of the computer
   device's lock. `Take` looks again at once; the connect brings the LEDs back (LED-07).
   For 5 seconds after `Take`, "busy" (the other user's Apptrol has not let go yet) and
   "permission denied" (the system has not given this user the rights yet) are logged at
-  debug and retried every 100 ms, as for permissions after plugging in (HW-08).
+  debug and retried every 100 ms, as for permissions after plugging in (HW-08). The same
+  holds for 5 seconds after Apptrol starts, as a second user's Apptrol starts with their
+  login. The debug record names the moment in `apptrol.controller.grace` (`started`,
+  `plugged_in`, `taken_back`); "busy" is not retried quietly after plugging in, as no
+  other session can hold a controller just plugged in.
 
 ## Starting apps
 
