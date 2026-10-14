@@ -119,3 +119,7 @@ INFO launchers allowed: the screen is unlocked apptrol.component=session apptrol
   launchers works whatever the screen state" holds only while this user's session, or
   the login screen with `at_login_screen = "keep"`, is in front. See
   [ADR 0029](0029-controller-follows-the-user-in-front.md) (#78).
+- 2026-10-14: For `inactive` (switched away, the login screen in front), the media
+  buttons and R in mode `play_pause` are blocked as well: the session has lost the
+  speakers, so they would start playback nobody hears. Locked screens and launchers are
+  unchanged. See [ADR 0030](0030-three-screen-states.md) (#60).
