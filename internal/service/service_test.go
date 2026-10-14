@@ -63,6 +63,7 @@ type fakeController struct {
 	mu    sync.Mutex
 	leds  map[mixer.LED]bool
 	sets  map[mixer.LED]int // how often each LED was set
+	ons   map[mixer.LED]int // how often each LED was turned on
 	calls []string          // "release" (with "lit" if an LED was still on) and "take", in order
 }
 
@@ -110,6 +111,12 @@ func (f *fakeController) SetLED(l mixer.LED, on bool) error {
 		f.sets = map[mixer.LED]int{}
 	}
 	f.sets[l]++
+	if on {
+		if f.ons == nil {
+			f.ons = map[mixer.LED]int{}
+		}
+		f.ons[l]++
+	}
 	return nil
 }
 
@@ -117,6 +124,14 @@ func (f *fakeController) setCount(l mixer.LED) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.sets[l]
+}
+
+// onCount is how often l was turned on. Unlike setCount, it does not change
+// when the startup writes that set every LED off arrive late (#111).
+func (f *fakeController) onCount(l mixer.LED) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.ons[l]
 }
 
 func (f *fakeController) HasLED(l mixer.LED) bool { return l.Transport != mixer.TrackPrev }
@@ -560,7 +575,7 @@ record = { app = "discord" }
 `).start()
 	rec := mixer.LED{Transport: mixer.Record}
 	e.eventually("Record LED off at start", func() bool { return e.ctl.setCount(rec) > 0 && !e.ctl.led(rec) })
-	before := e.ctl.setCount(rec)
+	before := e.ctl.onCount(rec)
 	// Through the controller fake, so they arrive in order with the presses.
 	e.send(mixer.ScreenChanged{State: mixer.ScreenLocked})
 	e.send(mixer.TransportPressed{Button: mixer.Record})
@@ -568,7 +583,7 @@ record = { app = "discord" }
 	if n := e.launcher.count(); n != 0 {
 		t.Errorf("%d apps started at the lock screen", n)
 	}
-	if e.ctl.setCount(rec) != before {
+	if e.ctl.onCount(rec) != before {
 		t.Error("the Record LED flashed although nothing started")
 	}
 	e.send(mixer.ScreenChanged{State: mixer.ScreenUnlocked})
