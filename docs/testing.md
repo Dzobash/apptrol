@@ -44,6 +44,12 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
 
 ## Manual hardware checklist
 
+> This checklist is being turned into [test cases](testing/cases/README.md) with fixed
+> configurations and a record of every run ([ADR 0031](adr/0031-manual-test-cases-as-docs.md)):
+> Phase 1 first, then Phase 1.5. Until then, it is what a release is tested with; see
+> [Running the release tests](testing/how-to-run-release-tests.md) for the fixtures and
+> the run record.
+
 Complete this on a real nanoKONTROL2 (CC mode, Momentary buttons, LED mode *External*)
 before each release and note the result in the release description. Start from an empty
 state file unless a step says otherwise. For steps about volume, use a player that ties

@@ -1,0 +1,46 @@
+# Test fixture "full-layout": both test tones, a knob, the virtual microphone, a
+# launcher and a log file: every kind of control Apptrol has in 0.2.x.
+# For: knobs, max_volume, the input column, launchers, log outputs.
+# Applied by docs/testing/apply-fixture.sh; format of 0.2.x (docs/config.md).
+# TestFixturesAreValid in internal/config checks that it loads.
+
+[controller]
+port            = "nanoKONTROL2"
+at_login_screen = "keep"
+
+[log]
+level   = "debug"
+outputs = ["journald", "file"]
+
+[log.file]
+path      = "~/.local/state/apptrol/apptrol-test.log"
+format    = "json"
+max_size  = "1MB"
+max_files = 2
+
+[apps.tone-a]
+name  = "Test tone A"
+match = ["apptrol-test-a"]         # mpv --audio-client-name=apptrol-test-a
+
+[apps.tone-b]
+name       = "Test tone B"
+match      = ["apptrol-test-b"]    # mpv --audio-client-name=apptrol-test-b
+max_volume = 80                    # a cap: knob 2 at the top is 80 %. Amplifying above
+                                   # 100 % gets a fixture and case of its own, so no
+                                   # knob here can get loud by accident.
+
+[apps.mic]
+name  = "Test microphone"
+type  = "input"
+match = ["apptrol-test-mic"]       # the virtual input apply-fixture.sh creates
+
+[layouts.default]
+slider1 = "tone-a"
+knob2   = "tone-b"
+slider8 = "mic"
+
+[layouts.default.buttons]
+r1     = { mode = "off" }
+m8     = { mode = "hold_to_talk", talk_over = true }
+s8     = { mode = "off" }
+record = { command = ["notify-send", "Apptrol test", "Record pressed"] }

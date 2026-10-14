@@ -21,6 +21,8 @@ Getting a task done.
 - [Known issues](known-issues.md): problems with their causes and what to do
 - [Testing](testing.md): running the checks, what CI runs, writing tests, the hardware
   checklist
+- [Running the release tests](testing/how-to-run-release-tests.md): the manual test
+  cases on a release candidate, with fixtures, an exploratory charter and a run record
 - [Releasing](releasing.md): making a release and release candidates
 
 ## Reference
@@ -31,6 +33,10 @@ Looking something up.
 - [Reading the logs](logging.md): where the logs are, how to search them, and every
   attribute
 - [Requirements](requirements.md): every behaviour with its ID
+- [Test cases](testing/cases/README.md): the format of a manual test case, and the cases
+  by area
+- [Test run template](testing/runs/template.md): the record of a release's test run;
+  every run is in [testing/runs/](testing/runs/)
 - [Brand guide](brand.md): logo, colours, type and how to use them
 
 ## Explanation
@@ -39,6 +45,8 @@ Understanding why Apptrol works the way it does.
 
 - [Architecture](architecture.md): packages, event flow, and how Apptrol talks to the
   controller, the audio server and the desktop
+- [Testing strategy](testing/strategy.md): what is tested by hand and what
+  automatically, and why
 - [Decision records](adr/): every design decision with its reasons
 
 ## Project

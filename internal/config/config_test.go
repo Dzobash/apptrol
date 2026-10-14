@@ -60,6 +60,39 @@ func TestExampleConfigIsValid(t *testing.T) {
 	}
 }
 
+// The manual test cases run with these fixtures (ADR 0031), so they must keep up
+// with the format: every one loads, except "broken", which must fail for its three
+// problems and no others.
+func TestFixturesAreValid(t *testing.T) {
+	dir := filepath.Join("..", "..", "docs", "testing", "fixtures")
+	paths, err := filepath.Glob(filepath.Join(dir, "*.toml"))
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("no fixtures in %s: %v", dir, err)
+	}
+	for _, path := range paths {
+		name := strings.TrimSuffix(filepath.Base(path), ".toml")
+		t.Run(name, func(t *testing.T) {
+			_, _, err := Load(path)
+			if name != "broken" {
+				if err != nil {
+					t.Fatalf("must be valid:\n%v", err)
+				}
+				return
+			}
+			var ve *ValidationError
+			if !errors.As(err, &ve) {
+				t.Fatalf("want *ValidationError, got %v", err)
+			}
+			for _, want := range []string{"log.colour", "slider9", "tone-c"} {
+				requireProblem(t, ve.Problems, want)
+			}
+			if len(ve.Problems) != 3 {
+				t.Errorf("%d problems, want 3:\n  %s", len(ve.Problems), strings.Join(ve.Problems, "\n  "))
+			}
+		})
+	}
+}
+
 func TestDefaults(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", "/xdg/state")
 	cfg, _ := mustParse(t, minimal)
