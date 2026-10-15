@@ -10,6 +10,7 @@
 
 - [ ] `make check` passes locally
 - [ ] Tests added or updated for the changed behaviour
+- [ ] For a bug fix: a test that fails without the fix (QA-11)
 - [ ] Manual test cases and fixtures in `docs/testing/` added or updated (for a new feature or behaviour change)
 - [ ] `CHANGELOG.md` updated under **Unreleased** (for user-visible changes)
 - [ ] Docs updated (`docs/`, `README.md`) if behaviour or configuration changed
