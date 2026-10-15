@@ -6,7 +6,8 @@ Apptrol reads a single [TOML](https://toml.io) file:
 - Other location: `apptrol --config /path/to/config.toml`
 - If there is no file, Apptrol creates it from the example on its first start.
 - The file is **reloaded automatically** when saved. If the new version is invalid, the
-  error is logged and the previous configuration stays active.
+  error is logged and the previous configuration stays active. The same holds for a file
+  Apptrol may not read; it is loaded as soon as its permissions are fixed.
 - `apptrol check` validates the file without starting the service and shows what is
   assigned where. It lists every problem at once, for example:
 

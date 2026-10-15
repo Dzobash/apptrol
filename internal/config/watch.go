@@ -37,11 +37,18 @@ func statFile(path string) stamp {
 // file has stayed the same for settle, so a half-written file is not read.
 // Saving without changing the contents is not reported.
 //
+// After a failed read it reads the file again on every tick, even if the
+// stamp stays the same, because fixing the permissions (chmod, an ACL, the
+// directory) changes none of its fields. The error is reported once; the
+// first successful read is reported even if the contents are unchanged, so the
+// recovery shows in the log (CFG-06, #120).
+//
 // current is the contents already in use (nil if there is no file).
 func Watch(ctx context.Context, path string, current []byte, interval, settle time.Duration, out chan<- Change) {
 	last := statFile(path)
 	lastData := current
 	lastRemoved := current == nil && !last.exists
+	unreadable := false // the last read failed and was reported (CFG-06, #120)
 	tick := time.NewTicker(interval)
 	defer tick.Stop()
 	for {
@@ -51,21 +58,25 @@ func Watch(ctx context.Context, path string, current []byte, interval, settle ti
 		case <-tick.C:
 		}
 		now := statFile(path)
-		if now == last {
+		changed := now != last
+		if !changed && !unreadable {
 			continue
 		}
-		// Wait until the editor is done.
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(settle):
+		// Wait until the editor is done. A retry of an unreadable file that
+		// did not change needs no wait.
+		if changed {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(settle):
+				}
+				again := statFile(path)
+				if again == now {
+					break
+				}
+				now = again
 			}
-			again := statFile(path)
-			if again == now {
-				break
-			}
-			now = again
 		}
 		last = now
 
@@ -75,7 +86,7 @@ func Watch(ctx context.Context, path string, current []byte, interval, settle ti
 			if lastRemoved {
 				continue
 			}
-			lastRemoved, lastData = true, nil
+			lastRemoved, lastData, unreadable = true, nil, false
 			ch = Change{Removed: true}
 		default:
 			data, err := os.ReadFile(path)
@@ -83,13 +94,17 @@ func Watch(ctx context.Context, path string, current []byte, interval, settle ti
 				if os.IsNotExist(err) {
 					continue // gone again; the next tick sees it
 				}
+				if unreadable && !changed {
+					continue // still unreadable; already reported
+				}
+				unreadable = true
 				ch = Change{Err: err}
 				break
 			}
-			if !lastRemoved && bytes.Equal(data, lastData) {
+			if !lastRemoved && !unreadable && bytes.Equal(data, lastData) {
 				continue
 			}
-			lastRemoved, lastData = false, data
+			lastRemoved, lastData, unreadable = false, data, false
 			ch = Change{Data: data}
 		}
 		select {

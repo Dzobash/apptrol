@@ -116,3 +116,36 @@ func TestCFG06_WatchUnreadableFile(t *testing.T) {
 		t.Errorf("got %+v, want an error", c)
 	}
 }
+
+// Fixing the permissions with chmod changes neither size, modification time
+// nor inode, so the watcher must try the read again on its own (CFG-06, #120).
+func TestCFG06_WatchRecoversAfterPermissionsAreFixed(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read every file")
+	}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out := startWatch(t, path, []byte("x"))
+	noChange(t, out)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte("yy"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		t.Fatal(err)
+	}
+	if c := nextChange(t, out); c.Err == nil {
+		t.Fatalf("got %+v, want an error", c)
+	}
+	// The error is reported once, not on every tick.
+	noChange(t, out)
+
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if c := nextChange(t, out); string(c.Data) != "yy" || c.Err != nil || c.Removed {
+		t.Errorf("got %+v, want the new data", c)
+	}
+}

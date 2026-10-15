@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   live. Likewise, an app or input muted or unmuted outside Apptrol right after Apptrol's
   own change is now taken over. Apptrol now tells its own change by the value it set,
   not by the time (MUTE-07, INPUT-03, #118).
+- A configuration file that Apptrol could not read is loaded as soon as its permissions
+  are fixed (for example with `chmod 600`). Before, Apptrol kept the old settings until
+  the file was saved again or Apptrol restarted. The error is logged once, the recovery
+  as `configuration reloaded` (CFG-06, #120).
 
 ## [0.2.1] - 2026-10-07
 
