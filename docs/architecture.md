@@ -79,7 +79,9 @@ Bursts of slider events are coalesced before step 2 (CTRL-07): the loop reads ev
 already waiting, and of several positions of one control only the last is handled.
 
 The configuration file is checked once a second; after a change the loop reloads it
-(CFG-06). On SIGTERM or Ctrl+C the loop saves the state (including the solo, which the next
+(CFG-06). The check compares only inode, size and modification time, so after a file it
+could not read, the watcher reads it again every second until it can: fixing the
+permissions changes none of those (#120). On SIGTERM or Ctrl+C the loop saves the state (including the solo, which the next
 start restores), ends solo and turns the LEDs off before the adapters are stopped (SVC-05,
 STATE-04, SVC-07, LED-08).
 
