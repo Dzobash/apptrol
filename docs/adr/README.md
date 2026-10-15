@@ -39,4 +39,5 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0028](0028-docs-as-code-for-the-website.md) | Docs as code for the website; the roadmap as its single source | Accepted |
 | [0029](0029-controller-follows-the-user-in-front.md) | The controller follows the user in front of the computer | Accepted |
 | [0030](0030-three-screen-states.md) | Three screen states: locked, switched away, logged out | Accepted |
-| [0031](0031-manual-test-cases-as-docs.md) | Manual test cases as docs, with fixtures and a record of every run | Accepted |
+| [0031](0031-manual-test-cases-as-docs.md) | Manual test cases as docs, with fixtures and a record of every run | Accepted; how many run for a patch release: see 0032 |
+| [0032](0032-patch-releases-test-what-changed.md) | Patch releases test what changed, plus a smoke set | Accepted |

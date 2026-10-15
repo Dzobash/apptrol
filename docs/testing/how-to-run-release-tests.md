@@ -40,6 +40,33 @@ exploratory charter ─► --restore ─► summary, issues ─► commit runs/v
   (e.g. `runs/v0.2.2.md`; for a candidate, add its number in the title, `v0.2.2-rc1`) and
   fill in the header.
 
+## Choosing what to run
+
+A MINOR release (a new phase, `0.3.0`) runs every case. A PATCH release (`0.2.2`) runs
+the smoke set and the cases that check what changed
+([ADR 0032](../adr/0032-patch-releases-test-what-changed.md)):
+
+1. **List the changed requirements:** the IDs in the code commits since the last
+   release (not `docs:`, `test:`, `ci:` or `chore:`):
+
+   ```bash
+   git log --format=%s v0.2.1..HEAD | grep -E '^(fix|feat|perf|refactor)' \
+     | grep -oE '\b[A-Z]+-[0-9]+\b' | sort -u
+   ```
+
+2. **Find their cases:** every case whose `Covers:` (in the hardware checklist, the
+   *Req.* column) names one of those IDs.
+3. **Add the smoke set:** H-00, H-01, H-03 and H-08 (every control and LED, starting and
+   connecting, a slider's volume, M's mute).
+4. **Write the scope** in the run record: the IDs and the cases they gave. You may add
+   cases (a change without an ID, a failure that worries you), with the reason; never
+   leave one of the selected cases out.
+
+```text
+v0.2.2:  CFG-06 HW-08 INPUT-03 MEDIA-01 MUTE-07 SVC-11
+           → H-01 H-15 H-20 H-22 H-29 H-37 H-40 H-47  + smoke H-00 H-03 H-08  = 11
+```
+
 ## Running a case
 
 1. **Apply the fixture** named on its `Config:` line, unless it is already in place:

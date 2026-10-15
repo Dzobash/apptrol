@@ -364,7 +364,7 @@ How these are met is described in [ADR 0012](adr/0012-testing-strategy.md) and
 | QA-09 | Integration tests against a real, headless PipeWire SHOULD run in CI. They run only when `APPTROL_PULSE_TEST=1` is set. | SHOULD | 1 |
 | QA-10 | Automated tests (except integration tests) MUST NOT need network access, hardware or a desktop session. | MUST | 0 |
 | QA-11 | A bug fix MUST include a test that fails without the fix, named after the requirement it restores. Where no automated test can show the bug (hardware, another program), the fix MUST add a manual test case in [docs/testing/](testing/cases/README.md) instead (QA-14). | MUST | 1 |
-| QA-12 | Before each release, the manual hardware checklist in [testing.md](testing.md) MUST be completed on a real controller. | MUST | 1 |
+| QA-12 | Before each release, the manual hardware checklist in [testing.md](testing.md) MUST be completed on a real controller: all of it for a MINOR release; for a PATCH release, the smoke set and every step that checks a requirement changed since the last release (ADR 0032). | MUST | 1 |
 | QA-13 | Integration tests against a private D-Bus session bus (`dbus-run-session`) SHOULD run in CI. They run only when `APPTROL_DBUS_TEST=1` is set. | SHOULD | 1.5 |
 | QA-14 | Every new feature or change of behaviour MUST add or update its manual test cases and fixtures in [docs/testing/](testing/cases/README.md), in the format there. A phase MUST NOT be released without test cases for it; each release's run MUST be recorded in `docs/testing/runs/` (ADR 0031). | MUST | 1.5 |
 
