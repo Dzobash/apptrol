@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Phase 1 (0.1.0) and Phase 1.5 (0.2.0) released; output volume and separate configuration tables specified for Phase 1.6 (0.3.0); later phases outlined |
-| **Last updated** | 2026-10-07 |
+| **Last updated** | 2026-10-15 |
 | **Related** | [Roadmap](roadmap.md) · [Configuration reference](config.md) · [Decision records](adr/) |
 
 ## 1. Purpose
@@ -380,11 +380,14 @@ Desktops that do not pass the display to systemd user services (e.g. some Hyprla
 Sway setups) need one line in their config so started apps can open windows;
 [docs/install.md](install.md#launched-apps-do-not-open-a-window) explains it.
 
-### Phase 1.6 — On-screen display and output volume
+### Phase 1.6 — Output volume
 - Separate configuration tables and output volume: specified in full (CFG-18 to CFG-22,
   section 4.15; ADR 0026, ADR 0027).
+
+### Phase 1.7 — On-screen display and LEDs
 - On-screen feedback when a volume or mute changes: KDE's native volume OSD when available, a desktop notification elsewhere (e.g. GNOME).
 - A desktop notification when something needs attention, e.g. an invalid configuration or the controller unplugged (ADR 0021).
+- An LED language beyond on and off: steady, blinking by itself, blinking on request, per screen state; used for problems, solo on a silent app, the media keys' column and a service menu (#100, #101, #103, #108).
 
 ### Phase 2 — Layouts
 - Several layouts (e.g. *Work*, *Gaming*), each with its own assignments.

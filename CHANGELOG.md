@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through ydotool, or an app's own switch such as Handy's `--toggle-transcription`, and
   why there is no hold-to-talk for apps
   ([config.md](docs/config.md#a-button-as-a-key-or-shortcut)).
+- Roadmap: output volume comes first, in 0.3.0 (Phase 1.6, *These Go to Eleven*); the
+  on-screen display and the LED language follow in 0.4.0 (Phase 1.7, *Show Me What You
+  Got*). Layouts move to 0.5.0, setup and tray to 0.6.0.
 
 ### Fixed
 - When a second user logs in through *Switch user*, their Apptrol no longer logs a false
