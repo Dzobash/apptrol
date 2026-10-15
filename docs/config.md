@@ -309,6 +309,47 @@ it is not a child of Apptrol and keeps running when Apptrol stops or restarts.
 briefly on a press. Apps that need root (e.g. Synaptic) work through their desktop ID:
 they ask for your password in a dialog.
 
+### A button as a key or shortcut
+
+To your desktop, the controller is not a keyboard. It sends MIDI messages through ALSA,
+Linux's sound system, and only Apptrol reads them. Keyboard shortcuts and apps that wait
+for a key never see a button press. A launcher can still do what a key would do, in three
+ways:
+
+```toml
+[layouts.default.buttons]
+# A desktop shortcut, called by its name (KDE): no fake key press needed
+marker_set = { command = ["qdbus6", "org.kde.kglobalaccel", "/component/kwin",
+                          "invokeShortcut", "Overview"] }
+# A key press (here Ctrl+T) through ydotool
+r6 = { command = ["ydotool", "key", "29:1", "20:1", "20:0", "29:0"] }
+# An app's own command-line switch, e.g. voice typing with Handy
+r8 = { command = ["handy", "--toggle-transcription"] }
+```
+
+- **Prefer a shortcut's name or an app's own switch** over a fake key press. They do not
+  depend on your keyboard layout or on which window is in front. On KDE,
+  `qdbus6 org.kde.kglobalaccel /component/kwin shortcutNames` lists the names; other
+  programs have their own `/component/…`. Some systems call the tool `qdbus` or
+  `qdbus-qt6`.
+- **ydotool** works on Wayland and X11, but only while its service `ydotoold` runs and is
+  allowed to use `/dev/uinput`; see ydotool's own guide. The numbers are Linux key codes
+  (29 = left Ctrl, 20 = T; `:1` presses, `:0` releases).
+- **One press, one command.** A launcher runs when you press the button and does nothing
+  when you let go, so it cannot hold a key down. Each press starts a small program, which
+  is fine for shortcuts but too slow for fast repeated presses.
+- Like every launcher, these do nothing while the screen is locked, unless you set
+  `when_locked = true`.
+
+**No hold-to-talk for apps.** Handy's own shortcut records while you hold a key, but it
+cannot see the controller. From outside, Handy only offers "toggle": start if stopped,
+stop if recording. Holding a button would need two toggles, one on press and one on
+release. If a release were ever lost (the cable unplugged, Apptrol restarted, the screen
+locked during the hold), Handy would keep recording with nobody holding the button. So
+Apptrol offers press-to-start, press-again-to-stop only. The microphone's own
+`hold_to_talk` is different: Apptrol mutes the microphone itself and keeps it muted
+whenever it is not sure.
+
 > **Your commands are your responsibility.** A `command` runs exactly what you write,
 > with your user's rights. The authors accept no liability for what a command you
 > configure does. The list below is a safety net against accidents, not protection.
