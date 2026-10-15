@@ -8,15 +8,16 @@ Each phase ends with a tagged release. Detailed requirements live in
 | 0 | It's Dangerous to Go Alone! Take This. | Project setup | 0.0.1 | ✅ Done |
 | 1 | Turn Down for What | Core mixer: sliders, knobs, M, S | 0.1.0 | ✅ Released 2026-09-30 |
 | 1.5 | You Get a Button! And You Get a Button! | Media, launcher and column buttons | 0.2.0 | ✅ Released 2026-10-04 |
-| 1.6 | Show Me What You Got | On-screen display and output volume | 0.3.0 | ⚪ Planned |
-| 2 | Multiverse of Madness | Layouts | 0.4.0 | ⚪ Planned |
-| 3 | I'm In | Setup and tray | 0.5.0 | ⚪ Planned |
+| 1.6 | These Go to Eleven | Output volume | 0.3.0 | ⚪ Planned |
+| 1.7 | Show Me What You Got | On-screen display and LEDs | 0.4.0 | ⚪ Planned |
+| 2 | Multiverse of Madness | Layouts | 0.5.0 | ⚪ Planned |
+| 3 | I'm In | Setup and tray | 0.6.0 | ⚪ Planned |
 | – | Soon™ | Backlog | – | ⚪ Unscheduled |
 
 `1.0.0` is released once Phases 1–3 are stable and the config format is frozen.
 
 <p align="center">
-  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by version: sliders, knobs, S and M since 0.1.0; R buttons, the transport buttons as media keys, and Marker and Record as launchers since 0.2.0; Track and Cycle for layouts planned for 0.4.0" width="800">
+  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by version: sliders, knobs, S and M since 0.1.0; R buttons, the transport buttons as media keys, and Marker and Record as launchers since 0.2.0; Track and Cycle for layouts planned for 0.5.0" width="800">
 </p>
 
 ---
@@ -87,7 +88,7 @@ Requirement areas: DESK, MEDIA, LAUNCH, INPUT; CFG-13 to CFG-17, LOG-15, LOG-16,
 Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-media-players-through-mpris.md), [ADR 0019](adr/0019-launcher-and-column-buttons.md), [ADR 0020](adr/0020-microphone-column-buttons.md), [ADR 0022](adr/0022-launcher-command-safety.md), [ADR 0023](adr/0023-leds-after-resume-from-sleep.md), [ADR 0024](adr/0024-launchers-only-when-unlocked.md).
 
 - [x] Decision records (ADR 0017–0019), requirements and hardware checklist (H-23 to H-42)
-- [x] D-Bus connection in the service, following the media players (DESK-01 to DESK-03, MEDIA-01; also used by Phases 1.6 and 3)
+- [x] D-Bus connection in the service, following the media players (DESK-01 to DESK-03, MEDIA-01; also used by Phases 1.7 and 3)
 - [x] ◀◀ ▶▶ ■ ▶ via MPRIS; most recent player by default, optionally pinned; ▶ lit while it plays
 - [x] Record (●) and the Marker buttons start apps (desktop ID or command), each in its own systemd unit; already-running behaviour configurable
 - [x] `apptrol list apps [search]` shows desktop IDs; `apptrol check` warns about unknown ones
@@ -103,34 +104,50 @@ Design: [ADR 0017](adr/0017-desktop-services-over-dbus.md), [ADR 0018](adr/0018-
 **Done when:** all Phase 1.5 MUST requirements are met, and the full hardware checklist
 passes on an installed release candidate.
 
-## Phase 1.6 — Show Me What You Got
+## Phase 1.6 — These Go to Eleven
 
-*On-screen display and output volume · `0.3.0` · ⚪ Planned*
+*Output volume · `0.3.0` · ⚪ Planned*
 
-**Goal:** see every change on screen, and control whole outputs (speakers, headphones),
-not only apps.
+**Goal:** control whole outputs (speakers, headphones), not only apps.
 
-Split from Phase 1.5 on 2026-10-02: the on-screen display differs per desktop and should
-not hold back the media buttons. Output volume added on 2026-10-07 (#85, #86).
+Output volume added on 2026-10-07 (#85, #86). Split from the on-screen display on
+2026-10-15: output volume is fully designed and needs no other desktop to test, while the
+on-screen display still needs a trial on GNOME. The on-screen display moved to Phase 1.7.
 
 - [x] Decision records for separate configuration tables and output volume ([ADR 0026](adr/0026-separate-tables-for-apps-inputs-outputs.md), [ADR 0027](adr/0027-output-volume.md))
 - [ ] Separate tables `[apps]`, `[inputs]`, `[outputs]`; the old `type = "input"` still read with a warning until 1.0 (CFG-18 to CFG-22, #86)
 - [ ] Output volume on a slider or knob: a fixed device, or the system's default output; M, S and R on output columns; outputs in `apptrol list` (OUT-01 to OUT-13, #85)
-- [ ] On-screen feedback: KDE volume OSD, notification fallback for other desktops
-- [ ] Config switch to turn on-screen feedback off
-- [ ] Desktop notifications when something needs attention: invalid configuration, controller unplugged ([ADR 0021](adr/0021-no-desktop-gui.md))
-- [ ] Show microphone button states and hints, e.g. "cough has no use with hold-to-talk: release M to mute" (ADR 0020)
 - [x] Decision record for three screen states: locked, switched away, logged out ([ADR 0030](adr/0030-three-screen-states.md))
 - [ ] At the login screen after *Switch user*, the media buttons and R send nothing; each press is logged as a warning (ADR 0030, #60)
 
-**Done when:** all Phase 1.6 MUST requirements are met, volume and mute changes show on
-KDE and as a notification on GNOME, configurations in the old form still load with a
-warning, and the hardware checklist, including the new output rows, passes on an
-installed release candidate.
+**Done when:** all Phase 1.6 MUST requirements are met, configurations in the old form
+still load with a warning, and the hardware checklist, including the new output rows,
+passes on an installed release candidate.
+
+## Phase 1.7 — Show Me What You Got
+
+*On-screen display and LEDs · `0.4.0` · ⚪ Planned*
+
+**Goal:** see every change on screen, and let the LEDs say more than on and off.
+
+Split from Phase 1.5 on 2026-10-02, and from output volume on 2026-10-15: the on-screen
+display differs per desktop and needs a trial on GNOME first (#116).
+
+- [ ] Trial: on-screen display on KDE and GNOME, before its decision record
+- [ ] On-screen feedback: KDE volume OSD, notification fallback for other desktops ([#31](https://github.com/Dzobash/apptrol/issues/31))
+- [ ] Config switch to turn on-screen feedback off
+- [ ] Desktop notifications when something needs attention: invalid configuration, controller unplugged ([ADR 0021](adr/0021-no-desktop-gui.md))
+- [ ] Show microphone button states and hints, e.g. "cough has no use with hold-to-talk: release M to mute" (ADR 0020)
+- [ ] Decision record for the LED language: steady, blinking by itself, blinking on request, per screen state
+- [ ] LEDs show problems, solo on a silent app, the media keys' column, and a service menu ([#100](https://github.com/Dzobash/apptrol/issues/100), [#101](https://github.com/Dzobash/apptrol/issues/101), [#103](https://github.com/Dzobash/apptrol/issues/103), [#108](https://github.com/Dzobash/apptrol/issues/108))
+
+**Done when:** all Phase 1.7 MUST requirements are met, volume and mute changes show on
+KDE and as a notification on GNOME, the LED language is decided and built, and the
+hardware checklist passes on an installed release candidate.
 
 ## Phase 2 — Multiverse of Madness
 
-*Layouts · `0.4.0` · ⚪ Planned*
+*Layouts · `0.5.0` · ⚪ Planned*
 
 **Goal:** several sets of assignments (e.g. *Work*, *Gaming*), switched from the
 controller.
@@ -148,7 +165,7 @@ checklist passes on an installed release candidate.
 
 ## Phase 3 — I'm In
 
-*Setup and tray · `0.5.0` · ⚪ Planned*
+*Setup and tray · `0.6.0` · ⚪ Planned*
 
 **Goal:** set up Apptrol without editing a file, and see its status in the tray.
 

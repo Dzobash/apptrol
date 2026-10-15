@@ -406,5 +406,5 @@ shell rewrites it.
 
 | Section | Phase | Purpose |
 |---|---|---|
-| `[osd]` | 1.6 | On-screen feedback on/off. |
+| `[osd]` | 1.7 | On-screen feedback on/off. |
 | `[layouts.<name>]` switch options | 2 | Behaviour on layout switch, fixed values, per-control overrides. |

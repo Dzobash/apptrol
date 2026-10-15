@@ -35,3 +35,10 @@ Recording, output switching (R), bleep and Marker buttons stay in the backlog.
 - 2026-10-07: Each phase has a pop-culture name next to its topic, a Goal and a Done
   when line; the roadmap also lists what is out of roadmap and the scope. The phases
   themselves are unchanged. See [ADR 0028](0028-docs-as-code-for-the-website.md).
+- 2026-10-15: Phase 1.6 is split in two. Output volume and the separate configuration
+  tables stay in Phase 1.6, now *These Go to Eleven* (`0.3.0`); the on-screen display,
+  problem notifications and the LED language become Phase 1.7, *Show Me What You Got*
+  (`0.4.0`). Output volume is fully designed and tested on the reference system, while
+  the on-screen display needs a trial on GNOME first. Layouts move to `0.5.0`, setup and
+  tray to `0.6.0`; mentions of "Phase 1.6" for the on-screen display in earlier ADRs now
+  mean Phase 1.7.
