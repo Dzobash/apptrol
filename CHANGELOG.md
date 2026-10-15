@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plugging in or taking the controller back; a real permission problem is reported after
   those 5 seconds. The debug record says which moment it follows
   (`apptrol.controller.grace`) (HW-08, SVC-11, #104).
+- A hold-to-talk microphone unmuted outside Apptrol within a second of releasing M is
+  muted again; before, the unmute was taken for Apptrol's own and the microphone stayed
+  live. Likewise, an app or input muted or unmuted outside Apptrol right after Apptrol's
+  own change is now taken over. Apptrol now tells its own change by the value it set,
+  not by the time (MUTE-07, INPUT-03, #118).
 
 ## [0.2.1] - 2026-10-07
 
