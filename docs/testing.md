@@ -39,7 +39,11 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
   `internal/session/session_test.go`). CI runs both.
 - **Table-driven.** One test function, a table of cases — see `cmd/apptrol/main_test.go`.
 - **Name tests after requirements** where one applies, e.g. `TestSOLO05_PressingSoloAgainTurnsItOff`.
-- **Bug fixes** come with a test that fails without the fix.
+- **Bug fixes** come with a test that fails without the fix (QA-11). Write it first and
+  watch it fail, then fix: a test written after the fix can pass by accident. Name it
+  after the requirement the fix restores, e.g. `TestCFG06_WatchRecoversAfterPermissionsAreFixed`.
+  If only hardware or another program can show the bug, add a manual test case in
+  [docs/testing/](testing/cases/README.md) instead.
 - **Test behaviour, not lines.** Coverage is a safety net, not the goal.
 
 ## Manual hardware checklist
