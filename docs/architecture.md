@@ -120,8 +120,19 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
 - An app matches a stream when a configured fragment is found in `application.name` or
   `application.process.binary`; some apps (Spotify) only report the name.
 - Mute changes made by others (e.g. the desktop's volume applet) are reported to the mixer,
-  which takes them over (MUTE-07). A change within a second of Apptrol's own, or while the
-  new-stream guard is active, counts as Apptrol's.
+  which takes them over (MUTE-07). Apptrol remembers the mute it set last: the first change
+  to that value counts as Apptrol's own, a change to the other value as outside, even right
+  after Apptrol's (so a hold-to-talk input unmuted then is muted again, INPUT-03). The
+  expected value is dropped after a second, e.g. when the write failed. Mute writes and
+  event handling take turns, so a mute is never compared with a newer expectation than the
+  one it was read under. While the new-stream guard is active, every change counts as
+  Apptrol's.
+
+  ```
+  Apptrol mutes ──► want = muted (1 s)
+  change: muted   ──► Apptrol's own, want used up
+  change: unmuted ──► outside ──► mixer takes it over (hold-to-talk: muted again)
+  ```
 - Volume is set per stream and per input; mute likewise. The percentage is the one desktop
   mixers (KDE, GNOME, pavucontrol) show, so a slider at 50 % shows 50 % there. The top of
   a control is the app's `max_volume` (default 100 %, up to 150 %). All channels get the

@@ -60,14 +60,14 @@ func TestMEDIA10_StreamCorkedFromReply(t *testing.T) {
 func TestMEDIA10_StreamChanges(t *testing.T) {
 	playing := mixer.Stream{ID: 7, AppName: "Firefox"}
 	paused := mixer.Stream{ID: 7, AppName: "Firefox", Corked: true}
-	outside := func(uint32) bool { return true }
-	ours := func(uint32) bool { return false } // Apptrol muted it itself
+	outside := func(uint32, bool) bool { return true }
+	ours := func(uint32, bool) bool { return false } // Apptrol muted it itself
 	tests := []struct {
 		name     string
 		old      mixer.Stream
 		wasMuted bool
 		now      StreamInfo
-		outside  func(uint32) bool
+		outside  func(uint32, bool) bool
 		want     []mixer.Event
 	}{
 		{"nothing changed", playing, false, StreamInfo{Stream: playing}, outside, nil},
@@ -219,6 +219,57 @@ func TestListWithoutServer(t *testing.T) {
 		t.Error("List without a server succeeded")
 	}
 }
+
+// A mute change is Apptrol's own only if it has the value Apptrol set; the
+// other value is an outside change even right after Apptrol's, so a
+// hold-to-talk input unmuted then is muted again (MUTE-07, INPUT-03, #118).
+func TestMUTE07_OutsideMuteWithinOwnWindowIsReported(t *testing.T) {
+	tests := []struct {
+		name  string
+		set   *bool         // the mute Apptrol set; nil = none
+		age   time.Duration // how long ago
+		seen  []bool        // mute changes seen afterwards, in order
+		want  []bool        // outside, for each
+		guard bool          // the new-stream guard is active
+	}{
+		{"no own change", nil, 0, []bool{true}, []bool{true}, false},
+		{"echo of own mute", ptr(true), 0, []bool{true}, []bool{false}, false},
+		{"opposite right after own mute", ptr(true), 0, []bool{false}, []bool{true}, false},
+		{"change after the echo", ptr(true), 0, []bool{true, false}, []bool{false, true}, false},
+		{"own write never seen", ptr(true), 2 * ownMute, []bool{true}, []bool{true}, false},
+		{"new-stream guard", nil, 0, []bool{false}, []bool{false}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := New(quietLog(), "")
+			b.guards, b.devGuard = map[uint32]*guard{}, map[string]*guard{}
+			b.muteWant, b.devMuteWant = map[uint32]muteWant{}, map[string]muteWant{}
+			if tt.set != nil {
+				_ = b.Apply(mixer.SetStreamMute{StreamID: 7, Muted: *tt.set})
+				_ = b.Apply(mixer.SetDeviceMute{Device: "mic", Muted: *tt.set})
+				w := b.muteWant[7]
+				w.until = w.until.Add(-tt.age)
+				b.muteWant[7] = w
+				d := b.devMuteWant["mic"]
+				d.until = d.until.Add(-tt.age)
+				b.devMuteWant["mic"] = d
+			}
+			if tt.guard {
+				b.guards[7], b.devGuard["mic"] = newGuardNow(), newGuardNow()
+			}
+			for i, muted := range tt.seen {
+				if got := b.outsideStreamMute(7, muted); got != tt.want[i] {
+					t.Errorf("stream change %d to muted=%v: outside = %v, want %v", i, muted, got, tt.want[i])
+				}
+				if got := b.outsideDeviceMute("mic", muted); got != tt.want[i] {
+					t.Errorf("device change %d to muted=%v: outside = %v, want %v", i, muted, got, tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
 
 func TestPRIO03_GuardReappliesChangesToNewStreams(t *testing.T) {
 	g := newGuardNow()
