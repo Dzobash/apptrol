@@ -186,6 +186,8 @@ Ideas that were dropped or will not be done, and why.
 |---|---|---|
 | A desktop GUI program | Needs cgo, and would keep settings in a second place; `apptrol setup` and the tray icon replace it | [ADR 0021](adr/0021-no-desktop-gui.md) |
 | Moving an app to another output with R | R plays or pauses its app, or starts an app; no press is left for it | [#61](https://github.com/Dzobash/apptrol/issues/61) |
+| Apptrol as a virtual keyboard | Launchers already cover it: a desktop shortcut by its name, an app's own switch, or ydotool | [config.md](config.md#a-button-as-a-key-or-shortcut) |
+| Hold-to-talk for apps started by a launcher (e.g. voice typing) | Such apps only offer "toggle" from outside; one lost release would leave them recording | [config.md](config.md#a-button-as-a-key-or-shortcut) |
 | An LED mark or blinking on output columns | More complicated than it is worth; output columns light like app columns | [ADR 0027](adr/0027-output-volume.md) |
 | A microphone "bleep" and other audio effects | Audio effects and routing are out of scope | [requirements §2.3](requirements.md#23-never-in-scope) |
 | Windows and macOS | Apptrol is built on PipeWire, systemd and Linux's MIDI devices | [requirements §2.3](requirements.md#23-never-in-scope) |

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- How to use a button as a key or shortcut: a desktop shortcut by its name, a key press
+  through ydotool, or an app's own switch such as Handy's `--toggle-transcription`, and
+  why there is no hold-to-talk for apps
+  ([config.md](docs/config.md#a-button-as-a-key-or-shortcut)).
+
 ### Fixed
 - When a second user logs in through *Switch user*, their Apptrol no longer logs a false
   `no permission to open the controller` error before connecting. For 5 seconds after
