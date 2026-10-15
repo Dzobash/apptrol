@@ -161,6 +161,10 @@ The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
   `NameOwnerChanged` and `PropertiesChanged` (`PlaybackStatus`). The adapter only reports
   them; the mixer ignores players on other devices, proxies and duplicates, and matches
   the rest to controls through the apps' `match` lists (MEDIA-02, MEDIA-03).
+  At connect, the players already running are listed (`ListNames`, then `GetNameOwner`
+  and their properties for each). Every call has its own 2-second timeout, so a player
+  that does not answer is left out (a warning) without using up the time of the players
+  after it (MEDIA-01, #119).
 - **Commands** (`Play`, `Pause`, `Stop`, `Next`, `Previous`) are sent without waiting;
   a player that refuses is logged when its answer arrives.
 - **LEDs from players:** R and ▶ follow the players' `PlaybackStatus`, which arrives

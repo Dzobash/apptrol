@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are fixed (for example with `chmod 600`). Before, Apptrol kept the old settings until
   the file was saved again or Apptrol restarted. The error is logged once, the recovery
   as `configuration reloaded` (CFG-06, #120).
+- One media player that does not answer no longer hides the players listed after it
+  when Apptrol connects to the session bus; before, they stayed out of reach of the
+  media buttons until they restarted. A player that is skipped is now logged at debug
+  (MEDIA-01, #119).
 
 ## [0.2.1] - 2026-10-07
 

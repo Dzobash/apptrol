@@ -228,6 +228,8 @@ type tracker struct {
 
 // list finds every player with a running owner (MEDIA-01). Names that are
 // only activatable are not listed by ListNames, so none is started (DESK-03).
+// Every call has its own timeout: one player that does not answer must not
+// use up the time of the players listed after it (MEDIA-01, #119).
 func (t *tracker) list() ([]mixer.Player, error) {
 	var names []string
 	ctx, cancel := context.WithTimeout(t.ctx, callTimeout)
@@ -241,15 +243,27 @@ func (t *tracker) list() ([]mixer.Player, error) {
 		if !strings.HasPrefix(name, mprisPrefix) {
 			continue
 		}
-		var owner string
-		if err := t.conn.BusObject().CallWithContext(ctx, busName+".GetNameOwner", 0, name).Store(&owner); err != nil {
-			continue // gone in the meantime
+		owner, err := t.owner(name)
+		if err != nil {
+			// Usually gone in the meantime; it then sent NameOwnerChanged.
+			t.b.log.Debug("media player skipped; its owner is unknown", logattr.KeyPlayerBusName, name,
+				logattr.Error(logattr.ErrPlayerUnreadable, err))
+			continue
 		}
 		if p, ok := t.add(name, owner); ok {
 			out = append(out, p)
 		}
 	}
 	return out, nil
+}
+
+// owner asks the bus which connection owns name, with a timeout of its own.
+func (t *tracker) owner(name string) (string, error) {
+	ctx, cancel := context.WithTimeout(t.ctx, callTimeout)
+	defer cancel()
+	var owner string
+	err := t.conn.BusObject().CallWithContext(ctx, busName+".GetNameOwner", 0, name).Store(&owner)
+	return owner, err
 }
 
 // add reads a player's properties and remembers it. A player that does not

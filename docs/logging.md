@@ -90,7 +90,7 @@ A configuration with several problems gives one line per problem.
 | `led_failed` | An LED could not be set (debug level). |
 | `desktop_bus_unreachable` | No D-Bus session bus (is a desktop session running?); media players are not available, everything else works. |
 | `desktop_bus_lost` | The connection to the session bus broke; Apptrol reconnects by itself. |
-| `media_player_unreadable` | A media player did not answer when asked for its name; it is ignored. |
+| `media_player_unreadable` | A media player did not answer when asked for its name; it is ignored. At debug: the bus could not say who owns a player's name, usually because the player just closed; it is skipped. |
 | `media_command_failed` | A media player refused *Play* or *Pause*, or did not answer in time. |
 | `app_start_failed` | A launcher's app could not be started: not installed, a broken `Exec` line, a program that does not exist, or systemd refused; `exception.message` says which. |
 | `system_bus_unreachable` | No D-Bus system bus (warning). Launchers are blocked, because Apptrol cannot tell whether the screen is locked, and after the computer wakes up the LEDs are not sent again until they change; everything else works. |

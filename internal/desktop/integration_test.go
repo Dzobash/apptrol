@@ -183,6 +183,55 @@ func TestIntegration_MEDIA01_PlayersAreFoundAndFollowed(t *testing.T) {
 	}
 }
 
+// silentProps answers Properties.Get never: it blocks until the test ends,
+// like a hanging player.
+type silentProps struct{ release <-chan struct{} }
+
+func (s silentProps) Get(_, _ string) (dbus.Variant, *dbus.Error) {
+	<-s.release
+	return dbus.Variant{}, dbus.MakeFailedError(errors.New("released"))
+}
+
+// newSilentPlayer owns an MPRIS name but never answers Properties.Get.
+func newSilentPlayer(t *testing.T, suffix string) string {
+	t.Helper()
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release); _ = conn.Close() })
+	if err := conn.Export(silentProps{release}, mprisPath, ifaceProps); err != nil {
+		t.Fatal(err)
+	}
+	name := mprisPrefix + suffix
+	if reply, err := conn.RequestName(name, dbus.NameFlagDoNotQueue); err != nil || reply != dbus.RequestNameReplyPrimaryOwner {
+		t.Fatalf("RequestName(%s) = %v, %v", name, reply, err)
+	}
+	return name
+}
+
+// A player that does not answer is left out, but the players listed after it
+// are still found: each call has its own timeout (MEDIA-01, #119).
+func TestIntegration_MEDIA01_ASilentPlayerDoesNotHideOthers(t *testing.T) {
+	requireBus(t)
+	silent := newSilentPlayer(t, "apptroltest_a_silent") // sorts first
+	healthy := newPlayer(t, "apptroltest_b_healthy", "Healthy", "", "Paused")
+	h := runBus(t, "")
+
+	snap := h.snapshot()
+	if _, ok := find(snap.Players, silent); ok {
+		t.Errorf("snapshot %v contains the silent player", snap.Players)
+	}
+	want := mixer.Player{BusName: healthy.name, Identity: "Healthy", Status: "Paused"}
+	if got, ok := find(snap.Players, healthy.name); !ok || got != want {
+		t.Fatalf("snapshot %v, want it to contain %+v; log:\n%s", snap.Players, want, h.log.String())
+	}
+	if !strings.Contains(h.log.String(), "player_unreadable") {
+		t.Errorf("the silent player is not logged:\n%s", h.log.String())
+	}
+}
+
 func TestIntegration_DESK03_ActivatableNamesAreNotStarted(t *testing.T) {
 	requireBus(t)
 	h := runBus(t, "")
