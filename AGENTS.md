@@ -103,6 +103,23 @@ from one to another.
   written by Codex by Claude, before the owner merges it: a different model finds
   different bugs. Review against the requirements and this file, not only the diff. If
   the other provider is not available, tell the owner and leave the review open.
+- **Split the work by provider.** When the owner hands a release's issues to both
+  providers, some go to Codex and some to Claude, and each reviews the other's PRs.
+  Codex writes code with GPT-6-Astra. The reviewer's model depends on the PR (as of
+  2026-10; the owner names newer models when they come):
+
+  | Implementation | Routine PR review | Complex or important PR review |
+  |---|---|---|
+  | **GPT / Codex implements** | Claude **Sonnet 5.5** | Claude **Opus 5.5** |
+  | **Claude Code implements** | GPT **6.1-Sol** | GPT **6-Astra** |
+
+  Astra is the stronger GPT model, like Opus. **Routine:** docs, tests, small fixes.
+  **Complex or important:** a change of behaviour, a release, anything touching audio,
+  the controller, privacy or security. When unsure, ask the owner which one it is.
+- **Draft until reviewed.** Open a PR as a draft (`gh pr create --draft`) and mark it
+  ready (`gh pr ready <n>`) only after the other provider's review is done and its
+  findings are fixed, so it cannot be merged halfway. Fixes after a review are new
+  commits, not a rewritten history.
 
 ## Code and docs
 
