@@ -108,3 +108,7 @@ per release, and a rule that every feature adds its cases.
 - 2026-10-16: A PATCH release no longer runs every case: only the smoke set and the
   cases that check a changed requirement, with the scope in the run record
   ([ADR 0032](0032-patch-releases-test-what-changed.md)). A MINOR release still runs all.
+- 2026-10-16: The rules for coding agents moved from CLAUDE.md to AGENTS.md, which every
+  agent reads; CLAUDE.md imports it. Point 8's rule is there now. `/test-run` (point 9)
+  stays Claude-only; other agents follow the
+  [how-to](../testing/how-to-run-release-tests.md) directly.

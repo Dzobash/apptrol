@@ -78,3 +78,8 @@ For grouping the pages:
 - There is no tutorial yet; the first planned one is "From install to your first
   slider".
 - The phase plan of ADR 0011 is unchanged; it gets a dated note about the names.
+
+## Notes
+
+- 2026-10-16: The rules for coding agents moved from CLAUDE.md to AGENTS.md (CLAUDE.md
+  imports it). AGENTS.md now points to the documentation rules (point 6).
