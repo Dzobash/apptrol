@@ -17,6 +17,11 @@ of [requirements.md](requirements.md#51-quality-assurance).
 | `make vulncheck` | Scans dependencies for known vulnerabilities |
 | `make lint` | `golangci-lint` only ([install it](https://golangci-lint.run/welcome/install/) first) |
 
+The format check and the log-call audit skip directories whose names start with `.` or
+`_`, matching Go's package discovery, and also skip `dist` build output. For example,
+`.claude/worktrees/` and `.worktrees/` can contain another checkout's unfinished code
+without affecting these checks (QA-01, LOG-11, LOG-13, #130).
+
 ## What runs in CI
 
 Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](https://github.com/Dzobash/apptrol/blob/main/.github/workflows/ci.yml):
