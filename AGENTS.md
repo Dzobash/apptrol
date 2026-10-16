@@ -50,6 +50,35 @@ Read these instead of guessing; this file only links to them:
 - `gh pr edit` can fail without changing the PR; edit a PR's text with
   `gh api -X PATCH repos/Dzobash/apptrol/pulls/<n> -F body=@file` and read it back.
 
+## Finding the current state
+
+This file holds rules, not status. A new session (or an agent taking over a task) starts
+by looking the state up, instead of guessing or relying on an old chat:
+
+```bash
+git status --short --branch          # which branch, and is anything not committed?
+git fetch origin                     # the latest main, without leaving your branch
+gh pr list                           # open PRs: waiting for review, CI or merge?
+gh issue list                        # open work; the next release's issues
+git tag --sort=-creatordate | head   # last release and release candidates
+ls docs/testing/runs/                # manual test runs, one record per candidate
+```
+
+- Where to start depends on the checkout: in the main checkout, new work starts with
+  `git switch main && git pull`, then a new branch. In a worktree you were handed, stay
+  on its branch: `main` is checked out elsewhere, so `git switch main` fails there.
+- What the next release contains: [CHANGELOG.md](CHANGELOG.md) › Unreleased, and the
+  phase in [docs/roadmap.md](docs/roadmap.md).
+- A release candidate is tagged but not released while its run record in
+  `docs/testing/runs/` is missing or not passed; continue with the test run
+  ([how-to](docs/testing/how-to-run-release-tests.md)), then
+  [docs/releasing.md](docs/releasing.md).
+- Agents' private notes (Claude's memory, Codex's sessions) are not shared between
+  agents. Anything another agent needs goes into this file, an issue, a PR or the
+  handed-over task.
+- The local privacy check lives in `.git/hooks/` and is not cloned. If `git commit`
+  runs without it in a fresh clone, tell the owner; don't recreate its pattern list.
+
 ## Several agents at once
 
 The owner may run more than one agent on this repository at the same time and hand tasks
