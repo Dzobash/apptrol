@@ -61,12 +61,14 @@ git fetch origin                     # the latest main, without leaving your bra
 gh pr list                           # open PRs: waiting for review, CI or merge?
 gh issue list                        # open work; the next release's issues
 git tag --sort=-creatordate | head   # last release and release candidates
-ls docs/testing/runs/                # manual test runs, one record per candidate
+git ls-tree --name-only origin/main docs/testing/runs/   # test run records, as on main
 ```
 
 - Where to start depends on the checkout: in the main checkout, new work starts with
   `git switch main && git pull`, then a new branch. In a worktree you were handed, stay
   on its branch: `main` is checked out elsewhere, so `git switch main` fails there.
+- Release state is read from `origin/main`, not from your branch, which may be older:
+  e.g. `git show origin/main:CHANGELOG.md`. Your branch's files tell you about your task.
 - What the next release contains: [CHANGELOG.md](CHANGELOG.md) › Unreleased, and the
   phase in [docs/roadmap.md](docs/roadmap.md).
 - A release candidate is tagged but not released while its run record in
@@ -74,10 +76,11 @@ ls docs/testing/runs/                # manual test runs, one record per candidat
   ([how-to](docs/testing/how-to-run-release-tests.md)), then
   [docs/releasing.md](docs/releasing.md).
 - Agents' private notes (Claude's memory, Codex's sessions) are not shared between
-  agents. Anything another agent needs goes into this file, an issue, a PR or the
-  handed-over task.
-- The local privacy check lives in `.git/hooks/` and is not cloned. If `git commit`
-  runs without it in a fresh clone, tell the owner; don't recreate its pattern list.
+  agents. Shared rules go in this file; status and handover details go in an issue, a
+  PR or the handed-over task.
+- The local privacy check lives in the main checkout's git hooks, which its worktrees
+  share; a fresh clone does not have it. If `git commit` runs without it, tell the
+  owner; don't recreate its pattern list.
 
 ## Several agents at once
 
