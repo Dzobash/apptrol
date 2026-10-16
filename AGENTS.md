@@ -55,10 +55,12 @@ Read these instead of guessing; this file only links to them:
 The owner may run more than one agent on this repository at the same time and hand tasks
 from one to another.
 
-- **One task, one branch.** Each agent works on its own branch, or in its own worktree
-  under `.worktrees/` (ignored by git, and named after no tool, so every agent shares
-  it), never on a branch another agent is using. Check `git status` and the current
-  branch before the first edit; if there are changes you did not make, stop and ask.
+- **One task, one branch.** Each agent works on its own branch, or in its own worktree,
+  never on a branch another agent is using. A worktree stays where its tool makes it:
+  T3 Code in `~/.t3/worktrees/apptrol/`, Claude Code in `.claude/worktrees/`; one made
+  by hand (`git worktree add`) goes under `.worktrees/`, named after no tool. Git ignores
+  both folders inside the repository. Check `git status` and the current branch before
+  the first edit; if there are changes you did not make, stop and ask.
 - **Start another agent only when the owner asks** (a child task or a new thread), and
   say which tool and model it runs on.
 - **A handed-over task is written out in full.** The receiving agent has none of the
@@ -67,7 +69,8 @@ from one to another.
   worktree starts from the last commit, so changes that are not committed never reach it.
 - **The other provider reviews.** A PR written by Claude is reviewed by Codex, and one
   written by Codex by Claude, before the owner merges it: a different model finds
-  different bugs. Review against the requirements and this file, not only the diff.
+  different bugs. Review against the requirements and this file, not only the diff. If
+  the other provider is not available, tell the owner and leave the review open.
 
 ## Code and docs
 
@@ -150,8 +153,9 @@ The owner wants to keep learning while working, not just receive finished result
 - No workarounds for bugs in other apps (e.g. Spotify). Document them in
   [docs/known-issues.md](docs/known-issues.md) instead; the README lists only the most
   common ones in one line each.
-- Only access files inside this repository, never elsewhere in the home folder (not even
-  Go's module cache; look at libraries through the GitHub API).
+- Only access files inside this repository and its worktrees in
+  `~/.t3/worktrees/apptrol/`, never elsewhere in the home folder (not even the rest of
+  `~/.t3/`, nor Go's module cache; look at libraries through the GitHub API).
 - **Privacy:** never publish data from the owner's system in commits, docs, tests,
   issues or PRs: home paths, usernames, device names, hardware or device IDs, process
   numbers, media titles. Use placeholders (`<pid>`, `<phone name>`, `/home/you`);

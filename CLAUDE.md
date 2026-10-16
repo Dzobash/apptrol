@@ -11,7 +11,6 @@ through this import:
   walks through the cases one at a time, as the
   [how-to](docs/testing/how-to-run-release-tests.md) describes.
 - **Sub-agents** work in worktrees, one task and one branch each, as AGENTS.md › Several
-  agents at once says. Claude Code's own worktree tools still put them under
-  `.claude/worktrees/`, which git ignores too.
+  agents at once says (Claude Code's own worktree tools use `.claude/worktrees/`).
 - **Learning output style:** where it asks for `TODO(human)`, follow AGENTS.md instead:
   the owner decides in the chat, Claude writes the code.
