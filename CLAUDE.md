@@ -10,7 +10,8 @@ through this import:
 - **Manual test runs:** `/test-run vX.Y.Z` ([.claude/commands/test-run.md](.claude/commands/test-run.md))
   walks through the cases one at a time, as the
   [how-to](docs/testing/how-to-run-release-tests.md) describes.
-- **Sub-agents** work in worktrees under `.claude/worktrees/` (ignored by git), one task
-  and one branch each, as AGENTS.md › Several agents at once says.
+- **Sub-agents** work in worktrees, one task and one branch each, as AGENTS.md › Several
+  agents at once says. Claude Code's own worktree tools still put them under
+  `.claude/worktrees/`, which git ignores too.
 - **Learning output style:** where it asks for `TODO(human)`, follow AGENTS.md instead:
   the owner decides in the chat, Claude writes the code.

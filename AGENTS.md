@@ -56,14 +56,18 @@ The owner may run more than one agent on this repository at the same time and ha
 from one to another.
 
 - **One task, one branch.** Each agent works on its own branch, or in its own worktree
-  (under `.claude/worktrees/` or another ignored folder), never on a branch another agent
-  is using. Check `git status` and the current branch before the first edit; if there
-  are changes you did not make, stop and ask.
+  under `.worktrees/` (ignored by git, and named after no tool, so every agent shares
+  it), never on a branch another agent is using. Check `git status` and the current
+  branch before the first edit; if there are changes you did not make, stop and ask.
+- **Start another agent only when the owner asks** (a child task or a new thread), and
+  say which tool and model it runs on.
 - **A handed-over task is written out in full.** The receiving agent has none of the
   chat: give it the issue number, the requirement IDs, the branch name, what "done"
-  means and which rules matter most. It reads this file by itself.
-- **The other agent reviews.** A PR written by one agent is reviewed by another before
-  the owner merges it. Review against the requirements and this file, not only the diff.
+  means and which rules matter most. It reads this file by itself. Commit first: a new
+  worktree starts from the last commit, so changes that are not committed never reach it.
+- **The other provider reviews.** A PR written by Claude is reviewed by Codex, and one
+  written by Codex by Claude, before the owner merges it: a different model finds
+  different bugs. Review against the requirements and this file, not only the diff.
 
 ## Code and docs
 

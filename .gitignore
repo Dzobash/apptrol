@@ -15,6 +15,9 @@ coverage.*
 *.swp
 .DS_Store
 
-# Personal Claude Code settings, and worktrees of agents working side by side
+# Worktrees of agents working side by side, shared by every tool
+.worktrees/
+
+# Personal Claude Code settings, and worktrees made by Claude Code's own tools
 .claude/settings.local.json
 .claude/worktrees/
