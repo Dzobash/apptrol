@@ -21,11 +21,17 @@ Rules for this run (ADR 0031):
   place. Give the setup and the steps as the case writes them, then stop and wait for my
   result. After it, read the log since the case started and say whether it matches the
   expected lines. Write the result into the run record before the next case.
+- **Show the configuration.** Whenever a fixture is applied, show me the whole file now
+  in place, so I see what Apptrol loaded. When a case changes it, give me the exact
+  lines before and after, ready to paste; where saving the file is what the case tests
+  (a reload), I make the edit myself.
 - **Scope first** (ADR 0032). Before the first case, say whether $ARGUMENTS is a MINOR
   or a PATCH release. For a PATCH, list the requirement IDs of the code commits since
   the last release tag, the cases they select, and the smoke set, as in "Choosing what
   to run" of the how-to; show me the list and write it into the record's *Scope* row.
-  Run only those, unless I add cases.
+  Run only those, unless I add cases. The scope always includes the exploratory session:
+  its own 30 minutes after the cases, with the charter written before it starts, not
+  time gathered while running the cases.
 - **Order.** The area files in docs/testing/cases/, each from its first case: the ones
   that could leave audio muted or too loud come first. Ask before skipping a case.
   While a phase has no area files yet, use its rows of the hardware checklist in
@@ -35,6 +41,7 @@ Rules for this run (ADR 0031):
   numbers, user names, home paths or media titles from my system. Use placeholders
   (`<pid>`, `<device>`, `/home/you`); measured values keep their form, not their value.
   Check the file for them before suggesting a commit.
-- **At the end.** Run `apply-fixture.sh --restore`, help me write the exploratory
-  charter and its notes, write the summary, and list the failed and blocked cases with
-  their draft issues. Ask before committing, pushing or creating issues.
+- **At the end,** in this order: help me write the exploratory charter into the record;
+  then I explore for 30 minutes and you read the log with me; write the notes; run
+  `apply-fixture.sh --restore`; write the summary and list the failed and blocked cases
+  with their draft issues. Ask before committing, pushing or creating issues.

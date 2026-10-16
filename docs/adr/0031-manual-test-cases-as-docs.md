@@ -112,3 +112,7 @@ per release, and a rule that every feature adds its cases.
   agent reads; CLAUDE.md imports it. Point 8's rule is there now. `/test-run` (point 9)
   stays Claude-only; other agents follow the
   [how-to](../testing/how-to-run-release-tests.md) directly.
+- 2026-10-16: The exploratory session is its own 30 minutes after the cases, with the
+  charter written before it starts; time spent off-script while running the cases does
+  not count. The v0.2.2-rc1 run counted such time once, by the owner's decision, and
+  showed why the rule is needed.

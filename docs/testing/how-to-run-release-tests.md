@@ -92,7 +92,9 @@ area before the rest.
 ## The exploratory charter
 
 Each release also gets one **exploratory session**: 30 minutes without a script, looking
-for what no case describes. Write the charter in the run record before you start:
+for what no case describes. It is part of every scope, MINOR or PATCH, and a session of
+its own after the cases: time spent off-script while running the cases does not count.
+Write the charter in the run record before you start:
 
 ```text
 Explore   <the area or feature>
@@ -137,7 +139,8 @@ In a Claude Code session in this repository, type:
 /test-run v0.2.2
 ```
 
-Claude creates the run record from the template, applies each case's fixture, tells you
+Claude creates the run record from the template, applies each case's fixture and shows
+you the whole file, gives every change a case makes to it as lines to paste, tells you
 what to do, waits for your result, reads Apptrol's log, records the result and drafts an
 issue for a failure (it asks before creating it). At the end it writes the summary. The
 command is [`.claude/commands/test-run.md`](https://github.com/Dzobash/apptrol/blob/main/.claude/commands/test-run.md).
