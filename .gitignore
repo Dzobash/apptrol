@@ -15,7 +15,7 @@ coverage.*
 *.swp
 .DS_Store
 
-# Worktrees of agents working side by side, shared by every tool
+# Worktrees that agents make by hand (git worktree add), named after no tool
 .worktrees/
 
 # Personal Claude Code settings, and worktrees made by Claude Code's own tools
