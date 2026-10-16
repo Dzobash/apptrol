@@ -153,4 +153,6 @@ The owner wants to keep learning while working, not just receive finished result
   numbers, media titles. Use placeholders (`<pid>`, `<phone name>`, `/home/you`);
   measured data keeps its structure, not its values. This holds for values from logs
   the owner pastes too: made-up values in tests and comments, never the real ones.
-  Check the diff before every commit and push.
+  Check the diff before every commit and push. A local check also runs on commit and
+  push; if it blocks, tell the owner where and let them look. Never bypass it
+  (`--no-verify`), and never open its pattern list.
