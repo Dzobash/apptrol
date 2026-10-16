@@ -21,6 +21,10 @@ Rules for this run (ADR 0031):
   place. Give the setup and the steps as the case writes them, then stop and wait for my
   result. After it, read the log since the case started and say whether it matches the
   expected lines. Write the result into the run record before the next case.
+- **Show the configuration.** Whenever a fixture is applied, show me the whole file now
+  in place, so I see what Apptrol loaded. When a case changes it, give me the exact
+  lines before and after, ready to paste; where saving the file is what the case tests
+  (a reload), I make the edit myself.
 - **Scope first** (ADR 0032). Before the first case, say whether $ARGUMENTS is a MINOR
   or a PATCH release. For a PATCH, list the requirement IDs of the code commits since
   the last release tag, the cases they select, and the smoke set, as in "Choosing what
