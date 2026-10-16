@@ -41,6 +41,7 @@ Rules for this run (ADR 0031):
   numbers, user names, home paths or media titles from my system. Use placeholders
   (`<pid>`, `<device>`, `/home/you`); measured values keep their form, not their value.
   Check the file for them before suggesting a commit.
-- **At the end.** Run `apply-fixture.sh --restore`, help me write the exploratory
-  charter and its notes, write the summary, and list the failed and blocked cases with
-  their draft issues. Ask before committing, pushing or creating issues.
+- **At the end,** in this order: help me write the exploratory charter into the record;
+  then I explore for 30 minutes and you read the log with me; write the notes; run
+  `apply-fixture.sh --restore`; write the summary and list the failed and blocked cases
+  with their draft issues. Ask before committing, pushing or creating issues.
