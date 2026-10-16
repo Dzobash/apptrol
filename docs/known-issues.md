@@ -121,8 +121,8 @@ tab's audio.
 A browser offers its media player only while a tab plays or has played since the browser
 started. Tabs restored after a restart that have not started yet have none, so R does
 nothing (the debug log says `no media player for this app`). Start the video once; from
-then on R works. Chrome may start a restored video by itself, but only in the tab that was
-in front when it closed; a tab in the background is not even loaded until you open it.
+then on R works. Chrome may start a restored video by itself in the tab that was in front
+when it closed, and may leave restored background tabs unloaded until you open them.
 
 ### ■ only pauses Spotify
 

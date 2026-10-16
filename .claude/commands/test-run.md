@@ -29,7 +29,9 @@ Rules for this run (ADR 0031):
   or a PATCH release. For a PATCH, list the requirement IDs of the code commits since
   the last release tag, the cases they select, and the smoke set, as in "Choosing what
   to run" of the how-to; show me the list and write it into the record's *Scope* row.
-  Run only those, unless I add cases.
+  Run only those, unless I add cases. The scope always includes the exploratory session:
+  its own 30 minutes after the cases, with the charter written before it starts, not
+  time gathered while running the cases.
 - **Order.** The area files in docs/testing/cases/, each from its first case: the ones
   that could leave audio muted or too loud come first. Ask before skipping a case.
   While a phase has no area files yet, use its rows of the hardware checklist in

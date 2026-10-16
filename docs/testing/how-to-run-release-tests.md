@@ -92,7 +92,9 @@ area before the rest.
 ## The exploratory charter
 
 Each release also gets one **exploratory session**: 30 minutes without a script, looking
-for what no case describes. Write the charter in the run record before you start:
+for what no case describes. It is part of every scope, MINOR or PATCH, and a session of
+its own after the cases: time spent off-script while running the cases does not count.
+Write the charter in the run record before you start:
 
 ```text
 Explore   <the area or feature>

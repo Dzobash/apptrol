@@ -14,7 +14,7 @@ media titles. Use placeholders (`<pid>`, `<device>`, `/home/you`).
 | **PipeWire** | e.g. 1.4.x (`pactl info`, *Server Name*) |
 | **Hardware** | e.g. Korg nanoKONTROL2, USB 2 port |
 | **Install** | `.deb`, `.rpm` or built from source |
-| **Scope** | *Full* (MINOR), or *Patch*: the changed IDs, the cases they gave, the smoke set, and any case added with its reason ([ADR 0032](../../adr/0032-patch-releases-test-what-changed.md)) |
+| **Scope** | *Full* (MINOR), or *Patch*: the changed IDs, the cases they gave, the smoke set, and any case added with its reason ([ADR 0032](../../adr/0032-patch-releases-test-what-changed.md)); always also the 30-minute exploratory session |
 
 ## Results
 
