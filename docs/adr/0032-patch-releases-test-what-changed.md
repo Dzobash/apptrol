@@ -74,3 +74,11 @@ smoke:    H-00 H-03 H-08 (H-01 is in both)
 - The quality of a patch run depends on the commit messages naming their requirement IDs,
   which CLAUDE.md and CONTRIBUTING already ask for.
 - QA-12 changes: the whole checklist for MINOR releases, this selection for PATCH.
+
+## Notes
+
+- 2026-10-16: A release may differ from the candidate that passed in files that change
+  nothing that is built or packaged: tests (`*_test.go`), `.gitignore`, and check-only
+  `Makefile` targets such as `fmt` ([releasing.md](../releasing.md), step 3). Before, only
+  docs and the AppStream `<release>` entry were allowed. v0.2.2 was the first: since
+  v0.2.2-rc1 only such files had changed (#128, #131), so it was released without an rc2.

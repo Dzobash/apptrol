@@ -71,11 +71,14 @@ The service is **not** enabled automatically; each user runs
    (`docs/assets/photos/make-controls.py`). Open a pull request
    `chore: release v0.1.0`: `main` accepts changes only through pull requests.
 3. The release must contain the code of the candidate that passed: only docs may differ,
-   and the `<release>` entry in the AppStream file (it describes the version, it changes
-   no behaviour). After the merge, check it, then tag the merge commit:
+   the `<release>` entry in the AppStream file (it describes the version, it changes
+   no behaviour), and files that change nothing that is built or packaged: tests
+   (`*_test.go`), `.gitignore`, and check-only targets in the `Makefile` (such as `fmt`),
+   never the build or `third-party-licenses` targets. After the merge, check it, then tag
+   the merge commit:
    ```bash
    git switch main && git pull
-   git diff --stat v0.1.0-rc1 HEAD      # only *.md files, docs/ and packaging/appstream/ may appear
+   git diff --stat v0.1.0-rc1 HEAD      # *.md, docs/, packaging/appstream/, *_test.go, .gitignore, Makefile checks
    git tag -a v0.1.0 -m "v0.1.0"
    git push origin v0.1.0
    ```
