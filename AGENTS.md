@@ -117,9 +117,9 @@ from one to another.
   **Complex or important:** a change of behaviour, a release, anything touching audio,
   the controller, privacy or security. When unsure, ask the owner which one it is.
 - **Draft until reviewed.** Open a PR as a draft (`gh pr create --draft`) and mark it
-  ready (`gh pr ready <n>`) only after the other provider's review is done and its findings are fixed, so it
-  cannot be merged halfway. Fixes after a review are new commits, not a rewritten
-  history.
+  ready (`gh pr ready <n>`) only after the other provider's review is done and its
+  findings are fixed, so it cannot be merged halfway. Fixes after a review are new
+  commits, not a rewritten history.
 
 ## Code and docs
 
