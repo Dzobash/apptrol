@@ -155,10 +155,10 @@ warranty of any kind ([LICENSE](https://github.com/Dzobash/apptrol/blob/main/LIC
 
 ### When several devices have the same description
 
-Some audio interfaces offer several inputs that all carry the same description. A GoXLR
-Mini, for example, shows up as three capture devices, all described as "GoXLRMini". A match
-on `"GoXLR"` then catches all three; Apptrol uses the first one (by name) and logs a
-warning:
+Some audio interfaces offer several inputs that all carry the same description. A mixer
+like the GoXLR Mini, for example, can show up as three capture devices, all described as
+"USB Mixer" below. A match on `"Mixer"` then catches all three; Apptrol uses the first
+one (by name) and logs a warning:
 
 ```
 WARN several input devices match; using the first. Make the match more specific: …
@@ -168,10 +168,10 @@ Every device also has a **unique name**. `apptrol list` shows it in the NAME col
 
 ```
 Input devices. Put part of DESCRIPTION or NAME into an input's match list:
-  DESCRIPTION  NAME                                                        VOLUME  CONTROL
-  GoXLRMini    alsa_input.usb-TC-Helicon_GoXLRMini-00.HiFi__Headset__source  100%    slider8 (Microphone)
-  GoXLRMini    alsa_input.usb-TC-Helicon_GoXLRMini-00.HiFi__Line4__source    100%    -
-  GoXLRMini    alsa_input.usb-TC-Helicon_GoXLRMini-00.HiFi__Line5__source    100%    -
+  DESCRIPTION  NAME                                                    VOLUME  CONTROL
+  USB Mixer    alsa_input.usb-Vendor_USB_Mixer-00.HiFi__Mic__source    100%    slider8 (Microphone)
+  USB Mixer    alsa_input.usb-Vendor_USB_Mixer-00.HiFi__Line1__source  100%    -
+  USB Mixer    alsa_input.usb-Vendor_USB_Mixer-00.HiFi__Line2__source  100%    -
 ```
 
 Put the part of the name that tells them apart into `match`:
@@ -180,7 +180,7 @@ Put the part of the name that tells them apart into `match`:
 [apps.mic]
 name  = "Microphone"
 type  = "input"
-match = ["GoXLRMini-00.HiFi__Headset"]
+match = ["USB_Mixer-00.HiFi__Mic"]
 ```
 
 To find out which input is your microphone, assign one, speak, and move its slider:

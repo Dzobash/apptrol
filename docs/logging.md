@@ -163,8 +163,8 @@ DEBU volume changed apptrol.component=mixer apptrol.layout=default apptrol.contr
 Problems with the controller and PipeWire:
 
 ```text
-WARN controller not found; waiting for it to be plugged in apptrol.component=controller apptrol.controller.port=nanoKONTROL2 apptrol.controller.sound_cards="PCH, GoXLRMini"
-ERRO cannot connect to the audio server; retrying apptrol.component=audio error.type=audio_server_unreachable exception.message="connecting to the audio server: dial unix /run/user/1000/pulse/native: connect: no such file or directory"
+WARN controller not found; waiting for it to be plugged in apptrol.component=controller apptrol.controller.port=nanoKONTROL2 apptrol.controller.sound_cards="PCH, Mixer"
+ERRO cannot connect to the audio server; retrying apptrol.component=audio error.type=audio_server_unreachable exception.message="connecting to the audio server: dial unix /run/user/<uid>/pulse/native: connect: no such file or directory"
 ```
 
 ## Finding lines

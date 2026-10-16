@@ -45,13 +45,13 @@ func must(t *testing.T, err error) {
 }
 
 func TestHW05_FindByCardID(t *testing.T) {
-	proc, dev := fakeSys(t, map[int]string{0: "PCH", 1: "C922", 2: "nanoKONTROL2"},
+	proc, dev := fakeSys(t, map[int]string{0: "PCH", 1: "Webcam", 2: "nanoKONTROL2"},
 		"midiC2D1", "midiC2D0", "midiC0D0", "pcmC1D0c", "midiC2Dx")
 	got, err := Find(proc, dev, "nanokontrol2") // case does not matter
 	if err != nil || got != filepath.Join(dev, "midiC2D0") {
 		t.Errorf("Find = %q, %v", got, err)
 	}
-	if ids := Cards(proc); !reflect.DeepEqual(ids, []string{"C922", "PCH", "nanoKONTROL2"}) {
+	if ids := Cards(proc); !reflect.DeepEqual(ids, []string{"PCH", "Webcam", "nanoKONTROL2"}) {
 		t.Errorf("Cards = %v", ids)
 	}
 }
