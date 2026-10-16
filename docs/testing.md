@@ -55,7 +55,11 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
 > the run record.
 
 Complete this on a real nanoKONTROL2 (CC mode, Momentary buttons, LED mode *External*)
-before each release and note the result in the release description. Start from an empty
+before each release and note the result in the release description: all of it for a
+MINOR release; for a PATCH release, the smoke set (H-00, H-01, H-03, H-08) and the steps
+whose *Req.* names a requirement changed since the last release
+([Choosing what to run](testing/how-to-run-release-tests.md#choosing-what-to-run),
+ADR 0032). Start from an empty
 state file unless a step says otherwise. For steps about volume, use a player that ties
 its own volume to its stream, such as VLC or Elisa, not Spotify: Spotify resets its
 volume on every track change ([#67](https://github.com/Dzobash/apptrol/issues/67)), which

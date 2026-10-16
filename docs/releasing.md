@@ -56,7 +56,9 @@ The service is **not** enabled automatically; each user runs
 ## Making a release
 
 1. Check that CI is green on `main` and, from Phase 1 on, that the
-   [hardware checklist](testing.md#manual-hardware-checklist) passes.
+   [hardware checklist](testing.md#manual-hardware-checklist) passes: all of it for a
+   MINOR release, the smoke set and the changed requirements' steps for a PATCH release
+   ([ADR 0032](adr/0032-patch-releases-test-what-changed.md)).
 2. On a branch `chore/release-v0.1.0`, in [CHANGELOG.md](https://github.com/Dzobash/apptrol/blob/main/CHANGELOG.md), add
    `## [0.1.0] - YYYY-MM-DD` below `## [Unreleased]`, so that the entries move under it
    and `[Unreleased]` stays, empty, above; update the links at the end of the file.

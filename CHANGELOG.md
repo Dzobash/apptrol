@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Got*). Layouts move to 0.5.0, setup and tray to 0.6.0.
 - A bug fix must now come with a test that fails without the fix, or a manual test case
   where only hardware can show the bug (QA-11, was SHOULD).
+- A fix release is tested by hand with a smoke set and the steps that check what changed,
+  not the whole hardware checklist; a new phase still runs all of it (QA-12,
+  [ADR 0032](docs/adr/0032-patch-releases-test-what-changed.md)).
 
 ### Fixed
 - When a second user logs in through *Switch user*, their Apptrol no longer logs a false

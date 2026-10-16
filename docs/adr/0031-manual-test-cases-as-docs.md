@@ -102,3 +102,9 @@ per release, and a rule that every feature adds its cases.
 - New requirement QA-14; QA-12 points to the cases once the checklist is replaced.
 - The fixtures follow the configuration format: when the separate tables of ADR 0026
   arrive in 0.3.0, they change with it.
+
+## Notes
+
+- 2026-10-16: A PATCH release no longer runs every case: only the smoke set and the
+  cases that check a changed requirement, with the scope in the run record
+  ([ADR 0032](0032-patch-releases-test-what-changed.md)). A MINOR release still runs all.
