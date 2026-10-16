@@ -16,7 +16,7 @@ Rules for this run (ADR 0031):
   and read Apptrol's journal (`journalctl --user -u apptrol …`, or
   `journalctl _SYSTEMD_USER_UNIT=apptrol.service …` for several users). Say in one
   sentence before each what you are doing and why; afterwards, what it showed. Everything
-  else stays as CLAUDE.md says.
+  else stays as AGENTS.md says.
 - **One case at a time.** Apply the case's fixture only when it differs from the one in
   place. Give the setup and the steps as the case writes them, then stop and wait for my
   result. After it, read the log since the case started and say whether it matches the
