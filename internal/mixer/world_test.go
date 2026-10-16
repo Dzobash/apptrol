@@ -58,8 +58,8 @@ var (
 	discord = Stream{ID: 13, AppName: "WEBRTC VoiceEngine", Binary: "Discord"}
 	steam   = Stream{ID: 14, AppName: "SDL Application", Binary: "steam_game"}
 	viber   = Stream{ID: 15, AppName: "ViberPC", Binary: "Viber"}
-	goxlr   = Device{Name: "alsa_input.usb-TC-Helicon_GoXLRMini-00.HiFi__Mic__source", Description: "GoXLR Mini Mic"}
-	webcam  = Device{Name: "alsa_input.usb-046d_C922_Pro_Stream_Webcam-02.analog-stereo", Description: "C922 Pro Stream Webcam"}
+	goxlr   = Device{Name: "alsa_input.usb-Vendor_GoXLR_Mini-00.HiFi__Mic__source", Description: "GoXLR Mini Mic"}
+	webcam  = Device{Name: "alsa_input.usb-Brand_Webcam-02.analog-stereo", Description: "USB Webcam"}
 )
 
 func newWorld(t *testing.T, setup Setup, saved State) *world {

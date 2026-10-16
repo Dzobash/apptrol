@@ -224,7 +224,7 @@ func TestINPUT04_CoughDoesNotEndTalkOver(t *testing.T) {
 
 func TestINPUT04_LowestTalkOverVolumeApplies(t *testing.T) {
 	setup := testSetup()
-	setup.Targets["cam"] = Target{ID: "cam", Name: "Webcam", Kind: Input, Match: []string{"c922"}, TalkOverVolume: 10}
+	setup.Targets["cam"] = Target{ID: "cam", Name: "Webcam", Kind: Input, Match: []string{"webcam"}, TalkOverVolume: 10}
 	setup.Assignments[Control{Slider, 7}] = "cam"
 	setup.Buttons = map[LED]Button{s8: {Mode: ModeTalkOver}, {Button: ButtonS, Column: 7}: {Mode: ModeTalkOver}}
 	w := newWorld(t, setup, State{})

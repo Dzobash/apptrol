@@ -518,7 +518,7 @@ func TestCFG05_OneDevicePerInputAndWarnings(t *testing.T) {
 	s.Targets["mic"] = Target{ID: "mic", Name: "Microphone", Kind: Input, Match: []string{"usb"}}
 	w := newWorld(t, s, State{Positions: map[Control]int{{Slider, 8}: 127}})
 	w.do(AudioSnapshot{Devices: []Device{webcam, goxlr}})
-	// Both names contain "usb"; the first by name is the webcam ("alsa_input.usb-046d…").
+	// Both names contain "usb"; the first by name is the webcam ("alsa_input.usb-Brand…" sorts before "…usb-Vendor…").
 	if !near(w.devVol[webcam.Name], 1) || w.devVol[goxlr.Name] != 0 {
 		t.Errorf("device volumes = %v", w.devVol)
 	}
@@ -652,7 +652,7 @@ func TestCFG06_InputChangesDevice(t *testing.T) {
 	w := started(t)
 	w.press(ButtonM, 8) // mute the GoXLR
 	s := testSetup()
-	s.Targets["mic"] = Target{ID: "mic", Name: "Microphone", Kind: Input, Match: []string{"c922"}}
+	s.Targets["mic"] = Target{ID: "mic", Name: "Microphone", Kind: Input, Match: []string{"webcam"}}
 	w.do(ConfigChanged{s})
 	if w.devMute[goxlr.Name] {
 		t.Error("the old device was left muted")

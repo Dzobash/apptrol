@@ -20,7 +20,7 @@ func testListing() *pulse.Listing {
 			{Stream: mixer.Stream{ID: 60, AppName: "ViberPC", Binary: "Viber"}, Volume: 1, Muted: true, Sink: 9},
 		},
 		Sources: []pulse.SourceInfo{
-			{Device: mixer.Device{Name: "alsa_input.webcam", Description: "C922 Webcam"}, Volume: 0.8},
+			{Device: mixer.Device{Name: "alsa_input.webcam", Description: "Desk Webcam"}, Volume: 0.8},
 			{Device: mixer.Device{Name: "alsa_input.goxlr", Description: "GoXLR Mini Mic"}, Volume: 1},
 		},
 		Outputs: map[uint32]string{1: "GoXLR Music"},
@@ -54,7 +54,7 @@ func TestCFG10_ListShowsNamesAndControls(t *testing.T) {
 		"NAME     BINARY  VOLUME      OUTPUT       CONTROL",
 		"Spotify  -       71%         GoXLR Music  slider1 (Spotify)",
 		"ViberPC  Viber   100% muted  -            -",
-		"C922 Webcam (default)  alsa_input.webcam  80%     -",
+		"Desk Webcam (default)  alsa_input.webcam  80%     -",
 		"GoXLR Mini Mic         alsa_input.goxlr   100%    slider8 (Microphone)",
 		"Controls are from " + path,
 	} {
