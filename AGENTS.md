@@ -81,6 +81,10 @@ git ls-tree --name-only origin/main docs/testing/runs/   # test run records, as 
 - The local privacy check lives in the main checkout's git hooks, which its worktrees
   share; a fresh clone does not have it. If `git commit` runs without it, tell the
   owner; don't recreate its pattern list.
+- **At the end of a session,** when the owner asks whether everything is done, follow
+  [`.agents/skills/wrap-up/SKILL.md`](.agents/skills/wrap-up/SKILL.md): code, GitHub,
+  other agents, notes, handover, then a short report (Codex: `$wrap-up`, Claude Code:
+  `/wrap-up`).
 
 ## Several agents at once
 
