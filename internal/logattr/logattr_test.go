@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -113,7 +114,7 @@ func TestADR0016_LogCallsUseNamedKeys(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && (d.Name() == ".git" || d.Name() == "dist") {
+		if d.IsDir() && path != root && skipLogCheckDir(d.Name()) {
 			return filepath.SkipDir
 		}
 		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
@@ -240,5 +241,65 @@ func TestLOG11_NoNameIsThePrefixOfAnother(t *testing.T) {
 				t.Errorf("%q is the start of %q", a, b)
 			}
 		}
+	}
+}
+
+// skipLogCheckDir keeps other checkouts and build output out of the log audit
+// (LOG-11, LOG-13, ADR 0016, #130).
+func skipLogCheckDir(name string) bool {
+	return strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "dist"
+}
+
+// TestLOG13_LogCheckSkipsNonPackageDirs protects the audit from unrelated code
+// in nested worktrees (LOG-11, LOG-13, ADR 0016, #130).
+func TestLOG13_LogCheckSkipsNonPackageDirs(t *testing.T) {
+	for _, name := range []string{".worktrees", ".claude", "_x", ".git", "dist", ".future", "_future"} {
+		t.Run(name, func(t *testing.T) {
+			if !skipLogCheckDir(name) {
+				t.Errorf("directory %q must be skipped", name)
+			}
+		})
+	}
+	for _, name := range []string{"internal", "cmd", "distribution"} {
+		if skipLogCheckDir(name) {
+			t.Errorf("directory %q must be checked", name)
+		}
+	}
+}
+
+// TestQA01_FormatSkipsNonPackageDirs runs the real recipe so unrelated worktrees
+// cannot break formatting checks while ordinary files remain checked (QA-01, QA-11, #130).
+func TestQA01_FormatSkipsNonPackageDirs(t *testing.T) {
+	makefile, err := os.ReadFile(filepath.Join("..", "..", "Makefile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "Makefile"), makefile, 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{".worktrees", ".claude/worktrees", "_x", ".git", "dist", "internal/.future", "internal/_future"} {
+		path := filepath.Join(root, dir)
+		if err := os.MkdirAll(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(path, "bad.go"), []byte("package fixture;var x=1\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	run := func() ([]byte, error) {
+		cmd := exec.Command("make", "--no-print-directory", "fmt")
+		cmd.Dir = root
+		return cmd.CombinedOutput()
+	}
+	if out, err := run(); err != nil {
+		t.Fatalf("excluded directories broke fmt: %v\n%s", err, out)
+	}
+	path := filepath.Join(root, "internal", "bad.go")
+	if err := os.WriteFile(path, []byte("package fixture;var x=1\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run(); err == nil || !strings.Contains(string(out), "Needs gofmt:") || !strings.Contains(string(out), "internal/bad.go") {
+		t.Fatalf("ordinary unformatted file must fail with Needs gofmt: err=%v\n%s", err, out)
 	}
 }

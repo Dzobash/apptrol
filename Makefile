@@ -47,8 +47,11 @@ cover: ## Run tests with coverage, enforce COVERAGE_MIN, write coverage.html
 vet: ## Run go vet
 	go vet ./...
 
+# Match Go's dot/underscore directory exclusions; leave build output alone too (QA-01, #130).
 fmt: ## Check formatting (fails if files need gofmt)
-	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "Needs gofmt:"; echo "$$out"; exit 1; fi
+	@out=$$(find . -type d ! -path . \( -name '.*' -o -name '_*' -o -name dist \) -prune -o \
+		-type f -name '*.go' -exec gofmt -l {} +) || exit 1; \
+	if [ -n "$$out" ]; then echo "Needs gofmt:"; echo "$$out"; exit 1; fi
 
 lint: ## Run golangci-lint (install: https://golangci-lint.run/welcome/install/)
 	golangci-lint run ./...
