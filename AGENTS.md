@@ -57,8 +57,10 @@ from one to another.
 
 - **One task, one branch.** Each agent works on its own branch, or in its own worktree
   under `.worktrees/` (ignored by git, and named after no tool, so every agent shares
-  it), never on a branch another agent is using. Check `git status` and the current
-  branch before the first edit; if there are changes you did not make, stop and ask.
+  it), never on a branch another agent is using. A tool that picks its own worktree
+  folder may keep it (Claude Code uses `.claude/worktrees/`, also ignored). Check
+  `git status` and the current branch before the first edit; if there are changes you
+  did not make, stop and ask.
 - **Start another agent only when the owner asks** (a child task or a new thread), and
   say which tool and model it runs on.
 - **A handed-over task is written out in full.** The receiving agent has none of the
@@ -67,7 +69,8 @@ from one to another.
   worktree starts from the last commit, so changes that are not committed never reach it.
 - **The other provider reviews.** A PR written by Claude is reviewed by Codex, and one
   written by Codex by Claude, before the owner merges it: a different model finds
-  different bugs. Review against the requirements and this file, not only the diff.
+  different bugs. Review against the requirements and this file, not only the diff. If
+  the other provider is not available, tell the owner and leave the review open.
 
 ## Code and docs
 
