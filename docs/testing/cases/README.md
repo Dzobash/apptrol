@@ -69,6 +69,7 @@ leave audio muted or too loud come first.
 | LAUNCH | `launch.md` | Launcher buttons and the lock screen *(Phase 1.5)* |
 | INPUT | `input.md` | Microphone buttons and talk-over *(Phase 1.5)* |
 | NFR | `nfr.md` | Package copyright and license texts |
+| OUT | [out.md](out.md) | Output devices: listing, volume, M, S and R on output columns *(Phase 1.6)* |
 
 The area files are added in the pull requests that turn the old
 [hardware checklist](../../testing.md#manual-hardware-checklist) into cases: Phase 1

@@ -283,8 +283,8 @@ Apptrol's own:
 | `apptrol.stream.id` | PipeWire's number for a playing stream |
 | `apptrol.stream.app_name` | The name the app gives its stream (what `match` compares) |
 | `apptrol.stream.corked` | Whether the app has paused the stream (`true`) or it plays (`false`) |
-| `apptrol.device.name` | An input device's unique name |
-| `apptrol.device.description` | An input device's readable name |
+| `apptrol.device.name` | An input or output device's unique name (what `match` compares, with the description) |
+| `apptrol.device.description` | An input or output device's readable name |
 | `apptrol.device.matches` | All input devices that match |
 | `apptrol.audio.server` | The audio server and its version |
 | `apptrol.retry.delay_s` | Seconds until Apptrol tries again |

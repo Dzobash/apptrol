@@ -180,9 +180,76 @@ func TestErrorKinds(t *testing.T) {
 func TestSnapshot(t *testing.T) {
 	ev := Snapshot(
 		[]StreamInfo{{Stream: mixer.Stream{ID: 1, AppName: "a"}}},
-		[]SourceInfo{{Device: mixer.Device{Name: "n", Description: "d"}}})
-	if len(ev.Streams) != 1 || ev.Streams[0].ID != 1 || len(ev.Devices) != 1 || ev.Devices[0].Name != "n" {
+		[]SourceInfo{{Device: mixer.Device{Name: "n", Description: "d"}}},
+		[]SinkInfo{{Device: mixer.Device{Name: "out", Description: "Out"}}})
+	if len(ev.Streams) != 1 || ev.Streams[0].ID != 1 || len(ev.Devices) != 1 || ev.Devices[0].Name != "n" ||
+		len(ev.Outputs) != 1 || ev.Outputs[0].Name != "out" {
 		t.Errorf("Snapshot = %+v", ev)
+	}
+}
+
+func TestOUT12_SinkFromReply(t *testing.T) {
+	r := &proto.GetSinkInfoReply{
+		SinkIndex:      4,
+		SinkName:       "alsa_output.test.analog-stereo",
+		ChannelVolumes: proto.ChannelVolumes{proto.VolumeNorm / 4, proto.VolumeNorm / 4},
+		Mute:           true,
+		Properties:     props("device.description", "Test Speakers"),
+	}
+	want := SinkInfo{Device: mixer.Device{Name: "alsa_output.test.analog-stereo", Description: "Test Speakers"},
+		Index: 4, Volume: 0.25, Muted: true, Channels: 2}
+	if got := sinkFromReply(r); got != want {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+	// Without a description, the name stands in for it.
+	if got := sinkFromReply(&proto.GetSinkInfoReply{SinkName: "null"}); got.Description != "null" {
+		t.Errorf("description = %q", got.Description)
+	}
+}
+
+// An output device that appears, is renamed or goes away becomes one event;
+// a change of only its volume or mute becomes none (OUT-12, ADR 0027).
+func TestOUT12_OutputChanges(t *testing.T) {
+	speakers := mixer.Device{Name: "alsa_output.test.analog-stereo", Description: "Test Speakers"}
+	renamed := mixer.Device{Name: speakers.Name, Description: "Renamed Speakers"}
+	reads := func(d mixer.Device, err error) func(uint32) (SinkInfo, error) {
+		return func(index uint32) (SinkInfo, error) { return SinkInfo{Device: d, Index: index}, err }
+	}
+	tests := []struct {
+		name    string
+		known   bool // the tracker knows speakers at index 3
+		removed bool
+		read    func(uint32) (SinkInfo, error)
+		want    []mixer.Event
+		wantErr bool
+		kept    bool // speakers still tracked afterwards
+	}{
+		{"appeared", false, false, reads(speakers, nil), []mixer.Event{mixer.OutputAdded{Device: speakers}}, false, true},
+		{"volume or mute changed", true, false, reads(speakers, nil), nil, false, true},
+		{"renamed", true, false, reads(renamed, nil), []mixer.Event{mixer.OutputAdded{Device: renamed}}, false, true},
+		{"removed", true, true, nil, []mixer.Event{mixer.OutputRemoved{Name: speakers.Name}}, false, false},
+		{"gone before it was read", true, false, reads(mixer.Device{}, proto.ErrNoSuchEntity),
+			[]mixer.Event{mixer.OutputRemoved{Name: speakers.Name}}, false, false},
+		{"unknown removed", false, true, nil, nil, false, false},
+		{"read failed", true, false, reads(mixer.Device{}, proto.ErrAccessDenied), nil, true, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tr := &tracker{outputs: map[uint32]mixer.Device{}}
+			if tt.known {
+				tr.outputs[3] = speakers
+			}
+			got, err := outputChange(tr, 3, tt.removed, tt.read)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v", err)
+			}
+			if fmt.Sprint(got) != fmt.Sprint(tt.want) {
+				t.Errorf("events = %v, want %v", got, tt.want)
+			}
+			if _, kept := tr.outputs[3]; kept != tt.kept {
+				t.Errorf("tracked = %v, want %v", kept, tt.kept)
+			}
+		})
 	}
 }
 

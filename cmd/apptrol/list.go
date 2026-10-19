@@ -13,8 +13,9 @@ import (
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
-// cmdList shows the playing apps and input devices with the names used for
-// matching, and which control each one is on (CFG-10).
+// cmdList shows the playing apps, input devices and output devices with the
+// names used for matching, and which control each app and input is on
+// (CFG-10, OUT-12).
 func cmdList(configPath string, stdout io.Writer, list func() (*pulse.Listing, error)) error {
 	l, err := list()
 	if err != nil {
@@ -48,7 +49,7 @@ func printListing(w io.Writer, l *pulse.Listing, setup *mixer.Setup, note string
 	inputControl := map[string]string{}
 	if setup != nil {
 		m := mixer.New(*setup, mixer.State{})
-		m.Handle(pulse.Snapshot(l.Streams, l.Sources))
+		m.Handle(pulse.Snapshot(l.Streams, l.Sources, l.Sinks))
 		label := func(id string) string {
 			c, _ := m.ControlOf(id)
 			return fmt.Sprintf("%s (%s)", c, setup.Targets[id].Name)
@@ -81,7 +82,7 @@ func printListing(w io.Writer, l *pulse.Listing, setup *mixer.Setup, note string
 		fmt.Fprintln(tw, "  NAME\tBINARY\tVOLUME\tOUTPUT\tCONTROL")
 		for _, s := range l.Streams {
 			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\n", dash(s.AppName), dash(s.Binary),
-				volume(s.Volume, s.Muted), dash(l.Outputs[s.Sink]), streamControl(s.ID))
+				volume(s.Volume, s.Muted), dash(l.OutputDescription(s.Sink)), streamControl(s.ID))
 		}
 		if err := tw.Flush(); err != nil {
 			return err
@@ -104,6 +105,26 @@ func printListing(w io.Writer, l *pulse.Listing, setup *mixer.Setup, note string
 				ctl = "-"
 			}
 			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\n", desc, d.Name, volume(d.Volume, d.Muted), ctl)
+		}
+		if err := tw.Flush(); err != nil {
+			return err
+		}
+	}
+
+	// Output devices, with * on the one the system uses right now: an output
+	// with device = "default" follows it (OUT-12, ADR 0027).
+	fmt.Fprintln(w, "\nOutput devices (* = the system's default). Put part of DESCRIPTION or NAME into an output's match list:")
+	if len(l.Sinks) == 0 {
+		fmt.Fprintln(w, "  No output devices found.")
+	} else {
+		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(tw, "    DESCRIPTION\tNAME\tVOLUME")
+		for _, d := range l.Sinks {
+			mark := " "
+			if d.Name == l.DefaultSink {
+				mark = "*"
+			}
+			fmt.Fprintf(tw, "  %s %s\t%s\t%s\n", mark, d.Description, d.Name, volume(d.Volume, d.Muted))
 		}
 		if err := tw.Flush(); err != nil {
 			return err

@@ -28,6 +28,16 @@ type SourceInfo struct {
 	Channels int
 }
 
+// SinkInfo describes an output device (a PulseAudio "sink"): speakers,
+// headphones, or one output of an audio interface (OUT-12, ADR 0027).
+type SinkInfo struct {
+	mixer.Device
+	Index    uint32 // the server's index, used in change notifications and by streams
+	Volume   float64
+	Muted    bool
+	Channels int
+}
+
 func streamFromReply(r *proto.GetSinkInputInfoReply) StreamInfo {
 	return StreamInfo{
 		Stream: mixer.Stream{
@@ -62,6 +72,22 @@ func sourceFromReply(r *proto.GetSourceInfoReply) (SourceInfo, bool) {
 		Muted:    r.Mute,
 		Channels: len(r.ChannelVolumes),
 	}, true
+}
+
+// sinkFromReply converts an output device. A sink is never a monitor: the
+// monitor of an output is a source, which sourceFromReply leaves out, so
+// monitors are listed neither as inputs nor as outputs (OUT-12).
+func sinkFromReply(r *proto.GetSinkInfoReply) SinkInfo {
+	return SinkInfo{
+		Device: mixer.Device{
+			Name:        r.SinkName,
+			Description: prop(r.Properties, "device.description", r.SinkName),
+		},
+		Index:    r.SinkIndex,
+		Volume:   fromChannelVolumes(r.ChannelVolumes),
+		Muted:    r.Mute,
+		Channels: len(r.ChannelVolumes),
+	}
 }
 
 // prop returns a property as a string, or def if it is missing or empty.

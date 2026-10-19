@@ -2,10 +2,11 @@
 // protocol. PipeWire serves this protocol through pipewire-pulse (ADR 0003),
 // and plain PulseAudio speaks it natively (NFR-01).
 //
-// The package tracks playback streams ("sink inputs") and capture devices
-// ("sources"), turns changes into mixer events, and carries out the mixer's
-// volume and mute actions. Backend reconnects on its own when the server
-// restarts (SVC-04). List reads everything once for `apptrol list` (CFG-10).
+// The package tracks playback streams ("sink inputs"), capture devices
+// ("sources") and output devices ("sinks"), turns changes into mixer events,
+// and carries out the mixer's volume and mute actions. Backend reconnects on
+// its own when the server restarts (SVC-04). List reads everything once for
+// `apptrol list` (CFG-10, OUT-12).
 package pulse
 
 import (
@@ -117,7 +118,9 @@ func isServerError(err error) bool {
 func IsGone(err error) bool { return errors.Is(err, proto.ErrNoSuchEntity) }
 
 func (k *conn) subscribe() error {
-	return k.request(&proto.Subscribe{Mask: proto.SubscriptionMaskSinkInput | proto.SubscriptionMaskSource}, nil)
+	// Sinks are output devices (OUT-12, ADR 0027).
+	return k.request(&proto.Subscribe{Mask: proto.SubscriptionMaskSinkInput | proto.SubscriptionMaskSource |
+		proto.SubscriptionMaskSink}, nil)
 }
 
 func (k *conn) serverInfo() (*proto.GetServerInfoReply, error) {
@@ -179,16 +182,26 @@ func (k *conn) sourceByName(name string) (info SourceInfo, ok bool, err error) {
 	return info, ok, nil
 }
 
-func (k *conn) sinkNames() (map[uint32]string, error) {
+// sinks returns the output devices (OUT-12).
+func (k *conn) sinks() ([]SinkInfo, error) {
 	var r proto.GetSinkInfoListReply
 	if err := k.request(&proto.GetSinkInfoList{}, &r); err != nil {
 		return nil, err
 	}
-	names := make(map[uint32]string, len(r))
+	out := make([]SinkInfo, 0, len(r))
 	for _, s := range r {
-		names[s.SinkIndex] = prop(s.Properties, "device.description", s.SinkName)
+		out = append(out, sinkFromReply(s))
 	}
-	return names, nil
+	return out, nil
+}
+
+// sink returns one output device.
+func (k *conn) sink(index uint32) (SinkInfo, error) {
+	var r proto.GetSinkInfoReply
+	if err := k.request(&proto.GetSinkInfo{SinkIndex: index}, &r); err != nil {
+		return SinkInfo{}, err
+	}
+	return sinkFromReply(&r), nil
 }
 
 func (k *conn) setStreamVolume(index uint32, channels int, v float64) error {
@@ -208,14 +221,18 @@ func (k *conn) setSourceMute(name string, muted bool) error {
 	return k.request(&proto.SetSourceMute{SourceIndex: proto.Undefined, SourceName: name, Mute: muted}, nil)
 }
 
-// Snapshot converts listed streams and sources into the mixer's event.
-func Snapshot(streams []StreamInfo, sources []SourceInfo) mixer.AudioSnapshot {
-	ev := mixer.AudioSnapshot{Streams: make([]mixer.Stream, 0, len(streams)), Devices: make([]mixer.Device, 0, len(sources))}
+// Snapshot converts listed streams, sources and sinks into the mixer's event.
+func Snapshot(streams []StreamInfo, sources []SourceInfo, sinks []SinkInfo) mixer.AudioSnapshot {
+	ev := mixer.AudioSnapshot{Streams: make([]mixer.Stream, 0, len(streams)), Devices: make([]mixer.Device, 0, len(sources)),
+		Outputs: make([]mixer.Device, 0, len(sinks))}
 	for _, s := range streams {
 		ev.Streams = append(ev.Streams, s.Stream)
 	}
 	for _, d := range sources {
 		ev.Devices = append(ev.Devices, d.Device)
+	}
+	for _, d := range sinks {
+		ev.Outputs = append(ev.Outputs, d.Device)
 	}
 	return ev
 }

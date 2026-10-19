@@ -146,12 +146,21 @@ func waitSource(t *testing.T, name string, ok func(SourceInfo) bool) {
 
 func near(a, b float64) bool { return math.Abs(a-b) < 0.01 }
 
+// addSink creates a silent test output and returns a function that removes it.
+func addSink(t *testing.T, name, description string) func() {
+	t.Helper()
+	return loadModule(t, "module-null-sink", "sink_name="+name,
+		"sink_properties=device.description="+description)
+}
+
 func TestIntegration_List(t *testing.T) {
 	needServer(t)
 	name := unique("ListApp")
 	play(t, name, "listbin")
 	src := unique("list_mic")
 	addSource(t, src)
+	out := unique("apptrol_test_list_out")
+	addSink(t, out, "Apptrol-Test-Output")
 
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -159,7 +168,7 @@ func TestIntegration_List(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var sawStream, sawSource bool
+		var sawStream, sawSource, sawSink bool
 		for _, s := range l.Streams {
 			sawStream = sawStream || (s.AppName == name && s.Binary == "listbin" && s.Channels > 0)
 		}
@@ -169,17 +178,68 @@ func TestIntegration_List(t *testing.T) {
 				t.Errorf("monitor %q listed as an input", s.Name)
 			}
 		}
-		if l.Server == "" || l.Outputs == nil {
-			t.Errorf("listing lacks server or outputs: %+v", l)
+		// The test output is listed with its description; no monitor is
+		// listed as an output (OUT-12).
+		for _, s := range l.Sinks {
+			sawSink = sawSink || (s.Name == out && s.Description == "Apptrol-Test-Output" && s.Channels > 0)
+			if strings.HasSuffix(s.Name, ".monitor") {
+				t.Errorf("monitor %q listed as an output", s.Name)
+			}
 		}
-		if sawStream && sawSource {
+		if l.Server == "" {
+			t.Errorf("listing lacks the server: %+v", l)
+		}
+		if sawStream && sawSource && sawSink {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("stream seen %v, source seen %v", sawStream, sawSource)
+			t.Fatalf("stream seen %v, source seen %v, output seen %v", sawStream, sawSource, sawSink)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+// TestIntegration_OUT12_OutputDevices adds a silent test output and removes
+// it again, and expects the backend to report both. Its monitor, a source,
+// is never reported as an input.
+func TestIntegration_OUT12_OutputDevices(t *testing.T) {
+	needServer(t)
+	b := New(quietLog(), "")
+	events := make(chan mixer.Event, 256)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- b.Run(ctx, events) }()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Errorf("Run = %v", err)
+		}
+	})
+	next(t, events, func(mixer.AudioSnapshot) bool { return true })
+
+	out := unique("apptrol_test_out")
+	// Every event on the way is looked at, so a monitor reported as an input
+	// is not skipped unseen.
+	noMonitor := func(ev mixer.Event) {
+		if e, ok := ev.(mixer.DeviceAdded); ok && strings.HasPrefix(e.Device.Name, out) {
+			t.Errorf("the output's monitor was reported as an input: %+v", e)
+		}
+	}
+	remove := addSink(t, out, "Apptrol-Test-Output")
+	added := next(t, events, func(e mixer.Event) bool {
+		noMonitor(e)
+		a, ok := e.(mixer.OutputAdded)
+		return ok && a.Device.Name == out
+	}).(mixer.OutputAdded)
+	if added.Device.Description != "Apptrol-Test-Output" {
+		t.Errorf("output description = %q", added.Device.Description)
+	}
+	remove()
+	next(t, events, func(e mixer.Event) bool {
+		noMonitor(e)
+		r, ok := e.(mixer.OutputRemoved)
+		return ok && r.Name == out
+	})
 }
 
 // TestIntegration_MEDIA10_Cork pauses and resumes a real stream, as a browser
@@ -357,6 +417,9 @@ func TestIntegration_Backend(t *testing.T) {
 	}
 	if id2 == 0 {
 		t.Fatalf("snapshot after reconnect lacks %q", name2)
+	}
+	if len(snap.Outputs) == 0 {
+		t.Error("snapshot after reconnect lacks the output devices") // addSource's test output is still there
 	}
 	if err := b.Apply(mixer.SetStreamVolume{StreamID: id2, Volume: 0.3}); err != nil {
 		t.Fatalf("Apply after reconnect: %v", err)

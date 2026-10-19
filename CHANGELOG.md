@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `apptrol list` shows the output devices (speakers, headphones, each output of an
+  audio interface) with their description, unique name and volume; `*` marks the one the
+  system uses right now. Monitors are listed neither as inputs nor as outputs. With
+  `level = "debug"`, the log names every output device Apptrol sees,
+  `output device not on a control` (OUT-12, OUT-13,
+  [ADR 0027](docs/adr/0027-output-volume.md), Refs #85).
+
 ### Changed
 - At the login screen after *Switch user* (with `at_login_screen = "keep"`), ▶, ■, ◀◀, ▶▶
   and R in mode `play_pause` send nothing: the session has lost the speakers there, so
