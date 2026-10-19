@@ -23,11 +23,6 @@ How the service is put together. Decisions and their reasons are in
    the screen locked / unlocked)
 ```
 
-The config path accepts all three target tables, including output selectors. Output
-audio events and actions are added separately in #85 (ADR 0027); this config change
-adds no adapter interface or mixer behaviour. `Config.Setup()` temporarily omits
-outputs, with a load/check warning; #85 replaces that guard before 0.3.0 RC1.
-
 - **`mixer`** holds all behaviour: assignments, mute, solo, the held microphone buttons,
   which media player belongs to which control, what R, the media keys and the launcher
   buttons do (and what they may do in each screen state), and every LED. It receives events and returns actions. It does no I/O and
@@ -105,7 +100,8 @@ valid configuration applies the kept state like a normal start (STATE-08).
 own tables (CFG-18, [ADR 0026](adr/0026-separate-tables-for-apps-inputs-outputs.md)), but are read
 into **one map of targets**, `Config.Apps`, each with its `Type`: layouts and `[media]
 player` name a target by its id alone, so an id may be in only one table, and the mixer
-can keep looking up targets by id. Output audio control is a separate change (#85).
+can keep looking up targets by id. Reading `[outputs]` adds no adapter interface and no
+mixer behaviour: output audio events and actions come separately in #85 (ADR 0027).
 
 ```
 [apps.spotify]              ─┐
