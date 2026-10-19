@@ -67,6 +67,9 @@ Repository settings that support this (**Settings → General → Pull Requests*
 - Use [Conventional Commits](https://www.conventionalcommits.org/):
   `feat: …`, `fix: …`, `docs: …`, `refactor: …`, `test: …`, `ci: …`, `chore: …`.
 - Reference requirement IDs where they apply, e.g. `feat: exclusive solo toggle (SOLO-04, SOLO-05)`.
+- A commit written with an AI agent names its model in a `Co-Authored-By:` line, e.g.
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; see
+  [AGENTS.md › Workflow](AGENTS.md#workflow).
 - Add an entry under **Unreleased** in [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
 - **Whenever a new feature or behaviour change is added, also add or update its test
   cases and fixtures in [docs/testing/](docs/testing/cases/README.md)** (same format), in
