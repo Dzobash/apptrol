@@ -62,13 +62,15 @@ Covers: CFG-18, CFG-19 · Phase 1.6
 Config: full-layout
 Type: Automated
 
-Test: `TestCFG18_SameIDInTwoTablesIsRejected`, `TestCFG18_TalkOverVolumeOnlyInInputs`,
+Test: `TestCFG18_SameIDInTwoTablesIsRejected`, `TestCFG18_SameIDInTwoTablesCarriesItsID`,
+`TestCFG18_TalkOverVolumeOnlyInInputs`,
 `TestCFG18_MediaPlayerMustBeAnApp`, `TestCFG19_OtherTypesAreRejected` in
 `internal/config/targets_test.go`, and `TestCFG19_OldFormWarningIsLoggedWithItsAttributes`
-in `internal/service/service_test.go` for the log record of TC-CFG-002.
+and `TestCFG18_SameIDInTwoTablesIsLoggedWithItsID` in `internal/service/service_test.go` for
+the log records of TC-CFG-002 and of the id in two tables (with `apptrol.app.id`).
 
 ```text
-inputs.mic: "mic" is also defined in [apps]; an id may be used in one table only
+inputs.mic: the same id is defined in two tables ([apps] and [inputs])
 inputs.mic.type: not used in [inputs]; remove the line
 ```
 

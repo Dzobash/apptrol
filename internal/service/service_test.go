@@ -628,6 +628,22 @@ match = ["spare"]
 	e.eventually("the warning again after the reload", func() bool { return strings.Count(e.out.String(), line) == 2 })
 }
 
+// The id defined in two tables is logged with its id, at the start and on a
+// reload, under the fixed message of an invalid configuration (CFG-18,
+// ADR 0026 point 7, ADR 0016).
+func TestCFG18_SameIDInTwoTablesIsLoggedWithItsID(t *testing.T) {
+	dup := testConfig + "\n[apps.mic]\ntype = \"input\"\nmatch = [\"goxlr\"]\n"
+	const record = ` apptrol.app.id=mic error.type=config_invalid exception.message="inputs.mic: the same id is defined in two tables ([apps] and [inputs])"`
+
+	e := newEnv(t, dup).start()
+	e.waitLog("msg=\"invalid configuration; waiting for a valid one (run `apptrol check`)\" apptrol.component=config file.path=" + e.cfg + record)
+
+	e.write(testConfig)
+	e.waitLog("configuration reloaded")
+	e.write(dup + "# saved again\n")
+	e.waitLog(`msg="the changed configuration is invalid; keeping the current settings" apptrol.component=config file.path=` + e.cfg + record)
+}
+
 func TestCFG07_InvalidReloadKeepsSettings(t *testing.T) {
 	e := newEnv(t, testConfig).start()
 	e.waitLog("stream matched")

@@ -277,7 +277,9 @@ func (s *service) logFor(component string) *slog.Logger {
 }
 
 // invalidConfig logs one record per problem of an invalid configuration, so
-// each stays on one line and can be read on its own (LOG-13).
+// each stays on one line and can be read on its own (LOG-13). The message is
+// fixed (ADR 0016); a problem with attributes, such as the id defined in two
+// tables, adds them to its record (CFG-18, ADR 0026 point 7).
 func (s *service) invalidConfig(msg, path string, err error) {
 	log := s.logFor(logattr.Config)
 	var ve *config.ValidationError
@@ -286,7 +288,12 @@ func (s *service) invalidConfig(msg, path string, err error) {
 		return
 	}
 	for _, p := range ve.Problems {
-		log.Error(msg, logattr.KeyFilePath, path, logattr.Error(logattr.ErrConfigInvalid, errors.New(p)))
+		args := []any{logattr.KeyFilePath, path}
+		for _, a := range p.Attrs {
+			args = append(args, a)
+		}
+		args = append(args, logattr.Error(logattr.ErrConfigInvalid, errors.New(p.Text)))
+		log.Error(msg, args...)
 	}
 }
 

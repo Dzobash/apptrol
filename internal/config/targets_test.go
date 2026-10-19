@@ -1,8 +1,12 @@
 package config
 
 import (
+	"errors"
+	"log/slog"
 	"strings"
 	"testing"
+
+	"github.com/Dzobash/apptrol/internal/logattr"
 )
 
 // targetsBase has one app and one input in their own tables (CFG-18).
@@ -57,9 +61,42 @@ func TestCFG18_SameIDInTwoTablesIsRejected(t *testing.T) {
 [apps.mic]
 match = ["mic"]
 `)
-	want := `inputs.mic: "mic" is also defined in [apps]; an id may be used in one table only`
+	want := `inputs.mic: the same id is defined in two tables ([apps] and [inputs])`
 	if len(ps) != 1 || ps[0] != want {
 		t.Errorf("problems = %q, want only %q", ps, want)
+	}
+}
+
+// The duplicate id is an error the log can be searched for by its id, as ADR
+// 0026 point 7 lists it; other problems carry no attributes (CFG-18).
+func TestCFG18_SameIDInTwoTablesCarriesItsID(t *testing.T) {
+	_, _, err := Parse("test.toml", []byte(targetsBase+`
+[apps.mic]
+match = ["mic"]
+
+[apps.bad]
+`))
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("Parse: want *ValidationError, got %v", err)
+	}
+	var dup *Problem
+	for i, p := range ve.Problems {
+		if strings.Contains(p.Text, "the same id is defined in two tables") {
+			dup = &ve.Problems[i]
+		} else if len(p.Attrs) != 0 {
+			t.Errorf("%q has attributes %v, want none", p.Text, p.Attrs)
+		}
+	}
+	if dup == nil {
+		t.Fatalf("no duplicate-id problem in %q", ve.Texts())
+	}
+	want := []slog.Attr{slog.String(logattr.KeyAppID, "mic")}
+	if len(dup.Attrs) != 1 || !dup.Attrs[0].Equal(want[0]) {
+		t.Errorf("attrs = %v, want %v", dup.Attrs, want)
+	}
+	if !strings.Contains(err.Error(), "\n  - inputs.mic: the same id is defined in two tables ([apps] and [inputs])") {
+		t.Errorf("error text for apptrol check:\n%s", err)
 	}
 }
 

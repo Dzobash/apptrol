@@ -51,7 +51,7 @@ How the service is put together. Decisions and their reasons are in
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
 | `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, whether the user's graphical session is unlocked, locked, behind another session or unknown, and whose session is in front at the seat (ADR 0029); reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
-| `internal/config` | TOML loading: `[apps]` and `[inputs]` into one map of targets, the old `type` form with a warning (ADR 0026); validation (including button rules, blocked commands and overlap warnings); warnings as `config.Warning`; file watching |
+| `internal/config` | TOML loading: `[apps]` and `[inputs]` into one map of targets, the old `type` form with a warning (ADR 0026); validation (including button rules, blocked commands and overlap warnings), its problems as `config.Problem`; warnings as `config.Warning`; file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
 | `internal/logging` | Log outputs (journald, rotating file) and formats; keeps every record on one line |
 | `internal/logattr` | Names of log attributes and error types, following the OpenTelemetry conventions (ADR 0016); explained for users in [`logging.md`](logging.md) |
@@ -117,6 +117,17 @@ optionally a fixed log message with attributes, so it can be searched for in the
 ```
 apptrol check   warning: apps.mic: type = "input" is the old form; move it to [inputs.mic]
 log             WARN config uses an old form; move the entry to its own table … apptrol.app.id=mic apptrol.config.table=inputs
+```
+
+An invalid configuration is a `config.ValidationError`, a list of `config.Problem`s. A
+problem works the same way: a text for people, and optionally attributes. The service
+logs one record per problem under the fixed invalid-configuration message, with the text
+in `exception.message` and the attributes added. Only an id defined in two tables has
+attributes so far (CFG-18, ADR 0026 point 7):
+
+```
+apptrol check   - inputs.mic: the same id is defined in two tables ([apps] and [inputs])
+log             ERRO the changed configuration is invalid; keeping the current settings … apptrol.app.id=mic error.type=config_invalid exception.message="inputs.mic: the same id …"
 ```
 
 ## Controller access

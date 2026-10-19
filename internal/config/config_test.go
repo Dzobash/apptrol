@@ -45,7 +45,7 @@ func problemsOf(t *testing.T, src string) []string {
 	if !errors.As(err, &ve) {
 		t.Fatalf("Parse: want *ValidationError, got %v", err)
 	}
-	return ve.Problems
+	return ve.Texts()
 }
 
 func requireProblem(t *testing.T, problems []string, want string) {
@@ -95,10 +95,10 @@ func TestFixturesAreValid(t *testing.T) {
 				t.Fatalf("want *ValidationError, got %v", err)
 			}
 			for _, want := range []string{"log.colour", "slider9", "tone-c"} {
-				requireProblem(t, ve.Problems, want)
+				requireProblem(t, ve.Texts(), want)
 			}
 			if len(ve.Problems) != 3 {
-				t.Errorf("%d problems, want 3:\n  %s", len(ve.Problems), strings.Join(ve.Problems, "\n  "))
+				t.Errorf("%d problems, want 3:\n  %s", len(ve.Problems), strings.Join(ve.Texts(), "\n  "))
 			}
 		})
 	}

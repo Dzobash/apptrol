@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A configuration warning can have a log message of its own; the old form below is
   logged as `config uses an old form; move the entry to its own table`, with
   `apptrol.app.id` and the new attribute `apptrol.config.table` (ADR 0016, ADR 0026).
+  An id defined in both `[apps]` and `[inputs]` is a configuration error logged with
+  its `apptrol.app.id` (CFG-18, ADR 0026).
 
 ### Deprecated
 - `[apps.<id>]` with `type = "input"` (or `type = "app"`) still loads until 1.0, with a

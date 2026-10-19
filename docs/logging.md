@@ -66,11 +66,13 @@ A line about an error has two more attributes: `error.type`, a fixed word for th
 error, and `exception.message`, the details.
 
 ```text
-ERRO the changed configuration is invalid; keeping the current settings apptrol.component=config file.path=/home/you/.config/apptrol/config.toml error.type=config_invalid exception.message="inputs.mic: \"mic\" is also defined in [apps]; an id may be used in one table only"
+ERRO the changed configuration is invalid; keeping the current settings apptrol.component=config file.path=/home/you/.config/apptrol/config.toml apptrol.app.id=mic error.type=config_invalid exception.message="inputs.mic: the same id is defined in two tables ([apps] and [inputs])"
 ERRO the changed configuration is invalid; keeping the current settings apptrol.component=config file.path=/home/you/.config/apptrol/config.toml error.type=config_invalid exception.message="apps.z.match: missing; list at least one name fragment"
 ```
 
-A configuration with several problems gives one line per problem.
+A configuration with several problems gives one line per problem. A problem about one
+app or input can name it: an id defined in both `[apps]` and `[inputs]` adds
+`apptrol.app.id`, so `grep apptrol.app.id=mic` finds it (CFG-18, ADR 0026).
 
 | `error.type` | Meaning |
 |---|---|
@@ -252,7 +254,7 @@ Apptrol's own:
 | `apptrol.layout` | The active layout (`default`) |
 | `apptrol.control` | A slider or knob: `slider1` … `knob8` |
 | `apptrol.button` | A pressed button: `M3`, `S1`, `R2`, or a transport button such as `cycle` |
-| `apptrol.app.id` | The id of an app or input in the configuration (`[apps.<id>]`, `[inputs.<id>]`) |
+| `apptrol.app.id` | The id of an app or input in the configuration (`[apps.<id>]`, `[inputs.<id>]`); also on the `config_invalid` record of an id defined in two tables |
 | `apptrol.app.name` | The app's `name` in the configuration |
 | `apptrol.app.type` | `app` or `input` |
 | `apptrol.app.match` | The app's `match` list |

@@ -44,7 +44,7 @@ func TestCTRL03_MaxVolumeOutOfRange(t *testing.T) {
 			t.Errorf("max_volume = %s: err = %v, want a validation error", value, err)
 			continue
 		}
-		requireProblem(t, ve.Problems, want)
+		requireProblem(t, ve.Texts(), want)
 	}
 }
 

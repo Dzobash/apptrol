@@ -98,15 +98,22 @@ const (
 )
 
 // problems collects validation messages.
-type problems []string
+type problems []Problem
 
-func (p *problems) add(format string, args ...any) { *p = append(*p, fmt.Sprintf(format, args...)) }
+func (p *problems) add(format string, args ...any) {
+	*p = append(*p, Problem{Text: fmt.Sprintf(format, args...)})
+}
+
+// addWith adds a problem that is logged with attributes (ADR 0016).
+func (p *problems) addWith(attrs []slog.Attr, format string, args ...any) {
+	*p = append(*p, Problem{Text: fmt.Sprintf(format, args...), Attrs: attrs})
+}
 
 func parse(path string, data []byte) (*Config, []Warning, error) {
 	var raw rawConfig
 	md, err := toml.Decode(string(data), &raw)
 	if err != nil {
-		return nil, nil, &ValidationError{Path: path, Problems: []string{tomlError(err)}}
+		return nil, nil, &ValidationError{Path: path, Problems: []Problem{{Text: tomlError(err)}}}
 	}
 
 	var errs problems
@@ -227,7 +234,7 @@ func parse(path string, data []byte) (*Config, []Warning, error) {
 	}
 
 	if len(errs) > 0 {
-		sort.Strings(errs)
+		slices.SortFunc(errs, func(a, b Problem) int { return strings.Compare(a.Text, b.Text) })
 		return nil, nil, &ValidationError{Path: path, Problems: errs}
 	}
 	warnings = append(warnings, overlaps(cfg)...)
@@ -263,9 +270,12 @@ func parseTargets(raw *rawConfig, cfg *Config, errs *problems, warnings *[]Warni
 		}
 		sort.Strings(ids) // warnings in a fixed order
 		for _, id := range ids {
-			// An id in both tables would make "slider1 = id" ambiguous (CFG-18).
+			// An id in both tables would make "slider1 = id" ambiguous. The
+			// error carries the id, so the log can be searched for it
+			// (CFG-18, ADR 0026 point 7).
 			if other, dup := tableOf[id]; dup {
-				errs.add("%s.%s: %q is also defined in [%s]; an id may be used in one table only", table, id, id, other)
+				errs.addWith([]slog.Attr{slog.String(logattr.KeyAppID, id)},
+					"%s.%s: the same id is defined in two tables ([%s] and [%s])", table, id, other, table)
 				continue
 			}
 			tableOf[id] = table
