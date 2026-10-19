@@ -107,18 +107,53 @@ and set `path = "/var/log/apptrol/apptrol.log"`. Apptrol rotates the file itself
 
 ---
 
-## `[apps.<id>]`
+## `[apps.<id>]` and `[inputs.<id>]`
 
-Defines something a control can act on. `<id>` is your own short name (letters, digits,
-`-`, `_`), used in layouts. Each app is defined once and can be used in any layout.
+Define what a control can act on: an **app** (the sound an application plays) in
+`[apps.<id>]`, an **input** (a capture device, such as a microphone) in `[inputs.<id>]`.
+`<id>` is your own short name (letters, digits, `-`, `_`), used in layouts. Each one is
+defined once and can be used in any layout. An id may be used in only one table, because
+layouts name it without the table: `[apps.mic]` and `[inputs.mic]` together are rejected.
+
+```toml
+[apps.spotify]
+name  = "Spotify"
+match = ["spotify"]
+
+[inputs.mic]
+name  = "Microphone"
+match = ["Headset"]
+```
 
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `name` | string | the id | Display name, used in logs (and later in popups and `apptrol setup`). |
-| `type` | string | `"app"` | `"app"` for playback streams, `"input"` for a capture device (microphone). |
 | `match` | list of strings | — (required) | Case-insensitive name fragments. See below. |
 | `max_volume` | integer | `100` | Volume in percent with the control at the top, from 1 to 150. The control spans 0 to this value: with `150`, the middle is 75 %. Below 100 it works as a cap, e.g. `80` for games that are always too loud. Above 100 the audio is amplified in software and can distort; read [Hearing safety](#hearing-safety) first. |
-| `talk_over_volume` | integer | `25` | Inputs only. The volume in percent (0–100) that apps go down to during talk-over (see [Buttons](#layoutsnamebuttons)). Apps already below it stay where they are. |
+| `talk_over_volume` | integer | `25` | `[inputs]` only. The volume in percent (0–100) that apps go down to during talk-over (see [Buttons](#layoutsnamebuttons)). Apps already below it stay where they are. |
+
+### The old form with `type`
+
+Up to version 0.2, an input was an `[apps.<id>]` entry with `type = "input"`. Until
+version 1.0 Apptrol still reads it, and `type = "app"` too, but warns at every load and in
+`apptrol check`, naming the table to move the entry to:
+
+```
+warning: apps.mic: type = "input" is the old form; move it to [inputs.mic]
+```
+
+To fix it, rename the table and delete the `type` line:
+
+```
+before                          after
+[apps.mic]                      [inputs.mic]
+name  = "Microphone"     ──►    name  = "Microphone"
+type  = "input"                 match = ["Headset"]
+match = ["Headset"]
+```
+
+For `type = "app"`, delete the line. Any other `type`, and `type` in `[inputs]`, is
+rejected. Version 1.0 will no longer read the old form.
 
 ### Hearing safety
 
@@ -138,7 +173,7 @@ warranty of any kind ([LICENSE](https://github.com/Dzobash/apptrol/blob/main/LIC
 
 ### How matching works
 
-- **`type = "app"`** — a playback stream belongs to the app if any fragment is found in its
+- **Apps** — a playback stream belongs to the app if any fragment is found in its
   application name (`application.name`) or program name (`application.process.binary`).
   All matching streams are controlled together, so a browser with three playing tabs is
   one app. A match list can also cover several programs, e.g. `["vivaldi", "firefox"]`.
@@ -149,7 +184,7 @@ warranty of any kind ([LICENSE](https://github.com/Dzobash/apptrol/blob/main/LIC
   `chromium`, so `"chromium"` in a match list catches every one of them (Chrome, but also
   e.g. Wavebox or Electron apps); `"chrome"` matches only Chrome, by its name. Players on
   other devices (KDE Connect) are never matched.
-- **`type = "input"`** — the capture device whose name or description contains a fragment.
+- **Inputs** — the capture device whose name or description contains a fragment.
   If several devices match, the first one is used and a warning is logged. Monitors of
   outputs are not input devices and are never matched.
 
@@ -177,9 +212,8 @@ Input devices. Put part of DESCRIPTION or NAME into an input's match list:
 Put the part of the name that tells them apart into `match`:
 
 ```toml
-[apps.mic]
+[inputs.mic]
 name  = "Microphone"
-type  = "input"
 match = ["USB_Mixer-00.HiFi__Mic"]
 ```
 
@@ -203,18 +237,18 @@ tab cannot be controlled separately from another tab.
 
 ## `[layouts.<name>]`
 
-Assigns apps to controls. Phase 1 uses only `[layouts.default]`; other layouts are
+Assigns apps and inputs to controls. Phase 1 uses only `[layouts.default]`; other layouts are
 accepted and ignored until Phase 2.
 
 | Key | Value | Description |
 |---|---|---|
-| `slider1` … `slider8` | app id | Sliders, left to right. The S and M buttons in the same column act on this app. |
-| `knob1` … `knob8` | app id | Knobs, left to right. Volume only. |
+| `slider1` … `slider8` | app or input id | Sliders, left to right. The S and M buttons in the same column act on this app or input. |
+| `knob1` … `knob8` | app or input id | Knobs, left to right. Volume only. |
 
 Rules checked on load:
 
-- Every value must be the id of an app defined in `[apps]`.
-- An app may be assigned to only one control per layout.
+- Every value must be the id of an app or input defined in `[apps]` or `[inputs]`.
+- An app or input may be assigned to only one control per layout.
 - Unassigned controls do nothing.
 - Apps whose match lists overlap get a warning (see "One app per stream" above).
 
@@ -399,7 +433,7 @@ shell rewrites it.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `player` | string | — | An app id from `[apps]`, on a control or not. The media keys (◀◀ ▶▶ ■ ▶) then control that app's player only, and do nothing while it is not running; without it, the player that most recently started playing. |
+| `player` | string | — | An app id from `[apps]` (not an input), on a control or not. The media keys (◀◀ ▶▶ ■ ▶) then control that app's player only, and do nothing while it is not running; without it, the player that most recently started playing. |
 
 ---
 

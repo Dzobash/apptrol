@@ -290,9 +290,22 @@ func (s *service) invalidConfig(msg, path string, err error) {
 	}
 }
 
-func (s *service) configWarnings(path string, warnings []string) {
+// configWarnings logs the warnings of a loaded configuration, one record
+// each. A warning with its own message keeps it and its attributes, such as
+// the old form of an input (CFG-19, ADR 0026 point 7); the others are logged
+// by their text (ADR 0016).
+func (s *service) configWarnings(path string, warnings []config.Warning) {
+	log := s.logFor(logattr.Config)
 	for _, w := range warnings {
-		s.logFor(logattr.Config).Warn("configuration warning", logattr.KeyFilePath, path, logattr.KeyWarning, w)
+		if w.Message == "" {
+			log.Warn("configuration warning", logattr.KeyFilePath, path, logattr.KeyWarning, w.Text)
+			continue
+		}
+		args := []any{logattr.KeyFilePath, path}
+		for _, a := range w.Attrs {
+			args = append(args, a)
+		}
+		log.Warn(w.Message, args...)
 	}
 }
 

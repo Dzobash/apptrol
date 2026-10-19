@@ -7,8 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Inputs have their own table: a microphone is now `[inputs.mic]` instead of `[apps.mic]`
+  with `type = "input"`, and `type` is no longer needed. An id may be used in only one
+  of `[apps]` and `[inputs]`, `talk_over_volume` is only accepted in `[inputs]`, and
+  `[media] player` must name an entry of `[apps]`
+  (CFG-18, [ADR 0026](docs/adr/0026-separate-tables-for-apps-inputs-outputs.md), #86).
+- A configuration warning can have a log message of its own; the old form below is
+  logged as `config uses an old form; move the entry to its own table`, with
+  `apptrol.app.id` and the new attribute `apptrol.config.table` (ADR 0016, ADR 0026).
+
+### Deprecated
+- `[apps.<id>]` with `type = "input"` (or `type = "app"`) still loads until 1.0, with a
+  warning at every load and in `apptrol check` that names the table to move it to, e.g.
+  `apps.mic: type = "input" is the old form; move it to [inputs.mic]`. Version 1.0 will
+  no longer read it (CFG-19).
+
 ### Fixed
-- App settings misplaced under a layout now point to `[apps.<id>]`, in reload errors and `apptrol check` (CFG-08, CFG-11, #134).
+- App settings misplaced under a layout now point to the table they belong in,
+  `[apps.<id>]` or `[inputs.<id>]`, in reload errors and `apptrol check` (CFG-08,
+  CFG-11, #134).
 
 ## [0.2.2] - 2026-10-16
 

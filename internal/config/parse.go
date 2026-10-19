@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/Dzobash/apptrol/internal/logattr"
 )
 
 // rawConfig mirrors the file layout. Pointers distinguish "missing" from "empty".
@@ -33,7 +36,10 @@ type rawConfig struct {
 			MaxFiles *int    `toml:"max_files"`
 		} `toml:"file"`
 	} `toml:"log"`
-	Apps map[string]rawApp `toml:"apps"`
+	// Apps and inputs each have their own table; both are read into
+	// Config.Apps, as layouts refer to targets by id alone (CFG-18, ADR 0026).
+	Apps   map[string]rawApp `toml:"apps"`
+	Inputs map[string]rawApp `toml:"inputs"`
 	// A layout holds "control = app" entries and a buttons table; each
 	// value is decoded once its type is known (see decodeLayouts).
 	Layouts map[string]map[string]toml.Primitive `toml:"layouts"`
@@ -49,7 +55,8 @@ type rawLayout struct {
 }
 
 type rawApp struct {
-	Name      *string   `toml:"name"`
+	Name *string `toml:"name"`
+	// Type is the old form, read in [apps] only until 1.0 (CFG-19, ADR 0026).
 	Type      *string   `toml:"type"`
 	Match     *[]string `toml:"match"`
 	MaxVolume *int      `toml:"max_volume"`
@@ -81,7 +88,13 @@ var (
 	validOutputs       = []string{OutputJournald, OutputFile}
 	validJournaldFmts  = []string{"text", "logfmt"}
 	validFileFmts      = []string{"text", "json", "logfmt"}
-	validTypes         = []string{TypeApp, TypeInput}
+)
+
+// The configuration tables that define targets (CFG-18, ADR 0026), as named
+// in messages and in apptrol.config.table.
+const (
+	tableApps   = "apps"
+	tableInputs = "inputs"
 )
 
 // problems collects validation messages.
@@ -89,7 +102,7 @@ type problems []string
 
 func (p *problems) add(format string, args ...any) { *p = append(*p, fmt.Sprintf(format, args...)) }
 
-func parse(path string, data []byte) (*Config, []string, error) {
+func parse(path string, data []byte) (*Config, []Warning, error) {
 	var raw rawConfig
 	md, err := toml.Decode(string(data), &raw)
 	if err != nil {
@@ -97,15 +110,17 @@ func parse(path string, data []byte) (*Config, []string, error) {
 	}
 
 	var errs problems
-	var warnings []string
+	var warnings []Warning
 	layouts := decodeLayouts(md, raw.Layouts, &errs)
 
 	// Unknown keys are almost always typos; reject them (CFG-07).
 	for _, k := range md.Undecoded() {
 		// decodeLayouts already reports misplaced target settings, including
 		// their nested values; do not report the same mistake twice (CFG-08).
-		if len(k) >= 3 && k[0] == "layouts" && slices.Contains(targetSettings, k[2]) {
-			continue
+		if len(k) >= 3 && k[0] == "layouts" {
+			if _, target := targetSettings[k[2]]; target {
+				continue
+			}
 		}
 		errs.add("%s: unknown setting", k.String())
 	}
@@ -134,56 +149,8 @@ func parse(path string, data []byte) (*Config, []string, error) {
 	// [log]
 	parseLog(&raw, &cfg.Log, &errs)
 
-	// [apps.<id>]
-	for id, ra := range raw.Apps {
-		if !idPattern.MatchString(id) {
-			errs.add("apps.%s: id may only contain letters, digits, - and _ (up to 64 characters)", id)
-			continue
-		}
-		app := App{ID: id, Name: id, Type: TypeApp, MaxVolume: defaultMaxVolume}
-		if ra.Name != nil && strings.TrimSpace(*ra.Name) != "" {
-			app.Name = strings.TrimSpace(*ra.Name)
-		}
-		if ra.Type != nil {
-			app.Type = *ra.Type
-			if !contains(validTypes, app.Type) {
-				errs.add("apps.%s.type: %q is not valid (use %s)", id, app.Type, orList(validTypes))
-			}
-		}
-		if ra.Match == nil {
-			errs.add("apps.%s.match: missing; list at least one name fragment", id)
-		} else {
-			for i, m := range *ra.Match {
-				m = strings.TrimSpace(m)
-				if m == "" {
-					errs.add("apps.%s.match[%d]: empty fragment", id, i)
-					continue
-				}
-				app.Match = append(app.Match, m)
-			}
-			if len(*ra.Match) == 0 {
-				errs.add("apps.%s.match: empty; list at least one name fragment", id)
-			}
-		}
-		if ra.MaxVolume != nil {
-			app.MaxVolume = *ra.MaxVolume
-			if app.MaxVolume < 1 || app.MaxVolume > MaxVolumeLimit {
-				errs.add("apps.%s.max_volume: %d is out of range (1–%d, in percent)", id, app.MaxVolume, MaxVolumeLimit)
-			}
-		}
-		if ra.TalkOver != nil {
-			app.TalkOverVolume = *ra.TalkOver
-			switch {
-			case app.Type != TypeInput:
-				errs.add("apps.%s.talk_over_volume: only an input (type = %q) has it", id, TypeInput)
-			case app.TalkOverVolume < 0 || app.TalkOverVolume > 100:
-				errs.add("apps.%s.talk_over_volume: %d is out of range (0–100, in percent)", id, app.TalkOverVolume)
-			}
-		} else if app.Type == TypeInput {
-			app.TalkOverVolume = DefaultTalkOverVolume
-		}
-		cfg.Apps[id] = app
-	}
+	// [apps.<id>] and [inputs.<id>] (CFG-18, CFG-19, ADR 0026)
+	tableOf := parseTargets(&raw, cfg, &errs, &warnings)
 
 	// [media]
 	if p := raw.Media.Player; p != nil {
@@ -220,8 +187,8 @@ func parse(path string, data []byte) (*Config, []string, error) {
 				errs.add("layouts.%s.%s: unknown control (use slider1–slider%d or knob1–knob%d)", name, key, NumColumns, NumColumns)
 			}
 			_, validApp := cfg.Apps[appID]
-			if _, defined := raw.Apps[appID]; !defined {
-				errs.add("layouts.%s.%s: app %q is not defined in [apps]", name, key, appID)
+			if _, defined := tableOf[appID]; !defined {
+				errs.add("layouts.%s.%s: app %q is not defined in [apps] or [inputs]", name, key, appID)
 			}
 			if !validControl || !validApp {
 				continue
@@ -237,14 +204,14 @@ func parse(path string, data []byte) (*Config, []string, error) {
 		layout.Buttons = parseButtons(name, layouts[name].buttons, layout, cfg.Apps, &errs)
 		cfg.Layouts[name] = layout
 		if name != DefaultLayout {
-			warnings = append(warnings, fmt.Sprintf("layouts.%s: only the %q layout is used in this version; %q is ignored", name, DefaultLayout, name))
+			warnings = append(warnings, warnf("layouts.%s: only the %q layout is used in this version; %q is ignored", name, DefaultLayout, name))
 		}
 	}
 	if _, ok := raw.Layouts[DefaultLayout]; !ok && len(raw.Layouts) > 0 {
 		errs.add("layouts.%s: missing; this version uses the layout named %q", DefaultLayout, DefaultLayout)
 	}
 
-	// Apps defined but not used anywhere: harmless, but worth knowing.
+	// Apps and inputs defined but not used anywhere: harmless, but worth knowing.
 	for _, id := range cfg.AppIDs() {
 		used := false
 		for _, l := range cfg.Layouts {
@@ -255,7 +222,7 @@ func parse(path string, data []byte) (*Config, []string, error) {
 			}
 		}
 		if !used {
-			warnings = append(warnings, fmt.Sprintf("apps.%s: not assigned to any control", id))
+			warnings = append(warnings, warnf("%s.%s: not assigned to any control", tableOf[id], id))
 		}
 	}
 
@@ -265,15 +232,152 @@ func parse(path string, data []byte) (*Config, []string, error) {
 	}
 	warnings = append(warnings, overlaps(cfg)...)
 	for _, at := range cfg.WhenLockedLaunchers() {
-		warnings = append(warnings, at+": when_locked = true: this button starts its app also while the screen is locked, for anyone at the controller")
+		warnings = append(warnings, warnf("%s: when_locked = true: this button starts its app also while the screen is locked, for anyone at the controller", at))
 	}
 	return cfg, warnings, nil
 }
 
-// targetSettings identifies settings that belong to a target rather than a layout
-// control, so misplaced settings get a useful table hint (CFG-08). Targets currently
-// live in [apps.<id>]; extend this list and the hint when target tables change.
-var targetSettings = []string{"name", "type", "match", "max_volume", "talk_over_volume"}
+// parseTargets reads [apps.<id>] and [inputs.<id>] into cfg.Apps, one map for
+// both, because layouts and [media] player refer to targets by id alone
+// (CFG-18, ADR 0026 point 2). It returns the table each id is defined in, as
+// the file names it, for messages.
+//
+// Until 1.0 an entry of [apps] may still carry the old type key (CFG-19,
+// ADR 0026 point 3):
+//
+//	[apps.mic]                        read as  [inputs.mic]
+//	type = "input"            ──────────────►  (one warning per load)
+//
+//	[apps.spotify]                    read as  [apps.spotify]
+//	type = "app"              ──────────────►  (one warning per load)
+func parseTargets(raw *rawConfig, cfg *Config, errs *problems, warnings *[]Warning) map[string]string {
+	tableOf := map[string]string{}
+	for _, table := range []string{tableApps, tableInputs} {
+		entries := raw.Apps
+		if table == tableInputs {
+			entries = raw.Inputs
+		}
+		ids := make([]string, 0, len(entries))
+		for id := range entries {
+			ids = append(ids, id)
+		}
+		sort.Strings(ids) // warnings in a fixed order
+		for _, id := range ids {
+			// An id in both tables would make "slider1 = id" ambiguous (CFG-18).
+			if other, dup := tableOf[id]; dup {
+				errs.add("%s.%s: %q is also defined in [%s]; an id may be used in one table only", table, id, id, other)
+				continue
+			}
+			tableOf[id] = table
+			if app, ok := parseTarget(table, id, entries[id], errs, warnings); ok {
+				cfg.Apps[id] = app
+			}
+		}
+	}
+	return tableOf
+}
+
+// parseTarget reads one entry of [apps] or [inputs] (CFG-04, CFG-05, CFG-16,
+// CTRL-03). ok is false if the id itself is invalid.
+func parseTarget(table, id string, ra rawApp, errs *problems, warnings *[]Warning) (app App, ok bool) {
+	at := table + "." + id
+	if !idPattern.MatchString(id) {
+		errs.add("%s: id may only contain letters, digits, - and _ (up to 64 characters)", at)
+		return App{}, false
+	}
+	app = App{ID: id, Name: id, Type: TypeApp, MaxVolume: defaultMaxVolume}
+	if table == tableInputs {
+		app.Type = TypeInput
+	}
+	if ra.Name != nil && strings.TrimSpace(*ra.Name) != "" {
+		app.Name = strings.TrimSpace(*ra.Name)
+	}
+	if ra.Type != nil {
+		app.Type = oldType(at, id, table, *ra.Type, errs, warnings)
+	}
+	if ra.Match == nil {
+		errs.add("%s.match: missing; list at least one name fragment", at)
+	} else {
+		for i, m := range *ra.Match {
+			m = strings.TrimSpace(m)
+			if m == "" {
+				errs.add("%s.match[%d]: empty fragment", at, i)
+				continue
+			}
+			app.Match = append(app.Match, m)
+		}
+		if len(*ra.Match) == 0 {
+			errs.add("%s.match: empty; list at least one name fragment", at)
+		}
+	}
+	if ra.MaxVolume != nil {
+		app.MaxVolume = *ra.MaxVolume
+		if app.MaxVolume < 1 || app.MaxVolume > MaxVolumeLimit {
+			errs.add("%s.max_volume: %d is out of range (1–%d, in percent)", at, app.MaxVolume, MaxVolumeLimit)
+		}
+	}
+	if ra.TalkOver != nil {
+		app.TalkOverVolume = *ra.TalkOver
+		switch {
+		case app.Type != TypeInput:
+			// Only inputs have it (CFG-16, CFG-18); an old-form input in
+			// [apps] still counts as one until 1.0 (CFG-19).
+			errs.add("%s.talk_over_volume: only an input has it; inputs go in [inputs.%s]", at, id)
+		case app.TalkOverVolume < 0 || app.TalkOverVolume > 100:
+			errs.add("%s.talk_over_volume: %d is out of range (0–100, in percent)", at, app.TalkOverVolume)
+		}
+	} else if app.Type == TypeInput {
+		app.TalkOverVolume = DefaultTalkOverVolume
+	}
+	return app, true
+}
+
+// oldType reads the type key of the old form and returns the target's type
+// (CFG-19, ADR 0026 point 3). In [apps], "input" and "app" are still read,
+// each with a warning naming the table to move the entry to; anything else,
+// and type in [inputs], is rejected.
+func oldType(at, id, table, value string, errs *problems, warnings *[]Warning) string {
+	if table != tableApps {
+		errs.add("%s.type: not used in [%s]; remove the line", at, table)
+		return TypeInput
+	}
+	var to, text string
+	switch value {
+	case TypeInput:
+		to = tableInputs
+		text = fmt.Sprintf("%s: type = %q is the old form; move it to [%s.%s]", at, value, to, id)
+	case TypeApp:
+		to = tableApps
+		text = fmt.Sprintf("%s: type = %q is the old form; remove the line, as [apps] holds only apps", at, value)
+	default:
+		errs.add("%s.type: %q is not valid; [apps] holds only apps, and inputs go in [inputs.%s]", at, value, id)
+		return TypeApp
+	}
+	*warnings = append(*warnings, Warning{
+		Text:    text,
+		Message: "config uses an old form; move the entry to its own table",
+		Attrs: []slog.Attr{
+			slog.String(logattr.KeyAppID, id),
+			slog.String(logattr.KeyConfigTable, to),
+		},
+	})
+	if to == tableInputs {
+		return TypeInput
+	}
+	return TypeApp
+}
+
+// targetSettings names the settings that belong to a target rather than a
+// layout control, each with the tables it belongs in, so a misplaced setting
+// gets a hint naming the right table (CFG-08). Apps and inputs have their own
+// tables (CFG-18, ADR 0026); type is the old form, in [apps] only (CFG-19).
+var targetSettings = map[string]string{
+	"name":             "an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]",
+	"match":            "an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]",
+	"max_volume":       "an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]",
+	"talk_over_volume": "an input setting, not a control; put it under [inputs.<id>]",
+	"type":             "an app setting, not a control; put it under [apps.<id>]",
+}
 
 // decodeLayouts decodes each [layouts.<name>]: "control = app" entries as
 // text, and the buttons table (CFG-13). It runs before the check for unknown
@@ -283,8 +387,8 @@ func decodeLayouts(md toml.MetaData, raw map[string]map[string]toml.Primitive, e
 	for name, entries := range raw {
 		l := rawLayout{controls: map[string]string{}}
 		for key, prim := range entries {
-			if slices.Contains(targetSettings, key) {
-				errs.add("layouts.%s.%s: %s is an app setting, not a control; put it under [apps.<id>]", name, key, key)
+			if hint, ok := targetSettings[key]; ok {
+				errs.add("layouts.%s.%s: %s is %s", name, key, key, hint)
 				continue
 			}
 			if key == "buttons" {

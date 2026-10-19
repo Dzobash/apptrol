@@ -262,9 +262,8 @@ match = ["spotify"]
 name  = "Browser"
 match = ["firefox"]
 
-[apps.mic]
+[inputs.mic]
 name  = "Microphone"
-type  = "input"
 match = ["goxlr"]
 
 [layouts.default]
@@ -605,6 +604,28 @@ r1         = { command = ["konsole"] }
 	if n := strings.Count(e.out.String(), "desktop ID not installed"); n != 1 {
 		t.Errorf("warned %d times, want once (Discord is installed, commands are not checked)", n)
 	}
+}
+
+// The old form of an input is logged with its own message and attributes, at
+// the start and again at every reload (CFG-19, ADR 0026 point 7). Other
+// warnings keep their text in apptrol.warning.
+func TestCFG19_OldFormWarningIsLoggedWithItsAttributes(t *testing.T) {
+	old := strings.Replace(testConfig, "[inputs.mic]", "[apps.mic]\ntype  = \"input\"", 1) + `
+[apps.spare]
+match = ["spare"]
+`
+	e := newEnv(t, old).start()
+	const line = "msg=\"config uses an old form; move the entry to its own table\" apptrol.component=config file.path="
+	e.waitLog(line)
+	e.waitLog("apptrol.app.id=mic apptrol.config.table=inputs")
+	e.waitLog(`msg="configuration warning" apptrol.component=config file.path=` + e.cfg + ` apptrol.warning="apps.spare: not assigned to any control"`)
+	if n := strings.Count(e.out.String(), line); n != 1 {
+		t.Errorf("logged %d times at the start, want once", n)
+	}
+
+	e.write(old + "\n# saved again\n")
+	e.waitLog("configuration reloaded")
+	e.eventually("the warning again after the reload", func() bool { return strings.Count(e.out.String(), line) == 2 })
 }
 
 func TestCFG07_InvalidReloadKeepsSettings(t *testing.T) {

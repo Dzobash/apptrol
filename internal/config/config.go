@@ -203,7 +203,7 @@ func DefaultStateDir() (string, error) {
 // Load reads and validates the configuration file at path. It returns the
 // configuration and non-fatal warnings, or an error. Validation problems are
 // returned as *ValidationError; a missing file wraps ErrNotFound.
-func Load(path string) (*Config, []string, error) {
+func Load(path string) (*Config, []Warning, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -215,7 +215,7 @@ func Load(path string) (*Config, []string, error) {
 }
 
 // Parse validates configuration data. path is only used in messages.
-func Parse(path string, data []byte) (*Config, []string, error) {
+func Parse(path string, data []byte) (*Config, []Warning, error) {
 	return parse(path, data)
 }
 

@@ -14,8 +14,7 @@ const buttonBase = `
 [apps.spotify]
 match = ["spotify"]
 
-[apps.mic]
-type  = "input"
+[inputs.mic]
 match = ["goxlr"]
 
 [layouts.default]
@@ -177,7 +176,7 @@ func TestCFG16_TalkOverVolume(t *testing.T) {
 		t.Errorf("Setup talk-over volume = %d", v)
 	}
 	for _, tc := range []struct{ src, want string }{
-		{strings.Replace(buttonBase, `match = ["goxlr"]`, "match = [\"goxlr\"]\ntalk_over_volume = 101", 1), "apps.mic.talk_over_volume: 101 is out of range"},
+		{strings.Replace(buttonBase, `match = ["goxlr"]`, "match = [\"goxlr\"]\ntalk_over_volume = 101", 1), "inputs.mic.talk_over_volume: 101 is out of range"},
 		{strings.Replace(buttonBase, `match = ["spotify"]`, "match = [\"spotify\"]\ntalk_over_volume = 20", 1), "apps.spotify.talk_over_volume: only an input"},
 	} {
 		requireProblem(t, problemsOf(t, tc.src), tc.want)

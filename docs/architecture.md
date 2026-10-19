@@ -43,7 +43,7 @@ How the service is put together. Decisions and their reasons are in
 | Package | Responsibility |
 |---|---|
 | `cmd/apptrol` | Command line: `run`, `list`, `check`, `test`, `version`; wires everything together |
-| `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop`, `Power` and `Launcher` interfaces; turns mixer actions into adapter calls; the Record LED's flash (the mixer has no clock); config reload and its warnings; shutdown |
+| `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop`, `Power` and `Launcher` interfaces; turns mixer actions into adapter calls; the Record LED's flash (the mixer has no clock); config reload and its warnings, each logged by its text or with its own message and attributes; shutdown |
 | `internal/mixer` | Core logic (pure): matching streams, inputs and media players to controls, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write; lets go of the controller and takes it back (ADR 0029) |
@@ -51,7 +51,7 @@ How the service is put together. Decisions and their reasons are in
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
 | `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, whether the user's graphical session is unlocked, locked, behind another session or unknown, and whose session is in front at the seat (ADR 0029); reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
-| `internal/config` | TOML loading, validation (including button rules, blocked commands and overlap warnings), file watching |
+| `internal/config` | TOML loading: `[apps]` and `[inputs]` into one map of targets, the old `type` form with a warning (ADR 0026); validation (including button rules, blocked commands and overlap warnings); warnings as `config.Warning`; file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
 | `internal/logging` | Log outputs (journald, rotating file) and formats; keeps every record on one line |
 | `internal/logattr` | Names of log attributes and error types, following the OpenTelemetry conventions (ADR 0016); explained for users in [`logging.md`](logging.md) |
@@ -87,12 +87,37 @@ STATE-04, SVC-07, LED-08).
 
 **An invalid input never causes a write** ([ADR 0025](adr/0025-state-kept-while-config-invalid.md)).
 An invalid file on reload is rejected and the running settings stay. The shared config
-validator identifies app settings misplaced under a layout and points to `[apps.<id>]`;
-reload errors and `apptrol check` use the same diagnostic (CFG-08, CFG-11). Without a valid
-configuration at start, the mixer is created with `mixer.NewWithoutConfig`: it controls
+validator identifies app and input settings misplaced under a layout and names the table
+they belong in (`[apps.<id>]`, `[inputs.<id>]`); reload errors and `apptrol check` use
+the same diagnostic (CFG-08, CFG-11). Without a valid configuration at start, the mixer is created with `mixer.NewWithoutConfig`: it controls
 nothing and keeps the saved state unchanged, so its snapshot equals what is on disk and
 the saver writes nothing (apart from positions of controls moved meanwhile). The first
 valid configuration applies the kept state like a normal start (STATE-08).
+
+## Configuration
+
+`internal/config` turns the file into one `Config`. Apps and inputs have their own tables
+(CFG-18, [ADR 0026](adr/0026-separate-tables-for-apps-inputs-outputs.md)), but are read
+into **one map of targets**, `Config.Apps`, each with its `Type`: layouts and `[media]
+player` name a target by its id alone, so an id may be in only one table, and the mixer
+and everything after it do not change.
+
+```
+[apps.spotify]               ─┐
+[inputs.mic]                 ─┼─► Config.Apps   spotify (app)   mic (input)   old (input)
+[apps.old] type = "input"    ─┘                                                └ + warning
+```
+
+The old form (`[apps.<id>]` with `type`) is read until 1.0 (CFG-19). Each such entry adds
+a `config.Warning`: a warning has a text for people, printed by `apptrol check`, and
+optionally a fixed log message with attributes, so it can be searched for in the log
+(ADR 0016). Warnings without one, such as an unused app, are logged by the service as
+`configuration warning` with the text in `apptrol.warning`:
+
+```
+apptrol check   warning: apps.mic: type = "input" is the old form; move it to [inputs.mic]
+log             WARN config uses an old form; move the entry to its own table … apptrol.app.id=mic apptrol.config.table=inputs
+```
 
 ## Controller access
 
@@ -308,4 +333,5 @@ dialog.
   starting apps against a fake systemd, and against the real user manager with harmless
   units (`make test-launcher`, not in CI, which has no user systemd).
 - `config`, `state`: unit tests and fuzzing on malformed input; the blocked-command check
-  is fuzzed too.
+  is fuzzed too. Inputs are tested in both forms, `[inputs.<id>]` and the old `type`
+  (CFG-18, CFG-19); the service test checks the old form's log record.

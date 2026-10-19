@@ -17,7 +17,18 @@ match = ["spotify"]
 slider1 = "spotify"
 `
 
+// mustParse parses a valid src and returns its warnings as text.
 func mustParse(t *testing.T, src string) (*Config, []string) {
+	t.Helper()
+	cfg, warnings := mustParseWarnings(t, src)
+	texts := make([]string, len(warnings))
+	for i, w := range warnings {
+		texts[i] = w.Text
+	}
+	return cfg, texts
+}
+
+func mustParseWarnings(t *testing.T, src string) (*Config, []Warning) {
 	t.Helper()
 	cfg, warnings, err := Parse("test.toml", []byte(src))
 	if err != nil {
@@ -179,9 +190,8 @@ func TestCFG02_AppsDefinedOnceAndReferencedByID(t *testing.T) {
 name  = "Discord"
 match = ["discord", "vesktop"]
 
-[apps.mic]
+[inputs.mic]
 name  = "Microphone"
-type  = "input"
 match = ["GoXLR"]
 
 [layouts.default]
@@ -340,11 +350,19 @@ slider1 = "a"
 }
 
 func TestCFG08_AppSettingUnderLayoutSaysWhereItBelongs(t *testing.T) {
-	for _, key := range []string{"max_volume", "match", "name", "type", "talk_over_volume"} {
+	// Each setting names the tables it belongs in (CFG-18, ADR 0026).
+	where := map[string]string{
+		"max_volume":       "an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]",
+		"match":            "an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]",
+		"name":             "an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]",
+		"type":             "an app setting, not a control; put it under [apps.<id>]",
+		"talk_over_volume": "an input setting, not a control; put it under [inputs.<id>]",
+	}
+	for key, hint := range where {
 		for _, value := range []string{`150`, `["tone-a"]`, `"tone-a"`, `true`, `{ nested = "tone-a" }`} {
 			t.Run(key+"/"+value, func(t *testing.T) {
 				ps := problemsOf(t, minimal+key+" = "+value+"\n")
-				want := "layouts.default." + key + ": " + key + " is an app setting, not a control; put it under [apps.<id>]"
+				want := "layouts.default." + key + ": " + key + " is " + hint
 				if len(ps) != 1 || ps[0] != want {
 					t.Fatalf("problems = %q, want only %q", ps, want)
 				}
@@ -369,8 +387,7 @@ func TestCFG08_UnknownLayoutKeyKeepsDiagnostic(t *testing.T) {
 
 func TestCFG08_TargetSettingInsideAButtonStaysUnknown(t *testing.T) {
 	ps := problemsOf(t, `
-[apps.test_input]
-type = "input"
+[inputs.test_input]
 match = ["test-input"]
 
 [layouts.default]

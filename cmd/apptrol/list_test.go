@@ -32,9 +32,8 @@ const listConfig = `
 name  = "Spotify"
 match = ["spotify"]
 
-[apps.mic]
+[inputs.mic]
 name  = "Microphone"
-type  = "input"
 match = ["goxlr"]
 
 [layouts.default]

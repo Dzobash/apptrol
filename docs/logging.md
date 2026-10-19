@@ -66,7 +66,7 @@ A line about an error has two more attributes: `error.type`, a fixed word for th
 error, and `exception.message`, the details.
 
 ```text
-ERRO the changed configuration is invalid; keeping the current settings apptrol.component=config file.path=/home/you/.config/apptrol/config.toml error.type=config_invalid exception.message="apps.y.type: \"bogus\" is not valid (use \"app\" or \"input\")"
+ERRO the changed configuration is invalid; keeping the current settings apptrol.component=config file.path=/home/you/.config/apptrol/config.toml error.type=config_invalid exception.message="inputs.mic: \"mic\" is also defined in [apps]; an id may be used in one table only"
 ERRO the changed configuration is invalid; keeping the current settings apptrol.component=config file.path=/home/you/.config/apptrol/config.toml error.type=config_invalid exception.message="apps.z.match: missing; list at least one name fragment"
 ```
 
@@ -154,6 +154,22 @@ To see only what happened while the screen was locked:
 journalctl --user -u apptrol | grep 'while the screen is locked'
 ```
 
+A configuration in an old form still loads, with one warning per entry at every load
+(until 1.0; [configuration](config.md#the-old-form-with-type)). The warning names the entry and
+the table to move it to; other warnings about the configuration carry their text in
+`apptrol.warning`:
+
+```text
+WARN config uses an old form; move the entry to its own table apptrol.component=config file.path=/home/you/.config/apptrol/config.toml apptrol.app.id=mic apptrol.config.table=inputs
+WARN configuration warning apptrol.component=config file.path=/home/you/.config/apptrol/config.toml apptrol.warning="apps.spare: not assigned to any control"
+```
+
+To find every entry still in the old form:
+
+```bash
+journalctl --user -u apptrol | grep 'config uses an old form'
+```
+
 A slider moves (level `debug`):
 
 ```text
@@ -236,7 +252,7 @@ Apptrol's own:
 | `apptrol.layout` | The active layout (`default`) |
 | `apptrol.control` | A slider or knob: `slider1` … `knob8` |
 | `apptrol.button` | A pressed button: `M3`, `S1`, `R2`, or a transport button such as `cycle` |
-| `apptrol.app.id` | The app's id in the configuration (`[apps.<id>]`) |
+| `apptrol.app.id` | The id of an app or input in the configuration (`[apps.<id>]`, `[inputs.<id>]`) |
 | `apptrol.app.name` | The app's `name` in the configuration |
 | `apptrol.app.type` | `app` or `input` |
 | `apptrol.app.match` | The app's `match` list |
@@ -266,6 +282,7 @@ Apptrol's own:
 | `apptrol.midi.value` | A MIDI message's value |
 | `apptrol.midi.channel` | A MIDI message's channel (1–16) |
 | `apptrol.config.controls` | How many controls the configuration assigns |
+| `apptrol.config.table` | The configuration table an entry belongs in: `apps` or `inputs` (on `config uses an old form`) |
 | `apptrol.warning` | A warning about the configuration or the saved state |
 | `apptrol.state.positions` | How many positions were restored |
 | `apptrol.state.mutes` | How many mutes were restored |
