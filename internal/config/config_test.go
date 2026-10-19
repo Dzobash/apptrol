@@ -367,6 +367,24 @@ func TestCFG08_UnknownLayoutKeyKeepsDiagnostic(t *testing.T) {
 	}
 }
 
+func TestCFG08_TargetSettingInsideAButtonStaysUnknown(t *testing.T) {
+	ps := problemsOf(t, `
+[apps.test_input]
+type = "input"
+match = ["test-input"]
+
+[layouts.default]
+slider1 = "test_input"
+
+[layouts.default.buttons]
+m1 = { mode = "mute", match = "x" }
+`)
+	want := "layouts.default.buttons.m1.match: unknown setting"
+	if len(ps) != 1 || ps[0] != want {
+		t.Fatalf("problems = %q, want only %q", ps, want)
+	}
+}
+
 func TestAssignmentsAreSorted(t *testing.T) {
 	cfg, _ := mustParse(t, `
 [apps.a]
