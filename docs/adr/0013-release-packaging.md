@@ -48,3 +48,8 @@ process should be repeatable and not depend on anyone's machine.
   `<replaces>` entry, not a new id. The component is a `console-application` (no window).
   CI validates the file (`appstreamcli validate`); every release adds itself to
   `<releases>`.
+- 2026-10-19: Debian packages install `packaging/debian/copyright` in DEP-5 format
+  at `/usr/share/doc/apptrol/copyright` (NFR-09, #97). It carries Apptrol's copyright
+  notice and full MIT text; bundled libraries and Go remain in `THIRD_PARTY_LICENSES`
+  (NFR-08). RPM packages and archives keep `LICENSE`. Discover's license display for
+  a local deb still needs observation; DEP-5 does not promise that Discover will show the license.

@@ -33,8 +33,14 @@ The packages install:
 | Example configuration | `/usr/share/doc/apptrol/examples/config.toml` |
 | AppStream metadata (what software centers show) | `/usr/share/metainfo/io.github.dzobash.apptrol.metainfo.xml` |
 | Icon | `/usr/share/icons/hicolor/scalable/apps/io.github.dzobash.apptrol.svg`, and the 16 px version in `…/16x16/apps/` |
-| README, changelog, license | `/usr/share/doc/apptrol/` (license under `/usr/share/licenses/apptrol/` on rpm) |
+| README, changelog | `/usr/share/doc/apptrol/` |
+| Apptrol copyright and MIT license | `/usr/share/doc/apptrol/copyright` in DEP-5 format on deb; `/usr/share/licenses/apptrol/LICENSE` on rpm; `LICENSE` in archives |
 | Third-party licenses | `/usr/share/doc/apptrol/THIRD_PARTY_LICENSES` (`/usr/share/licenses/apptrol/` on rpm), and in the archives |
+
+The deb copyright file comes from
+[`packaging/debian/copyright`](https://github.com/Dzobash/apptrol/blob/main/packaging/debian/copyright),
+in [DEP-5 format](https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/)
+(NFR-06, NFR-09). Keep its copyright notice and MIT text in sync with `LICENSE`.
 
 `THIRD_PARTY_LICENSES` holds the copyright notice and license text of every library
 compiled into the binary, and of Go's standard library, as their licenses require
@@ -108,6 +114,20 @@ Before a new version, publish a release candidate and test the installed package
 `make snapshot` runs the whole release build without publishing anything and puts the
 results in `dist/`. It needs [GoReleaser](https://goreleaser.com/install/) installed.
 `make release-check` only validates `.goreleaser.yaml`.
+
+When `lintian` is available, check the snapshot deb before installing it:
+
+```bash
+make snapshot
+lintian dist/*.deb
+```
+
+There must be no `lintian` tag about the copyright file (NFR-09), such as
+`no-copyright-file`, tags ending in `-dep5-copyright`, or tags starting with
+`copyright-`. Other tags may appear and are out of scope; record them separately.
+For an installed release candidate, run
+[TC-NFR-001](testing/cases/nfr.md) and record what Discover shows for the local deb.
+DEP-5 does not guarantee that Discover will display the license (#97).
 
 Install a locally built package to try it:
 
