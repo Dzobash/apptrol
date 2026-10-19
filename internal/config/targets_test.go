@@ -117,9 +117,9 @@ func TestCFG18_ProblemsNameTheInputsTable(t *testing.T) {
 	requireProblem(t, ps, "inputs.mic.max_volume: 0 is out of range")
 }
 
-func TestCFG18_UndefinedTargetNamesBothTables(t *testing.T) {
+func TestCFG18_UndefinedTargetNamesAllTables(t *testing.T) {
 	requireProblem(t, problemsOf(t, targetsBase+"knob1 = \"ghost\"\n"),
-		`layouts.default.knob1: app "ghost" is not defined in [apps] or [inputs]`)
+		`layouts.default.knob1: app "ghost" is not defined in [apps], [inputs] or [outputs]`)
 }
 
 func TestCFG18_MediaPlayerMustBeAnApp(t *testing.T) {

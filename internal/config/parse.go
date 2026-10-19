@@ -198,7 +198,7 @@ func parse(path string, data []byte) (*Config, []Warning, error) {
 			}
 			_, validApp := cfg.Apps[appID]
 			if _, defined := tableOf[appID]; !defined {
-				errs.add("layouts.%s.%s: app %q is not defined in [apps] or [inputs] or [outputs]", name, key, appID)
+				errs.add("layouts.%s.%s: app %q is not defined in [apps], [inputs] or [outputs]", name, key, appID)
 			}
 			if !validControl || !validApp {
 				continue
