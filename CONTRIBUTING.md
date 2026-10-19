@@ -127,7 +127,7 @@ Project layout:
 | `docs/` | The documentation, grouped in [docs/README.md](docs/README.md); also the website's source |
 | `docs/assets/` | Logo files (`brand/`, MIT) and third-party photos (`photos/`, each with its own license) |
 | `examples/` | Example configuration (built into the binary for the first start) |
-| `packaging/` | systemd unit, package scripts and AppStream metadata (what software centers show) |
+| `packaging/` | systemd unit, package scripts, Debian copyright and AppStream metadata (what software centers show) |
 
 How the packages work together: [docs/architecture.md](docs/architecture.md).
 

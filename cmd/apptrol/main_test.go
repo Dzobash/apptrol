@@ -66,8 +66,7 @@ name  = "Spotify"
 match = ["spotify"]
 max_volume = 150
 
-[apps.mic]
-type  = "input"
+[inputs.mic]
 match = ["GoXLR"]
 
 [apps.spare]
@@ -122,11 +121,23 @@ m8     = { mode = "hold_to_talk", talk_over = true }
 	}
 }
 
+// apptrol check prints the old form of an input as a warning naming the
+// table to move it to; the file is valid (CFG-19, ADR 0026).
+func TestCFG19_CheckWarnsAboutTheOldForm(t *testing.T) {
+	path := writeConfig(t, "[apps.mic]\ntype = \"input\"\nmatch = [\"Headset\"]\n[layouts.default]\nslider8 = \"mic\"\n")
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"--config", path, "check"}, &stdout, &stderr)
+	want := `warning: apps.mic: type = "input" is the old form; move it to [inputs.mic]`
+	if code != 0 || !strings.Contains(stdout.String(), want) || !strings.Contains(stdout.String(), "input: Headset") {
+		t.Fatalf("code = %d, stdout = %q, stderr = %q; want code 0, the input and %q", code, stdout.String(), stderr.String(), want)
+	}
+}
+
 func TestCFG11_AppSettingUnderLayoutSaysWhereItBelongs(t *testing.T) {
 	path := writeConfig(t, "[apps.tone-a]\nmatch = [\"tone-a\"]\n[layouts.default]\nslider1 = \"tone-a\"\nmax_volume = 150\n")
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"--config", path, "check"}, &stdout, &stderr)
-	want := "apptrol check: " + path + ": 1 problem\n  - layouts.default.max_volume: max_volume is an app setting, not a control; put it under [apps.<id>]\n"
+	want := "apptrol check: " + path + ": 1 problem\n  - layouts.default.max_volume: max_volume is an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]\n"
 	if code != 1 || stdout.Len() != 0 || stderr.String() != want {
 		t.Fatalf("code = %d, stdout = %q, stderr = %q; want code 1 and stderr %q", code, stdout.String(), stderr.String(), want)
 	}

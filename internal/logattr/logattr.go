@@ -78,6 +78,7 @@ const (
 	KeyMIDIValue    = "apptrol.midi.value"
 	KeyMIDIChannel  = "apptrol.midi.channel"
 	KeyControls     = "apptrol.config.controls" // number of assigned controls
+	KeyConfigTable  = "apptrol.config.table"    // a configuration table, e.g. inputs (ADR 0026)
 	KeyWarning      = "apptrol.warning"         // a warning about a file's contents
 	KeyPositions    = "apptrol.state.positions" // number of restored positions
 	KeyMutes        = "apptrol.state.mutes"     // number of restored mutes

@@ -8,6 +8,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -155,7 +156,31 @@ func (c *Config) Layout() Layout { return c.Layouts[DefaultLayout] }
 // ValidationError lists every problem found in a configuration file.
 type ValidationError struct {
 	Path     string
-	Problems []string
+	Problems []Problem
+}
+
+// Problem is one reason a configuration is invalid. Text is the line for
+// people, as `apptrol check` prints it and the log keeps in exception.message.
+// A problem someone may want to find in the log by its subject also carries
+// Attrs, logged with it (ADR 0016), like a Warning does; e.g. an id defined in
+// two tables (CFG-18, ADR 0026 point 7):
+//
+//	Text:  inputs.mic: the same id is defined in two tables ([apps] and [inputs])
+//	Attrs: apptrol.app.id=mic
+type Problem struct {
+	Text  string
+	Attrs []slog.Attr // attribute names from internal/logattr; most problems have none
+}
+
+func (p Problem) String() string { return p.Text }
+
+// Texts returns the text of every problem, in order.
+func (e *ValidationError) Texts() []string {
+	texts := make([]string, len(e.Problems))
+	for i, p := range e.Problems {
+		texts[i] = p.Text
+	}
+	return texts
 }
 
 func (e *ValidationError) Error() string {
@@ -166,7 +191,7 @@ func (e *ValidationError) Error() string {
 	}
 	for _, p := range e.Problems {
 		b.WriteString("\n  - ")
-		b.WriteString(p)
+		b.WriteString(p.Text)
 	}
 	return b.String()
 }
@@ -203,7 +228,7 @@ func DefaultStateDir() (string, error) {
 // Load reads and validates the configuration file at path. It returns the
 // configuration and non-fatal warnings, or an error. Validation problems are
 // returned as *ValidationError; a missing file wraps ErrNotFound.
-func Load(path string) (*Config, []string, error) {
+func Load(path string) (*Config, []Warning, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -215,7 +240,7 @@ func Load(path string) (*Config, []string, error) {
 }
 
 // Parse validates configuration data. path is only used in messages.
-func Parse(path string, data []byte) (*Config, []string, error) {
+func Parse(path string, data []byte) (*Config, []Warning, error) {
 	return parse(path, data)
 }
 

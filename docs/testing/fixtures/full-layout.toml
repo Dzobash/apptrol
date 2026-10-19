@@ -29,9 +29,8 @@ max_volume = 80                    # a cap: knob 2 at the top is 80 %. Amplifyin
                                    # 100 % gets a fixture and case of its own, so no
                                    # knob here can get loud by accident.
 
-[apps.mic]
+[inputs.mic]
 name  = "Test microphone"
-type  = "input"
 match = ["apptrol-test-mic"]       # the virtual input apply-fixture.sh creates
 
 [layouts.default]

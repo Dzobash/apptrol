@@ -248,11 +248,11 @@ func cmdCheck(configPath string, stdout io.Writer) error {
 	// Launchers of apps that are not installed: a warning only, as the app
 	// may be installed later (LAUNCH-10).
 	for _, m := range launcher.Installed().Missing(cfg.LauncherApps()) {
-		warnings = append(warnings, fmt.Sprintf("layouts.%s.buttons.%s: desktop ID %q is not installed (`apptrol list apps` shows the installed ones)",
-			m.Layout, m.Button, m.DesktopID))
+		warnings = append(warnings, config.Warning{Text: fmt.Sprintf("layouts.%s.buttons.%s: desktop ID %q is not installed (`apptrol list apps` shows the installed ones)",
+			m.Layout, m.Button, m.DesktopID)})
 	}
 	for _, w := range warnings {
-		fmt.Fprintf(stdout, "\nwarning: %s", w)
+		fmt.Fprintf(stdout, "\nwarning: %s", w.Text)
 	}
 	if len(warnings) > 0 {
 		fmt.Fprintln(stdout)

@@ -30,7 +30,10 @@ max_size  = "10MB"                 # rotate when the file reaches this size
 max_files = 5                      # rotated files to keep
 
 # ── Apps and inputs ───────────────────────────────────────────────────────────
-# Each entry is defined once and referred to by its id (the part after "apps.").
+# Apps (the sound a program plays) go in [apps.<id>], inputs (a microphone or
+# another capture device) in [inputs.<id>]. Each entry is defined once and
+# referred to by its id (the part after "apps." or "inputs."); an id may be used
+# in only one of the two tables.
 # `match` is a list of case-insensitive name fragments.
 # Run `apptrol list` to see the names of everything that is currently playing.
 
@@ -55,9 +58,8 @@ match = ["discord", "vesktop"]
 name  = "Steam games"
 match = ["steam"]
 
-[apps.mic]
+[inputs.mic]
 name  = "Microphone"
-type  = "input"                    # "app" (default) or "input"
 match = ["GoXLR"]                  # part of the input device's name
 # talk_over_volume = 25            # % apps go down to during talk-over (0–100, default 25)
 

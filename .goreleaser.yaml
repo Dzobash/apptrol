@@ -78,7 +78,7 @@ nfpms:
         dst: /usr/share/doc/apptrol/README.md
       - src: CHANGELOG.md
         dst: /usr/share/doc/apptrol/CHANGELOG.md
-      - src: LICENSE
+      - src: packaging/debian/copyright
         dst: /usr/share/doc/apptrol/copyright
         packager: deb
       - src: LICENSE
