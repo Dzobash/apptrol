@@ -32,7 +32,7 @@ Was: H-17
 |---|---|
 | Id and title | `TC-<AREA>-<NNN>`: the area as below, a three-digit number that is never reused. The title says what must hold, not what is done. |
 | `Covers:` | The requirement IDs the case checks, then the phase: `SVC-07, STATE-04 · Phase 1`. A search for a requirement ID then finds the requirement, its Go test and its case. |
-| `Config:` | The [fixture](../fixtures/) the case runs with, applied with `apply-fixture.sh <name>`. Every case names one, so it starts from the same setup on every run. |
+| `Config:` | The [fixture](../fixtures/) the case runs with, applied with `apply-fixture.sh <name>`. Every runtime case names one, so it starts from the same setup on every run. Package-only cases use `none (package check)` because they do not run the service. |
 | `Type:` | `Manual`, or `Automated` for a risk covered by a Go test: then the case has no steps, only `Test:` with the test's name. |
 | `Was:` | The step of the old hardware checklist it replaces, if any (H-00 to H-51). Optional. |
 | Setup | What must be true before the first step, as checkboxes. The fixture is not repeated here. |
@@ -55,6 +55,7 @@ leave audio muted or too loud come first.
 
 | Area | File | Checks |
 |---|---|---|
+| NFR | [nfr.md](nfr.md) | Package copyright and license texts |
 | HW | `hw.md` | The controller: found, plugged in and out, permissions |
 | CTRL | `ctrl.md` | Sliders and knobs set the volume; `max_volume` |
 | PRIO | `prio.md` | The controller has priority; new streams take the control's position |

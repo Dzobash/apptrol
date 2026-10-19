@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Debian packages install a machine-readable DEP-5 copyright file (NFR-06, NFR-08, NFR-09, #97).
 - App settings misplaced under a layout now point to `[apps.<id>]`, in reload errors and `apptrol check` (CFG-08, CFG-11, #134).
 
 ## [0.2.2] - 2026-10-16
