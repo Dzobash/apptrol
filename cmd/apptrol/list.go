@@ -15,7 +15,7 @@ import (
 
 // cmdList shows the playing apps, input devices and output devices with the
 // names used for matching, and which control each app and input is on
-// (CFG-10, OUT-12).
+// (CFG-10, OUT-12, ADR 0027).
 func cmdList(configPath string, stdout io.Writer, list func() (*pulse.Listing, error)) error {
 	l, err := list()
 	if err != nil {

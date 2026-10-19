@@ -80,8 +80,8 @@ func outsideMute[K comparable](want map[K]muteWant, key K, muted bool) bool {
 }
 
 // Backend keeps a connection to the audio server, reports streams, capture
-// devices and output devices as mixer events, and carries out volume and mute
-// actions.
+// devices and output devices (OUT-12, ADR 0027) as mixer events, and carries
+// out volume and mute actions.
 //
 // Run and Apply may be called from different goroutines.
 type Backend struct {
@@ -115,9 +115,9 @@ func New(log *slog.Logger, server string) *Backend {
 
 // Run connects and keeps the connection until ctx is canceled. After each
 // (re)connect it sends a full mixer.AudioSnapshot, then single changes:
-// StreamAdded, StreamRemoved, DeviceAdded, DeviceRemoved, OutputAdded,
-// OutputRemoved. If the server goes away, Run logs it and reconnects
-// (SVC-04). It returns ctx's error.
+// StreamAdded, StreamRemoved, DeviceAdded, DeviceRemoved, OutputAdded and
+// OutputRemoved (OUT-12, ADR 0027). If the server goes away, Run logs it and
+// reconnects (SVC-04). It returns ctx's error.
 func (b *Backend) Run(ctx context.Context, out chan<- mixer.Event) error {
 	wait := b.retryMin
 	failed := false // the last attempt failed; don't repeat the error log

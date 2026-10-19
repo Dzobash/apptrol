@@ -10,7 +10,7 @@ import (
 // ---- output devices (OUT-*, ADR 0027) ---------------------------------------
 
 // outputsSnapshot replaces every output device the mixer knew, on a
-// (re)connect to the audio server (SVC-04).
+// (re)connect to the audio server (OUT-12, SVC-04, ADR 0027).
 func (m *Mixer) outputsSnapshot(a *actions, outputs []Device) {
 	m.outputs = map[string]Device{}
 	for _, d := range outputs {
@@ -26,7 +26,8 @@ func (m *Mixer) outputsSnapshot(a *actions, outputs []Device) {
 	}
 }
 
-// outputAdded keeps an output device that appeared or was renamed.
+// outputAdded keeps an output device that appeared or was renamed (OUT-12,
+// ADR 0027).
 func (m *Mixer) outputAdded(a *actions, d Device) {
 	m.outputs[d.Name] = d
 	m.logIdleOutput(a, d)
@@ -34,7 +35,8 @@ func (m *Mixer) outputAdded(a *actions, d Device) {
 
 // logIdleOutput logs an output device that no control acts on, at debug: the
 // log then shows that Apptrol sees the device, and its exact name for a
-// match list, even before any output is configured (OUT-13, LOG-15).
+// match list, even before any output is configured (OUT-13, LOG-15,
+// ADR 0027).
 func (m *Mixer) logIdleOutput(a *actions, d Device) {
 	a.notice(slog.LevelDebug, "output device not on a control",
 		logattr.KeyDeviceName, d.Name, logattr.KeyDeviceDescription, d.Description)

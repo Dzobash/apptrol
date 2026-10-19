@@ -182,7 +182,7 @@ func (k *conn) sourceByName(name string) (info SourceInfo, ok bool, err error) {
 	return info, ok, nil
 }
 
-// sinks returns the output devices (OUT-12).
+// sinks returns the output devices (OUT-12, ADR 0027).
 func (k *conn) sinks() ([]SinkInfo, error) {
 	var r proto.GetSinkInfoListReply
 	if err := k.request(&proto.GetSinkInfoList{}, &r); err != nil {
@@ -195,7 +195,7 @@ func (k *conn) sinks() ([]SinkInfo, error) {
 	return out, nil
 }
 
-// sink returns one output device.
+// sink returns one output device, for a change notification (OUT-12, ADR 0027).
 func (k *conn) sink(index uint32) (SinkInfo, error) {
 	var r proto.GetSinkInfoReply
 	if err := k.request(&proto.GetSinkInfo{SinkIndex: index}, &r); err != nil {
@@ -221,7 +221,8 @@ func (k *conn) setSourceMute(name string, muted bool) error {
 	return k.request(&proto.SetSourceMute{SourceIndex: proto.Undefined, SourceName: name, Mute: muted}, nil)
 }
 
-// Snapshot converts listed streams, sources and sinks into the mixer's event.
+// Snapshot converts listed streams, sources and sinks into the mixer's event
+// (SVC-04; sinks: OUT-12, ADR 0027).
 func Snapshot(streams []StreamInfo, sources []SourceInfo, sinks []SinkInfo) mixer.AudioSnapshot {
 	ev := mixer.AudioSnapshot{Streams: make([]mixer.Stream, 0, len(streams)), Devices: make([]mixer.Device, 0, len(sources)),
 		Outputs: make([]mixer.Device, 0, len(sinks))}

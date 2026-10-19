@@ -248,7 +248,7 @@ type Player struct {
 }
 
 // Device is a capture device (a PulseAudio "source") or an output device (a
-// "sink", ADR 0027).
+// "sink", OUT-12, ADR 0027).
 type Device struct {
 	Name        string // unique name, e.g. alsa_input.usb-… or alsa_output.usb-…
 	Description string // human-readable, e.g. "GoXLR Mini Mic"

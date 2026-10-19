@@ -76,7 +76,7 @@ func sourceFromReply(r *proto.GetSourceInfoReply) (SourceInfo, bool) {
 
 // sinkFromReply converts an output device. A sink is never a monitor: the
 // monitor of an output is a source, which sourceFromReply leaves out, so
-// monitors are listed neither as inputs nor as outputs (OUT-12).
+// monitors are listed neither as inputs nor as outputs (OUT-12, ADR 0027).
 func sinkFromReply(r *proto.GetSinkInfoReply) SinkInfo {
 	return SinkInfo{
 		Device: mixer.Device{

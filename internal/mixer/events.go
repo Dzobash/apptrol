@@ -101,10 +101,10 @@ type DeviceAdded struct{ Device Device }
 type DeviceRemoved struct{ Name string }
 
 // OutputAdded reports an output device (a PulseAudio "sink") that appeared,
-// or whose description changed (ADR 0027).
+// or whose description changed (OUT-12, ADR 0027).
 type OutputAdded struct{ Device Device }
 
-// OutputRemoved reports that an output device is gone.
+// OutputRemoved reports that an output device is gone (OUT-12, ADR 0027).
 type OutputRemoved struct{ Name string }
 
 // StreamMuteChanged reports that a playback stream was muted or unmuted by
