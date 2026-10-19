@@ -204,10 +204,15 @@ slider8 = "mic"
 }
 
 func TestCFG19_OtherTypesAreRejected(t *testing.T) {
-	requireProblem(t, problemsOf(t, strings.Replace(minimal, `match = ["spotify"]`, "type  = \"output\"\nmatch = [\"spotify\"]", 1)),
-		`apps.spotify.type: "output" is not valid; [apps] holds only apps, and inputs go in [inputs.spotify]`)
+	requireProblem(t, problemsOf(t, strings.Replace(minimal, `match = ["spotify"]`, "type  = \"speaker\"\nmatch = [\"spotify\"]", 1)),
+		`apps.spotify.type: "speaker" is not valid; [apps] holds only apps, and inputs go in [inputs.spotify]`)
 	src := strings.Replace(targetsBase, `match = ["Headset"]`, "type  = \"input\"\nmatch = [\"Headset\"]", 1)
 	requireProblem(t, problemsOf(t, src), "inputs.mic.type: not used in [inputs]; remove the line")
+}
+
+func TestCFG20_OutputTypeInAppsPointsToOutputsTable(t *testing.T) {
+	requireProblem(t, problemsOf(t, strings.Replace(minimal, `match = ["spotify"]`, "type  = \"output\"\nmatch = [\"spotify\"]", 1)),
+		`apps.spotify.type: "output" is not valid; [apps] holds only apps, and outputs go in [outputs.spotify]`)
 }
 
 // Warnings without a message of their own keep being logged by their text.

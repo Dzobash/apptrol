@@ -381,7 +381,9 @@ func parseTarget(table, id string, ra rawApp, errs *problems, warnings *[]Warnin
 // oldType reads the type key of the old form and returns the target's type
 // (CFG-19, ADR 0026 point 3). In [apps], "input" and "app" are still read,
 // each with a warning naming the table to move the entry to; anything else,
-// is rejected. The caller rejects type in the other tables.
+// is rejected. "output" never was a type of the old form, but an output is
+// what such an entry most likely means, so its error names [outputs.<id>]
+// (CFG-20). The caller rejects type in the other tables.
 func oldType(at, id, value string, errs *problems, warnings *[]Warning) string {
 	var to, text string
 	switch value {
@@ -391,6 +393,9 @@ func oldType(at, id, value string, errs *problems, warnings *[]Warning) string {
 	case TypeApp:
 		to = tableApps
 		text = fmt.Sprintf("%s: type = %q is the old form; remove the line, as [apps] holds only apps", at, value)
+	case TypeOutput:
+		errs.add("%s.type: %q is not valid; [apps] holds only apps, and outputs go in [%s.%s]", at, value, tableOutputs, id)
+		return TypeApp
 	default:
 		errs.add("%s.type: %q is not valid; [apps] holds only apps, and inputs go in [inputs.%s]", at, value, id)
 		return TypeApp
