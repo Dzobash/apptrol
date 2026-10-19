@@ -102,6 +102,11 @@ func parse(path string, data []byte) (*Config, []string, error) {
 
 	// Unknown keys are almost always typos; reject them (CFG-07).
 	for _, k := range md.Undecoded() {
+		// decodeLayouts already reports misplaced target settings, including
+		// their nested values; do not report the same mistake twice (CFG-08).
+		if len(k) >= 3 && k[0] == "layouts" && slices.Contains(targetSettings, k[2]) {
+			continue
+		}
 		errs.add("%s: unknown setting", k.String())
 	}
 
@@ -265,6 +270,11 @@ func parse(path string, data []byte) (*Config, []string, error) {
 	return cfg, warnings, nil
 }
 
+// targetSettings identifies settings that belong to a target rather than a layout
+// control, so misplaced settings get a useful table hint (CFG-08). Targets currently
+// live in [apps.<id>]; extend this list and the hint when target tables change.
+var targetSettings = []string{"name", "type", "match", "max_volume", "talk_over_volume"}
+
 // decodeLayouts decodes each [layouts.<name>]: "control = app" entries as
 // text, and the buttons table (CFG-13). It runs before the check for unknown
 // keys, which only sees what was decoded.
@@ -273,6 +283,10 @@ func decodeLayouts(md toml.MetaData, raw map[string]map[string]toml.Primitive, e
 	for name, entries := range raw {
 		l := rawLayout{controls: map[string]string{}}
 		for key, prim := range entries {
+			if slices.Contains(targetSettings, key) {
+				errs.add("layouts.%s.%s: %s is an app setting, not a control; put it under [apps.<id>]", name, key, key)
+				continue
+			}
 			if key == "buttons" {
 				if err := md.PrimitiveDecode(prim, &l.buttons); err != nil {
 					errs.add("%s", valueError(err))

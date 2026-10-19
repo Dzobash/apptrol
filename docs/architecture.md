@@ -86,7 +86,9 @@ start restores), ends solo and turns the LEDs off before the adapters are stoppe
 STATE-04, SVC-07, LED-08).
 
 **An invalid input never causes a write** ([ADR 0025](adr/0025-state-kept-while-config-invalid.md)).
-An invalid file on reload is rejected and the running settings stay. Without a valid
+An invalid file on reload is rejected and the running settings stay. The shared config
+validator identifies app settings misplaced under a layout and points to `[apps.<id>]`;
+reload errors and `apptrol check` use the same diagnostic (CFG-08, CFG-11). Without a valid
 configuration at start, the mixer is created with `mixer.NewWithoutConfig`: it controls
 nothing and keeps the saved state unchanged, so its snapshot equals what is on disk and
 the saver writes nothing (apart from positions of controls moved meanwhile). The first

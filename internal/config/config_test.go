@@ -339,6 +339,34 @@ slider1 = "a"
 `), "apps.a.match: empty")
 }
 
+func TestCFG08_AppSettingUnderLayoutSaysWhereItBelongs(t *testing.T) {
+	for _, key := range []string{"max_volume", "match", "name", "type", "talk_over_volume"} {
+		for _, value := range []string{`150`, `["tone-a"]`, `"tone-a"`, `true`, `{ nested = "tone-a" }`} {
+			t.Run(key+"/"+value, func(t *testing.T) {
+				ps := problemsOf(t, minimal+key+" = "+value+"\n")
+				want := "layouts.default." + key + ": " + key + " is an app setting, not a control; put it under [apps.<id>]"
+				if len(ps) != 1 || ps[0] != want {
+					t.Fatalf("problems = %q, want only %q", ps, want)
+				}
+			})
+		}
+	}
+}
+
+func TestCFG08_UnknownLayoutKeyKeepsDiagnostic(t *testing.T) {
+	for _, tt := range []struct{ value, want string }{
+		{`150`, `layouts.default.fader1: expected an app id in quotes, e.g. fader1 = "spotify"`},
+		{`"spotify"`, `layouts.default.fader1: unknown control (use slider1–slider8 or knob1–knob8)`},
+	} {
+		t.Run(tt.value, func(t *testing.T) {
+			ps := problemsOf(t, minimal+"fader1 = "+tt.value+"\n")
+			if len(ps) != 1 || ps[0] != tt.want {
+				t.Fatalf("problems = %q, want only %q", ps, tt.want)
+			}
+		})
+	}
+}
+
 func TestAssignmentsAreSorted(t *testing.T) {
 	cfg, _ := mustParse(t, `
 [apps.a]
