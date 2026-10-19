@@ -14,9 +14,8 @@ name  = "Music"
 match = ["spotify"]
 max_volume = 150
 
-[apps.mic]
+[inputs.mic]
 name  = "Mic"
-type  = "input"
 match = ["GoXLR"]
 
 [apps.unused]

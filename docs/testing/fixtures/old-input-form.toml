@@ -1,0 +1,25 @@
+# Test fixture "old-input-form": test tone A and the virtual microphone, the
+# microphone written in the old form of 0.2.x ([apps.<id>] with type = "input").
+# For: the old form still loads until 1.0, with a warning (CFG-19, ADR 0026).
+# Applied by docs/testing/apply-fixture.sh; old format of 0.2.x, on purpose.
+# TestFixturesAreValid in internal/config checks that it loads.
+
+[controller]
+port = "nanoKONTROL2"
+
+[log]
+level   = "debug"                  # the cases read the log
+outputs = ["journald"]
+
+[apps.tone-a]
+name  = "Test tone A"
+match = ["apptrol-test-a"]         # mpv --audio-client-name=apptrol-test-a
+
+[apps.mic]
+name  = "Test microphone"
+type  = "input"                    # the old form: [inputs.mic] without this line
+match = ["apptrol-test-mic"]       # the virtual input apply-fixture.sh creates
+
+[layouts.default]
+slider1 = "tone-a"
+slider8 = "mic"

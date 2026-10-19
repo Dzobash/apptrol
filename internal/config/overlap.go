@@ -13,8 +13,8 @@ import (
 //
 // Two fragments overlap when one contains the other: every name that contains
 // the longer one also contains the shorter one.
-func overlaps(cfg *Config) []string {
-	var warnings []string
+func overlaps(cfg *Config) []Warning {
+	var warnings []Warning
 	as := cfg.Layout().Assignments // sorted: sliders, then knobs
 	for i, first := range as {
 		a := cfg.Apps[first.AppID]
@@ -24,13 +24,13 @@ func overlaps(cfg *Config) []string {
 				continue // apps match streams, inputs match devices
 			}
 			if why := sharedFragment(a.Match, b.Match); why != "" {
-				what := "streams"
+				kind, what := "apps", "streams"
 				if a.Type == TypeInput {
-					what = "input devices"
+					kind, what = "inputs", "input devices"
 				}
-				warnings = append(warnings, fmt.Sprintf(
-					"apps %q (%s) and %q (%s) can match the same %s (%s); those go to %q on %s",
-					a.ID, first.Control, b.ID, second.Control, what, why, a.ID, first.Control))
+				warnings = append(warnings, warnf(
+					"%s %q (%s) and %q (%s) can match the same %s (%s); those go to %q on %s",
+					kind, a.ID, first.Control, b.ID, second.Control, what, why, a.ID, first.Control))
 			}
 		}
 	}

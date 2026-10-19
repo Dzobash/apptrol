@@ -44,7 +44,7 @@ func TestCTRL03_MaxVolumeOutOfRange(t *testing.T) {
 			t.Errorf("max_volume = %s: err = %v, want a validation error", value, err)
 			continue
 		}
-		requireProblem(t, ve.Problems, want)
+		requireProblem(t, ve.Texts(), want)
 	}
 }
 
@@ -58,14 +58,11 @@ match = ["fire"]
 match = ["vivaldi"]
 [apps.other]
 match = ["spotify"]
-[apps.mic]
-type  = "input"
+[inputs.mic]
 match = ["goxlr"]
-[apps.mic2]
-type  = "input"
+[inputs.mic2]
 match = ["GoXLR Mini"]
-[apps.firecam]
-type  = "input"
+[inputs.firecam]
 match = ["fire"]
 [apps.spare]
 match = ["firefox"]
@@ -79,10 +76,7 @@ slider7 = "mic2"
 slider8 = "mic"
 knob2   = "firecam"
 `
-	_, warnings, err := Parse("t.toml", []byte(cfg))
-	if err != nil {
-		t.Fatal(err)
-	}
+	_, warnings := mustParse(t, cfg)
 	var overlapsFound []string
 	for _, w := range warnings {
 		if strings.Contains(w, "can match the same") {
@@ -92,7 +86,7 @@ knob2   = "firecam"
 	want := []string{
 		`apps "browser" (slider2) and "twin" (slider3) can match the same streams (both match "vivaldi"); those go to "browser" on slider2`,
 		`apps "browser" (slider2) and "fire" (knob1) can match the same streams ("fire" is part of "Firefox"); those go to "browser" on slider2`,
-		`apps "mic2" (slider7) and "mic" (slider8) can match the same input devices ("goxlr" is part of "GoXLR Mini"); those go to "mic2" on slider7`,
+		`inputs "mic2" (slider7) and "mic" (slider8) can match the same input devices ("goxlr" is part of "GoXLR Mini"); those go to "mic2" on slider7`,
 	}
 	if strings.Join(overlapsFound, "\n") != strings.Join(want, "\n") {
 		t.Errorf("warnings:\n%s\nwant:\n%s", strings.Join(overlapsFound, "\n"), strings.Join(want, "\n"))
