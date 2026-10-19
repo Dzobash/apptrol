@@ -35,6 +35,7 @@ Looking something up.
 - [Requirements](requirements.md): every behaviour with its ID
 - [Test cases](testing/cases/README.md): the format of a manual test case, and the cases
   by area
+- [Configuration test cases](testing/cases/cfg.md): misplaced app settings and their diagnostics
 - [Test run template](testing/runs/template.md): the record of a release's test run;
   every run is in [testing/runs/](testing/runs/)
 - [Brand guide](brand.md): logo, colours, type and how to use them

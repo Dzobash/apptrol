@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- App settings misplaced under a layout now point to `[apps.<id>]`, in reload errors and `apptrol check` (CFG-08, CFG-11, #134).
+
 ## [0.2.2] - 2026-10-16
 
 ### Documentation

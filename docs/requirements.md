@@ -201,7 +201,7 @@ in [ADR 0029](adr/0029-controller-follows-the-user-in-front.md).
 | CFG-05 | An input MUST be matched by a case-insensitive substring of the capture device's name or description. | MUST |
 | CFG-06 | Apptrol MUST reload the configuration automatically when the file is saved, without restarting. | MUST |
 | CFG-07 | An invalid configuration MUST be rejected with an error log naming the problem; the previous valid configuration MUST stay active. If there is no valid configuration at start, Apptrol MUST start, log the error and wait for a valid file. | MUST |
-| CFG-08 | Validation MUST reject: unknown control names, references to undefined apps, the same app assigned to more than one control in a layout, and empty match lists. | MUST |
+| CFG-08 | Validation MUST reject: unknown control names, references to undefined apps, the same app assigned to more than one control in a layout, and empty match lists. App settings placed directly under a layout MUST be identified as app settings, with a hint to put them under `[apps.<id>]`. | MUST |
 | CFG-09 | If no configuration file exists, Apptrol SHOULD create a commented example file and log where it is. | SHOULD |
 | CFG-10 | A command `apptrol list` SHOULD print the currently playing streams and capture devices with the names used for matching, to help write the config. | SHOULD |
 | CFG-11 | A command `apptrol check` SHOULD validate the configuration file and exit. | SHOULD |
