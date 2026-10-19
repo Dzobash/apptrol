@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer read it (CFG-19).
 
 ### Fixed
+- The .deb now carries its copyright file in Debian's standard machine-readable format, which `lintian` expects (NFR-09, #97).
 - App settings misplaced under a layout now point to the table they belong in,
   `[apps.<id>]` or `[inputs.<id>]`, in reload errors and `apptrol check` (CFG-08,
   CFG-11, #134).

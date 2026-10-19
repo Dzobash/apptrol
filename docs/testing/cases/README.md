@@ -32,7 +32,7 @@ Was: H-17
 |---|---|
 | Id and title | `TC-<AREA>-<NNN>`: the area as below, a three-digit number that is never reused. The title says what must hold, not what is done. |
 | `Covers:` | The requirement IDs the case checks, then the phase: `SVC-07, STATE-04 · Phase 1`. A search for a requirement ID then finds the requirement, its Go test and its case. |
-| `Config:` | The [fixture](../fixtures/) the case runs with, applied with `apply-fixture.sh <name>`. Every case names one, so it starts from the same setup on every run. |
+| `Config:` | The [fixture](../fixtures/) the case runs with, applied with `apply-fixture.sh <name>`. Every runtime case names one, so it starts from the same setup on every run. Package-only cases use `none (package check)` because they do not run the service. |
 | `Type:` | `Manual`, or `Automated` for a risk covered by a Go test: then the case has no steps, only `Test:` with the test's name. |
 | `Was:` | The step of the old hardware checklist it replaces, if any (H-00 to H-51). Optional. |
 | Setup | What must be true before the first step, as checkboxes. The fixture is not repeated here. |
@@ -68,6 +68,7 @@ leave audio muted or too loud come first.
 | MEDIA | `media.md` | R on app columns and the media keys *(Phase 1.5)* |
 | LAUNCH | `launch.md` | Launcher buttons and the lock screen *(Phase 1.5)* |
 | INPUT | `input.md` | Microphone buttons and talk-over *(Phase 1.5)* |
+| NFR | `nfr.md` | Package copyright and license texts |
 
 The area files are added in the pull requests that turn the old
 [hardware checklist](../../testing.md#manual-hardware-checklist) into cases: Phase 1

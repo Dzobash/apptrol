@@ -9,6 +9,9 @@ of [requirements.md](requirements.md#51-quality-assurance).
 | Command | What it does |
 |---|---|
 | `make check` | Format check, `go vet`, `golangci-lint`, tests — the same checks CI runs |
+| `make release-check` | Validate GoReleaser packaging configuration (needs GoReleaser) |
+| `make snapshot` | Build release packages locally without publishing (needs GoReleaser) |
+| `lintian dist/*.deb` | Check built Debian packages, including the DEP-5 copyright file (needs lintian; see [package checks](releasing.md#trying-it-locally-first)) |
 | `make test` | Tests with the race detector |
 | `make test-audio` | Integration tests against your running PipeWire (they add a silent test output and inputs and remove them afterwards) |
 | `make test-desktop` | D-Bus integration tests in a private session bus (`dbus-run-session`): media players, and a fake logind standing in for the system bus; your desktop's buses and media players are not touched |
@@ -50,6 +53,10 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
   If only hardware or another program can show the bug, add a manual test case in
   [docs/testing/](testing/cases/README.md) instead.
 - **Test behaviour, not lines.** Coverage is a safety net, not the goal.
+
+For Debian packaging changes, also run [TC-NFR-001](testing/cases/nfr.md) on the
+installed candidate. Record missing tools as blocked checks and Discover's license
+display as an observation, not a guarantee of the package format.
 
 ## Manual hardware checklist
 
