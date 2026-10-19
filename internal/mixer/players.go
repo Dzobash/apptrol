@@ -187,6 +187,9 @@ func (m *Mixer) rPressed(a *actions, col int, button string) {
 	c := Control{Slider, col}
 	switch m.rMode(col) {
 	case ModePlayPause:
+		if m.mediaBlocked(a, LED{Button: ButtonR, Column: col}) { // before the player (MEDIA-11, ADR 0030)
+			return
+		}
 		m.playPause(a, c, button)
 	case ModeLauncher:
 		m.launch(a, LED{Button: ButtonR, Column: col})

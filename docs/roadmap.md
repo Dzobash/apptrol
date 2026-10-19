@@ -118,7 +118,7 @@ on-screen display still needs a trial on GNOME. The on-screen display moved to P
 - [ ] Separate tables `[apps]`, `[inputs]`, `[outputs]`; the old `type = "input"` still read with a warning until 1.0 (CFG-18 to CFG-22, #86)
 - [ ] Output volume on a slider or knob: a fixed device, or the system's default output; M, S and R on output columns; outputs in `apptrol list` (OUT-01 to OUT-13, #85)
 - [x] Decision record for three screen states: locked, switched away, logged out ([ADR 0030](adr/0030-three-screen-states.md))
-- [ ] At the login screen after *Switch user*, the media buttons and R send nothing; each press is logged as a warning (ADR 0030, #60)
+- [x] At the login screen after *Switch user*, the media buttons and R send nothing; each press is logged as a warning (ADR 0030, #60)
 
 **Done when:** all Phase 1.6 MUST requirements are met, configurations in the old form
 still load with a warning, and the hardware checklist, including the new output rows,

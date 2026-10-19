@@ -148,10 +148,24 @@ WARN launcher pressed while the screen is locked; started (when_locked) apptrol.
 INFO launchers allowed: the screen is unlocked apptrol.component=session apptrol.session.id=<id>
 ```
 
+After *Switch user*, with the login screen in front and `at_login_screen = "keep"`, the
+session has lost the speakers: the media buttons and R send nothing, and each press is one
+warning instead of `button pressed while the screen is locked` (MEDIA-11, ADR 0030).
+Pressing ▶ and M2 there, then switching back:
+
+```text
+INFO launchers blocked: the screen is not known to be unlocked apptrol.component=session apptrol.screen.state=inactive
+INFO media buttons blocked: this session is not in front apptrol.component=mixer apptrol.screen.state=inactive
+WARN media button pressed while this session is not in front; nothing sent apptrol.component=mixer apptrol.button=▶ apptrol.screen.state=inactive
+WARN button pressed while the screen is locked apptrol.component=mixer apptrol.button=M2 apptrol.screen.state=inactive
+INFO launchers allowed: the screen is unlocked apptrol.component=session apptrol.session.id=<id>
+INFO media buttons allowed: this session is in front apptrol.component=mixer apptrol.screen.state=unlocked
+```
+
 To see only what happened while the screen was locked:
 
 ```bash
-journalctl --user -u apptrol | grep 'while the screen is locked'
+journalctl --user -u apptrol | grep -E 'while the screen is locked|not in front'
 ```
 
 A slider moves (level `debug`):
@@ -297,5 +311,5 @@ Apptrol's own:
 | `apptrol.session.id` | logind's id of your graphical login session, whose lock state Apptrol follows; on `apptrol.seat.front` records, the session in front |
 | `apptrol.controller.at_login_screen` | `[controller] at_login_screen`: `keep` (the login screen changes nothing: the controller stays with whoever had it) or `release` (it belongs to nobody there) |
 | `apptrol.seat.front` | Whose session is in front of the computer: `this_user`; `other_user` (Apptrol lets go of the controller); `login_screen` (kept or let go, as `[controller] at_login_screen` says); `nobody`; `unknown` (it cannot be told: the controller is held as before) |
-| `apptrol.screen.state` | `unlocked`; `locked`; `inactive` (another user's session is in front); `unknown` (it cannot be told). Launchers start apps only when `unlocked`, or with `when_locked` also when `locked` or `inactive` |
+| `apptrol.screen.state` | `unlocked`; `locked`; `inactive` (another user's session is in front); `unknown` (it cannot be told). Launchers start apps only when `unlocked`, or with `when_locked` also when `locked` or `inactive`; the media buttons and R send nothing when `inactive` |
 | `apptrol.screen.reason` | Why the state is `unknown`: `no_system_bus`, `system_bus_lost`, `no_graphical_session` (e.g. logged in only over SSH) or `unreadable` |

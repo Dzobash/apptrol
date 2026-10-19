@@ -53,8 +53,10 @@ func (m *Mixer) lockedLaunch(b LED, l Launch) []any {
 func (m *Mixer) screenLocked() bool { return m.screen == ScreenLocked || m.screen == ScreenInactive }
 
 // lockedPress warns about a button pressed while the screen is locked
-// (LAUNCH-15, ADR 0024). Launchers warn in launch, with what they did; sliders and
-// knobs are not reported.
+// (LAUNCH-15, ADR 0024). Launchers warn in launch, with what they did, and so do
+// the media buttons while another session is in front, in mediaBlocked: one
+// line per press (MEDIA-11, ADR 0030 point 4). Sliders and knobs are not
+// reported.
 func (m *Mixer) lockedPress(a *actions, b LED) {
 	if !m.screenLocked() {
 		return
@@ -62,8 +64,51 @@ func (m *Mixer) lockedPress(a *actions, b LED) {
 	if _, launcher := m.setup.Launchers[b]; launcher {
 		return
 	}
+	if m.screen == ScreenInactive && m.isMediaButton(b) {
+		return
+	}
 	a.notice(slog.LevelWarn, "button pressed while the screen is locked",
 		logattr.KeyButton, b.String(), logattr.KeyScreenState, string(m.screen))
+}
+
+// isMediaButton reports whether b sends a command to a media player: ▶, ■,
+// ◀◀, ▶▶, and R in mode play_pause (MEDIA-05, MEDIA-07, MEDIA-11).
+func (m *Mixer) isMediaButton(b LED) bool {
+	if b.Transport != NoTransport {
+		_, key := mediaKeyCommands[b.Transport]
+		return key || b.Transport == Play
+	}
+	return b.Button == ButtonR && m.rMode(b.Column) == ModePlayPause
+}
+
+// mediaBlocked reports whether a media button sends nothing because this
+// session is not in front (inactive: Switch user, the login screen in front
+// with at_login_screen = "keep"), and warns about the press. The session has
+// lost the speakers there, so playing would start what nobody hears. It is
+// checked before looking for a player, so every press is warned about, with or
+// without one. Locked and unknown are not blocked: the lock screen keeps the
+// speakers, and playing into nothing is harmless (MEDIA-11, ADR 0030).
+func (m *Mixer) mediaBlocked(a *actions, b LED) bool {
+	if m.screen != ScreenInactive {
+		return false
+	}
+	a.notice(slog.LevelWarn, "media button pressed while this session is not in front; nothing sent",
+		logattr.KeyButton, b.String(), logattr.KeyScreenState, string(m.screen))
+	return true
+}
+
+// mediaScreenChanged logs once per change whether the media buttons are
+// blocked, when the screen state turns inactive or leaves it (MEDIA-11,
+// ADR 0030 point 8). A repeat of the same state logs nothing.
+func (m *Mixer) mediaScreenChanged(a *actions, before ScreenState) {
+	switch {
+	case before != ScreenInactive && m.screen == ScreenInactive:
+		a.notice(slog.LevelInfo, "media buttons blocked: this session is not in front",
+			logattr.KeyScreenState, string(m.screen))
+	case before == ScreenInactive && m.screen != ScreenInactive:
+		a.notice(slog.LevelInfo, "media buttons allowed: this session is in front",
+			logattr.KeyScreenState, string(m.screen))
+	}
 }
 
 // mediaKeyCommands maps the media keys to player commands; ▶ is decided by
@@ -146,6 +191,9 @@ func (m *Mixer) transportPressed(a *actions, b TransportButton) {
 	command, isMediaKey := mediaKeyCommands[b]
 	if b != Play && !isMediaKey {
 		a.notice(slog.LevelDebug, "button has no function yet", logattr.KeyButton, b.String())
+		return
+	}
+	if m.mediaBlocked(a, LED{Transport: b}) { // before the player: no player still warns (MEDIA-11, ADR 0030)
 		return
 	}
 	p, selection := m.mediaKeyPlayer()

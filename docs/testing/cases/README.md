@@ -65,7 +65,7 @@ leave audio muted or too loud come first.
 | CFG | `cfg.md` | The configuration: reload, invalid files, `apptrol check` |
 | LOG | `log.md` | Log outputs, levels and records |
 | SVC | `svc.md` | The service: start, stop, crash, several users |
-| MEDIA | `media.md` | R on app columns and the media keys *(Phase 1.5)* |
+| MEDIA | [media.md](media.md) | R on app columns and the media keys *(Phase 1.5)* |
 | LAUNCH | `launch.md` | Launcher buttons and the lock screen *(Phase 1.5)* |
 | INPUT | `input.md` | Microphone buttons and talk-over *(Phase 1.5)* |
 

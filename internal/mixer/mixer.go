@@ -30,7 +30,7 @@ type Mixer struct {
 	playSeq        int                    // counts players starting to play (lastPlaying)
 	deviceMuteSent map[string]bool        // last mute sent per device
 	leds           map[LED]bool           // last LED state sent
-	screen         ScreenState            // launchers start only while unlocked (LAUNCH-13, ADR 0024)
+	screen         ScreenState            // launchers start only while unlocked (LAUNCH-13, ADR 0024); media buttons send nothing while inactive (MEDIA-11, ADR 0030)
 	front          SeatChanged            // whose session is in front at the seat (SVC-08, ADR 0029)
 	released       bool                   // the controller was let go for another user (SVC-09)
 	keptAtLogin    bool                   // the login screen is in front with "keep": nothing changes (SVC-10)
@@ -237,10 +237,12 @@ func (m *Mixer) Handle(ev Event) []Action {
 	case SystemResumed:
 		m.syncLEDs(&a, true) // LED-09
 	case ScreenChanged:
+		before := m.screen
 		m.screen = e.State
 		if m.screen == "" {
 			m.screen = ScreenUnknown
 		}
+		m.mediaScreenChanged(&a, before) // MEDIA-11, ADR 0030
 	case SeatChanged:
 		if e.Front == "" {
 			e.Front = FrontUnknown
