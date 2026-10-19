@@ -360,6 +360,10 @@ dialog.
 - `launcher`: desktop files and `Exec` parsing against temporary folders, with fuzzing;
   starting apps against a fake systemd, and against the real user manager with harmless
   units (`make test-launcher`, not in CI, which has no user systemd).
+- `packaging`: a test keeps the MIT text of the .deb's DEP-5 copyright file equal to
+  `LICENSE` (NFR-09). CI's Packaging job builds the release as a snapshot and runs
+  `lintian` on the .deb (NFR-05, NFR-08, NFR-09, #146); it is the only place CI runs
+  GoReleaser before a release candidate is tagged.
 - `config`, `state`: unit tests and fuzzing on malformed input; the blocked-command check
   is fuzzed too. Inputs are tested in both forms, `[inputs.<id>]` and the old `type`
   (CFG-18, CFG-19); the service test checks the old form's log record.

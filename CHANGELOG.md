@@ -32,6 +32,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `apps.mic: type = "input" is the old form; move it to [inputs.mic]`. Version 1.0 will
   no longer read it (CFG-19).
 
+### Added
+- CI builds the whole release as a snapshot on every pull request (`goreleaser check`,
+  then `goreleaser release --snapshot`) and runs `lintian` on the .deb: a broken
+  `.goreleaser.yaml` or package no longer shows up first when a release candidate is
+  tagged. Lintian errors fail the job, warnings are printed; two tags are suppressed with a
+  written reason (NFR-05, NFR-08, NFR-09, #146).
+- A test keeps the MIT text in `packaging/debian/copyright` equal to `LICENSE`, so the
+  package cannot carry a different license text than the repository (NFR-09, #146).
+
 ### Fixed
 - The .deb now carries its copyright file in Debian's standard machine-readable format, which `lintian` expects (NFR-09, #97).
 - App settings misplaced under a layout now point to the table they belong in,

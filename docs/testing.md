@@ -36,6 +36,12 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
 | **Fuzz** | Runs every fuzz test (config, saved state, MIDI decoding, mixer) for 20 seconds |
 | **Vulnerability check** | `govulncheck` |
 | **Build** | Builds the binary and runs `apptrol --version` |
+| **Packaging** | `goreleaser check`, then the whole release as a snapshot (`make snapshot`: binaries, archives, .deb, .rpm; nothing is published, no secrets), then `lintian` on the .deb. Lintian errors fail the job; warnings are only printed. Suppressed tags, each with its reason, are in the job's comments (NFR-05, NFR-08, NFR-09, #146) |
+
+The Packaging job has no path filter: the ruleset on `main` wants its checks on every
+pull request, and a skipped job would count as missing. `go test ./packaging` also keeps
+the MIT text in `packaging/debian/copyright` equal to `LICENSE` (NFR-09); it runs in the
+Test job.
 
 ## Writing tests
 
@@ -54,7 +60,9 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
   [docs/testing/](testing/cases/README.md) instead.
 - **Test behaviour, not lines.** Coverage is a safety net, not the goal.
 
-For Debian packaging changes, also run [TC-NFR-001](testing/cases/nfr.md) on the
+CI's Packaging job runs `lintian` on every pull request (see *What runs in CI*), so the
+copyright file and the rest of the .deb are checked before a candidate exists. For
+Debian packaging changes, also run [TC-NFR-001](testing/cases/nfr.md) on the
 installed candidate. Record missing tools as blocked checks and Discover's license
 display as an observation, not a guarantee of the package format.
 
