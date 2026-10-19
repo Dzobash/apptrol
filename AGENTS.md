@@ -101,8 +101,9 @@ from one to another.
   say which tool and model it runs on.
 - **Waiting and small jobs stay cheap.** Waiting on something that changes nothing (CI,
   a long read-only check) runs in the background, so the chat stays free: say so in one
-  line, no need to ask. A small job that needs an agent runs on a small model, Claude
-  **Haiku 5.5** or GPT **6-Luna**, not the big ones. Anything that changes something
+  line, no need to ask. A small helper job that needs an agent (e.g. summing up check
+  results) runs on a small model, Claude **Haiku 5.5** or GPT **6-Luna**; plans, code
+  and PR reviews follow the table below. Anything that changes something
   (push, merge, issues, edits) still needs the owner's OK.
   ```
   just waiting (CI, a long check)  →  background command   no model tokens
