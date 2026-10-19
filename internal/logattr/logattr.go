@@ -50,7 +50,7 @@ const (
 	KeyMatch       = "apptrol.app.match"             // the app's match list, comma-separated
 	KeyLayout      = "apptrol.layout"                // the active layout, e.g. default
 	KeyControl     = "apptrol.control"               // slider1 … knob8
-	KeyAppType     = "apptrol.app.type"              // app or input
+	KeyAppType     = "apptrol.app.type"              // app, input or output (CFG-20, ADR 0026)
 	KeyButton      = "apptrol.button"                // a pressed button, e.g. M3 or Cycle
 	KeySoloFrom    = "apptrol.solo.previous_control" // where solo was before it moved
 	KeySoloFromApp = "apptrol.solo.previous_app"     // the app solo moved away from

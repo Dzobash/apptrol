@@ -107,13 +107,15 @@ and set `path = "/var/log/apptrol/apptrol.log"`. Apptrol rotates the file itself
 
 ---
 
-## `[apps.<id>]` and `[inputs.<id>]`
+## `[apps.<id>]`, `[inputs.<id>]` and `[outputs.<id>]`
 
 Define what a control can act on: an **app** (the sound an application plays) in
-`[apps.<id>]`, an **input** (a capture device, such as a microphone) in `[inputs.<id>]`.
+`[apps.<id>]`, an **input** (a capture device, such as a microphone) in `[inputs.<id>]`,
+and an **output** (speakers or headphones) in `[outputs.<id>]`.
 `<id>` is your own short name (letters, digits, `-`, `_`), used in layouts. Each one is
 defined once and can be used in any layout. An id may be used in only one table, because
-layouts name it without the table: `[apps.mic]` and `[inputs.mic]` together are rejected.
+layouts name it without the table: `[apps.mic]` and `[inputs.mic]` together are rejected,
+as are duplicates involving `[outputs]`.
 
 ```toml
 [apps.spotify]
@@ -123,14 +125,49 @@ match = ["spotify"]
 [inputs.mic]
 name  = "Microphone"
 match = ["Headset"]
+
+[outputs.main]
+name   = "Main volume"
+device = "default"
+
+[outputs.speakers]
+name  = "Speakers"
+match = ["Test speaker"]
 ```
 
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `name` | string | the id | Display name, used in logs (and later in popups and `apptrol setup`). |
-| `match` | list of strings | — (required) | Case-insensitive name fragments. See below. |
+| `match` | list of strings | — | Required for apps and inputs; for outputs, choose either this or `device`. A nonempty list of case-insensitive name fragments. See below. |
+| `device` | string | — | `[outputs]` only. `"default"` selects the audio server's default output; no other value is accepted. Set exactly one of `match` and `device`. |
 | `max_volume` | integer | `100` | Volume in percent with the control at the top, from 1 to 150. The control spans 0 to this value: with `150`, the middle is 75 %. Below 100 it works as a cap, e.g. `80` for games that are always too loud. Above 100 the audio is amplified in software and can distort; read [Hearing safety](#hearing-safety) first. |
 | `talk_over_volume` | integer | `25` | `[inputs]` only. The volume in percent (0–100) that apps go down to during talk-over (see [Buttons](#layoutsnamebuttons)). Apps already below it stay where they are. |
+
+### Output selectors
+
+```text
+match = ["Test speaker"]   ──► one fixed output device
+device = "default"        ──► the audio server's current default output
+both or neither           ──► configuration error
+```
+
+An output accepts `name`, `max_volume`, and exactly one of `match` and `device`.
+`device` is rejected in `[apps]` and `[inputs]`; `type` and `talk_over_volume` are
+rejected in `[outputs]`. Layouts can refer to an output's id, but `[media] player`
+and R's `play_pause` require an app. R can be `off` or a launcher on an output column.
+
+The configuration table and `apptrol check` support these selectors now. Output volume,
+mute, solo, following the default output, and outputs in `apptrol list` arrive with
+[#85](https://github.com/Dzobash/apptrol/issues/85); assigning an output does not yet
+control its audio. Each configured output warns at every load and in `apptrol check`:
+
+```text
+warning: outputs.main: output control is not implemented yet; this target is inactive
+```
+
+Output targets and assignments are temporarily left out of the mixer so they cannot
+match app streams by mistake. #85 replaces this guard before 0.3.0 RC1. Until then,
+find outputs with `pactl list short sinks`.
 
 ### The old form with `type`
 
@@ -152,14 +189,16 @@ type  = "input"                 match = ["Headset"]
 match = ["Headset"]
 ```
 
-For `type = "app"`, delete the line. Any other `type`, and `type` in `[inputs]`, is
-rejected. Version 1.0 will no longer read the old form.
+For `type = "app"`, delete the line. Any other `type`, and `type` in `[inputs]` or
+`[outputs]`, is rejected. Version 1.0 will no longer read the old form.
 
 ### Hearing safety
 
 Apptrol sets volumes the moment a control moves. Keep this in mind before you raise
 `max_volume`:
 
+- **An output's volume is the last software level before the speakers or headphones.**
+  Its `max_volume` limit needs particular care: no later app volume limits it.
 - **Above 100 % the sound is amplified in software**, past the level the app or device
   normally reaches. Loud sound, above all on headphones, can damage your hearing.
 - **The first move of a control sets its volume at once** (the controller has priority).
@@ -184,9 +223,27 @@ warranty of any kind ([LICENSE](https://github.com/Dzobash/apptrol/blob/main/LIC
   `chromium`, so `"chromium"` in a match list catches every one of them (Chrome, but also
   e.g. Wavebox or Electron apps); `"chrome"` matches only Chrome, by its name. Players on
   other devices (KDE Connect) are never matched.
-- **Inputs** — the capture device whose name or description contains a fragment.
-  If several devices match, the first one is used and a warning is logged. Monitors of
-  outputs are not input devices and are never matched.
+- **Inputs and fixed outputs** — a case-insensitive part of the device's name or
+  description. If several devices match, the first by name is used and a warning is
+  logged; use the full name when a short part fits several devices. Output matching
+  is part of #85, as noted above.
+- **Monitors** (`<output>.monitor`) record what an output plays. They are never matched
+  as inputs or outputs. A device match fragment ending in `.monitor` (case-insensitive)
+  gets a warning at every configuration load and in `apptrol check`; the configuration
+  stays valid. Use the output's name without `.monitor` to select that output.
+
+### Finding device names
+
+Use `apptrol list` for device names and descriptions (the output section arrives with
+#85). Without Apptrol, the audio server also lists the names:
+
+```bash
+pactl list short sources  # inputs, including monitors: skip names ending in .monitor
+pactl list short sinks    # outputs
+```
+
+Copy a device's full name into `match` when a shorter fragment is ambiguous. These names
+come from the audio server, so no desktop-specific setting is needed.
 
 ### When several devices have the same description
 
@@ -237,18 +294,18 @@ tab cannot be controlled separately from another tab.
 
 ## `[layouts.<name>]`
 
-Assigns apps and inputs to controls. Phase 1 uses only `[layouts.default]`; other layouts are
-accepted and ignored until Phase 2.
+Assigns apps, inputs and outputs to controls. Phase 1 uses only `[layouts.default]`;
+other layouts are accepted and ignored until Phase 2.
 
 | Key | Value | Description |
 |---|---|---|
-| `slider1` … `slider8` | app or input id | Sliders, left to right. The S and M buttons in the same column act on this app or input. |
-| `knob1` … `knob8` | app or input id | Knobs, left to right. Volume only. |
+| `slider1` … `slider8` | app, input or output id | Sliders, left to right. The S and M buttons in the same column act on this target (output behaviour arrives with #85). |
+| `knob1` … `knob8` | app, input or output id | Knobs, left to right. Volume only. |
 
 Rules checked on load:
 
-- Every value must be the id of an app or input defined in `[apps]` or `[inputs]`.
-- An app or input may be assigned to only one control per layout.
+- Every value must be an id defined in `[apps]`, `[inputs]` or `[outputs]`.
+- A target may be assigned to only one control per layout.
 - Unassigned controls do nothing.
 - Apps whose match lists overlap get a warning (see "One app per stream" above).
 
@@ -433,7 +490,7 @@ shell rewrites it.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `player` | string | — | An app id from `[apps]` (not an input), on a control or not. The media keys (◀◀ ▶▶ ■ ▶) then control that app's player only, and do nothing while it is not running; without it, the player that most recently started playing. |
+| `player` | string | — | An app id from `[apps]` (not an input or output), on a control or not. The media keys (◀◀ ▶▶ ■ ▶) then control that app's player only, and do nothing while it is not running; without it, the player that most recently started playing. |
 
 ---
 

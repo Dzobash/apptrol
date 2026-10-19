@@ -137,7 +137,7 @@ func TestCFG11_AppSettingUnderLayoutSaysWhereItBelongs(t *testing.T) {
 	path := writeConfig(t, "[apps.tone-a]\nmatch = [\"tone-a\"]\n[layouts.default]\nslider1 = \"tone-a\"\nmax_volume = 150\n")
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"--config", path, "check"}, &stdout, &stderr)
-	want := "apptrol check: " + path + ": 1 problem\n  - layouts.default.max_volume: max_volume is an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]\n"
+	want := "apptrol check: " + path + ": 1 problem\n  - layouts.default.max_volume: max_volume is an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]\n"
 	if code != 1 || stdout.Len() != 0 || stderr.String() != want {
 		t.Fatalf("code = %d, stdout = %q, stderr = %q; want code 1 and stderr %q", code, stdout.String(), stderr.String(), want)
 	}
@@ -150,5 +150,61 @@ func TestCheck_DefaultPath(t *testing.T) {
 	if code := run([]string{"check"}, &stdout, &stderr); code != 1 ||
 		!strings.Contains(stderr.String(), filepath.Join(dir, "apptrol", "config.toml")) {
 		t.Errorf("code %d, stderr %q: want the default path in the message", code, stderr.String())
+	}
+}
+
+// Both output selectors are visible without connecting to audio; invalid selectors
+// fail through the same validator as service loads (CFG-20, ADR 0026, ADR 0027).
+func TestCFG20_CheckShowsOutputSelectors(t *testing.T) {
+	const src = `[outputs.main]
+device = "default"
+[outputs.speakers]
+match = ["Test speaker"]
+max_volume = 80
+[layouts.default]
+slider1 = "main"
+knob2 = "speakers"
+`
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"--config", writeConfig(t, src), "check"}, &stdout, &stderr)
+	if code != 0 || stderr.Len() != 0 {
+		t.Fatalf("code=%d, stderr=%s", code, &stderr)
+	}
+	for _, want := range []string{`output: device = "default"`, "output: Test speaker", "max 80 %", "warning: outputs.main: output control is not implemented yet; this target is inactive", "warning: outputs.speakers: output control is not implemented yet; this target is inactive"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("missing %q in %s", want, &stdout)
+		}
+	}
+	stdout.Reset()
+	stderr.Reset()
+	code = run([]string{"--config", writeConfig(t, strings.Replace(src, `device = "default"`, "device = \"default\"\nmatch = [\"speaker\"]", 1)), "check"}, &stdout, &stderr)
+	if code != 1 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "outputs.main: set exactly one of match and device") {
+		t.Fatalf("invalid selectors: code=%d, stdout=%s, stderr=%s", code, &stdout, &stderr)
+	}
+}
+
+// A monitor warning must reach the CLI without making the file invalid
+// (CFG-21, ADR 0026 point 6).
+func TestCFG21_CheckWarnsAboutInputAndOutputMonitors(t *testing.T) {
+	const src = `[inputs.mic]
+match = ["test-input.monitor"]
+[outputs.speakers]
+match = ["test-output.monitor"]
+[layouts.default]
+slider1 = "mic"
+slider2 = "speakers"
+`
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"--config", writeConfig(t, src), "check"}, &stdout, &stderr)
+	if code != 0 || stderr.Len() != 0 {
+		t.Fatalf("code=%d, stderr=%s", code, &stderr)
+	}
+	for _, want := range []string{`warning: inputs.mic.match: "test-input.monitor"`, `warning: outputs.speakers.match: "test-output.monitor"`} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("missing %q in %s", want, &stdout)
+		}
+	}
+	if n := strings.Count(stdout.String(), "records an output and is never matched"); n != 2 {
+		t.Errorf("monitor explanations=%d, want 2", n)
 	}
 }

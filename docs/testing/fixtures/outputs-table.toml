@@ -1,0 +1,25 @@
+# Configuration-only fixture: both output selectors (CFG-20, ADR 0026, ADR 0027).
+# The fixed name is the silent sink created by apply-fixture.sh for its microphone.
+# Output audio control is a separate feature (#85); no output moves in these cases.
+[log]
+level = "debug"
+outputs = ["journald"]
+
+[inputs.mic]
+name = "Test microphone"
+match = ["apptrol-test-mic"]
+
+[outputs.main]
+name = "Main volume"
+device = "default"
+max_volume = 80
+
+[outputs.speakers]
+name = "Test output"
+match = ["apptrol-test-mic-sink"]
+max_volume = 80
+
+[layouts.default]
+slider7 = "main"
+knob7 = "speakers"
+slider8 = "mic"

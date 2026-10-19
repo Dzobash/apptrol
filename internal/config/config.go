@@ -18,11 +18,17 @@ import (
 // DefaultLayout is the layout used in Phase 1 (CFG-03).
 const DefaultLayout = "default"
 
-// App types (CFG-02).
+// Target types distinguish the three tables after loading into one map
+// (CFG-18, CFG-20, ADR 0026).
 const (
-	TypeApp   = "app"   // playback streams of an application
-	TypeInput = "input" // a capture device, such as a microphone
+	TypeApp    = "app"    // playback streams of an application
+	TypeInput  = "input"  // a capture device, such as a microphone
+	TypeOutput = "output" // a playback device, such as speakers
 )
+
+// DeviceDefault selects the audio server's default output instead of matching
+// a fixed device (CFG-20, ADR 0027 point 2).
+const DeviceDefault = "default"
 
 // Log outputs and formats (LOG-03, LOG-04).
 const (
@@ -34,7 +40,7 @@ const (
 type Config struct {
 	Controller Controller
 	Log        Log
-	// Apps by id.
+	// Apps holds apps, inputs and outputs by unique id (CFG-18, ADR 0026).
 	Apps map[string]App
 	// Layouts by name. Phase 1 uses only DefaultLayout.
 	Layouts map[string]Layout
@@ -85,13 +91,17 @@ type FileOutput struct {
 	MaxFiles int
 }
 
-// App is something a control acts on: the playback streams of an application,
-// or a capture device.
+// App is a target: application streams, an input or an output. All three use
+// the same layout references and volume limit (CFG-18, CFG-20, ADR 0026).
 type App struct {
 	ID    string
 	Name  string   // display name
-	Type  string   // TypeApp or TypeInput
-	Match []string // case-insensitive fragments (CFG-04, CFG-05)
+	Type  string   // TypeApp, TypeInput or TypeOutput
+	Match []string // case-insensitive fragments (CFG-04, CFG-05, CFG-20; ADR 0026)
+	// Device is DeviceDefault for a default-following output, otherwise empty.
+	// A validated output has either Device or a nonempty Match list; apps and
+	// inputs always use Match (CFG-20, ADR 0027 point 2).
+	Device string
 	// MaxVolume is the volume in percent at the top of the control, 1–150
 	// (CTRL-03). Default 100.
 	MaxVolume int
@@ -244,7 +254,8 @@ func Parse(path string, data []byte) (*Config, []Warning, error) {
 	return parse(path, data)
 }
 
-// AppIDs returns the ids of all apps, sorted.
+// AppIDs returns all target ids, including inputs and outputs, sorted so
+// diagnostics are stable (CFG-18, CFG-20, ADR 0026).
 func (c *Config) AppIDs() []string {
 	ids := make([]string, 0, len(c.Apps))
 	for id := range c.Apps {

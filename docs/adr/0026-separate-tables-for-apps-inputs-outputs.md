@@ -98,3 +98,22 @@ For files in the old form:
 - The saved state is not affected: it is kept per layout and control, not per id.
 - Built in 0.3.0, before output volume (ADR 0027), so outputs only ever exist in the new
   form.
+
+## Implementation note — 2026-10-19
+
+The configuration table (#86) lands before output audio control (#85). During this
+intermediate state, `Config.Setup()` omits output targets and their assignments: the
+mixer currently treats every non-input target as an app, so passing a fixed output's
+match list could control an unrelated playback stream with the same name (CFG-20).
+Parsed outputs remain available in `Config.Apps` and in `apptrol check`.
+
+Every load and `apptrol check` warn once per output, including unused outputs:
+
+| Level | Message | Attributes |
+|---|---|---|
+| warn | `output control is not implemented yet; this target is inactive` | `apptrol.app.id`, `apptrol.app.type` = `output` |
+
+This is a temporary integration guard, not the release behaviour. #85 replaces the
+omission with proper output targets, removes the warning and updates the temporary
+guard tests. Both #86 and #85 must be integrated and tested before 0.3.0 RC1; RC1 must
+provide the output behaviour in ADR 0027. The mixer itself is unchanged by #86.

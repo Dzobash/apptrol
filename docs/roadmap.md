@@ -115,7 +115,7 @@ Output volume added on 2026-10-07 (#85, #86). Split from the on-screen display o
 on-screen display still needs a trial on GNOME. The on-screen display moved to Phase 1.7.
 
 - [x] Decision records for separate configuration tables and output volume ([ADR 0026](adr/0026-separate-tables-for-apps-inputs-outputs.md), [ADR 0027](adr/0027-output-volume.md))
-- [ ] Separate tables `[apps]`, `[inputs]`, `[outputs]`; the old `type = "input"` still read with a warning until 1.0 (CFG-18 to CFG-22, #86)
+- [x] Separate tables `[apps]`, `[inputs]`, `[outputs]`; the old `type = "input"` still read with a warning until 1.0 (CFG-18 to CFG-22, #86). Outputs are read and checked but temporarily omitted from the mixer with a warning; #85 replaces the guard before 0.3.0 RC1.
 - [ ] Output volume on a slider or knob: a fixed device, or the system's default output; M, S and R on output columns; outputs in `apptrol list` (OUT-01 to OUT-13, #85)
 - [x] Decision record for three screen states: locked, switched away, logged out ([ADR 0030](adr/0030-three-screen-states.md))
 - [x] At the login screen after *Switch user*, the media buttons and R send nothing; each press is logged as a warning (ADR 0030, #60)

@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"log/slog"
+
+	"github.com/Dzobash/apptrol/internal/logattr"
 )
 
 // Warning is something in a configuration worth fixing that does not make it
@@ -27,4 +29,33 @@ func (w Warning) String() string { return w.Text }
 // warnf returns a warning that is logged by its text alone.
 func warnf(format string, args ...any) Warning {
 	return Warning{Text: fmt.Sprintf(format, args...)}
+}
+
+// monitorWarning keeps the ineffective fragment searchable in logs while
+// allowing the configuration to load (CFG-21, ADR 0026 points 6 and 7).
+func monitorWarning(at, id, fragment string) Warning {
+	const message = "match names a monitor, which records an output and is never matched; use the output's name without .monitor"
+	return Warning{
+		Text:    fmt.Sprintf("%s.match: %q: %s", at, fragment, message),
+		Message: message,
+		Attrs: []slog.Attr{
+			slog.String(logattr.KeyAppID, id),
+			slog.String(logattr.KeyMatch, fragment),
+		},
+	}
+}
+
+// inactiveOutputWarning explains why a valid output has no audio effect during
+// the split implementation (CFG-20, ADR 0026 implementation note, ADR 0027).
+// #85 removes this warning when Setup can pass real output targets to the mixer.
+func inactiveOutputWarning(id string) Warning {
+	const message = "output control is not implemented yet; this target is inactive"
+	return Warning{
+		Text:    fmt.Sprintf("outputs.%s: %s", id, message),
+		Message: message,
+		Attrs: []slog.Attr{
+			slog.String(logattr.KeyAppID, id),
+			slog.String(logattr.KeyAppType, TypeOutput),
+		},
+	}
 }

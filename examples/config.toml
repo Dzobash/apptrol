@@ -29,13 +29,21 @@ format    = "json"                 # text | json | logfmt
 max_size  = "10MB"                 # rotate when the file reaches this size
 max_files = 5                      # rotated files to keep
 
-# ── Apps and inputs ───────────────────────────────────────────────────────────
+# ── Apps, inputs and outputs ─────────────────────────────────────────────────
 # Apps (the sound a program plays) go in [apps.<id>], inputs (a microphone or
-# another capture device) in [inputs.<id>]. Each entry is defined once and
-# referred to by its id (the part after "apps." or "inputs."); an id may be used
-# in only one of the two tables.
+# another capture device) in [inputs.<id>], outputs in [outputs.<id>]. Each entry
+# is defined once and referred to by its id (the part after the table name); an id
+# may be used in only one of the three tables.
 # `match` is a list of case-insensitive name fragments.
-# Run `apptrol list` to see the names of everything that is currently playing.
+# Run `apptrol list` to see stream and input names (outputs arrive with #85).
+# Without Apptrol: `pactl list short sources` for inputs;
+# `pactl list short sinks` for outputs.
+# For inputs and fixed outputs, match a case-insensitive part of the name or
+# description. Use the full name if a short part fits several devices; the first
+# by name is used with a warning. Output matching arrives with output volume (#85).
+# Monitors (<output>.monitor) record what an output plays and are never matched
+# as inputs or outputs. A fragment ending in .monitor warns on every load and
+# in `apptrol check`, but stays valid; use the output's name without .monitor.
 
 [apps.spotify]
 name  = "Spotify"
@@ -63,6 +71,23 @@ name  = "Microphone"
 match = ["GoXLR"]                  # part of the input device's name
 # talk_over_volume = 25            # % apps go down to during talk-over (0–100, default 25)
 
+# Output configuration is accepted now; controlling output volume follows in #85.
+# Until then, each output warns that it is inactive and is left out of the mixer.
+# #85 replaces this temporary guard before 0.3.0 RC1.
+# Choose exactly one: match = ["Test speaker"] for a fixed output, or
+# device = "default" for the audio server's current default (the only device value).
+# `device` is only for outputs; `type` and `talk_over_volume` are not allowed here.
+# [outputs.main]
+# name = "Main volume"
+# device = "default"
+# max_volume = 100                 # 1–150, default 100; we recommend 100 or less
+#   Output volume is the last software level before speakers or headphones.
+#   Above 100 % it is amplified and can damage your hearing. The first move sets
+#   the volume at once. You are responsible for the volumes you set; no warranty.
+# [outputs.speakers]
+# name = "Speakers"
+# match = ["Test speaker"]
+
 # ── Layouts ───────────────────────────────────────────────────────────────────
 # Phase 1 uses only the layout called "default".
 # Controls: slider1–slider8 and knob1–knob8 (numbered left to right).
@@ -73,6 +98,7 @@ slider1 = "spotify"
 slider2 = "browser"
 slider3 = "discord"
 slider4 = "games"
+# slider7 = "main"                # after enabling [outputs.main]; audio control in #85
 slider8 = "mic"
 
 # ── Buttons ───────────────────────────────────────────────────────────────────

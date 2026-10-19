@@ -117,9 +117,9 @@ func TestCFG18_ProblemsNameTheInputsTable(t *testing.T) {
 	requireProblem(t, ps, "inputs.mic.max_volume: 0 is out of range")
 }
 
-func TestCFG18_UndefinedTargetNamesBothTables(t *testing.T) {
+func TestCFG18_UndefinedTargetNamesAllTables(t *testing.T) {
 	requireProblem(t, problemsOf(t, targetsBase+"knob1 = \"ghost\"\n"),
-		`layouts.default.knob1: app "ghost" is not defined in [apps] or [inputs]`)
+		`layouts.default.knob1: app "ghost" is not defined in [apps], [inputs] or [outputs]`)
 }
 
 func TestCFG18_MediaPlayerMustBeAnApp(t *testing.T) {
@@ -203,11 +203,50 @@ slider8 = "mic"
 	}
 }
 
+// typeProblem parses minimal with a type in [apps.spotify] and returns the
+// one problem, so its text and attributes can be checked (CFG-19, CFG-20).
+func typeProblem(t *testing.T, value string) Problem {
+	t.Helper()
+	_, _, err := Parse("test.toml", []byte(strings.Replace(minimal, `match = ["spotify"]`, "type  = \""+value+"\"\nmatch = [\"spotify\"]", 1)))
+	var ve *ValidationError
+	if !errors.As(err, &ve) {
+		t.Fatalf("Parse: want *ValidationError, got %v", err)
+	}
+	if len(ve.Problems) != 1 {
+		t.Fatalf("problems = %q, want one", ve.Texts())
+	}
+	return ve.Problems[0]
+}
+
+// requireTargetAttrs checks that a problem names the app and the table it
+// belongs in, as the old-form warning does (ADR 0016, ADR 0026 point 7).
+func requireTargetAttrs(t *testing.T, p Problem, id, table string) {
+	t.Helper()
+	got := map[string]string{}
+	for _, a := range p.Attrs {
+		got[a.Key] = a.Value.String()
+	}
+	if got[logattr.KeyAppID] != id || got[logattr.KeyConfigTable] != table || len(got) != 2 {
+		t.Errorf("attributes = %v, want %s=%s %s=%s", got, logattr.KeyAppID, id, logattr.KeyConfigTable, table)
+	}
+}
+
 func TestCFG19_OtherTypesAreRejected(t *testing.T) {
-	requireProblem(t, problemsOf(t, strings.Replace(minimal, `match = ["spotify"]`, "type  = \"output\"\nmatch = [\"spotify\"]", 1)),
-		`apps.spotify.type: "output" is not valid; [apps] holds only apps, and inputs go in [inputs.spotify]`)
+	p := typeProblem(t, "speaker")
+	if want := `apps.spotify.type: "speaker" is not valid; [apps] holds only apps, and inputs go in [inputs.spotify]`; p.Text != want {
+		t.Errorf("text = %q, want %q", p.Text, want)
+	}
+	requireTargetAttrs(t, p, "spotify", "inputs")
 	src := strings.Replace(targetsBase, `match = ["Headset"]`, "type  = \"input\"\nmatch = [\"Headset\"]", 1)
 	requireProblem(t, problemsOf(t, src), "inputs.mic.type: not used in [inputs]; remove the line")
+}
+
+func TestCFG20_OutputTypeInAppsPointsToOutputsTable(t *testing.T) {
+	p := typeProblem(t, "output")
+	if want := `apps.spotify.type: "output" is not valid; [apps] holds only apps, and outputs go in [outputs.spotify]`; p.Text != want {
+		t.Errorf("text = %q, want %q", p.Text, want)
+	}
+	requireTargetAttrs(t, p, "spotify", "outputs")
 }
 
 // Warnings without a message of their own keep being logged by their text.
