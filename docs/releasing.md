@@ -116,21 +116,21 @@ results in `dist/`. It needs [GoReleaser](https://goreleaser.com/install/) insta
 `make release-check` only validates `.goreleaser.yaml`.
 
 CI's *Packaging* job already does this on every pull request: `goreleaser check`, a
-snapshot build and `lintian` on the .deb, where errors fail and warnings are printed
+snapshot build and `lintian` on the .deb, where errors fail and warnings and informational tags are printed
 ([testing.md](testing.md#what-runs-in-ci)). It cannot test installing the package, so the
 manual run on a candidate stays. To look at the same on your machine, when `lintian` is
 available, check the snapshot deb before installing it:
 
 ```bash
 make snapshot
-lintian dist/*.deb
+lintian --display-info dist/*.deb
 ```
 
 There must be no `lintian` tag about the copyright file (NFR-09), such as
 `no-copyright-file`, tags ending in `-dep5-copyright`, or tags starting with
 `copyright-`. Other tags may appear and are out of scope; record them separately. CI suppresses
 two tags, `no-changelog` and `statically-linked-binary`, each with its reason in
-`ci.yml`; plain `lintian dist/*.deb` shows them too.
+`ci.yml`; a plain `lintian` run shows them too.
 For an installed release candidate, run
 [TC-NFR-001](testing/cases/nfr.md) and record what Discover shows for the local deb.
 DEP-5 does not guarantee that Discover will display the license (#97).

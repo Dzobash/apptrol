@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI builds the whole release as a snapshot on every pull request (`goreleaser check`,
   then `goreleaser release --snapshot`) and runs `lintian` on the .deb: a broken
   `.goreleaser.yaml` or package no longer shows up first when a release candidate is
-  tagged. Lintian errors fail the job, warnings are printed; two tags are suppressed with a
+  tagged. Lintian errors fail the job, warnings and informational tags are printed; two tags are suppressed with a
   written reason (NFR-05, NFR-08, NFR-09, #146).
 - A test keeps the MIT text in `packaging/debian/copyright` equal to `LICENSE`, so the
   package cannot carry a different license text than the repository (NFR-09, #146).

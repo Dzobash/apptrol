@@ -183,6 +183,8 @@ jobs:
           sudo apt-get install -y -qq --no-install-recommends lintian
           ls -l dist/*.deb
           # --fail-on error: only E: tags fail the job; W: and I: tags are printed.
+          # Lintian hides I: tags unless --display-info is given; --info only adds
+          # the explanation under each tag that is shown.
           # Each suppressed tag is a deliberate difference between a package that
           # GoReleaser builds and one that Debian's tools build from a source package:
           #   no-changelog              Debian wants changelog.Debian.gz, which comes from
@@ -191,6 +193,6 @@ jobs:
           #   statically-linked-binary  Apptrol is built with CGO_ENABLED=0 on purpose:
           #                             one static binary with no library dependencies
           #                             (ADR 0013).
-          lintian --info --fail-on error \
+          lintian --info --display-info --fail-on error \
             --suppress-tags no-changelog,statically-linked-binary \
             dist/*.deb
