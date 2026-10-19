@@ -58,6 +58,18 @@ For Debian packaging changes, also run [TC-NFR-001](testing/cases/nfr.md) on the
 installed candidate. Record missing tools as blocked checks and Discover's license
 display as an observation, not a guarantee of the package format.
 
+## Configuration tables
+
+[TC-CFG-005 to TC-CFG-008](testing/cases/cfg.md) cover `[outputs]` selectors and
+cross-table validation (CFG-20), monitor warnings without rejecting the file (CFG-21),
+and device discovery instructions (CFG-22). Config and CLI tests need no audio server;
+service tests use fake adapters to verify warnings at startup and reload, and rejection
+of invalid output reloads. The `outputs-table` and `device-monitors` fixtures exercise
+the new table and warnings. A regression test checks that a fixed output matching
+`"speaker"` cannot control an app stream named `"speaker"` through the old setup
+conversion. #85 replaces the temporary omission guard and its tests before RC1; output
+audio behaviour is tested with that implementation.
+
 ## Manual hardware checklist
 
 > This checklist is being turned into [test cases](testing/cases/README.md) with fixed

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `[outputs.<id>]` configuration: either a fixed device's `match` list or
+  `device = "default"`, with `name` and `max_volume`. Ids stay unique across all three
+  target tables. `apptrol check` shows the selector and rejects misplaced or invalid
+  settings (CFG-20, ADR 0026, ADR 0027, #86). Output audio control follows in #85.
+  Until then, outputs warn that they are inactive and are omitted from the mixer, so
+  their names cannot accidentally match apps. #85 replaces this guard before 0.3.0 RC1.
+- Input and output match fragments ending in `.monitor` warn at every load and in
+  `apptrol check`, with the target id and fragment in the log; the file stays valid.
+  The reference and example explain device names, matching and monitors (CFG-21, CFG-22).
+
 ### Changed
 - At the login screen after *Switch user* (with `at_login_screen = "keep"`), ▶, ■, ◀◀, ▶▶
   and R in mode `play_pause` send nothing: the session has lost the speakers there, so
@@ -17,13 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Refs #60).
 - Inputs have their own table: a microphone is now `[inputs.mic]` instead of `[apps.mic]`
   with `type = "input"`, and `type` is no longer needed. An id may be used in only one
-  of `[apps]` and `[inputs]`, `talk_over_volume` is only accepted in `[inputs]`, and
+  of `[apps]`, `[inputs]` and `[outputs]`, `talk_over_volume` is only accepted in `[inputs]`, and
   `[media] player` must name an entry of `[apps]`
   (CFG-18, [ADR 0026](docs/adr/0026-separate-tables-for-apps-inputs-outputs.md), #86).
 - A configuration warning can have a log message of its own; the old form below is
   logged as `config uses an old form; move the entry to its own table`, with
   `apptrol.app.id` and the new attribute `apptrol.config.table` (ADR 0016, ADR 0026).
-  An id defined in both `[apps]` and `[inputs]` is a configuration error logged with
+  An id defined in two target tables is a configuration error logged with
   its `apptrol.app.id` (CFG-18, ADR 0026).
 
 ### Deprecated
@@ -35,7 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - The .deb now carries its copyright file in Debian's standard machine-readable format, which `lintian` expects (NFR-09, #97).
 - App settings misplaced under a layout now point to the table they belong in,
-  `[apps.<id>]` or `[inputs.<id>]`, in reload errors and `apptrol check` (CFG-08,
+  `[apps.<id>]`, `[inputs.<id>]` or `[outputs.<id>]`, in reload errors and `apptrol check` (CFG-08,
   CFG-11, #134).
 
 ## [0.2.2] - 2026-10-16

@@ -352,9 +352,10 @@ slider1 = "a"
 func TestCFG08_AppSettingUnderLayoutSaysWhereItBelongs(t *testing.T) {
 	// Each setting names the tables it belongs in (CFG-18, ADR 0026).
 	where := map[string]string{
-		"max_volume":       "an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]",
-		"match":            "an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]",
-		"name":             "an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]",
+		"max_volume":       "an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]",
+		"match":            "an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]",
+		"name":             "an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]",
+		"device":           "an output setting, not a control; put it under [outputs.<id>]",
 		"type":             "an app setting, not a control; put it under [apps.<id>]",
 		"talk_over_volume": "an input setting, not a control; put it under [inputs.<id>]",
 	}

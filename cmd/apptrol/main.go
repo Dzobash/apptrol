@@ -233,7 +233,12 @@ func cmdCheck(configPath string, stdout io.Writer) error {
 		if app.MaxVolume != 100 {
 			extra = fmt.Sprintf("\tmax %d %%", app.MaxVolume)
 		}
-		fmt.Fprintf(tw, "  %s\t%s\t%s: %s%s\n", a.Control, app.Name, app.Type, strings.Join(app.Match, ", "), extra)
+		// Show the selector even when there is no match list (CFG-20, ADR 0027).
+		selector := strings.Join(app.Match, ", ")
+		if app.Device == config.DeviceDefault {
+			selector = "device = \"default\""
+		}
+		fmt.Fprintf(tw, "  %s\t%s\t%s: %s%s\n", a.Control, app.Name, app.Type, selector, extra)
 	}
 	if err := tw.Flush(); err != nil {
 		return err

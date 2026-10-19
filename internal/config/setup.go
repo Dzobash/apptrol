@@ -30,13 +30,18 @@ func launcherLED(name string) (mixer.LED, bool) {
 	return mixer.LED{}, false
 }
 
-// Setup returns the part of the configuration the mixer needs: every app,
-// the assignments of the active layout and its M and S buttons.
+// Setup returns apps, inputs, active assignments and buttons for the mixer.
+// Outputs stay in Config but are omitted here until #85 implements their audio
+// behavior, so they cannot become app matches (CFG-20, ADR 0026 implementation
+// note, ADR 0027). That implementation must replace this temporary guard.
 func (c *Config) Setup() mixer.Setup {
 	s := mixer.Setup{Layout: DefaultLayout, Targets: map[string]mixer.Target{}, Assignments: map[mixer.Control]string{},
 		Buttons: map[mixer.LED]mixer.Button{}, MediaPlayer: c.Media.Player, Launchers: map[mixer.LED]mixer.Launch{},
 		ReleaseAtLoginScreen: c.Controller.AtLoginScreen == AtLoginScreenRelease}
 	for id, app := range c.Apps {
+		if app.Type == TypeOutput {
+			continue
+		}
 		kind := mixer.App
 		if app.Type == TypeInput {
 			kind = mixer.Input
@@ -45,6 +50,9 @@ func (c *Config) Setup() mixer.Setup {
 			MaxVolume: float64(app.MaxVolume) / 100, TalkOverVolume: app.TalkOverVolume}
 	}
 	for _, a := range c.Layout().Assignments {
+		if c.Apps[a.AppID].Type == TypeOutput {
+			continue
+		}
 		kind := mixer.Slider
 		if a.Control.Kind == Knob {
 			kind = mixer.Knob

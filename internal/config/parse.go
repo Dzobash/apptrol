@@ -36,10 +36,11 @@ type rawConfig struct {
 			MaxFiles *int    `toml:"max_files"`
 		} `toml:"file"`
 	} `toml:"log"`
-	// Apps and inputs each have their own table; both are read into
+	// Apps, inputs and outputs each have their own table; all are read into
 	// Config.Apps, as layouts refer to targets by id alone (CFG-18, ADR 0026).
-	Apps   map[string]rawApp `toml:"apps"`
-	Inputs map[string]rawApp `toml:"inputs"`
+	Apps    map[string]rawApp `toml:"apps"`
+	Inputs  map[string]rawApp `toml:"inputs"`
+	Outputs map[string]rawApp `toml:"outputs"`
 	// A layout holds "control = app" entries and a buttons table; each
 	// value is decoded once its type is known (see decodeLayouts).
 	Layouts map[string]map[string]toml.Primitive `toml:"layouts"`
@@ -59,6 +60,7 @@ type rawApp struct {
 	// Type is the old form, read in [apps] only until 1.0 (CFG-19, ADR 0026).
 	Type      *string   `toml:"type"`
 	Match     *[]string `toml:"match"`
+	Device    *string   `toml:"device"`
 	MaxVolume *int      `toml:"max_volume"`
 	TalkOver  *int      `toml:"talk_over_volume"`
 }
@@ -93,8 +95,9 @@ var (
 // The configuration tables that define targets (CFG-18, ADR 0026), as named
 // in messages and in apptrol.config.table.
 const (
-	tableApps   = "apps"
-	tableInputs = "inputs"
+	tableApps    = "apps"
+	tableInputs  = "inputs"
+	tableOutputs = "outputs"
 )
 
 // problems collects validation messages.
@@ -156,7 +159,7 @@ func parse(path string, data []byte) (*Config, []Warning, error) {
 	// [log]
 	parseLog(&raw, &cfg.Log, &errs)
 
-	// [apps.<id>] and [inputs.<id>] (CFG-18, CFG-19, ADR 0026)
+	// All three target tables (CFG-18, CFG-19, CFG-20, ADR 0026).
 	tableOf := parseTargets(&raw, cfg, &errs, &warnings)
 
 	// [media]
@@ -166,7 +169,7 @@ func parse(path string, data []byte) (*Config, []Warning, error) {
 		case !ok:
 			errs.add("media.player: app %q is not defined in [apps]", *p)
 		case app.Type != TypeApp:
-			errs.add("media.player: %q is an input; name an app that plays media", *p)
+			errs.add("media.player: %q is an %s; name an app that plays media", *p, app.Type)
 		}
 	}
 
@@ -195,7 +198,7 @@ func parse(path string, data []byte) (*Config, []Warning, error) {
 			}
 			_, validApp := cfg.Apps[appID]
 			if _, defined := tableOf[appID]; !defined {
-				errs.add("layouts.%s.%s: app %q is not defined in [apps] or [inputs]", name, key, appID)
+				errs.add("layouts.%s.%s: app %q is not defined in [apps] or [inputs] or [outputs]", name, key, appID)
 			}
 			if !validControl || !validApp {
 				continue
@@ -218,8 +221,11 @@ func parse(path string, data []byte) (*Config, []Warning, error) {
 		errs.add("layouts.%s: missing; this version uses the layout named %q", DefaultLayout, DefaultLayout)
 	}
 
-	// Apps and inputs defined but not used anywhere: harmless, but worth knowing.
+	// Unused targets are harmless, but worth knowing (CFG-12, ADR 0026).
 	for _, id := range cfg.AppIDs() {
+		if cfg.Apps[id].Type == TypeOutput {
+			warnings = append(warnings, inactiveOutputWarning(id))
+		}
 		used := false
 		for _, l := range cfg.Layouts {
 			for _, a := range l.Assignments {
@@ -244,8 +250,8 @@ func parse(path string, data []byte) (*Config, []Warning, error) {
 	return cfg, warnings, nil
 }
 
-// parseTargets reads [apps.<id>] and [inputs.<id>] into cfg.Apps, one map for
-// both, because layouts and [media] player refer to targets by id alone
+// parseTargets reads [apps], [inputs] and [outputs] into cfg.Apps, one map
+// because layouts and [media] player refer to targets by id alone
 // (CFG-18, ADR 0026 point 2). It returns the table each id is defined in, as
 // the file names it, for messages.
 //
@@ -259,10 +265,13 @@ func parse(path string, data []byte) (*Config, []Warning, error) {
 //	type = "app"              ──────────────►  (one warning per load)
 func parseTargets(raw *rawConfig, cfg *Config, errs *problems, warnings *[]Warning) map[string]string {
 	tableOf := map[string]string{}
-	for _, table := range []string{tableApps, tableInputs} {
+	for _, table := range []string{tableApps, tableInputs, tableOutputs} {
 		entries := raw.Apps
-		if table == tableInputs {
+		switch table {
+		case tableInputs:
 			entries = raw.Inputs
+		case tableOutputs:
+			entries = raw.Outputs
 		}
 		ids := make([]string, 0, len(entries))
 		for id := range entries {
@@ -270,7 +279,7 @@ func parseTargets(raw *rawConfig, cfg *Config, errs *problems, warnings *[]Warni
 		}
 		sort.Strings(ids) // warnings in a fixed order
 		for _, id := range ids {
-			// An id in both tables would make "slider1 = id" ambiguous. The
+			// An id in two tables would make "slider1 = id" ambiguous. The
 			// error carries the id, so the log can be searched for it
 			// (CFG-18, ADR 0026 point 7).
 			if other, dup := tableOf[id]; dup {
@@ -287,8 +296,9 @@ func parseTargets(raw *rawConfig, cfg *Config, errs *problems, warnings *[]Warni
 	return tableOf
 }
 
-// parseTarget reads one entry of [apps] or [inputs] (CFG-04, CFG-05, CFG-16,
-// CTRL-03). ok is false if the id itself is invalid.
+// parseTarget reads one target, preserving its table-derived kind so selectors
+// and input-only settings cannot leak between kinds (CFG-18, CFG-20, ADR 0026).
+// ok is false if the id itself is invalid.
 func parseTarget(table, id string, ra rawApp, errs *problems, warnings *[]Warning) (app App, ok bool) {
 	at := table + "." + id
 	if !idPattern.MatchString(id) {
@@ -296,18 +306,41 @@ func parseTarget(table, id string, ra rawApp, errs *problems, warnings *[]Warnin
 		return App{}, false
 	}
 	app = App{ID: id, Name: id, Type: TypeApp, MaxVolume: defaultMaxVolume}
-	if table == tableInputs {
+	switch table {
+	case tableInputs:
 		app.Type = TypeInput
+	case tableOutputs:
+		app.Type = TypeOutput
 	}
 	if ra.Name != nil && strings.TrimSpace(*ra.Name) != "" {
 		app.Name = strings.TrimSpace(*ra.Name)
 	}
 	if ra.Type != nil {
-		app.Type = oldType(at, id, table, *ra.Type, errs, warnings)
+		if table == tableApps {
+			app.Type = oldType(at, id, *ra.Type, errs, warnings)
+		} else {
+			errs.add("%s.type: not used in [%s]; remove the line", at, table)
+		}
 	}
-	if ra.Match == nil {
+	// Check presence, not values: an explicitly empty selector is still present
+	// and cannot be silently ignored (CFG-20, ADR 0027 point 2).
+	if app.Type == TypeOutput && (ra.Match == nil) == (ra.Device == nil) {
+		errs.add("%s: set exactly one of match and device", at)
+	}
+	if ra.Device != nil {
+		switch {
+		case app.Type != TypeOutput:
+			errs.add("%s.device: only an output has it; put it under [outputs.<id>]", at)
+		case *ra.Device != DeviceDefault:
+			errs.add("%s.device: %q is not valid (use %q)", at, *ra.Device, DeviceDefault)
+		default:
+			app.Device = *ra.Device
+		}
+	}
+	if ra.Match == nil && app.Type != TypeOutput {
 		errs.add("%s.match: missing; list at least one name fragment", at)
-	} else {
+	}
+	if ra.Match != nil {
 		for i, m := range *ra.Match {
 			m = strings.TrimSpace(m)
 			if m == "" {
@@ -315,6 +348,9 @@ func parseTarget(table, id string, ra rawApp, errs *problems, warnings *[]Warnin
 				continue
 			}
 			app.Match = append(app.Match, m)
+			if app.Type != TypeApp && strings.HasSuffix(strings.ToLower(m), ".monitor") {
+				*warnings = append(*warnings, monitorWarning(at, id, m))
+			}
 		}
 		if len(*ra.Match) == 0 {
 			errs.add("%s.match: empty; list at least one name fragment", at)
@@ -345,12 +381,8 @@ func parseTarget(table, id string, ra rawApp, errs *problems, warnings *[]Warnin
 // oldType reads the type key of the old form and returns the target's type
 // (CFG-19, ADR 0026 point 3). In [apps], "input" and "app" are still read,
 // each with a warning naming the table to move the entry to; anything else,
-// and type in [inputs], is rejected.
-func oldType(at, id, table, value string, errs *problems, warnings *[]Warning) string {
-	if table != tableApps {
-		errs.add("%s.type: not used in [%s]; remove the line", at, table)
-		return TypeInput
-	}
+// is rejected. The caller rejects type in the other tables.
+func oldType(at, id, value string, errs *problems, warnings *[]Warning) string {
 	var to, text string
 	switch value {
 	case TypeInput:
@@ -379,13 +411,14 @@ func oldType(at, id, table, value string, errs *problems, warnings *[]Warning) s
 
 // targetSettings names the settings that belong to a target rather than a
 // layout control, each with the tables it belongs in, so a misplaced setting
-// gets a hint naming the right table (CFG-08). Apps and inputs have their own
-// tables (CFG-18, ADR 0026); type is the old form, in [apps] only (CFG-19).
+// gets a hint naming the right table (CFG-08). Each kind has its own table
+// (CFG-18, CFG-20, ADR 0026); type is the old form, in [apps] only (CFG-19).
 var targetSettings = map[string]string{
-	"name":             "an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]",
-	"match":            "an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]",
-	"max_volume":       "an app or input setting, not a control; put it under [apps.<id>] or [inputs.<id>]",
+	"name":             "an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]",
+	"match":            "an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]",
+	"max_volume":       "an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]",
 	"talk_over_volume": "an input setting, not a control; put it under [inputs.<id>]",
+	"device":           "an output setting, not a control; put it under [outputs.<id>]",
 	"type":             "an app setting, not a control; put it under [apps.<id>]",
 }
 

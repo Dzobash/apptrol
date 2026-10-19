@@ -71,7 +71,7 @@ ERRO the changed configuration is invalid; keeping the current settings apptrol.
 ```
 
 A configuration with several problems gives one line per problem. A problem about one
-app or input can name it: an id defined in both `[apps]` and `[inputs]` adds
+app, input or output can name it: an id defined in two target tables adds
 `apptrol.app.id`, so `grep apptrol.app.id=mic` finds it (CFG-18, ADR 0026).
 
 | `error.type` | Meaning |
@@ -172,7 +172,7 @@ journalctl --user -u apptrol | grep -E 'while the screen is locked|not in front'
 
 A configuration in an old form still loads, with one warning per entry at every load
 (until 1.0; [configuration](config.md#the-old-form-with-type)). The warning names the entry and
-the table to move it to; other warnings about the configuration carry their text in
+the table to move it to. Monitor warnings also have their own message; other warnings carry their text in
 `apptrol.warning`:
 
 ```text
@@ -185,6 +185,30 @@ To find every entry still in the old form:
 ```bash
 journalctl --user -u apptrol | grep 'config uses an old form'
 ```
+
+A match fragment ending in `.monitor` names a recording of an output, never an input
+or output that Apptrol matches (CFG-21). Every load warns, including reloads, while the
+configuration stays valid. `apptrol.app.match` contains the offending fragment here:
+
+```text
+WARN match names a monitor, which records an output and is never matched; use the output's name without .monitor apptrol.component=config file.path=/home/you/.config/apptrol/config.toml apptrol.app.id=speakers apptrol.app.match=test-output.monitor
+```
+
+Use the output's name without `.monitor` in `[outputs.<id>]`. Invalid output selectors
+(such as both `match` and `device`) use the usual `config_invalid` error records, with
+the reason in `exception.message` and `apptrol.component=config`.
+
+Until output audio control (#85) lands, each configured output also gets this warning
+at startup and every reload, and in `apptrol check` (CFG-20, ADR 0026 implementation
+note). The target and its assignments are omitted from the mixer, so its match list
+cannot accidentally control an app:
+
+```text
+WARN output control is not implemented yet; this target is inactive apptrol.component=config file.path=/home/you/.config/apptrol/config.toml apptrol.app.id=speakers apptrol.app.type=output
+```
+
+#85 removes this temporary warning and connects the target to output devices before
+0.3.0 RC1. No new attributes or error types are introduced.
 
 A slider moves (level `debug`):
 
@@ -268,10 +292,10 @@ Apptrol's own:
 | `apptrol.layout` | The active layout (`default`) |
 | `apptrol.control` | A slider or knob: `slider1` … `knob8` |
 | `apptrol.button` | A pressed button: `M3`, `S1`, `R2`, or a transport button such as `cycle` |
-| `apptrol.app.id` | The id of an app or input in the configuration (`[apps.<id>]`, `[inputs.<id>]`); also on the `config_invalid` record of an id defined in two tables |
+| `apptrol.app.id` | The id of an app, input or output in the configuration (`[apps.<id>]`, `[inputs.<id>]`, `[outputs.<id>]`); also on the `config_invalid` record of an id defined in two tables |
 | `apptrol.app.name` | The app's `name` in the configuration |
-| `apptrol.app.type` | `app` or `input` |
-| `apptrol.app.match` | The app's `match` list |
+| `apptrol.app.type` | `app`, `input` or `output` |
+| `apptrol.app.match` | The target's `match` list; on a monitor warning, the offending fragment only |
 | `apptrol.solo.previous_control` | Where solo was before it moved |
 | `apptrol.solo.previous_app` | The app solo moved away from |
 | `apptrol.volume_percent` | A volume, in percent (100 = normal) |

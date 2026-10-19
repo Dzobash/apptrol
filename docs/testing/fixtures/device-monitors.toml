@@ -1,0 +1,15 @@
+# Deliberately ineffective device fragments: warn but keep the file valid
+# (CFG-21, ADR 0026). These names are test data, not devices to control.
+[log]
+level = "debug"
+outputs = ["journald"]
+
+[inputs.mic]
+match = ["test-input.monitor"]
+
+[outputs.speakers]
+match = ["test-output.MONITOR"]
+
+[layouts.default]
+slider7 = "speakers"
+slider8 = "mic"
