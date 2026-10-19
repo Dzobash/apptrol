@@ -123,3 +123,8 @@ INFO launchers allowed: the screen is unlocked apptrol.component=session apptrol
   buttons and R in mode `play_pause` are blocked as well: the session has lost the
   speakers, so they would start playback nobody hears. Locked screens and launchers are
   unchanged. See [ADR 0030](0030-three-screen-states.md) (#60).
+- 2026-10-19: Built for 0.3.0 as MEDIA-11: while `inactive`, ▶, ■, ◀◀, ▶▶ and R in
+  mode `play_pause` send nothing, and each press is one warning that replaces
+  `button pressed while the screen is locked`. "Everything other than launchers works
+  whatever the screen state" no longer holds for `inactive`; `locked` and `unknown` are
+  unchanged. See [ADR 0030](0030-three-screen-states.md) (#60).

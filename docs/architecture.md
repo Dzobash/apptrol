@@ -25,7 +25,7 @@ How the service is put together. Decisions and their reasons are in
 
 - **`mixer`** holds all behaviour: assignments, mute, solo, the held microphone buttons,
   which media player belongs to which control, what R, the media keys and the launcher
-  buttons do, and every LED. It receives events and returns actions. It does no I/O and
+  buttons do (and what they may do in each screen state), and every LED. It receives events and returns actions. It does no I/O and
   has no clock, so it is tested completely with plain unit tests.
 - **Adapters** (`controller`, `audio`, `desktop`, `session`, `launcher`, `config`, `state`,
   `logging`) talk to the outside world. The service uses them through small interfaces
@@ -44,7 +44,7 @@ How the service is put together. Decisions and their reasons are in
 |---|---|
 | `cmd/apptrol` | Command line: `run`, `list`, `check`, `test`, `version`; wires everything together |
 | `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop`, `Power` and `Launcher` interfaces; turns mixer actions into adapter calls; the Record LED's flash (the mixer has no clock); config reload and its warnings, each logged by its text or with its own message and attributes; shutdown |
-| `internal/mixer` | Core logic (pure): matching streams, inputs and media players to controls, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, LED computation |
+| `internal/mixer` | Core logic (pure): matching streams, inputs and media players to controls, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write; lets go of the controller and takes it back (ADR 0029) |
 | `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`); reconnects; `apptrol list` data |
@@ -232,7 +232,17 @@ Apptrol's open raw MIDI file: no disconnect is seen, so the re-send after a conn
 
 The lock screen guards the screen and the keyboard, not the controller: Apptrol keeps
 receiving it. Launchers therefore start apps only while the screen is unlocked
-(LAUNCH-13 to LAUNCH-15, [ADR 0024](adr/0024-launchers-only-when-unlocked.md)):
+(LAUNCH-13 to LAUNCH-15, [ADR 0024](adr/0024-launchers-only-when-unlocked.md)). After
+*Switch user* (`inactive`), the session has also lost the speakers, so the media buttons
+send nothing either (MEDIA-11, [ADR 0030](adr/0030-three-screen-states.md)):
+
+```text
+                 sliders, knobs, M, S, mic   ▶ ■ ◀◀ ▶▶, R (play_pause)   launchers
+unlocked         work                        work                        start
+locked           work                        work                        only when_locked
+inactive         work                        send nothing (warning)      only when_locked
+unknown          work                        work                        never
+```
 
 - **Lock state:** `internal/session` asks logind for the user (`GetUser`), follows the
   user's `Display` (the graphical session) and that session's `LockedHint` and `Active`
@@ -246,9 +256,16 @@ receiving it. Launchers therefore start apps only while the screen is unlocked
 - **Deciding:** every launcher press goes through one place in the mixer (`launch`). It
   starts the app when the screen is `unlocked`, or when it is `locked` or `inactive` and
   the launcher has `when_locked = true`.
-- **Audit:** while `locked` or `inactive`, every button press is a warning, launchers
-  with what they did. Sliders and knobs are not reported; nothing is reported while
-  `unknown`.
+- **Media buttons:** while `inactive`, `transportPressed` and `rPressed` check the state
+  (`mediaBlocked`) before looking for a player, so a press sends nothing and is warned
+  about even without a player. `locked` and `unknown` do not block them: the lock screen
+  keeps the speakers, and playing into nothing is harmless. The mixer logs at info once
+  when the state turns `inactive` and once when it leaves it (`mediaScreenChanged`).
+  The ▶ and R LEDs still follow the players.
+- **Audit:** while `locked` or `inactive`, every button press is one warning: launchers
+  with what they did, media buttons while `inactive` with MEDIA-11's warning (so
+  `lockedPress` skips them), other buttons with their name. Sliders and knobs are not
+  reported; nothing is reported while `unknown`.
 
 ## Several users
 

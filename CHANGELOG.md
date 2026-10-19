@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- At the login screen after *Switch user* (with `at_login_screen = "keep"`), ▶, ■, ◀◀, ▶▶
+  and R in mode `play_pause` send nothing: the session has lost the speakers there, so
+  they started playback nobody heard. Each press is one warning,
+  `media button pressed while this session is not in front; nothing sent`, also without a
+  media player; sliders, knobs, M, S and the microphone buttons still work. The lock
+  screen is unchanged (MEDIA-11, [ADR 0030](docs/adr/0030-three-screen-states.md),
+  Refs #60).
 - Inputs have their own table: a microphone is now `[inputs.mic]` instead of `[apps.mic]`
   with `type = "input"`, and `type` is no longer needed. An id may be used in only one
   of `[apps]` and `[inputs]`, `talk_over_volume` is only accepted in `[inputs]`, and
