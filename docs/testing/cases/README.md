@@ -62,7 +62,7 @@ leave audio muted or too loud come first.
 | SOLO | `solo.md` | S, and solo across stops and restarts |
 | LED | `led.md` | What the LEDs show |
 | STATE | `state.md` | What is kept across restarts |
-| CFG | [cfg.md](cfg.md) | The configuration: reload, invalid files, `apptrol check` |
+| CFG | `cfg.md` | The configuration: reload, invalid files, `apptrol check` |
 | LOG | `log.md` | Log outputs, levels and records |
 | SVC | `svc.md` | The service: start, stop, crash, several users |
 | MEDIA | `media.md` | R on app columns and the media keys *(Phase 1.5)* |
