@@ -55,7 +55,6 @@ leave audio muted or too loud come first.
 
 | Area | File | Checks |
 |---|---|---|
-| NFR | [nfr.md](nfr.md) | Package copyright and license texts |
 | HW | `hw.md` | The controller: found, plugged in and out, permissions |
 | CTRL | `ctrl.md` | Sliders and knobs set the volume; `max_volume` |
 | PRIO | `prio.md` | The controller has priority; new streams take the control's position |
@@ -69,6 +68,7 @@ leave audio muted or too loud come first.
 | MEDIA | `media.md` | R on app columns and the media keys *(Phase 1.5)* |
 | LAUNCH | `launch.md` | Launcher buttons and the lock screen *(Phase 1.5)* |
 | INPUT | `input.md` | Microphone buttons and talk-over *(Phase 1.5)* |
+| NFR | `nfr.md` | Package copyright and license texts |
 
 The area files are added in the pull requests that turn the old
 [hardware checklist](../../testing.md#manual-hardware-checklist) into cases: Phase 1

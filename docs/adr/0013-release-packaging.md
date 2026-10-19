@@ -52,4 +52,4 @@ process should be repeatable and not depend on anyone's machine.
   at `/usr/share/doc/apptrol/copyright` (NFR-09, #97). It carries Apptrol's copyright
   notice and full MIT text; bundled libraries and Go remain in `THIRD_PARTY_LICENSES`
   (NFR-08). RPM packages and archives keep `LICENSE`. Discover's license display for
-  a local deb still needs observation; DEP-5 does not promise that it changes.
+  a local deb still needs observation; DEP-5 does not promise that Discover will show the license.

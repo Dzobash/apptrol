@@ -69,7 +69,7 @@ v0.2.2:  CFG-06 HW-08 INPUT-03 MEDIA-01 MUTE-07 SVC-11
 
 ## Running a case
 
-1. **Apply the fixture** named on its `Config:` line, unless it is already in place:
+1. **Apply the fixture** named on its `Config:` line, unless it is `none` or already in place:
 
    ```bash
    docs/testing/apply-fixture.sh two-apps

@@ -118,13 +118,14 @@ results in `dist/`. It needs [GoReleaser](https://goreleaser.com/install/) insta
 When `lintian` is available, check the snapshot deb before installing it:
 
 ```bash
-make release-check
 make snapshot
 lintian dist/*.deb
 ```
 
-There must be no copyright-file diagnostics (NFR-09); record other diagnostics
-separately. For an installed release candidate, run
+There must be no `lintian` tag about the copyright file (NFR-09), such as
+`no-copyright-file`, tags ending in `-dep5-copyright`, or tags starting with
+`copyright-`. Other tags may appear and are out of scope; record them separately.
+For an installed release candidate, run
 [TC-NFR-001](testing/cases/nfr.md) and record what Discover shows for the local deb.
 DEP-5 does not guarantee that Discover will display the license (#97).
 
