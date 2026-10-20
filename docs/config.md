@@ -156,8 +156,9 @@ An output accepts `name`, `max_volume`, and exactly one of `match` and `device`.
 rejected in `[outputs]`. Layouts can refer to an output's id, but `[media] player`
 and R's `play_pause` require an app. R can be `off` or a launcher on an output column.
 
-The configuration table and `apptrol check` support these selectors now. Output volume,
-mute, solo, following the default output, and outputs in `apptrol list` arrive with
+The configuration table and `apptrol check` support these selectors now, and
+`apptrol list` shows the output devices. Output volume, mute, solo and following the
+default output arrive with
 [#85](https://github.com/Dzobash/apptrol/issues/85); assigning an output does not yet
 control its audio. Each configured output warns at every load and in `apptrol check`:
 
@@ -166,8 +167,7 @@ warning: outputs.main: output control is not implemented yet; this target is ina
 ```
 
 Output targets and assignments are temporarily left out of the mixer so they cannot
-match app streams by mistake. #85 replaces this guard before 0.3.0 RC1. Until then,
-find outputs with `pactl list short sinks`.
+match app streams by mistake. #85 replaces this guard before 0.3.0 RC1.
 
 ### The old form with `type`
 
@@ -234,8 +234,9 @@ warranty of any kind ([LICENSE](https://github.com/Dzobash/apptrol/blob/main/LIC
 
 ### Finding device names
 
-Use `apptrol list` for device names and descriptions (the output section arrives with
-#85). Without Apptrol, the audio server also lists the names:
+Use `apptrol list` for device names and descriptions of inputs and outputs; `*` marks
+the output the system uses right now. Without Apptrol, the audio server also lists the
+names:
 
 ```bash
 pactl list short sources  # inputs, including monitors: skip names ending in .monitor

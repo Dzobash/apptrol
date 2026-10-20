@@ -25,6 +25,7 @@ type Mixer struct {
 	streams   map[uint32]*streamInfo
 	devices   map[string]Device // by name
 	deviceFor map[string]string // input target id -> chosen device name
+	outputs   map[string]Device // output devices by name (OUT-12, ADR 0027)
 
 	players        map[string]*playerInfo // media players by bus name (MEDIA-01, MEDIA-03)
 	playSeq        int                    // counts players starting to play (lastPlaying)
@@ -58,6 +59,7 @@ func New(setup Setup, saved State) *Mixer {
 		streams:        map[uint32]*streamInfo{},
 		devices:        map[string]Device{},
 		deviceFor:      map[string]string{},
+		outputs:        map[string]Device{},
 		players:        map[string]*playerInfo{},
 		deviceMuteSent: map[string]bool{},
 		leds:           map[LED]bool{},
@@ -276,6 +278,10 @@ func (m *Mixer) Handle(ev Event) []Action {
 		delete(m.devices, e.Name)
 		delete(m.deviceMuteSent, e.Name)
 		m.chooseDevices(&a)
+	case OutputAdded:
+		m.outputAdded(&a, e.Device)
+	case OutputRemoved:
+		delete(m.outputs, e.Name)
 	case ConfigChanged:
 		m.configChanged(&a, e.Setup)
 	case PlayerSnapshot, PlayerAdded, PlayerRemoved, PlayerStatusChanged:
@@ -943,6 +949,7 @@ func (m *Mixer) audioSnapshot(a *actions, e AudioSnapshot) {
 	for _, d := range e.Devices {
 		m.devices[d.Name] = d
 	}
+	m.outputsSnapshot(a, e.Outputs)
 	m.chooseDevices(a)
 	for _, id := range m.inputTargets() {
 		if _, ok := m.deviceFor[id]; !ok {

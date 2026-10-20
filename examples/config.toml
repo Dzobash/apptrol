@@ -35,7 +35,7 @@ max_files = 5                      # rotated files to keep
 # is defined once and referred to by its id (the part after the table name); an id
 # may be used in only one of the three tables.
 # `match` is a list of case-insensitive name fragments.
-# Run `apptrol list` to see stream and input names (outputs arrive with #85).
+# Run `apptrol list` to see stream, input and output names.
 # Without Apptrol: `pactl list short sources` for inputs;
 # `pactl list short sinks` for outputs.
 # For inputs and fixed outputs, match a case-insensitive part of the name or

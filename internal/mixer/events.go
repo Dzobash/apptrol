@@ -85,6 +85,7 @@ const (
 type AudioSnapshot struct {
 	Streams []Stream
 	Devices []Device
+	Outputs []Device // output devices, PulseAudio "sinks" (OUT-12, ADR 0027)
 }
 
 // StreamAdded reports a playback stream that appeared or changed its properties.
@@ -98,6 +99,13 @@ type DeviceAdded struct{ Device Device }
 
 // DeviceRemoved reports that a capture device is gone.
 type DeviceRemoved struct{ Name string }
+
+// OutputAdded reports an output device (a PulseAudio "sink") that appeared,
+// or whose description changed (OUT-12, ADR 0027).
+type OutputAdded struct{ Device Device }
+
+// OutputRemoved reports that an output device is gone (OUT-12, ADR 0027).
+type OutputRemoved struct{ Name string }
 
 // StreamMuteChanged reports that a playback stream was muted or unmuted by
 // someone other than Apptrol, e.g. in the desktop's volume applet (MUTE-07).
@@ -154,6 +162,8 @@ func (StreamAdded) isEvent()            {}
 func (StreamRemoved) isEvent()          {}
 func (DeviceAdded) isEvent()            {}
 func (DeviceRemoved) isEvent()          {}
+func (OutputAdded) isEvent()            {}
+func (OutputRemoved) isEvent()          {}
 func (StreamMuteChanged) isEvent()      {}
 func (StreamCorkChanged) isEvent()      {}
 func (DeviceMuteChanged) isEvent()      {}

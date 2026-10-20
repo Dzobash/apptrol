@@ -79,8 +79,9 @@ func outsideMute[K comparable](want map[K]muteWant, key K, muted bool) bool {
 	return time.Now().After(w.until) || muted != w.muted
 }
 
-// Backend keeps a connection to the audio server, reports streams and capture
-// devices as mixer events, and carries out volume and mute actions.
+// Backend keeps a connection to the audio server, reports streams, capture
+// devices and output devices (OUT-12, ADR 0027) as mixer events, and carries
+// out volume and mute actions.
 //
 // Run and Apply may be called from different goroutines.
 type Backend struct {
@@ -114,8 +115,9 @@ func New(log *slog.Logger, server string) *Backend {
 
 // Run connects and keeps the connection until ctx is canceled. After each
 // (re)connect it sends a full mixer.AudioSnapshot, then single changes:
-// StreamAdded, StreamRemoved, DeviceAdded, DeviceRemoved. If the server goes
-// away, Run logs it and reconnects (SVC-04). It returns ctx's error.
+// StreamAdded, StreamRemoved, DeviceAdded, DeviceRemoved, OutputAdded and
+// OutputRemoved (OUT-12, ADR 0027). If the server goes away, Run logs it and
+// reconnects (SVC-04). It returns ctx's error.
 func (b *Backend) Run(ctx context.Context, out chan<- mixer.Event) error {
 	wait := b.retryMin
 	failed := false // the last attempt failed; don't repeat the error log
@@ -155,6 +157,7 @@ type tracker struct {
 	devices map[uint32]mixer.Device // by source index
 	muted   map[uint32]bool         // last seen mute, by stream
 	devMute map[uint32]bool         // last seen mute, by source index
+	outputs map[uint32]mixer.Device // by sink index (OUT-12, ADR 0027)
 }
 
 // session runs one connection until it breaks or ctx ends.
@@ -189,8 +192,12 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 		if err != nil {
 			return err
 		}
+		sinks, err := k.sinks()
+		if err != nil {
+			return err
+		}
 		t = tracker{streams: map[uint32]mixer.Stream{}, devices: map[uint32]mixer.Device{},
-			muted: map[uint32]bool{}, devMute: map[uint32]bool{}}
+			muted: map[uint32]bool{}, devMute: map[uint32]bool{}, outputs: map[uint32]mixer.Device{}}
 		chans, devChans := map[uint32]int{}, map[string]int{}
 		for _, s := range streams {
 			t.streams[s.ID] = s.Stream
@@ -202,12 +209,15 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 			t.devMute[d.Index] = d.Muted
 			devChans[d.Name] = d.Channels
 		}
+		for _, d := range sinks {
+			t.outputs[d.Index] = d.Device
+		}
 		b.mu.Lock()
 		b.cur, b.channels, b.devChans = k, chans, devChans
 		b.guards, b.devGuard = map[uint32]*guard{}, map[string]*guard{}
 		b.muteWant, b.devMuteWant = map[uint32]muteWant{}, map[string]muteWant{}
 		b.mu.Unlock()
-		return send(Snapshot(streams, sources))
+		return send(Snapshot(streams, sources, sinks))
 	}
 	if err := resync(); err != nil {
 		return err
@@ -328,8 +338,38 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) ([]mixer.E
 		delete(b.devMuteWant, old.Name)
 		b.mu.Unlock()
 		return []mixer.Event{mixer.DeviceRemoved{Name: old.Name}}, nil
+
+	case proto.EventSink:
+		return outputChange(t, e.Index, kind == proto.EventRemove, k.sink)
 	}
 	return nil, nil
+}
+
+// outputChange returns the event for a change notification about the output
+// device (sink) with index: OutputAdded when it appeared or its name or
+// description changed, OutputRemoved when it is gone, nothing for a change of
+// its volume or mute (OUT-12, ADR 0027). read reads the sink; an output gone
+// before it could be read counts as removed.
+func outputChange(t *tracker, index uint32, removed bool, read func(uint32) (SinkInfo, error)) ([]mixer.Event, error) {
+	old, known := t.outputs[index]
+	if !removed {
+		d, err := read(index)
+		switch {
+		case err == nil:
+			if known && old == d.Device {
+				return nil, nil
+			}
+			t.outputs[index] = d.Device
+			return []mixer.Event{mixer.OutputAdded{Device: d.Device}}, nil
+		case !IsGone(err):
+			return nil, err
+		}
+	}
+	if !known {
+		return nil, nil
+	}
+	delete(t.outputs, index)
+	return []mixer.Event{mixer.OutputRemoved{Name: old.Name}}, nil
 }
 
 // streamChanges returns the events for a known stream whose properties

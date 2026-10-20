@@ -64,8 +64,8 @@ const (
 	KeyStreamID   = "apptrol.stream.id"       // the audio server's stream index
 	KeyStreamName = "apptrol.stream.app_name" // the stream's application.name
 
-	KeyDeviceName        = "apptrol.device.name"        // an input device's unique name
-	KeyDeviceDescription = "apptrol.device.description" // an input device's description
+	KeyDeviceName        = "apptrol.device.name"        // an input or output device's unique name (ADR 0027)
+	KeyDeviceDescription = "apptrol.device.description" // an input or output device's description
 	KeyDeviceMatches     = "apptrol.device.matches"     // devices that match, comma-separated
 
 	KeyAudioServer  = "apptrol.audio.server"  // audio server name and version

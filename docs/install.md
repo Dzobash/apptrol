@@ -162,9 +162,9 @@ run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they 
    mkdir -p ~/.config/apptrol
    cp /usr/share/doc/apptrol/examples/config.toml ~/.config/apptrol/
    ```
-   `apptrol list` shows the names of the apps that are playing and of your input devices;
-   `apptrol list apps` the installed apps, for launcher buttons; `apptrol check` validates
-   the file and shows which app is on which control.
+   `apptrol list` shows the names of the apps that are playing and of your input and
+   output devices; `apptrol list apps` the installed apps, for launcher buttons;
+   `apptrol check` validates the file and shows which app is on which control.
 2. **Try it** in a terminal, with the service stopped: run `apptrol --log-level info`,
    press an M button, and watch the log. Ctrl+C stops it. `--log-level debug` shows every
    detail, for this run only.

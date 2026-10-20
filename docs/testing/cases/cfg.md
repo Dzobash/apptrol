@@ -133,8 +133,8 @@ Test: `TestCFG22_DeviceDiscoveryInstructions` in `internal/config/outputs_test.g
 
 Both files include `apptrol list`, `pactl list short sources`, `pactl list short sinks`,
 case-insensitive matching on name or description, full names for ambiguous matches,
-first-by-name selection with a warning, and the exclusion of monitors. The output
-section of `apptrol list` is marked as pending #85.
+first-by-name selection with a warning, and the exclusion of monitors. `apptrol list`
+names outputs too (OUT-12); output matching is marked as pending #85.
 
 **Result:** Pass / Fail / Blocked
 **Notes:**

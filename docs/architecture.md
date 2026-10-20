@@ -14,7 +14,8 @@ How the service is put together. Decisions and their reasons are in
                    validate,   │◄───────────────│ logic)│ │    (play, pause, next …)
                    watch)      │     actions    └───────┘ ├──► launcher ───► systemd
  PipeWire ──────► audio ───────┤                          │    (start an app in its own unit)
-  (streams appear / go)        │                          └──► state ──────► state.json
+  (streams, inputs and         │                          └──► state ──────► state.json
+   outputs appear / go)        │
  session bus ───► desktop ─────┤
   (media players appear / go,  │
    playing or paused)          │
@@ -44,10 +45,10 @@ How the service is put together. Decisions and their reasons are in
 |---|---|
 | `cmd/apptrol` | Command line: `run`, `list`, `check`, `test`, `version`; wires everything together |
 | `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop`, `Power` and `Launcher` interfaces; turns mixer actions into adapter calls; the Record LED's flash (the mixer has no clock); config reload and its warnings, each logged by its text or with its own message and attributes; shutdown |
-| `internal/mixer` | Core logic (pure): matching streams, inputs and media players to controls, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
+| `internal/mixer` | Core logic (pure): matching streams, inputs and media players to controls, the output devices it knows, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write; lets go of the controller and takes it back (ADR 0029) |
-| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`); reconnects; `apptrol list` data |
+| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`): playback streams, capture devices and output devices; reconnects; `apptrol list` data |
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
 | `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, whether the user's graphical session is unlocked, locked, behind another session or unknown, and whose session is in front at the seat (ADR 0029); reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
@@ -64,8 +65,8 @@ nothing from the adapters.
 ## Event flow
 
 1. An adapter produces an event: *slider 3 moved to 90*, *M pressed on column 2*,
-   *S released on column 8*, *stream 57 (Spotify) appeared*, *media player Spotify now
-   playing*, *config reloaded*, *controller connected*, *controller disconnected*,
+   *S released on column 8*, *stream 57 (Spotify) appeared*, *output "USB Headset"
+   appeared*, *media player Spotify now playing*, *config reloaded*, *controller connected*, *controller disconnected*,
    *the computer woke up*, *the screen is locked*.
    Releases and disconnects only matter for buttons that act while held (INPUT-*,
    ADR 0020).
@@ -101,7 +102,9 @@ own tables (CFG-18, [ADR 0026](adr/0026-separate-tables-for-apps-inputs-outputs.
 into **one map of targets**, `Config.Apps`, each with its `Type`: layouts and `[media]
 player` name a target by its id alone, so an id may be in only one table, and the mixer
 can keep looking up targets by id. Reading `[outputs]` adds no adapter interface and no
-mixer behaviour: output audio events and actions come separately in #85 (ADR 0027).
+mixer behaviour of its own. The audio adapter already reports output devices as events
+(OUT-12, see [Audio access](#audio-access)), but until the guard below is replaced, no control acts on
+them; output volume actions follow in #85 (ADR 0027).
 
 ```
 [apps.spotify]              ─┐
@@ -185,8 +188,23 @@ Checked on the reference system (Kubuntu, PipeWire 1.6): the controller appears 
 
 The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-Go client:
 
-- Playback streams ("sink inputs") and capture devices ("sources") are listed on connect
-  and tracked through subscription events.
+- Playback streams ("sink inputs"), capture devices ("sources") and output devices
+  ("sinks") are listed on connect and tracked through subscription events. Each kind
+  arrives in the mixer as part of the snapshot after a (re)connect, then as single
+  changes:
+
+  ```
+  connect ──► AudioSnapshot { Streams, Devices (inputs), Outputs }
+  later   ──► StreamAdded / StreamRemoved    a playback stream
+              DeviceAdded / DeviceRemoved    an input
+              OutputAdded / OutputRemoved    an output (also when its description changes)
+  ```
+- Output devices (OUT-12, [ADR 0027](adr/0027-output-volume.md)): the adapter reports
+  each sink's unique name and description; a change of only its volume or mute is not
+  an event. The mixer keeps them and logs each one that no control acts on at debug
+  (`output device not on a control`), so the log shows the exact name for a match list.
+  `apptrol list` reads the default output from the server information and marks it
+  with `*`.
 - An app matches a stream when a configured fragment is found in `application.name` or
   `application.process.binary`; some apps (Spotify) only report the name.
 - Mute changes made by others (e.g. the desktop's volume applet) are reported to the mixer,
@@ -207,9 +225,10 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   mixers (KDE, GNOME, pavucontrol) show, so a slider at 50 % shows 50 % there. The top of
   a control is the app's `max_volume` (default 100 %, up to 150 %). All channels get the
   same volume.
-- Monitors of outputs ("Monitor of GoXLR…") are not capture devices and are never matched.
-  The config validator warns about monitor fragments before the audio adapter is needed
-  (CFG-21). Output discovery and control remain part of #85.
+- Monitors of outputs ("Monitor of GoXLR…") are not capture devices and are never
+  matched. A monitor is a source, never a sink, so it is listed neither as an input nor
+  as an output (OUT-12). The config validator warns about monitor fragments before the
+  audio adapter is needed (CFG-21).
 - WirePlumber restores an app's remembered volume shortly after the app starts. When that
   lands after Apptrol has set the slider's position, Apptrol sets it again: for 3 seconds
   after a stream or input appears, changes to what Apptrol set are undone (PRIO-03).
@@ -380,7 +399,9 @@ dialog.
 - `controller`: MIDI decoding and the CC map with byte-level tests and fuzzing.
   `controller/rawmidi`: discovery, plug/unplug and busy devices against fake devices; the
   real controller is checked by hand (`apptrol test`, docs/testing.md).
-- `audio/pulse`: integration tests against a headless PipeWire in CI.
+- `audio/pulse`: integration tests against a headless PipeWire in CI: streams, a test
+  input and a silent test output that appear and go, `apptrol list`'s data, and a
+  reconnect. Turning sink notifications into events is unit-tested on its own.
 - `desktop`: integration tests in a private session bus with fake media players, locally
   (`make test-desktop`) and in CI; a bus restart and a missing bus included.
 - `session`: the same private bus stands in for the system bus, with a fake logind that

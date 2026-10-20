@@ -23,7 +23,11 @@ func testListing() *pulse.Listing {
 			{Device: mixer.Device{Name: "alsa_input.webcam", Description: "Desk Webcam"}, Volume: 0.8},
 			{Device: mixer.Device{Name: "alsa_input.goxlr", Description: "GoXLR Mini Mic"}, Volume: 1},
 		},
-		Outputs: map[uint32]string{1: "GoXLR Music"},
+		DefaultSink: "alsa_output.speakers",
+		Sinks: []pulse.SinkInfo{
+			{Device: mixer.Device{Name: "alsa_output.speakers", Description: "Built-in Speakers"}, Index: 2, Volume: 0.45},
+			{Device: mixer.Device{Name: "alsa_output.goxlr-music", Description: "GoXLR Music"}, Index: 1, Volume: 1, Muted: true},
+		},
 	}
 }
 
@@ -63,6 +67,29 @@ func TestCFG10_ListShowsNamesAndControls(t *testing.T) {
 	}
 }
 
+// Output devices are listed with description, name and volume, and * marks
+// the system's default output (OUT-12, ADR 0027).
+func TestOUT12_ListShowsOutputDevices(t *testing.T) {
+	var out bytes.Buffer
+	if err := printListing(&out, testListing(), nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{
+		"Output devices (* = the system's default). Put part of DESCRIPTION or NAME into an output's match list:",
+		"    DESCRIPTION        NAME                     VOLUME\n",
+		"  * Built-in Speakers  alsa_output.speakers     45%\n",
+		"    GoXLR Music        alsa_output.goxlr-music  100% muted\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Count(got, "*") != 2 { // the heading and one output
+		t.Errorf("more than one output marked as the default:\n%s", got)
+	}
+}
+
 func TestCFG10_ListWithoutConfig(t *testing.T) {
 	for name, path := range map[string]string{
 		"missing": filepath.Join(t.TempDir(), "none.toml"),
@@ -88,7 +115,7 @@ func TestCFG10_ListEmpty(t *testing.T) {
 	if err := printListing(&out, &pulse.Listing{Server: "x"}, nil, ""); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Nothing is playing", "No input devices found"} {
+	for _, want := range []string{"Nothing is playing", "No input devices found", "No output devices found"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output lacks %q:\n%s", want, out.String())
 		}
