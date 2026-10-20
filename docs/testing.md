@@ -88,10 +88,19 @@ device, releasing a device no control holds any more (kept while another control
 it, CTRL-06), and that app solo, talk-over, M and S never change an output (OUT-07,
 OUT-11). The adapter's unit tests check that a slider move is never overwritten by the
 new-output guard (`TestOUT01_LatestSliderPositionWinsOverAGuardWrite`) and that a
-released output is no longer defended (`TestCTRL06_ReleasedOutputIsNoLongerDefended`).
+released output is no longer defended (`TestCTRL06_ReleasedOutputIsNoLongerDefended`);
+both wait on a hook in `Apply` (`beforeWire`), not on sleeps. A read that sees a new
+description with a restored volume is defended only once the mixer keeps the output
+(`TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt`; in the mixer,
+`TestOUT05_OutputThatStillMatchesAfterARenameIsKept`), and each release is logged once
+(`TestOUT13_OutputReleasedIsLogged`).
 The fuzz test has outputs on slider 7 and knob 7, and checks that a released device is
-held by no target. `make test-audio` sets a silent test
-output to 30 % and reads it back (`TestIntegration_OUT01_OutputVolume`); the manual
+held by no target and a kept one by a target. `make test-audio` sets a silent test
+output to 30 % right after it appears and reads it back
+(`TestIntegration_OUT01_OutputVolume`), and checks the guard on a real server
+(`TestIntegration_OUT05_GuardSetsTheOutputVolumeAgain`): a volume set from outside
+within the 3 seconds goes back to 30 %, one set after them stays. Both log the
+adapter's debug records, so a failure on CI shows each read and write; the manual
 cases are [TC-OUT-003 and TC-OUT-004](testing/cases/out.md), with the `output-fixed`
 fixture.
 

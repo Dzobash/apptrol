@@ -158,19 +158,29 @@ Test: in `internal/mixer/output_test.go`: `TestOUT01_SliderSetsOutputVolume`,
 `TestOUT06_MAndSOnAnOutputColumnDoNothingYet`, `TestOUT07_AppSoloDoesNotMuteOutputs`,
 `TestOUT11_TalkOverDoesNotChangeOutputs`, `TestOUT04_TwoFixedOutputsShareADevice`,
 `TestOUT13_OutputMatchedIsLogged`, `TestOUT13_NoOutputDeviceMatchesAtConnectAndReload`,
-`TestOUT13_OutputDeviceGoneIsLogged`, and `FuzzMixer` with outputs on slider 7 and knob 7;
+`TestOUT13_OutputDeviceGoneIsLogged`, `TestOUT13_OutputReleasedIsLogged`,
+`TestOUT01_OutputNoControlHoldsIsReleased`,
+`TestOUT05_OutputThatStillMatchesAfterARenameIsKept`, and `FuzzMixer` with outputs on
+slider 7 and knob 7;
 `TestOUT01_OutputNeverControlsAPlaybackStream` and
 `TestCFG20_SetupPassesFixedOutputsButNotDefault` in `internal/config/setup_test.go`;
 `TestOUT01_SliderSetsOutputVolumeThroughTheAudioAdapter` in
-`internal/service/service_test.go`; `TestOUT05_GuardKeepsTheVolumeSetOnANewOutput` in
-`internal/audio/pulse/convert_test.go` and `TestIntegration_OUT01_OutputVolume` in
+`internal/service/service_test.go`; `TestOUT05_GuardKeepsTheVolumeSetOnANewOutput`,
+`TestOUT01_LatestSliderPositionWinsOverAGuardWrite`,
+`TestCTRL06_ReleasedOutputIsNoLongerDefended` and
+`TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt` in
+`internal/audio/pulse/convert_test.go`; `TestIntegration_OUT01_OutputVolume` and
+`TestIntegration_OUT05_GuardSetsTheOutputVolumeAgain` in
 `internal/audio/pulse/integration_test.go` (`make test-audio`: a silent test output set
-to 30 % reads 30 %).
+to 30 % reads 30 %; within the guard's 3 seconds a volume set from outside goes back to
+30 %, after them it stays).
 
 ```text
 slider moved, device chosen       -> SetOutputVolume (position × max_volume)
 position unknown                  -> the device's volume is left alone
 app solo, talk-over, M, S         -> no output changes
+new description, still matches    -> KeepOutput: the guard checks the volume read with it
+new description, no longer        -> ReleaseOutput, logged once: an outside volume stays
 ```
 
 **Result:** Pass / Fail / Blocked

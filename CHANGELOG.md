@@ -16,7 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Apptrol leaves the output's volume alone; volume keys and the desktop's applet still
   change it, until the control is moved again. When several outputs match, the first by
   name is used, with a warning; the chosen one is kept while it still matches.
-  `apptrol list` shows the control each output is on. M and S do nothing on an output
+  `apptrol list` shows the control each output is on. An output that no control holds
+  any more is logged (`output released; no control holds the device`) and left as it
+  is; with `level = "debug"`, the log shows each read of an output and the volume
+  Apptrol set on it. M and S do nothing on an output
   column yet (mute and output solo follow), and `device = "default"` is still inactive,
   with a warning (OUT-01, OUT-02, OUT-04, OUT-05, OUT-13,
   [ADR 0027](docs/adr/0027-output-volume.md), Refs #85).

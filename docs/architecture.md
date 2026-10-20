@@ -202,6 +202,24 @@ has chosen (`outputFor`):
   reload: slider7 no longer on "main" ──► nobody holds Speakers ──► ReleaseOutput Speakers
                                                                      └─► the guard lets it go
   ```
+
+  The mixer logs each release once at info (`output released; no control holds the
+  device`), so the log says why an outside volume now stays.
+- **Keeping** (`KeepOutput`, OUT-05): a read that sees an output new, or with a new name
+  or description, is not defended by the adapter at once, because a match on the
+  description may have ended. The mixer decides: a device a control still holds, and
+  that got no `SetOutputVolume` now, is kept, and the adapter checks the volume of that
+  read against its guard without waiting for another change; one no control holds is
+  released instead, and its volume stays.
+
+  ```
+  read: "Speakers Pro", 100 % ──► adapter waits ──► OutputAdded ──► mixer
+     still matches ──► KeepOutput    ──► guard: 100 % ≠ 30 % ──► 30 % again
+     no longer     ──► ReleaseOutput ──► guard lets it go     ──► 100 % stays
+  ```
+
+  At debug, the adapter logs each read of an output (`output device read`, with
+  `apptrol.audio.guard.state`) and the server's answer to each volume it sets.
 - **Not yet:** M and S on an output column do nothing (a debug record), app solo and
   talk-over never touch outputs (OUT-07, OUT-11); output mute and solo follow in #85.
 - **Two controls on one device** are allowed (OUT-04); `sharedOutputs` remembers what
@@ -455,7 +473,8 @@ dialog.
   controller, plus a fuzz test over random event sequences — the bulk of the tests. The
   simulated server keeps output volumes too; the fuzz test has outputs on slider 7 and
   knob 7 and checks that an output is set only while a target holds it, never muted, and
-  that an output control changes no stream or input.
+  that an output control changes no stream or input; a kept output is held by a target,
+  a released one by none.
 - `service`: the whole loop against fake adapters: config reload, state, shutdown, a
   slider on an output reaching the audio adapter as `SetOutputVolume`.
 - `controller`: MIDI decoding and the CC map with byte-level tests and fuzzing.
@@ -463,8 +482,10 @@ dialog.
   real controller is checked by hand (`apptrol test`, docs/testing.md).
 - `audio/pulse`: integration tests against a headless PipeWire in CI: streams, a test
   input and a silent test output that appear and go, the test output's volume set to
-  30 % and read back, `apptrol list`'s data, and a reconnect. Turning sink notifications
-  into events, and the new-output guard, are unit-tested on their own.
+  30 % and read back, the new-output guard setting it back within its 3 seconds and
+  leaving it after them, `apptrol list`'s data, and a reconnect. Turning sink
+  notifications into events, and the new-output guard (a slider move during a guard
+  write, release, keep after a new description), are unit-tested on their own.
 - `desktop`: integration tests in a private session bus with fake media players, locally
   (`make test-desktop`) and in CI; a bus restart and a missing bus included.
 - `session`: the same private bus stands in for the system bus, with a fake logind that

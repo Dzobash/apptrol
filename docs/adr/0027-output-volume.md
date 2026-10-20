@@ -148,3 +148,23 @@ PipeWire or PulseAudio.
   streams and inputs, so a left/right balance set elsewhere is lost (known issue).
   `device = "default"` stays left out of the mixer, with the narrower warning
   `following the default output is not implemented yet; this target is inactive`.
+- 2026-10-20: More records for the logging table (point 12), from #155's review: the
+  release record (at info, as the owner agreed) and the audio adapter's diagnostics for
+  the new-output guard, at debug:
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | info | `output released; no control holds the device` | `apptrol.device.name` |
+  | debug | `output device read` (audio adapter) | `apptrol.device.index`, `apptrol.device.name`, `apptrol.device.description`, `apptrol.audio.channels`, `apptrol.volume_percent`, `apptrol.audio.guard.state`, `apptrol.audio.guard.remaining_ms`, `apptrol.wanted_percent` |
+  | debug | `output volume request completed` (audio adapter) | `apptrol.device.name`, `apptrol.audio.channels`, `apptrol.wanted_percent`, `apptrol.audio.result`, `error.type` on failure |
+  | debug | `output kept by a control; checking the volume last read` (audio adapter) | `apptrol.device.name`, `apptrol.volume_percent`, `apptrol.audio.guard.state` |
+
+  The release record comes once per release, from the mixer, so the log explains why a
+  volume set elsewhere now stays. The debug records show every read of an output with
+  what the guard made of it and why it set nothing, and the server's answer to each
+  write: a volume that reads wrong after a successful write was changed afterwards.
+  A read that sees an output new, or with a new name or description, is not defended at
+  once, because the match may be on the description: the mixer decides first and
+  answers with `KeepOutput` when a control still holds the output (the adapter then
+  checks the volume of that read without waiting for another change) or with
+  `ReleaseOutput` when none does.

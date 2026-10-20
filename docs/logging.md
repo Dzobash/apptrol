@@ -250,10 +250,31 @@ and inputs:
 DEBU audio server changed the volume of a new output; setting it again apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.volume_percent=100 apptrol.wanted_percent=40
 ```
 
+At debug, the audio adapter also logs each read of an output device, with what the
+guard made of it, and the server's answer to each volume it sets. A read that sees a
+new description waits for the mixer: `output kept by a control; …` then checks the
+volume it read (OUT-05, OUT-13). A volume that reads wrong although the request
+succeeded was changed afterwards, not lost on the way:
+
+```text
+DEBU output volume request completed apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.audio.channels=2 apptrol.wanted_percent=40 apptrol.audio.result=success
+DEBU output device read apptrol.component=audio apptrol.device.index=<index> apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.description="USB Headset" apptrol.audio.channels=2 apptrol.volume_percent=100 apptrol.audio.guard.state=restore_volume apptrol.audio.guard.remaining_ms=2972 apptrol.wanted_percent=40
+DEBU output device read apptrol.component=audio apptrol.device.index=<index> apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.description="USB Headset Pro" apptrol.audio.channels=2 apptrol.volume_percent=100 apptrol.audio.guard.state=identity_changed apptrol.audio.guard.remaining_ms=2540 apptrol.wanted_percent=40
+DEBU output kept by a control; checking the volume last read apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.volume_percent=100 apptrol.audio.guard.state=restore_volume
+```
+
+When no control holds an output any more (a reload took its control away, or its new
+description no longer matches), the mixer releases it: a volume set elsewhere then
+stays, even within the guard's three seconds (CTRL-06):
+
+```text
+INFO output released; no control holds the device apptrol.component=mixer apptrol.device.name=alsa_output.usb-<headset>.analog-stereo
+```
+
 To follow everything about outputs:
 
 ```bash
-journalctl --user -u apptrol | grep -E 'apptrol.app.type=output|output (matched|device)|new output'
+journalctl --user -u apptrol | grep -E 'apptrol.app.type=output|output (matched|device|released|kept|volume)|new output'
 ```
 
 A slider moves (level `debug`):
@@ -358,6 +379,11 @@ Apptrol's own:
 | `apptrol.device.matches` | All input or output devices that match |
 | `apptrol.device.selected_by` | How an output's device was chosen: `match` (a fixed output); `default` later, with `device = "default"` |
 | `apptrol.device.controls` | The controls that set one output device, e.g. `slider7, knob7` |
+| `apptrol.device.index` | The audio server's number for an output device (changes when it is added again) |
+| `apptrol.audio.channels` | How many channels a device has, as read or written |
+| `apptrol.audio.result` | The audio server's answer to a request: `success` or `failed` |
+| `apptrol.audio.guard.state` | What the new-output guard made of a read: `restore_volume` (set again), `at_wanted_volume`, `no_volume_set` (no control set it, or it was released), `expired`, `no_guard` (not new), `identity_changed` (new, or a new name or description: the mixer decides first) |
+| `apptrol.audio.guard.remaining_ms` | Milliseconds left in the new-output guard's 3 seconds |
 | `apptrol.audio.server` | The audio server and its version |
 | `apptrol.retry.delay_s` | Seconds until Apptrol tries again |
 | `apptrol.controller.port` | The controller's sound card id from the configuration |
