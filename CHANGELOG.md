@@ -63,6 +63,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   package cannot carry a different license text than the repository (NFR-09, #146).
 
 ### Fixed
+- A slider moved in the 3 seconds after an app's stream or an input appears can no
+  longer be undone by the older volume: when WirePlumber restored a remembered volume at
+  the same moment, Apptrol could set the slider's previous position after the new one.
+  The slider's volume now waits for Apptrol's own correction to finish (CTRL-04,
+  CTRL-05, PRIO-03, #158).
 - The .deb and .rpm descriptions now explain the controller features, background
   service and audio requirements, with a short synopsis for software centres. This
   removes Lintian's two description hints (NFR-10, #152).

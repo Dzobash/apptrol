@@ -249,6 +249,13 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
 - WirePlumber restores an app's remembered volume shortly after the app starts. When that
   lands after Apptrol has set the slider's position, Apptrol sets it again: for 3 seconds
   after a stream or input appears, changes to what Apptrol set are undone (PRIO-03).
+  Volume writes and the guard take turns (`wire`, as mute writes do), so the guard never
+  writes a position the slider has moved away from in the meantime (#158):
+
+  ```
+  guard: reads 50 %, writes 100 % ─┐
+  slider: 10 % ──── waits ─────────┴─► writes 10 % ─► guard defends 10 %
+  ```
 - On connection loss the backend reconnects and the service re-applies the current state.
 - PipeWire (WirePlumber) remembers each app's volume and mute and restores them when the
   app starts again — also when Apptrol is not running. Apptrol therefore sets the mute of
@@ -421,7 +428,8 @@ dialog.
   real controller is checked by hand (`apptrol test`, docs/testing.md).
 - `audio/pulse`: integration tests against a headless PipeWire in CI: streams, a test
   input and a silent test output that appear and go, `apptrol list`'s data, and a
-  reconnect. Turning sink notifications into events is unit-tested on its own.
+  reconnect. Turning sink notifications into events is unit-tested on its own, and so
+  is a slider move during a new-stream or new-input guard's write (#158).
 - `desktop`: integration tests in a private session bus with fake media players, locally
   (`make test-desktop`) and in CI; a bus restart and a missing bus included.
 - `session`: the same private bus stands in for the system bus, with a fake logind that

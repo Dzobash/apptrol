@@ -103,8 +103,19 @@ type Backend struct {
 
 	// wire makes mute writes and event handling take turns, so a mute read by
 	// handle is never older than the expected value it is compared with
-	// (#118). Take it before mu.
+	// (#118). Stream and input volume writes take it too, so the new-stream
+	// and new-input guards never write a volume the slider has moved away
+	// from in the meantime (CTRL-04, CTRL-05, PRIO-03, #158). Take it before mu.
 	wire sync.Mutex
+
+	// streamWrite and sourceWrite replace the write of a stream's or an
+	// input's volume in tests; nil writes to the server.
+	streamWrite func(id uint32, channels int, v float64) error
+	sourceWrite func(name string, channels int, v float64) error
+
+	// beforeWire, if set, runs in Apply just before it waits for wire, so a
+	// test knows when Apply waits instead of sleeping (QA-11); nil in use.
+	beforeWire func()
 }
 
 // New returns a Backend. server is a PulseAudio server string; "" uses the
@@ -405,7 +416,7 @@ func (b *Backend) defend(k *conn, s StreamInfo) error {
 		b.log.Debug("audio server changed the volume of a new stream; setting it again",
 			logattr.KeyStreamID, s.ID, logattr.KeyStreamName, s.AppName,
 			logattr.KeyVolume, percent(s.Volume), logattr.KeyWanted, percent(*vol))
-		if err := k.setStreamVolume(s.ID, s.Channels, *vol); err != nil && !IsGone(err) {
+		if err := b.setStreamVolume(k, s.ID, s.Channels, *vol); err != nil && !IsGone(err) {
 			return err
 		}
 	}
@@ -436,7 +447,7 @@ func (b *Backend) defendDevice(k *conn, d SourceInfo) error {
 	if vol != nil {
 		b.log.Debug("audio server changed the volume of a new input; setting it again",
 			logattr.KeyDeviceName, d.Name, logattr.KeyVolume, percent(d.Volume), logattr.KeyWanted, percent(*vol))
-		if err := k.setSourceVolume(d.Name, d.Channels, *vol); err != nil && !IsGone(err) {
+		if err := b.setSourceVolume(k, d.Name, d.Channels, *vol); err != nil && !IsGone(err) {
 			return err
 		}
 	}
@@ -476,7 +487,13 @@ func (b *Backend) outsideDeviceMute(name string, muted bool) bool {
 // Errors for streams that just ended can be checked with IsGone.
 func (b *Backend) Apply(a mixer.Action) error {
 	switch a.(type) {
-	case mixer.SetStreamMute, mixer.SetDeviceMute:
+	case mixer.SetStreamMute, mixer.SetDeviceMute, mixer.SetStreamVolume, mixer.SetDeviceVolume:
+		// A volume waits for a guard write in progress, and the guard then
+		// sees the new value: the latest slider position wins (CTRL-04,
+		// CTRL-05, PRIO-03, #158).
+		if b.beforeWire != nil {
+			b.beforeWire()
+		}
 		b.wire.Lock()
 		defer b.wire.Unlock()
 	}
@@ -531,7 +548,7 @@ func (b *Backend) Apply(a mixer.Action) error {
 			}
 			chans = s.Channels
 		}
-		return k.setStreamVolume(a.StreamID, chans, a.Volume)
+		return b.setStreamVolume(k, a.StreamID, chans, a.Volume)
 	case mixer.SetStreamMute:
 		return k.setStreamMute(a.StreamID, a.Muted)
 	case mixer.SetDeviceVolume:
@@ -542,11 +559,29 @@ func (b *Backend) Apply(a mixer.Action) error {
 			}
 			chans = d.Channels
 		}
-		return k.setSourceVolume(a.Device, chans, a.Volume)
+		return b.setSourceVolume(k, a.Device, chans, a.Volume)
 	case mixer.SetDeviceMute:
 		return k.setSourceMute(a.Device, a.Muted)
 	}
 	return nil
+}
+
+// setStreamVolume writes a stream's volume, through streamWrite in tests
+// (CTRL-04, #158).
+func (b *Backend) setStreamVolume(k *conn, id uint32, channels int, v float64) error {
+	if b.streamWrite != nil {
+		return b.streamWrite(id, channels, v)
+	}
+	return k.setStreamVolume(id, channels, v)
+}
+
+// setSourceVolume writes an input's volume, through sourceWrite in tests
+// (CTRL-05, #158).
+func (b *Backend) setSourceVolume(k *conn, name string, channels int, v float64) error {
+	if b.sourceWrite != nil {
+		return b.sourceWrite(name, channels, v)
+	}
+	return k.setSourceVolume(name, channels, v)
 }
 
 func (b *Backend) setConn(k *conn) {

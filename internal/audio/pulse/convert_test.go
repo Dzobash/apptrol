@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -398,5 +399,101 @@ func TestPRIO03_GuardReappliesChangesToNewStreams(t *testing.T) {
 	g.until = time.Now().Add(-time.Second)
 	if v, m, exp := g.check(1, false); v != nil || m != nil || !exp {
 		t.Error("expired guard still active")
+	}
+}
+
+// A slider moved while the new-stream guard is writing the volume it had set
+// before wins: its write waits for the guard's, instead of being overwritten
+// by it, and the guard defends the new value from then on (CTRL-04, PRIO-03,
+// #158).
+func TestCTRL04_LatestSliderPositionWinsOverAGuardWrite(t *testing.T) {
+	b := New(quietLog(), "")
+	b.cur = &conn{} // never used: writes go through streamWrite
+	b.channels, b.guards = map[uint32]int{7: 2}, map[uint32]*guard{7: newGuardNow()}
+	b.guards[7].volume = ptr(1.0) // the slider was at 100 % when the stream appeared
+	r := newGuardRace(b)
+	b.streamWrite = func(_ uint32, _ int, v float64) error { return r.write(v) }
+
+	// The server restored 50 %; the guard sets 100 % again.
+	s := StreamInfo{Stream: mixer.Stream{ID: 7}, Volume: 0.5, Channels: 2}
+	r.run(t, b, func() error { return b.defend(b.cur, s) }, mixer.SetStreamVolume{StreamID: 7, Volume: 0.1})
+	if g := b.guards[7]; g.volume == nil || *g.volume != 0.1 {
+		t.Errorf("guard defends %v, want 0.1", g.volume)
+	}
+}
+
+// The same for a new input: the slider's write waits for the new-input
+// guard's (CTRL-05, PRIO-03, #158).
+func TestCTRL05_LatestSliderPositionWinsOverAGuardWrite(t *testing.T) {
+	b := New(quietLog(), "")
+	b.cur = &conn{} // never used: writes go through sourceWrite
+	b.devChans, b.devGuard = map[string]int{"mic": 1}, map[string]*guard{"mic": newGuardNow()}
+	b.devGuard["mic"].volume = ptr(1.0)
+	r := newGuardRace(b)
+	b.sourceWrite = func(_ string, _ int, v float64) error { return r.write(v) }
+
+	d := SourceInfo{Device: mixer.Device{Name: "mic"}, Volume: 0.5, Channels: 1}
+	r.run(t, b, func() error { return b.defendDevice(b.cur, d) }, mixer.SetDeviceVolume{Device: "mic", Volume: 0.1})
+	if g := b.devGuard["mic"]; g.volume == nil || *g.volume != 0.1 {
+		t.Errorf("guard defends %v, want 0.1", g.volume)
+	}
+}
+
+// guardRace forces the order of #158 without sleeping (QA-11): the guard's
+// write of 100 % lasts until the slider's Apply waits at wire, or, without
+// the fix, until the slider's own write has finished first.
+type guardRace struct {
+	mu           sync.Mutex
+	writes       []float64 // in the order they finished
+	guardWriting chan struct{}
+	sliderWaits  chan struct{}
+	once         sync.Once
+}
+
+func newGuardRace(b *Backend) *guardRace {
+	r := &guardRace{guardWriting: make(chan struct{}), sliderWaits: make(chan struct{})}
+	b.beforeWire = r.sliderAtWire
+	return r
+}
+
+func (r *guardRace) sliderAtWire() { r.once.Do(func() { close(r.sliderWaits) }) }
+
+// write stands in for the server: 1.0 is the guard's write, anything else
+// the slider's.
+func (r *guardRace) write(v float64) error {
+	if v == 1.0 {
+		close(r.guardWriting)
+		<-r.sliderWaits
+	}
+	r.mu.Lock()
+	r.writes = append(r.writes, v)
+	r.mu.Unlock()
+	if v != 1.0 {
+		r.sliderAtWire() // without the fix, the slider got here first
+	}
+	return nil
+}
+
+// run calls defend holding wire, as session does around handle, applies
+// slider while defend writes, and checks that the slider's 0.1 came last.
+func (r *guardRace) run(t *testing.T, b *Backend, defend func() error, slider mixer.Action) {
+	t.Helper()
+	guardDone := make(chan error, 1)
+	go func() {
+		b.wire.Lock()
+		defer b.wire.Unlock()
+		guardDone <- defend()
+	}()
+	<-r.guardWriting
+	if err := b.Apply(slider); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-guardDone; err != nil {
+		t.Fatal(err)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.writes) != 2 || r.writes[1] != 0.1 {
+		t.Fatalf("writes in order = %v, want the slider's 0.1 last", r.writes)
 	}
 }
