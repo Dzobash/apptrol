@@ -62,6 +62,14 @@ How the service is put together. Decisions and their reasons are in
 Dependencies point inwards: adapters and `service` import `mixer`'s types; `mixer` imports
 nothing from the adapters.
 
+The portable packages are `mixer`, `config`, `state`, `controller` (without its
+`rawmidi` backend), `logattr` and `version`. `make check` and CI's existing Build job
+cross-compile them for Windows without cgo (NFR-11, ADR 0013). OS-specific code stays
+inside adapters; settings express user intent, such as `at_login_screen`, while the
+session adapter obtains the state from logind on Linux. The service still imports
+Linux adapters, and logging detects journald through Linux file metadata; neither
+is part of this guard. Windows adapters and path changes remain in #92.
+
 ## Event flow
 
 1. An adapter produces an event: *slider 3 moved to 90*, *M pressed on column 2*,
@@ -80,7 +88,16 @@ Bursts of slider events are coalesced before step 2 (CTRL-07): the loop reads ev
 already waiting, and of several positions of one control only the last is handled.
 
 The configuration file is checked once a second; after a change the loop reloads it
-(CFG-06). The check compares only inode, size and modification time, so after a file it
+(CFG-06). File metadata is compared before contents are read:
+
+```
+Linux:         inode + size + modification time ──► changed? ──► settle, read
+Other systems:        size + modification time ──► changed? ──► settle, read
+```
+
+Linux retains the inode check, including replacements with equal size and time.
+Other systems use only size and modification time and can miss a replacement
+preserving both (NFR-11, ADR 0013). After a file it
 could not read, the watcher reads it again every second until it can: fixing the
 permissions changes none of those (#120). On SIGTERM or Ctrl+C the loop saves the state (including the solo, which the next
 start restores), ends solo and turns the LEDs off before the adapters are stopped (SVC-05,
@@ -393,6 +410,9 @@ dialog.
 
 ## Testing
 
+- The portable Windows build runs in `make check` and CI's Build job (NFR-11).
+  Config tests exercise the fallback metadata comparison on Linux as well, and
+  verify Linux still detects an inode change with equal size and modification time.
 - `mixer`: table-driven tests per requirement ID against a simulated audio server and
   controller, plus a fuzz test over random event sequences — the bulk of the tests.
 - `service`: the whole loop against fake adapters: config reload, state, shutdown.

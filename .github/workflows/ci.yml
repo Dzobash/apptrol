@@ -146,6 +146,8 @@ jobs:
           go-version-file: go.mod
       - name: Build
         run: make build
+      - name: Build portable packages for Windows (NFR-11)
+        run: make check-portable
       - name: Smoke test
         run: ./bin/apptrol --version
       - name: Third-party licenses (generated for every release; fails on an unknown license)

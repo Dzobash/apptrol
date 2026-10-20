@@ -99,7 +99,7 @@ Requires Go 1.24 or newer. Building and installing without changing the code is 
 in the installation guide, under [Building from source](docs/install.md#building-from-source).
 
 ```bash
-make check    # the same checks CI runs: format, vet, lint, tests
+make check    # format, vet, lint, tests, AppStream and portable build
 make cover    # tests with coverage report (coverage.html)
 make test-audio  # integration tests against your running PipeWire
 make test-desktop  # D-Bus integration tests in a private session bus
@@ -138,6 +138,13 @@ How the packages work together: [docs/architecture.md](docs/architecture.md).
 - Go, formatted with `gofmt`; CI runs `go vet`, `golangci-lint` and the tests.
 - No cgo: Apptrol is built with `CGO_ENABLED=0` (ADR 0013). Never import
   `github.com/coreos/go-systemd/v22/sdjournal`; it needs cgo (ADR 0017).
+- OS-specific code lives only in adapters. Keep the shared packages building for
+  other systems: `make check` cross-compiles `mixer`, `config`, `state`, `controller`
+  (without `rawmidi`), `logattr` and `version` for Windows without cgo (NFR-11,
+  ADR 0013). This guards the shared code; Windows adapters and path changes wait for #92.
+- Settings describe what the user wants, not how Linux implements it: use
+  `at_login_screen`, for example, rather than a setting named after logind. The
+  session adapter translates the OS's information into that state (NFR-11, ADR 0015).
 - New behaviour comes with tests; see [docs/testing.md](docs/testing.md).
 - A bug fix comes with a test that fails without the fix (QA-11).
 - Images you did not make yourself go in `docs/assets/photos/`, only under a license that
