@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"os/exec"
@@ -242,10 +243,12 @@ func TestIntegration_OUT12_OutputDevices(t *testing.T) {
 	})
 }
 
-// waitSink is waitStream for output devices.
+// waitSink is waitStream for output devices. On failure it also lists every
+// volume it saw, in order, to tell a volume never set from one set back.
 func waitSink(t *testing.T, name string, ok func(SinkInfo) bool) {
 	t.Helper()
 	var last SinkInfo
+	var seen []int
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
 		l, err := List("")
 		if err != nil {
@@ -253,13 +256,29 @@ func waitSink(t *testing.T, name string, ok func(SinkInfo) bool) {
 		}
 		for _, s := range l.Sinks {
 			if s.Name == name {
+				if p := percent(s.Volume); len(seen) == 0 || seen[len(seen)-1] != p {
+					seen = append(seen, p)
+				}
 				if last = s; ok(s) {
 					return
 				}
 			}
 		}
 	}
-	t.Fatalf("output %q: last seen %+v", name, last)
+	t.Fatalf("output %q: last seen %+v; volumes seen (%%): %v", name, last, seen)
+}
+
+// testLog sends the backend's log, debug included, to the test's output, so a
+// failure on CI shows what the backend saw and did (QA-09).
+func testLog(t *testing.T) *slog.Logger {
+	return slog.New(slog.NewTextHandler(testWriter{t}, &slog.HandlerOptions{Level: slog.LevelDebug}))
+}
+
+type testWriter struct{ t *testing.T }
+
+func (w testWriter) Write(p []byte) (int, error) {
+	w.t.Log(strings.TrimSuffix(string(p), "\n"))
+	return len(p), nil
 }
 
 // TestIntegration_OUT01_OutputVolume sets the volume of a silent test output,
@@ -267,7 +286,7 @@ func waitSink(t *testing.T, name string, ok func(SinkInfo) bool) {
 // `pactl get-sink-volume` would show. The new-output guard keeps it there.
 func TestIntegration_OUT01_OutputVolume(t *testing.T) {
 	needServer(t)
-	b := New(quietLog(), "")
+	b := New(testLog(t), "")
 	events := make(chan mixer.Event, 256)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
