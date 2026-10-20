@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"math"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -331,6 +332,64 @@ func TestOUT05_GuardKeepsTheVolumeSetOnANewOutput(t *testing.T) {
 	}
 	if _, guarded := b.outGuard["old"]; guarded {
 		t.Error("an output that is not new got a guard")
+	}
+}
+
+// A slider moved while the new-output guard is writing the volume it had set
+// before wins: its write waits for the guard's, instead of being overwritten
+// by it, and the guard defends the new value from then on (OUT-01, OUT-05,
+// ADR 0027).
+func TestOUT01_LatestSliderPositionWinsOverAGuardWrite(t *testing.T) {
+	b := New(quietLog(), "")
+	b.cur = &conn{} // never used: writes go through outputWrite
+	b.outChans, b.outGuard = map[string]int{"spk": 2}, map[string]*guard{"spk": newGuardNow()}
+	v := 1.0
+	b.outGuard["spk"].volume = &v // the slider was at 100 % when the output appeared
+
+	var mu sync.Mutex
+	var writes []float64 // in the order they finished
+	guardWriting, sliderWrote := make(chan struct{}), make(chan struct{})
+	b.outputWrite = func(_ string, _ int, v float64) error {
+		if v == 1.0 {
+			// The guard's write: give the slider's write every chance to
+			// finish first, as it would if it did not wait.
+			close(guardWriting)
+			select {
+			case <-sliderWrote:
+			case <-time.After(200 * time.Millisecond):
+			}
+		} else {
+			defer close(sliderWrote)
+		}
+		mu.Lock()
+		writes = append(writes, v)
+		mu.Unlock()
+		return nil
+	}
+
+	// The server restored 50 %; the guard sets 100 % again, holding wire as
+	// session does around handle.
+	guardDone := make(chan error, 1)
+	go func() {
+		b.wire.Lock()
+		defer b.wire.Unlock()
+		guardDone <- b.defendOutput(b.cur, SinkInfo{Device: mixer.Device{Name: "spk"}, Volume: 0.5, Channels: 2})
+	}()
+	<-guardWriting
+	if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 0.1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-guardDone; err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(writes) != 2 || writes[len(writes)-1] != 0.1 {
+		t.Fatalf("writes in order = %v, want the slider's 0.1 last", writes)
+	}
+	if g := b.outGuard["spk"]; g.volume == nil || *g.volume != 0.1 {
+		t.Errorf("guard defends %v, want 0.1", g.volume)
 	}
 }
 

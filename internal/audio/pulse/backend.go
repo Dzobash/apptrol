@@ -105,8 +105,14 @@ type Backend struct {
 
 	// wire makes mute writes and event handling take turns, so a mute read by
 	// handle is never older than the expected value it is compared with
-	// (#118). Take it before mu.
+	// (#118). Output volume writes take it too, so the new-output guard never
+	// writes a volume the slider has moved away from in the meantime (OUT-01,
+	// OUT-05, ADR 0027). Take it before mu.
 	wire sync.Mutex
+
+	// outputWrite replaces the write of an output device's volume in tests;
+	// nil writes to the server.
+	outputWrite func(name string, channels int, v float64) error
 }
 
 // New returns a Backend. server is a PulseAudio server string; "" uses the
@@ -510,11 +516,20 @@ func (b *Backend) defendOutput(k *conn, d SinkInfo) error {
 	if vol != nil {
 		b.log.Debug("audio server changed the volume of a new output; setting it again",
 			logattr.KeyDeviceName, d.Name, logattr.KeyVolume, percent(d.Volume), logattr.KeyWanted, percent(*vol))
-		if err := k.setSinkVolume(d.Name, d.Channels, *vol); err != nil && !IsGone(err) {
+		if err := b.setOutputVolume(k, d.Name, d.Channels, *vol); err != nil && !IsGone(err) {
 			return err
 		}
 	}
 	return nil
+}
+
+// setOutputVolume writes an output device's volume, through outputWrite in
+// tests (OUT-01).
+func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64) error {
+	if b.outputWrite != nil {
+		return b.outputWrite(name, channels, v)
+	}
+	return k.setSinkVolume(name, channels, v)
 }
 
 // outsideStreamMute reports whether a stream's mute changing to muted was made
@@ -544,7 +559,10 @@ func (b *Backend) outsideDeviceMute(name string, muted bool) bool {
 // Errors for streams that just ended can be checked with IsGone.
 func (b *Backend) Apply(a mixer.Action) error {
 	switch a.(type) {
-	case mixer.SetStreamMute, mixer.SetDeviceMute:
+	case mixer.SetStreamMute, mixer.SetDeviceMute, mixer.SetOutputVolume:
+		// An output volume waits for a guard write in progress, and the
+		// guard then sees the new value: the latest slider position wins
+		// (OUT-01, OUT-05, ADR 0027).
 		b.wire.Lock()
 		defer b.wire.Unlock()
 	}
@@ -627,7 +645,7 @@ func (b *Backend) Apply(a mixer.Action) error {
 			}
 			chans = d.Channels
 		}
-		return k.setSinkVolume(a.Device, chans, a.Volume)
+		return b.setOutputVolume(k, a.Device, chans, a.Volume)
 	}
 	return nil
 }
