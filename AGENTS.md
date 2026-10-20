@@ -31,6 +31,10 @@ Read these instead of guessing; this file only links to them:
   Commits, with requirement IDs, e.g. `fix: … (MUTE-07)`) → PR → all 7 CI checks green
   (Lint, Test on two Go versions, Fuzz, Vulnerability check, Build, Packaging) → squash merge.
   A ruleset on `main` enforces this.
+- Every commit names the model that wrote it in a `Co-Authored-By:` line, Codex as well
+  as Claude, e.g. `Co-Authored-By: GPT-6-Astra <noreply@openai.com>` or
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, so it is clear which
+  agent did what.
 - The owner reviews and merges PRs. **Ask before pushing, opening a PR or creating
   issues.**
 - Suggest an issue for every bug found, every idea or task left for later, and every
