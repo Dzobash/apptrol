@@ -348,6 +348,7 @@ Designed in [ADR 0027](adr/0027-output-volume.md).
 | NFR-08 | Every release archive and package MUST contain the copyright notices and license texts of all libraries compiled into the binary, and of Go's standard library, generated at build time; a library with an unknown or restricted license MUST fail the build. *(Missing in 0.1.0, #33.)* | MUST | 1.5 |
 | NFR-09 | The .deb package MUST install a machine-readable DEP-5 copyright file at `/usr/share/doc/apptrol/copyright`, with Apptrol's copyright notice and full MIT license text. CI MUST check it with `lintian` and keep its MIT text equal to `LICENSE` (#146). *(Missing until 0.3.0, #97.)* | MUST | 1.6 |
 | NFR-10 | The .deb and .rpm packages MUST have a short summary that is not a sentence (no full stop) and an extended description of what Apptrol does and needs, as software centres show them. CI's lintian run MUST report no informational (`I:`) tags about them (#152). | MUST | 1.6 |
+| NFR-11 | OS-specific code MUST stay in adapters, and settings MUST describe user intent rather than OS mechanisms. The portable packages (`internal/mixer`, `internal/config`, `internal/state`, `internal/controller`, `internal/logattr`, `internal/version`) MUST build for Windows with `CGO_ENABLED=0`, checked by `make check` and CI. The config watcher MUST retain Linux's inode check; other systems MUST compare modification time and size (ADR 0013, #93). This does not provide Windows adapters or change paths (#92). | MUST | 1.6 |
 
 ### 5.1 Quality assurance
 

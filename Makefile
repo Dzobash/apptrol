@@ -16,11 +16,15 @@ COVERAGE_MIN ?= 75
 # go-licenses lists the libraries compiled into the binary with their licenses (#33).
 GO_LICENSES := github.com/google/go-licenses/v2@v2.0.1
 
-.PHONY: all check appstream build test test-audio test-desktop test-launcher cover vet fmt lint vulncheck third-party-licenses snapshot release-check clean help
+.PHONY: all check check-portable appstream build test test-audio test-desktop test-launcher cover vet fmt lint vulncheck third-party-licenses snapshot release-check clean help
 
 all: check build ## Run all checks, then build
 
-check: fmt vet lint test appstream ## Everything CI checks, except the vulnerability scan
+check: fmt vet lint test appstream check-portable ## Format, vet, lint, tests, AppStream and portable build
+
+# Keep Linux dependencies out of the shared packages (NFR-11, ADR 0013).
+check-portable: ## Cross-compile the portable packages for Windows without cgo
+	GOOS=windows CGO_ENABLED=0 go build ./internal/mixer ./internal/config ./internal/state ./internal/controller ./internal/logattr ./internal/version
 
 build: ## Build bin/apptrol
 	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/$(BINARY) ./cmd/apptrol

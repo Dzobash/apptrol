@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `make check` and CI cross-compile the shared packages for Windows without cgo,
+  catching accidental Linux dependencies early. The configuration watcher keeps its
+  inode check on Linux and uses modification time and size elsewhere. This guards
+  portability; Windows support remains separate (NFR-11, #93).
 - `apptrol list` shows the output devices (speakers, headphones, each output of an
   audio interface) with their description, unique name and volume; `*` marks the one the
   system uses right now. Monitors are listed neither as inputs nor as outputs. With

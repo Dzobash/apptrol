@@ -31,6 +31,13 @@ process should be repeatable and not depend on anyone's machine.
 
 ## Notes
 
+- 2026-10-20: `make check` and a step in CI's existing Build job cross-compile
+  `internal/mixer`, `internal/config`, `internal/state`, `internal/controller`,
+  `internal/logattr` and `internal/version` for Windows with `CGO_ENABLED=0`
+  (NFR-11, #93). This guards shared code against Linux dependencies without adding
+  a CI job or a Windows runner. The config adapter keeps its inode check on Linux;
+  elsewhere its watcher compares modification time and size. A replacement preserving
+  both can be missed there. Windows adapters and path changes remain in #92.
 - 2026-10-07: Every release file also gets a build provenance attestation from GitHub
   (`actions/attest-build-provenance`), keyless, checked with `gh attestation verify`. A
   checksum shows damage, not tampering: whoever could replace a package could replace
