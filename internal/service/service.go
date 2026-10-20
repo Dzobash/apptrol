@@ -436,7 +436,7 @@ func (s *service) handle(ev mixer.Event) {
 func (s *service) do(a mixer.Action) {
 	switch a := a.(type) {
 	case mixer.SetStreamVolume, mixer.SetStreamMute, mixer.SetDeviceVolume, mixer.SetDeviceMute,
-		mixer.SetOutputVolume, mixer.ReleaseOutput: // an output device's volume, and letting it go (OUT-01, CTRL-06, ADR 0027)
+		mixer.SetOutputVolume, mixer.ReleaseOutput, mixer.KeepOutput: // an output device's volume, letting it go or keeping it (OUT-01, OUT-05, CTRL-06, ADR 0027)
 		err := s.o.Audio.Apply(a)
 		switch {
 		case err == nil:

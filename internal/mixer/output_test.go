@@ -508,6 +508,79 @@ func TestOUT01_OutputNoControlHoldsIsReleased(t *testing.T) {
 	}
 }
 
+// A device whose description changes while a control still holds it is kept:
+// the adapter then defends the volume Apptrol set against one the server
+// restored with the change. A description change that ends the match
+// releases it instead, and a newly chosen device that gets its volume needs
+// no KeepOutput (OUT-05, OUT-01, CTRL-06, ADR 0027).
+//
+//	"Built-in Audio" → "Built-in Audio Pro"  still matches "built-in" ─► KeepOutput
+//	"Built-in Audio Pro" → "Lautsprecher"    no longer matches        ─► ReleaseOutput
+func TestOUT05_OutputThatStillMatchesAfterARenameIsKept(t *testing.T) {
+	s := outputSetup()
+	s.Targets["main"] = Target{ID: "main", Name: "Speakers", Kind: Output, Match: []string{"built-in"}}
+	w := outputWorld(t, s)
+	w.move(Slider, 7, 64)
+	w.wantOutputVolume(speakers.Name, Volume(64))
+
+	renamed := speakers
+	renamed.Description = "Built-in Audio Pro"
+	w.do(OutputAdded{Device: renamed})
+	if len(w.kept) != 1 || w.kept[0] != speakers.Name {
+		t.Errorf("kept = %v, want the speakers once", w.kept)
+	}
+	if got := w.outputActions(); len(got) != 0 || len(w.released) != 0 {
+		t.Errorf("a kept device got %v, released %v", got, w.released)
+	}
+
+	w.kept = nil
+	renamed.Description = "Lautsprecher"
+	w.do(OutputAdded{Device: renamed})
+	if len(w.kept) != 0 {
+		t.Errorf("a released device was kept: %v", w.kept)
+	}
+	if len(w.released) != 1 || w.released[0] != speakers.Name {
+		t.Errorf("released = %v, want the speakers", w.released)
+	}
+
+	// The headset comes back while knob7's position is known: its volume is
+	// set, which already tells the adapter what to defend.
+	w.move(Knob, 7, 100)
+	w.do(OutputRemoved{Name: headphones.Name})
+	w.do(OutputAdded{Device: headphones})
+	w.wantOutputVolume(headphones.Name, Volume(100))
+	if len(w.kept) != 0 {
+		t.Errorf("a device that got its volume was also kept: %v", w.kept)
+	}
+}
+
+// A device no control holds any more is logged at info, once per release,
+// so the log explains why a volume set elsewhere now stays (OUT-13, CTRL-06,
+// ADR 0027 note of 2026-10-20).
+func TestOUT13_OutputReleasedIsLogged(t *testing.T) {
+	const msg = "output released; no control holds the device"
+	s := outputSetup()
+	w := outputWorld(t, s)
+	if got := w.noticesNamed(msg); len(got) != 0 {
+		t.Fatalf("logged at start: %v", got)
+	}
+
+	delete(s.Assignments, Control{Slider, 7})
+	w.do(ConfigChanged{Setup: s})
+	got := w.noticesNamed(msg)
+	if len(got) != 1 || got[0].Level != slog.LevelInfo {
+		t.Fatalf("records = %v, want one at info", got)
+	}
+	if a := attrs(got[0]); a[logattr.KeyDeviceName] != speakers.Name || len(a) != 1 {
+		t.Errorf("attributes = %v, want only the device name", a)
+	}
+
+	w.do(ConfigChanged{Setup: s}) // nothing more to release
+	if got := w.noticesNamed(msg); len(got) != 1 {
+		t.Errorf("logged again without a release: %d records", len(got))
+	}
+}
+
 // Each output decision is logged with its reason (OUT-13, LOG-15).
 func TestOUT13_OutputMatchedIsLogged(t *testing.T) {
 	w := outputWorld(t, outputSetup())

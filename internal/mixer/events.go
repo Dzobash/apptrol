@@ -235,6 +235,15 @@ type ReleaseOutput struct {
 	Device string
 }
 
+// KeepOutput tells the audio adapter that a control still holds the output
+// device after it appeared, or after its name or description changed, and
+// got no new volume: the adapter waited for this before defending the volume
+// it read with that change, and checks it now (OUT-05, ADR 0027). A change
+// that leaves the device to no control gives ReleaseOutput instead.
+type KeepOutput struct {
+	Device string
+}
+
 // SetDeviceMute mutes or unmutes a capture device.
 type SetDeviceMute struct {
 	Device string
@@ -272,6 +281,7 @@ func (SetDeviceVolume) isAction()   {}
 func (SetDeviceMute) isAction()     {}
 func (SetOutputVolume) isAction()   {}
 func (ReleaseOutput) isAction()     {}
+func (KeepOutput) isAction()        {}
 func (SetLED) isAction()            {}
 func (StateChanged) isAction()      {}
 func (Notice) isAction()            {}

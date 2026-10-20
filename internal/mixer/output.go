@@ -71,11 +71,27 @@ func (m *Mixer) outputsSnapshot(a *actions, outputs []Device) {
 }
 
 // outputAdded keeps an output device that appeared or was renamed; it may
-// match an output target now, or no longer (OUT-02, OUT-05, ADR 0027).
+// match an output target now, or no longer (OUT-02, OUT-05, ADR 0027). One a
+// control still holds without getting a volume now is kept (KeepOutput), so
+// the adapter defends what it set against a volume the server restored with
+// the change; one no control holds any more is released by chooseOutputs.
 func (m *Mixer) outputAdded(a *actions, d Device) {
 	m.outputs[d.Name] = d
+	from := len(*a)
 	m.chooseOutputs(a, chooseChange)
+	if contains(m.outputFor, d.Name) && !setsOutputVolume((*a)[from:], d.Name) {
+		a.add(KeepOutput{Device: d.Name})
+	}
 	m.logIdleOutput(a, d)
+}
+
+// setsOutputVolume reports whether acts set the volume of output device dev:
+// that write already gives the adapter's guard the volume to defend (OUT-05).
+func setsOutputVolume(acts []Action, dev string) bool {
+	return slices.ContainsFunc(acts, func(x Action) bool {
+		v, ok := x.(SetOutputVolume)
+		return ok && v.Device == dev
+	})
 }
 
 // outputRemoved forgets an output device that is gone; its target takes the
@@ -144,6 +160,8 @@ func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 // releaseOutputs releases each device that a target held before and none
 // holds in chosen, by name order; one another control still holds is kept, and
 // one that is gone has nothing left to release (OUT-01, CTRL-06, ADR 0027).
+// Each release is logged at info, once, so the log explains why a volume set
+// elsewhere now stays (OUT-13, ADR 0027 note of 2026-10-20).
 func (m *Mixer) releaseOutputs(a *actions, chosen map[string]string) {
 	var released []string
 	for _, dev := range m.outputFor {
@@ -154,6 +172,8 @@ func (m *Mixer) releaseOutputs(a *actions, chosen map[string]string) {
 	sort.Strings(released)
 	for _, dev := range released {
 		a.add(ReleaseOutput{Device: dev})
+		a.notice(slog.LevelInfo, "output released; no control holds the device",
+			logattr.KeyDeviceName, dev)
 	}
 }
 

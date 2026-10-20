@@ -34,6 +34,11 @@ type guard struct {
 	until  time.Time
 	volume *float64
 	muted  *bool
+
+	// read is an output's volume last read, for KeepOutput: a read that saw a
+	// new name or description waits for the mixer before it is defended
+	// (OUT-05, ADR 0027). Streams and inputs leave it nil.
+	read *float64
 }
 
 // check returns what to set again, given the current values. It is called
@@ -113,6 +118,10 @@ type Backend struct {
 	// outputWrite replaces the write of an output device's volume in tests;
 	// nil writes to the server.
 	outputWrite func(name string, channels int, v float64) error
+
+	// beforeWire, if set, runs in Apply just before it waits for wire, so a
+	// test knows when Apply waits instead of sleeping (QA-11); nil in use.
+	beforeWire func()
 }
 
 // New returns a Backend. server is a PulseAudio server string; "" uses the
@@ -381,6 +390,16 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) ([]mixer.E
 // restores on it does not undo the one Apptrol sets (OUT-05, ADR 0027). same says that
 // the device was known with the same name and description: then only its
 // volume or mute changed, and Apptrol's volume is defended.
+//
+// A read that sees a new device, or a new name or description, is not
+// defended yet: the match may be on the description, so only the mixer knows
+// whether a control still holds the device. It answers with KeepOutput, which
+// defends the volume read here at once, or ReleaseOutput, which lets it go
+// (OUT-01, OUT-05, CTRL-06, ADR 0027).
+//
+//	read: description changed, volume 100 % ──► OutputAdded ──► mixer
+//	  still matches ──► KeepOutput    ──► guard: 100 % ≠ 30 % ──► set 30 % again
+//	  no longer     ──► ReleaseOutput ──► guard lets it go     ──► 100 % stays
 func (b *Backend) sinkRead(k *conn, d SinkInfo, same bool) error {
 	b.mu.Lock()
 	_, tracked := b.outChans[d.Name]
@@ -388,8 +407,13 @@ func (b *Backend) sinkRead(k *conn, d SinkInfo, same bool) error {
 	if !tracked {
 		b.outGuard[d.Name] = newGuardNow()
 	}
+	if g := b.outGuard[d.Name]; g != nil {
+		v := d.Volume
+		g.read = &v
+	}
 	b.mu.Unlock()
 	if !same {
+		b.logOutputRead(d, guardIdentityChanged)
 		return nil
 	}
 	return b.defendOutput(k, d)
@@ -503,33 +527,120 @@ func (b *Backend) defendDevice(k *conn, d SourceInfo) error {
 // defendOutput is defendDevice for output devices: only their volume, which
 // Apptrol sets (OUT-01, OUT-05, ADR 0027).
 func (b *Backend) defendOutput(k *conn, d SinkInfo) error {
-	var vol *float64
 	b.mu.Lock()
-	if g := b.outGuard[d.Name]; g != nil {
-		var expired bool
-		if vol, _, expired = g.check(d.Volume, d.Muted); expired {
-			delete(b.outGuard, d.Name)
-		}
+	vol, state := b.checkOutputGuard(d.Name, d.Volume)
+	b.mu.Unlock()
+	b.logOutputRead(d, state)
+	return b.restoreOutput(k, d.Name, d.Channels, d.Volume, vol)
+}
+
+// What the new-output guard decided about a read, for apptrol.audio.guard.state:
+// the log then says why a volume was or was not set again (OUT-05, OUT-13,
+// ADR 0027).
+const (
+	guardNone            = "no_guard"         // the output is not new, or nothing was read yet
+	guardExpired         = "expired"          // the guard's 3 seconds are over
+	guardNoVolume        = "no_volume_set"    // no control set it, or it was released
+	guardAtWanted        = "at_wanted_volume" // it reads what Apptrol set
+	guardRestore         = "restore_volume"   // it reads something else: set again
+	guardIdentityChanged = "identity_changed" // new, or a new name or description: the mixer decides first
+)
+
+// checkOutputGuard returns the volume to set again on an output that reads
+// volume, and why; it is called with mu held (OUT-05, ADR 0027).
+func (b *Backend) checkOutputGuard(name string, volume float64) (*float64, string) {
+	g := b.outGuard[name]
+	if g == nil {
+		return nil, guardNone
+	}
+	vol, _, expired := g.check(volume, false)
+	switch {
+	case expired:
+		delete(b.outGuard, name)
+		return nil, guardExpired
+	case g.volume == nil:
+		return nil, guardNoVolume
+	case vol == nil:
+		return nil, guardAtWanted
+	}
+	return vol, guardRestore
+}
+
+// keepOutput defends an output that a control still holds after a read saw
+// it new, or with a new name or description: that read waited for the mixer
+// (sinkRead), and its volume is checked now, without waiting for another
+// change from the server (KeepOutput, OUT-05, ADR 0027). It is called with
+// wire held, so no newer read can come in between.
+func (b *Backend) keepOutput(name string) error {
+	b.mu.Lock()
+	k, chans := b.cur, b.outChans[name]
+	var vol *float64
+	var read float64
+	state := guardNone
+	if g := b.outGuard[name]; g != nil && g.read != nil {
+		read = *g.read
+		vol, state = b.checkOutputGuard(name, read)
 	}
 	b.mu.Unlock()
+	b.log.Debug("output kept by a control; checking the volume last read",
+		logattr.KeyDeviceName, name, logattr.KeyVolume, percent(read), logattr.KeyGuardState, state)
+	if k == nil {
+		return nil // the guards start again on a reconnect
+	}
+	return b.restoreOutput(k, name, chans, read, vol)
+}
 
-	if vol != nil {
-		b.log.Debug("audio server changed the volume of a new output; setting it again",
-			logattr.KeyDeviceName, d.Name, logattr.KeyVolume, percent(d.Volume), logattr.KeyWanted, percent(*vol))
-		if err := b.setOutputVolume(k, d.Name, d.Channels, *vol); err != nil && !IsGone(err) {
-			return err
-		}
+// restoreOutput sets vol again on an output whose read volume the guard
+// rejected; nil sets nothing (OUT-05, ADR 0027).
+func (b *Backend) restoreOutput(k *conn, name string, channels int, read float64, vol *float64) error {
+	if vol == nil {
+		return nil
+	}
+	b.log.Debug("audio server changed the volume of a new output; setting it again",
+		logattr.KeyDeviceName, name, logattr.KeyVolume, percent(read), logattr.KeyWanted, percent(*vol))
+	if err := b.setOutputVolume(k, name, channels, *vol); err != nil && !IsGone(err) {
+		return err
 	}
 	return nil
 }
 
 // setOutputVolume writes an output device's volume, through outputWrite in
-// tests (OUT-01, ADR 0027).
+// tests, and logs the server's answer at debug: a write the server accepted
+// shows as success, so a volume that still reads otherwise was changed
+// afterwards, not lost on the way (OUT-01, OUT-13, ADR 0027).
 func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64) error {
+	var err error
 	if b.outputWrite != nil {
-		return b.outputWrite(name, channels, v)
+		err = b.outputWrite(name, channels, v)
+	} else {
+		err = k.setSinkVolume(name, channels, v)
 	}
-	return k.setSinkVolume(name, channels, v)
+	attrs := []any{logattr.KeyDeviceName, name, logattr.KeyAudioChannels, channels,
+		logattr.KeyWanted, percent(v), logattr.KeyAudioResult, "success"}
+	if err != nil {
+		attrs[len(attrs)-1] = "failed"
+		attrs = append(attrs, logattr.Error(logattr.ErrAudioApply, err))
+	}
+	b.log.Debug("output volume request completed", attrs...)
+	return err
+}
+
+// logOutputRead logs, at debug, each read of an output device: its identity,
+// volume and what the new-output guard made of it, including reads it skipped
+// and why (OUT-05, OUT-13, ADR 0027).
+func (b *Backend) logOutputRead(d SinkInfo, state string) {
+	attrs := []any{logattr.KeyDeviceIndex, d.Index, logattr.KeyDeviceName, d.Name,
+		logattr.KeyDeviceDescription, d.Description, logattr.KeyAudioChannels, d.Channels,
+		logattr.KeyVolume, percent(d.Volume), logattr.KeyGuardState, state}
+	b.mu.Lock()
+	if g := b.outGuard[d.Name]; g != nil {
+		attrs = append(attrs, logattr.KeyGuardRemaining, max(0, time.Until(g.until).Milliseconds()))
+		if g.volume != nil {
+			attrs = append(attrs, logattr.KeyWanted, percent(*g.volume))
+		}
+	}
+	b.mu.Unlock()
+	b.log.Debug("output device read", attrs...)
 }
 
 // outsideStreamMute reports whether a stream's mute changing to muted was made
@@ -555,18 +666,24 @@ func (b *Backend) outsideDeviceMute(name string, muted bool) bool {
 }
 
 // Apply carries out a volume or mute action: of a stream, an input, or an
-// output device (SetOutputVolume, OUT-01), and ReleaseOutput, which only
-// changes what the new-output guard defends and needs no connection (CTRL-06).
-// Other actions are ignored.
+// output device (SetOutputVolume, OUT-01), and ReleaseOutput and KeepOutput,
+// which only change what the new-output guard defends and need no connection
+// (CTRL-06, OUT-05). Other actions are ignored.
 // Errors for streams that just ended can be checked with IsGone.
 func (b *Backend) Apply(a mixer.Action) error {
 	switch a.(type) {
-	case mixer.SetStreamMute, mixer.SetDeviceMute, mixer.SetOutputVolume, mixer.ReleaseOutput:
+	case mixer.SetStreamMute, mixer.SetDeviceMute, mixer.SetOutputVolume, mixer.ReleaseOutput, mixer.KeepOutput:
 		// An output volume waits for a guard write in progress, and the
 		// guard then sees the new value: the latest slider position wins
 		// (OUT-01, OUT-05, ADR 0027).
+		if b.beforeWire != nil {
+			b.beforeWire()
+		}
 		b.wire.Lock()
 		defer b.wire.Unlock()
+	}
+	if a, ok := a.(mixer.KeepOutput); ok {
+		return b.keepOutput(a.Device)
 	}
 	b.mu.Lock()
 	k := b.cur

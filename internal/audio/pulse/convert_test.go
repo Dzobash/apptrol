@@ -348,18 +348,14 @@ func TestOUT01_LatestSliderPositionWinsOverAGuardWrite(t *testing.T) {
 
 	var mu sync.Mutex
 	var writes []float64 // in the order they finished
-	guardWriting, sliderWrote := make(chan struct{}), make(chan struct{})
+	guardWriting, sliderWaits := make(chan struct{}), make(chan struct{})
+	b.beforeWire = func() { close(sliderWaits) }
 	b.outputWrite = func(_ string, _ int, v float64) error {
 		if v == 1.0 {
-			// The guard's write: give the slider's write every chance to
-			// finish first, as it would if it did not wait.
+			// The guard's write lasts until the slider's Apply is at wire:
+			// if Apply did not wait there, its write would finish first.
 			close(guardWriting)
-			select {
-			case <-sliderWrote:
-			case <-time.After(200 * time.Millisecond):
-			}
-		} else {
-			defer close(sliderWrote)
+			<-sliderWaits
 		}
 		mu.Lock()
 		writes = append(writes, v)
@@ -409,9 +405,11 @@ func TestCTRL06_ReleasedOutputIsNoLongerDefended(t *testing.T) {
 
 	// The reload releases it while an event is being handled: it waits.
 	b.wire.Lock()
+	waits := make(chan struct{})
+	b.beforeWire = func() { close(waits) }
 	released := make(chan error, 1)
 	go func() { released <- b.Apply(mixer.ReleaseOutput{Device: "spk"}) }()
-	time.Sleep(50 * time.Millisecond)
+	<-waits
 	b.mu.Lock()
 	early := b.outGuard["spk"].volume == nil
 	b.mu.Unlock()
@@ -422,6 +420,7 @@ func TestCTRL06_ReleasedOutputIsNoLongerDefended(t *testing.T) {
 	if err := <-released; err != nil {
 		t.Fatal(err)
 	}
+	b.beforeWire = nil
 
 	writes = nil
 	lowered := SinkInfo{Device: mixer.Device{Name: "spk"}, Volume: 0.2, Channels: 2} // set elsewhere
@@ -447,6 +446,62 @@ func TestCTRL06_ReleasedOutputIsNoLongerDefended(t *testing.T) {
 	b.cur = nil
 	if err := b.Apply(mixer.ReleaseOutput{Device: "other"}); err != nil {
 		t.Errorf("Apply(ReleaseOutput) without a connection = %v", err)
+	}
+}
+
+// A read that sees an output's description change together with a volume the
+// server restored is not defended at once: the mixer decides first. When a
+// control still holds the output (KeepOutput), the volume read is set back
+// without waiting for another change; when the change released it
+// (ReleaseOutput), the read volume stays (OUT-05, CTRL-06, ADR 0027).
+//
+//	Apply 30 % ─► read: "Speakers Pro", 100 % ─► nothing yet ─► KeepOutput    ─► 30 % again
+//	                                                         └► ReleaseOutput ─► 100 % stays
+func TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt(t *testing.T) {
+	for _, keep := range []bool{true, false} {
+		b := New(quietLog(), "")
+		b.cur = &conn{} // never used: writes go through outputWrite
+		b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
+		var writes []float64
+		b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+
+		spk := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
+		if err := b.sinkRead(b.cur, spk, false); err != nil { // it appears
+			t.Fatal(err)
+		}
+		if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 0.3}); err != nil {
+			t.Fatal(err)
+		}
+		writes = nil
+
+		restored := spk
+		restored.Description, restored.Volume = "Speakers Pro", 1
+		if err := b.sinkRead(b.cur, restored, false); err != nil {
+			t.Fatal(err)
+		}
+		if len(writes) != 0 {
+			t.Fatalf("keep=%v: defended before the mixer decided: %v", keep, writes)
+		}
+
+		var a mixer.Action = mixer.ReleaseOutput{Device: "spk"}
+		if keep {
+			a = mixer.KeepOutput{Device: "spk"}
+		}
+		if err := b.Apply(a); err != nil {
+			t.Fatal(err)
+		}
+		switch {
+		case keep && (len(writes) != 1 || writes[0] != 0.3):
+			t.Errorf("kept: writes = %v, want 0.3 set again", writes)
+		case !keep && len(writes) != 0:
+			t.Errorf("released: writes = %v, want none", writes)
+		}
+	}
+
+	// Kept without a connection, or with nothing to defend: nothing to do.
+	b := New(quietLog(), "")
+	if err := b.Apply(mixer.KeepOutput{Device: "spk"}); err != nil {
+		t.Errorf("Apply(KeepOutput) without a connection = %v", err)
 	}
 }
 
