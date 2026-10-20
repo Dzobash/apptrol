@@ -459,6 +459,55 @@ func TestOUT04_TwoFixedOutputsShareADevice(t *testing.T) {
 	}
 }
 
+// A device no control holds any more after a reload is released, so the
+// adapter stops defending the volume Apptrol set on it; one that another
+// control still holds is kept, and one that is gone is not released (OUT-01,
+// CTRL-06, ADR 0027).
+//
+//	slider6 + slider7 on Speakers ─ reload: slider7 off ─► kept (slider6 holds it)
+//	slider6 off too               ─ reload             ─► ReleaseOutput Speakers
+func TestOUT01_OutputNoControlHoldsIsReleased(t *testing.T) {
+	s := outputSetup()
+	s.Targets["also"] = Target{ID: "also", Name: "Speakers too", Kind: Output, Match: []string{"built-in"}}
+	s.Assignments[Control{Slider, 6}] = "also"
+	w := outputWorld(t, s)
+	if len(w.released) != 0 {
+		t.Fatalf("released at start: %v", w.released)
+	}
+
+	delete(s.Assignments, Control{Slider, 7})
+	w.do(ConfigChanged{Setup: s})
+	if len(w.released) != 0 {
+		t.Errorf("released while slider6 still holds it: %v", w.released)
+	}
+
+	delete(s.Assignments, Control{Slider, 6})
+	w.do(ConfigChanged{Setup: s})
+	if len(w.released) != 1 || w.released[0] != speakers.Name {
+		t.Errorf("released = %v, want the speakers once", w.released)
+	}
+	w.do(ConfigChanged{Setup: s}) // nothing held it: nothing more to release
+	if len(w.released) != 1 {
+		t.Errorf("released again: %v", w.released)
+	}
+
+	// A changed match releases the old device, as does a device gone only
+	// when it is still there: a gone one has nothing left to release.
+	w.released = nil
+	phones := s.Targets["phones"]
+	phones.Match = []string{"no such device"}
+	s.Targets["phones"] = phones
+	w.do(ConfigChanged{Setup: s})
+	if len(w.released) != 1 || w.released[0] != headphones.Name {
+		t.Errorf("released after a new match = %v, want the headset", w.released)
+	}
+	w2 := outputWorld(t, outputSetup())
+	w2.do(OutputRemoved{Name: speakers.Name})
+	if len(w2.released) != 0 {
+		t.Errorf("a gone device was released: %v", w2.released)
+	}
+}
+
 // Each output decision is logged with its reason (OUT-13, LOG-15).
 func TestOUT13_OutputMatchedIsLogged(t *testing.T) {
 	w := outputWorld(t, outputSetup())

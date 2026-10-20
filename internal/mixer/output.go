@@ -2,6 +2,7 @@ package mixer
 
 import (
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 
@@ -97,8 +98,9 @@ func (m *Mixer) logIdleOutput(a *actions, d Device) {
 // still matches, otherwise the first match by name, case-insensitive on name
 // or description (OUT-02, the same rule as for inputs, CFG-05). A newly
 // chosen device gets its control's position when it is known, and is left
-// alone until the control is moved when it is not (OUT-05, PRIO-04). Outputs
-// have no mute yet, so nothing is released when a device stops being chosen.
+// alone until the control is moved when it is not (OUT-05, PRIO-04). A device
+// that no target holds any more is released (ReleaseOutput, OUT-01, CTRL-06):
+// outputs have no mute yet, so only the adapter's guard has anything to let go.
 func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 	names := sortedDeviceNames(m.outputs)
 	chosen := map[string]string{}
@@ -129,8 +131,25 @@ func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 		}
 		m.applyOutputVolume(a, id, pick)
 	}
+	m.releaseOutputs(a, chosen)
 	m.outputFor = chosen
 	m.logSharedOutputs(a)
+}
+
+// releaseOutputs releases each device that a target held before and none
+// holds in chosen, by name order; one another control still holds is kept, and
+// one that is gone has nothing left to release (OUT-01, CTRL-06, ADR 0027).
+func (m *Mixer) releaseOutputs(a *actions, chosen map[string]string) {
+	var released []string
+	for _, dev := range m.outputFor {
+		if _, there := m.outputs[dev]; there && !contains(chosen, dev) && !slices.Contains(released, dev) {
+			released = append(released, dev)
+		}
+	}
+	sort.Strings(released)
+	for _, dev := range released {
+		a.add(ReleaseOutput{Device: dev})
+	}
 }
 
 // applyOutputVolume sets an output device to its control's position, up to the

@@ -139,7 +139,10 @@ PipeWire or PulseAudio.
   temporary: M and S on an output column do nothing until mute (OUT-06) and output
   solo (OUT-07) follow; R works as point 8 says. The third mirrors the new-stream and
   new-input guard (PRIO-03): for 3 seconds after an output appears, a volume the audio
-  server restores over Apptrol's is set again. `two controls set the same output`
+  server restores over Apptrol's is set again. It defends only the latest position (a
+  slider move waits for a guard write in progress) and only while a control holds the
+  output: a reload or a device change that leaves the output on no control releases it
+  (`ReleaseOutput`, CTRL-06), so a volume changed elsewhere stays. `two controls set the same output`
   (point 4) also covers two fixed outputs that match the same device, and names the
   first of the controls in `apptrol.control`. Every channel gets the same volume, as for
   streams and inputs, so a left/right balance set elsewhere is lost (known issue).

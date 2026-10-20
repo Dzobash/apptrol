@@ -84,8 +84,13 @@ warning at every load, until #85's later step. The mixer's tests in
 `internal/mixer/output_test.go` cover choosing the device (case-insensitive, first by
 name with a warning, kept while it matches), the volume up to `max_volume`, an unknown
 position (left alone, PRIO-04), outside changes (not reverted), two outputs on one
-device, and that app solo, talk-over, M and S never change an output (OUT-07, OUT-11).
-The fuzz test has outputs on slider 7 and knob 7. `make test-audio` sets a silent test
+device, releasing a device no control holds any more (kept while another control holds
+it, CTRL-06), and that app solo, talk-over, M and S never change an output (OUT-07,
+OUT-11). The adapter's unit tests check that a slider move is never overwritten by the
+new-output guard (`TestOUT01_LatestSliderPositionWinsOverAGuardWrite`) and that a
+released output is no longer defended (`TestCTRL06_ReleasedOutputIsNoLongerDefended`).
+The fuzz test has outputs on slider 7 and knob 7, and checks that a released device is
+held by no target. `make test-audio` sets a silent test
 output to 30 % and reads it back (`TestIntegration_OUT01_OutputVolume`); the manual
 cases are [TC-OUT-003 and TC-OUT-004](testing/cases/out.md), with the `output-fixed`
 fixture.

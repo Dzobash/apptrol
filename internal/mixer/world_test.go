@@ -18,7 +18,8 @@ type world struct {
 	devVol     map[string]float64
 	devMute    map[string]bool
 	outVol     map[string]float64 // output devices' volume (OUT-01)
-	leds       map[LED]bool
+	released   []string           // output devices released (ReleaseOutput), in order
+	leds      map[LED]bool
 	saves      int
 	notices    []Notice
 	commands   []PlayerCommand // media player commands sent
@@ -122,6 +123,8 @@ func (w *world) apply(acts []Action) {
 				w.t.Fatalf("volume out of range: %v", a)
 			}
 			w.outVol[a.Device] = a.Volume
+		case ReleaseOutput:
+			w.released = append(w.released, a.Device)
 		case SetLED:
 			w.leds[a.LED] = a.On
 		case StateChanged:

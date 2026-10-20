@@ -190,6 +190,18 @@ has chosen (`outputFor`):
   moved to another control or given another `max_volume` gets its volume again on a
   reload, as inputs do. Outside changes are not reverted (PRIO-02): the adapter does not
   even report an output's volume.
+- **Releasing** (`ReleaseOutput`, CTRL-06): a device that no output target holds any
+  more after choosing (a reload took its control away or changed its match) is released;
+  one another control still holds is kept, one that is gone has nothing to release. The
+  adapter's new-output guard then stops defending Apptrol's volume on it, so a volume
+  changed elsewhere within the guard's 3 seconds stays. Output volume writes and the
+  guard take turns (`wire`, as mute writes do), so the guard never writes a position
+  the slider has already left.
+
+  ```
+  reload: slider7 no longer on "main" ──► nobody holds Speakers ──► ReleaseOutput Speakers
+                                                                     └─► the guard lets it go
+  ```
 - **Not yet:** M and S on an output column do nothing (a debug record), app solo and
   talk-over never touch outputs (OUT-07, OUT-11); output mute and solo follow in #85.
 - **Two controls on one device** are allowed (OUT-04); `sharedOutputs` remembers what

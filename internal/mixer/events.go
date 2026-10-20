@@ -226,6 +226,15 @@ type SetOutputVolume struct {
 	Volume float64
 }
 
+// ReleaseOutput tells the audio adapter that no control holds the output
+// device any more, after a reload or a change of devices: whatever Apptrol
+// set on it is no longer Apptrol's to defend, so a volume changed elsewhere
+// stays (OUT-01, CTRL-06, ADR 0027). The adapter forgets the volume its
+// new-output guard defends; the device's volume itself is left as it is.
+type ReleaseOutput struct {
+	Device string
+}
+
 // SetDeviceMute mutes or unmutes a capture device.
 type SetDeviceMute struct {
 	Device string
@@ -262,6 +271,7 @@ func (SetStreamMute) isAction()     {}
 func (SetDeviceVolume) isAction()   {}
 func (SetDeviceMute) isAction()     {}
 func (SetOutputVolume) isAction()   {}
+func (ReleaseOutput) isAction()     {}
 func (SetLED) isAction()            {}
 func (StateChanged) isAction()      {}
 func (Notice) isAction()            {}

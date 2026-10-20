@@ -147,6 +147,10 @@ func checkOutputs(t *testing.T, w *world, ev Event) {
 			if !contains(w.m.outputFor, a.Device) {
 				t.Fatalf("%T: output %s set but held by no target (%v)", ev, a.Device, w.m.outputFor)
 			}
+		case ReleaseOutput:
+			if contains(w.m.outputFor, a.Device) {
+				t.Fatalf("%T: output %s released but still held (%v)", ev, a.Device, w.m.outputFor)
+			}
 		case SetDeviceMute:
 			if a.Device == speakers.Name || a.Device == headphones.Name {
 				t.Fatalf("%T muted an output: %v", ev, a)

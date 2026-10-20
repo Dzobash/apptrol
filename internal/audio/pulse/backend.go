@@ -555,11 +555,13 @@ func (b *Backend) outsideDeviceMute(name string, muted bool) bool {
 }
 
 // Apply carries out a volume or mute action: of a stream, an input, or an
-// output device (SetOutputVolume, OUT-01). Other actions are ignored.
+// output device (SetOutputVolume, OUT-01), and ReleaseOutput, which only
+// changes what the new-output guard defends and needs no connection (CTRL-06).
+// Other actions are ignored.
 // Errors for streams that just ended can be checked with IsGone.
 func (b *Backend) Apply(a mixer.Action) error {
 	switch a.(type) {
-	case mixer.SetStreamMute, mixer.SetDeviceMute, mixer.SetOutputVolume:
+	case mixer.SetStreamMute, mixer.SetDeviceMute, mixer.SetOutputVolume, mixer.ReleaseOutput:
 		// An output volume waits for a guard write in progress, and the
 		// guard then sees the new value: the latest slider position wins
 		// (OUT-01, OUT-05, ADR 0027).
@@ -603,6 +605,13 @@ func (b *Backend) Apply(a mixer.Action) error {
 		if g := b.outGuard[a.Device]; g != nil {
 			v := a.Volume
 			g.volume = &v
+		}
+	case mixer.ReleaseOutput:
+		// No control holds the output any more: its guard stops defending
+		// Apptrol's volume, and only sets one again if a control takes the
+		// output back within the window (OUT-01, CTRL-06, ADR 0027).
+		if g := b.outGuard[a.Device]; g != nil {
+			g.volume = nil
 		}
 	}
 	b.mu.Unlock()

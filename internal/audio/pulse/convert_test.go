@@ -393,6 +393,63 @@ func TestOUT01_LatestSliderPositionWinsOverAGuardWrite(t *testing.T) {
 	}
 }
 
+// An output a reload left without a control is released: within the guard's
+// window, a volume changed elsewhere then stays, instead of being set back to
+// what Apptrol set; a control taking it back is defended again (OUT-01,
+// CTRL-06, ADR 0027). Releasing waits for a guard write in progress.
+func TestCTRL06_ReleasedOutputIsNoLongerDefended(t *testing.T) {
+	b := New(quietLog(), "")
+	b.cur = &conn{} // never used: writes go through outputWrite
+	b.outChans, b.outGuard = map[string]int{"spk": 2}, map[string]*guard{"spk": newGuardNow()}
+	var writes []float64
+	b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+	if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The reload releases it while an event is being handled: it waits.
+	b.wire.Lock()
+	released := make(chan error, 1)
+	go func() { released <- b.Apply(mixer.ReleaseOutput{Device: "spk"}) }()
+	time.Sleep(50 * time.Millisecond)
+	b.mu.Lock()
+	early := b.outGuard["spk"].volume == nil
+	b.mu.Unlock()
+	if early {
+		t.Error("released while an event held wire")
+	}
+	b.wire.Unlock()
+	if err := <-released; err != nil {
+		t.Fatal(err)
+	}
+
+	writes = nil
+	lowered := SinkInfo{Device: mixer.Device{Name: "spk"}, Volume: 0.2, Channels: 2} // set elsewhere
+	if err := b.defendOutput(b.cur, lowered); err != nil {
+		t.Fatal(err)
+	}
+	if len(writes) != 0 {
+		t.Errorf("a released output was set back: %v", writes)
+	}
+
+	// A control takes it back within the window: defended again.
+	if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 0.6}); err != nil {
+		t.Fatal(err)
+	}
+	writes = nil
+	if err := b.defendOutput(b.cur, lowered); err != nil {
+		t.Fatal(err)
+	}
+	if len(writes) != 1 || writes[0] != 0.6 {
+		t.Errorf("writes = %v, want 0.6 set again", writes)
+	}
+	// Releasing needs no connection, and an output with no guard is fine.
+	b.cur = nil
+	if err := b.Apply(mixer.ReleaseOutput{Device: "other"}); err != nil {
+		t.Errorf("Apply(ReleaseOutput) without a connection = %v", err)
+	}
+}
+
 func TestSVC04_RunKeepsRetryingUntilCanceled(t *testing.T) {
 	b := New(quietLog(), "unix:"+filepath.Join(t.TempDir(), "no-such-socket"))
 	b.retryMin, b.retryMax = time.Millisecond, 4*time.Millisecond
