@@ -15,7 +15,7 @@
       "Bash(git check-ignore *)",
       "Bash(git worktree list)",
       "Bash(git worktree list *)",
-      "Bash(git tag --sort*)",
+      "Bash(git tag --sort=-creatordate*)",
       "Bash(git tag -l *)",
       "Bash(git tag --list *)",
       "Bash(git branch)",

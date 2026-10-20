@@ -41,7 +41,9 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
 The Packaging job has no path filter: the ruleset on `main` wants its checks on every
 pull request, and a skipped job would count as missing. `go test ./packaging` also keeps
 the MIT text in `packaging/debian/copyright` equal to `LICENSE` (NFR-09); it runs in the
-Test job.
+Test job. So does `go test ./internal/repocheck`, which keeps the command lists for
+Claude Code and Codex equal and checks that both ask before pushing or changing GitHub
+(QA-15).
 
 ## Writing tests
 
