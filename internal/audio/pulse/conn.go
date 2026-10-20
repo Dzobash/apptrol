@@ -221,6 +221,24 @@ func (k *conn) setSourceMute(name string, muted bool) error {
 	return k.request(&proto.SetSourceMute{SourceIndex: proto.Undefined, SourceName: name, Mute: muted}, nil)
 }
 
+// sinkByName returns one output device by its unique name, for its channel
+// count when Apptrol sets its volume (OUT-01, ADR 0027).
+func (k *conn) sinkByName(name string) (SinkInfo, error) {
+	var r proto.GetSinkInfoReply
+	if err := k.request(&proto.GetSinkInfo{SinkIndex: proto.Undefined, SinkName: name}, &r); err != nil {
+		return SinkInfo{}, err
+	}
+	return sinkFromReply(&r), nil
+}
+
+// setSinkVolume sets an output device's volume: one value on every channel,
+// like streams and inputs, so a left/right balance set elsewhere is lost
+// (OUT-01, ADR 0027; docs/known-issues.md).
+func (k *conn) setSinkVolume(name string, channels int, v float64) error {
+	return k.request(&proto.SetSinkVolume{SinkIndex: proto.Undefined, SinkName: name,
+		ChannelVolumes: channelVolumes(channels, v)}, nil)
+}
+
 // Snapshot converts listed streams, sources and sinks into the mixer's event
 // (SVC-04; sinks: OUT-12, ADR 0027).
 func Snapshot(streams []StreamInfo, sources []SourceInfo, sinks []SinkInfo) mixer.AudioSnapshot {

@@ -24,17 +24,16 @@ knob2 = "speakers"
 
 func TestCFG20_OutputsLoadWithEitherSelector(t *testing.T) {
 	cfg, warnings := mustParseWarnings(t, outputsBase)
-	if len(warnings) != 2 {
-		t.Fatalf("warnings = %v, want one inactive warning per output", warnings)
+	// Only the default output is inactive; the fixed one works (OUT-01, OUT-03).
+	if len(warnings) != 1 {
+		t.Fatalf("warnings = %v, want one inactive warning for the default output", warnings)
 	}
-	for i, id := range []string{"main", "speakers"} {
-		w := warnings[i]
-		if w.Message != "output control is not implemented yet; this target is inactive" || w.Text != "outputs."+id+": "+w.Message {
-			t.Errorf("warning = %+v", w)
-		}
-		if attrs := attrsOf(w); len(attrs) != 2 || attrs["apptrol.app.id"] != id || attrs["apptrol.app.type"] != TypeOutput {
-			t.Errorf("warning attributes = %v", attrs)
-		}
+	w := warnings[0]
+	if w.Message != "following the default output is not implemented yet; this target is inactive" || w.Text != "outputs.main: "+w.Message {
+		t.Errorf("warning = %+v", w)
+	}
+	if attrs := attrsOf(w); len(attrs) != 2 || attrs["apptrol.app.id"] != "main" || attrs["apptrol.app.type"] != TypeOutput {
+		t.Errorf("warning attributes = %v", attrs)
 	}
 	main, fixed := cfg.Apps["main"], cfg.Apps["speakers"]
 	if main.Device != DeviceDefault || main.Type != TypeOutput || main.Name != "Main volume" || main.MaxVolume != 100 || len(main.Match) != 0 {

@@ -217,6 +217,15 @@ type SetDeviceVolume struct {
 	Volume float64
 }
 
+// SetOutputVolume sets an output device's volume; Volume is 0–1, up to
+// MaxBoost with a raised max_volume (OUT-01, ADR 0027). It is its own type, not
+// SetDeviceVolume: an input and an output may share a name prefix, and the
+// audio server keeps them apart as sources and sinks.
+type SetOutputVolume struct {
+	Device string
+	Volume float64
+}
+
 // SetDeviceMute mutes or unmutes a capture device.
 type SetDeviceMute struct {
 	Device string
@@ -252,6 +261,7 @@ func (SetStreamVolume) isAction()   {}
 func (SetStreamMute) isAction()     {}
 func (SetDeviceVolume) isAction()   {}
 func (SetDeviceMute) isAction()     {}
+func (SetOutputVolume) isAction()   {}
 func (SetLED) isAction()            {}
 func (StateChanged) isAction()      {}
 func (Notice) isAction()            {}

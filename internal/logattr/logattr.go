@@ -67,6 +67,8 @@ const (
 	KeyDeviceName        = "apptrol.device.name"        // an input or output device's unique name (ADR 0027)
 	KeyDeviceDescription = "apptrol.device.description" // an input or output device's description
 	KeyDeviceMatches     = "apptrol.device.matches"     // devices that match, comma-separated
+	KeyDeviceSelectedBy  = "apptrol.device.selected_by" // how an output's device was chosen: match or default (OUT-13, ADR 0027)
+	KeyDeviceControls    = "apptrol.device.controls"    // the controls that set one output device, comma-separated (OUT-04)
 
 	KeyAudioServer  = "apptrol.audio.server"  // audio server name and version
 	KeyRetryDelay   = "apptrol.retry.delay_s" // seconds until the next attempt

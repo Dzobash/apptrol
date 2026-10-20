@@ -242,6 +242,59 @@ func TestIntegration_OUT12_OutputDevices(t *testing.T) {
 	})
 }
 
+// waitSink is waitStream for output devices.
+func waitSink(t *testing.T, name string, ok func(SinkInfo) bool) {
+	t.Helper()
+	var last SinkInfo
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		l, err := List("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range l.Sinks {
+			if s.Name == name {
+				if last = s; ok(s) {
+					return
+				}
+			}
+		}
+	}
+	t.Fatalf("output %q: last seen %+v", name, last)
+}
+
+// TestIntegration_OUT01_OutputVolume sets the volume of a silent test output,
+// and only of it (OUT-01): Apply(SetOutputVolume 0.3) makes it read 30 %, as
+// `pactl get-sink-volume` would show. The new-output guard keeps it there.
+func TestIntegration_OUT01_OutputVolume(t *testing.T) {
+	needServer(t)
+	b := New(quietLog(), "")
+	events := make(chan mixer.Event, 256)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- b.Run(ctx, events) }()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Errorf("Run = %v", err)
+		}
+	})
+	next(t, events, func(mixer.AudioSnapshot) bool { return true })
+
+	out := unique("apptrol_test_out")
+	addSink(t, out, "Apptrol-Test-Output")
+	next(t, events, func(e mixer.OutputAdded) bool { return e.Device.Name == out })
+	if err := b.Apply(mixer.SetOutputVolume{Device: out, Volume: 0.3}); err != nil {
+		t.Fatal(err)
+	}
+	waitSink(t, out, func(s SinkInfo) bool { return near(s.Volume, 0.3) })
+	// Still 30 % once the new-output guard is over: nothing set it back.
+	time.Sleep(newGuard)
+	waitSink(t, out, func(s SinkInfo) bool { return near(s.Volume, 0.3) })
+	if err := b.Apply(mixer.SetOutputVolume{Device: out + "_missing", Volume: 0.3}); err == nil || !IsGone(err) {
+		t.Errorf("Apply on a missing output = %v, want IsGone", err)
+	}
+}
+
 // TestIntegration_MEDIA10_Cork pauses and resumes a real stream, as a browser
 // tab or a player does, and expects the backend to report it as a cork
 // change, not as a new stream.

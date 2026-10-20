@@ -14,7 +14,7 @@ import (
 )
 
 // cmdList shows the playing apps, input devices and output devices with the
-// names used for matching, and which control each app and input is on
+// names used for matching, and which control each app, input and output is on
 // (CFG-10, OUT-12, ADR 0027).
 func cmdList(configPath string, stdout io.Writer, list func() (*pulse.Listing, error)) error {
 	l, err := list()
@@ -47,6 +47,7 @@ func cmdList(configPath string, stdout io.Writer, list func() (*pulse.Listing, e
 func printListing(w io.Writer, l *pulse.Listing, setup *mixer.Setup, note string) error {
 	streamControl := func(uint32) string { return "-" }
 	inputControl := map[string]string{}
+	outputControl := map[string]string{} // an output device on two controls lists both (OUT-04)
 	if setup != nil {
 		m := mixer.New(*setup, mixer.State{})
 		m.Handle(pulse.Snapshot(l.Streams, l.Sources, l.Sinks))
@@ -68,6 +69,20 @@ func printListing(w io.Writer, l *pulse.Listing, setup *mixer.Setup, note string
 		for _, id := range ids {
 			if dev := m.InputDevice(id); dev != "" {
 				inputControl[dev] = label(id)
+			}
+		}
+		// In control order, so a device on two controls lists them as the log does.
+		for _, k := range []mixer.ControlKind{mixer.Slider, mixer.Knob} {
+			for col := 1; col <= mixer.NumColumns; col++ {
+				id, ok := setup.Assignments[mixer.Control{Kind: k, Column: col}]
+				dev := m.OutputDevice(id)
+				if !ok || dev == "" {
+					continue
+				}
+				if outputControl[dev] != "" {
+					outputControl[dev] += ", "
+				}
+				outputControl[dev] += label(id)
 			}
 		}
 	}
@@ -118,13 +133,13 @@ func printListing(w io.Writer, l *pulse.Listing, setup *mixer.Setup, note string
 		fmt.Fprintln(w, "  No output devices found.")
 	} else {
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "    DESCRIPTION\tNAME\tVOLUME")
+		fmt.Fprintln(tw, "    DESCRIPTION\tNAME\tVOLUME\tCONTROL")
 		for _, d := range l.Sinks {
 			mark := " "
 			if d.Name == l.DefaultSink {
 				mark = "*"
 			}
-			fmt.Fprintf(tw, "  %s %s\t%s\t%s\n", mark, d.Description, d.Name, volume(d.Volume, d.Muted))
+			fmt.Fprintf(tw, "  %s %s\t%s\t%s\t%s\n", mark, d.Description, d.Name, volume(d.Volume, d.Muted), dash(outputControl[d.Name]))
 		}
 		if err := tw.Flush(); err != nil {
 			return err

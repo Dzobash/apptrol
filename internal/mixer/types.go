@@ -131,14 +131,18 @@ type TargetKind int
 
 // Target kinds.
 const (
-	App   TargetKind = iota // playback streams of an application
-	Input                   // one capture device
+	App    TargetKind = iota // playback streams of an application
+	Input                    // one capture device
+	Output                   // one output device, chosen by match (OUT-01, ADR 0027)
 )
 
-// String is the name the configuration uses: "app" or "input".
+// String is the name the configuration uses: "app", "input" or "output".
 func (k TargetKind) String() string {
-	if k == Input {
+	switch k {
+	case Input:
 		return "input"
+	case Output:
+		return "output"
 	}
 	return "app"
 }

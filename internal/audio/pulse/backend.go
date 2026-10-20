@@ -22,11 +22,11 @@ var ErrNotConnected = errors.New("not connected to the audio server")
 // errLost ends a session when the connection breaks.
 var errLost = errors.New("connection lost")
 
-// newGuard is how long after a stream or capture device appears Apptrol
-// defends the volume and mute it set. PipeWire (WirePlumber) restores remembered
+// newGuard is how long after a stream, capture device or output device
+// appears Apptrol defends the volume and mute it set. PipeWire (WirePlumber) restores remembered
 // settings shortly after something appears; when that lands after Apptrol's
-// own change, it would undo it (PRIO-03). Within this window, Apptrol sets its
-// values again.
+// own change, it would undo it (PRIO-03; for outputs OUT-05, ADR 0027).
+// Within this window, Apptrol sets its values again.
 const newGuard = 3 * time.Second
 
 // guard records what Apptrol set on a new stream or device.
@@ -95,8 +95,10 @@ type Backend struct {
 	cur      *conn
 	channels map[uint32]int    // channel count per stream, for setting volume
 	devChans map[string]int    // channel count per capture device
+	outChans map[string]int    // channel count per output device (OUT-01)
 	guards   map[uint32]*guard // new streams
 	devGuard map[string]*guard // new capture devices
+	outGuard map[string]*guard // new output devices: only the volume, outputs have no mute yet (OUT-05)
 
 	muteWant    map[uint32]muteWant // the mute Apptrol last set on a stream
 	devMuteWant map[string]muteWant // the mute Apptrol last set on a device
@@ -198,7 +200,7 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 		}
 		t = tracker{streams: map[uint32]mixer.Stream{}, devices: map[uint32]mixer.Device{},
 			muted: map[uint32]bool{}, devMute: map[uint32]bool{}, outputs: map[uint32]mixer.Device{}}
-		chans, devChans := map[uint32]int{}, map[string]int{}
+		chans, devChans, outChans := map[uint32]int{}, map[string]int{}, map[string]int{}
 		for _, s := range streams {
 			t.streams[s.ID] = s.Stream
 			t.muted[s.ID] = s.Muted
@@ -211,10 +213,11 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 		}
 		for _, d := range sinks {
 			t.outputs[d.Index] = d.Device
+			outChans[d.Name] = d.Channels
 		}
 		b.mu.Lock()
-		b.cur, b.channels, b.devChans = k, chans, devChans
-		b.guards, b.devGuard = map[uint32]*guard{}, map[string]*guard{}
+		b.cur, b.channels, b.devChans, b.outChans = k, chans, devChans, outChans
+		b.guards, b.devGuard, b.outGuard = map[uint32]*guard{}, map[string]*guard{}, map[string]*guard{}
 		b.muteWant, b.devMuteWant = map[uint32]muteWant{}, map[string]muteWant{}
 		b.mu.Unlock()
 		return send(Snapshot(streams, sources, sinks))
@@ -340,9 +343,50 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) ([]mixer.E
 		return []mixer.Event{mixer.DeviceRemoved{Name: old.Name}}, nil
 
 	case proto.EventSink:
-		return outputChange(t, e.Index, kind == proto.EventRemove, k.sink)
+		// Read through sinkRead, which keeps the channel count and the
+		// new-output guard, and defends Apptrol's volume on a known output.
+		old, known := t.outputs[e.Index]
+		var defendErr error
+		evs, err := outputChange(t, e.Index, kind == proto.EventRemove, func(index uint32) (SinkInfo, error) {
+			d, err := k.sink(index)
+			if err == nil {
+				defendErr = b.sinkRead(k, d, known && old == d.Device)
+			}
+			return d, err
+		})
+		if err == nil {
+			err = defendErr
+		}
+		for _, ev := range evs {
+			if r, ok := ev.(mixer.OutputRemoved); ok {
+				b.mu.Lock()
+				delete(b.outChans, r.Name)
+				delete(b.outGuard, r.Name)
+				b.mu.Unlock()
+			}
+		}
+		return evs, err
 	}
 	return nil, nil
+}
+
+// sinkRead keeps what Apply needs about an output device just read: its
+// channel count, and a guard when it is new, so the volume WirePlumber
+// restores on it does not undo the one Apptrol sets (OUT-05). same says that
+// the device was known with the same name and description: then only its
+// volume or mute changed, and Apptrol's volume is defended.
+func (b *Backend) sinkRead(k *conn, d SinkInfo, same bool) error {
+	b.mu.Lock()
+	_, tracked := b.outChans[d.Name]
+	b.outChans[d.Name] = d.Channels
+	if !tracked {
+		b.outGuard[d.Name] = newGuardNow()
+	}
+	b.mu.Unlock()
+	if !same {
+		return nil
+	}
+	return b.defendOutput(k, d)
 }
 
 // outputChange returns the event for a change notification about the output
@@ -450,6 +494,29 @@ func (b *Backend) defendDevice(k *conn, d SourceInfo) error {
 	return nil
 }
 
+// defendOutput is defendDevice for output devices: only their volume, which
+// Apptrol sets (OUT-01, OUT-05).
+func (b *Backend) defendOutput(k *conn, d SinkInfo) error {
+	var vol *float64
+	b.mu.Lock()
+	if g := b.outGuard[d.Name]; g != nil {
+		var expired bool
+		if vol, _, expired = g.check(d.Volume, d.Muted); expired {
+			delete(b.outGuard, d.Name)
+		}
+	}
+	b.mu.Unlock()
+
+	if vol != nil {
+		b.log.Debug("audio server changed the volume of a new output; setting it again",
+			logattr.KeyDeviceName, d.Name, logattr.KeyVolume, percent(d.Volume), logattr.KeyWanted, percent(*vol))
+		if err := k.setSinkVolume(d.Name, d.Channels, *vol); err != nil && !IsGone(err) {
+			return err
+		}
+	}
+	return nil
+}
+
 // outsideStreamMute reports whether a stream's mute changing to muted was made
 // by someone else: not the value Apptrol just set (muteWant), and not while
 // the new-stream guard is putting back what the server restored (PRIO-03).
@@ -472,7 +539,8 @@ func (b *Backend) outsideDeviceMute(name string, muted bool) bool {
 	return outsideMute(b.devMuteWant, name, muted)
 }
 
-// Apply carries out a volume or mute action. Other actions are ignored.
+// Apply carries out a volume or mute action: of a stream, an input, or an
+// output device (SetOutputVolume, OUT-01). Other actions are ignored.
 // Errors for streams that just ended can be checked with IsGone.
 func (b *Backend) Apply(a mixer.Action) error {
 	switch a.(type) {
@@ -512,11 +580,17 @@ func (b *Backend) Apply(a mixer.Action) error {
 		if b.devMuteWant != nil {
 			b.devMuteWant[a.Device] = muteWant{muted: a.Muted, until: time.Now().Add(ownMute)}
 		}
+	case mixer.SetOutputVolume:
+		chans = b.outChans[a.Device]
+		if g := b.outGuard[a.Device]; g != nil {
+			v := a.Volume
+			g.volume = &v
+		}
 	}
 	b.mu.Unlock()
 	if k == nil {
 		switch a.(type) {
-		case mixer.SetStreamVolume, mixer.SetStreamMute, mixer.SetDeviceVolume, mixer.SetDeviceMute:
+		case mixer.SetStreamVolume, mixer.SetStreamMute, mixer.SetDeviceVolume, mixer.SetDeviceMute, mixer.SetOutputVolume:
 			return ErrNotConnected
 		}
 		return nil
@@ -545,6 +619,15 @@ func (b *Backend) Apply(a mixer.Action) error {
 		return k.setSourceVolume(a.Device, chans, a.Volume)
 	case mixer.SetDeviceMute:
 		return k.setSourceMute(a.Device, a.Muted)
+	case mixer.SetOutputVolume:
+		if chans == 0 {
+			d, err := k.sinkByName(a.Device)
+			if err != nil {
+				return err
+			}
+			chans = d.Channels
+		}
+		return k.setSinkVolume(a.Device, chans, a.Volume)
 	}
 	return nil
 }

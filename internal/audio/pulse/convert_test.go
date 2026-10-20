@@ -301,6 +301,7 @@ func TestSVC04_ApplyWithoutConnection(t *testing.T) {
 	for _, a := range []mixer.Action{
 		mixer.SetStreamVolume{StreamID: 1, Volume: 1}, mixer.SetStreamMute{StreamID: 1},
 		mixer.SetDeviceVolume{Device: "x"}, mixer.SetDeviceMute{Device: "x"},
+		mixer.SetOutputVolume{Device: "x", Volume: 0.5},
 	} {
 		if err := b.Apply(a); !errors.Is(err, ErrNotConnected) {
 			t.Errorf("Apply(%T) = %v, want ErrNotConnected", a, err)
@@ -309,6 +310,27 @@ func TestSVC04_ApplyWithoutConnection(t *testing.T) {
 	// Actions that are not about audio are ignored.
 	if err := b.Apply(mixer.SetLED{}); err != nil {
 		t.Errorf("Apply(SetLED) = %v", err)
+	}
+}
+
+// The volume Apptrol sets on a new output is what its guard defends against
+// WirePlumber's remembered volume; an output that is not new has no guard
+// (OUT-05, PRIO-03, ADR 0027).
+func TestOUT05_GuardKeepsTheVolumeSetOnANewOutput(t *testing.T) {
+	b := New(quietLog(), "")
+	b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
+	b.outGuard["new"] = newGuardNow()
+	_ = b.Apply(mixer.SetOutputVolume{Device: "new", Volume: 0.3})
+	_ = b.Apply(mixer.SetOutputVolume{Device: "old", Volume: 0.6})
+	g := b.outGuard["new"]
+	if g.volume == nil || *g.volume != 0.3 || g.muted != nil {
+		t.Fatalf("guard = %+v, want volume 0.3 and no mute", g)
+	}
+	if v, _, _ := g.check(1, false); v == nil || *v != 0.3 {
+		t.Errorf("the server restored 100 %%; guard returned %v", v)
+	}
+	if _, guarded := b.outGuard["old"]; guarded {
+		t.Error("an output that is not new got a guard")
 	}
 }
 

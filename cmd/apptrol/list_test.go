@@ -77,9 +77,9 @@ func TestOUT12_ListShowsOutputDevices(t *testing.T) {
 	got := out.String()
 	for _, want := range []string{
 		"Output devices (* = the system's default). Put part of DESCRIPTION or NAME into an output's match list:",
-		"    DESCRIPTION        NAME                     VOLUME\n",
-		"  * Built-in Speakers  alsa_output.speakers     45%\n",
-		"    GoXLR Music        alsa_output.goxlr-music  100% muted\n",
+		"    DESCRIPTION        NAME                     VOLUME      CONTROL\n",
+		"  * Built-in Speakers  alsa_output.speakers     45%         -\n",
+		"    GoXLR Music        alsa_output.goxlr-music  100% muted  -\n",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output lacks %q:\n%s", want, got)
@@ -87,6 +87,49 @@ func TestOUT12_ListShowsOutputDevices(t *testing.T) {
 	}
 	if strings.Count(got, "*") != 2 { // the heading and one output
 		t.Errorf("more than one output marked as the default:\n%s", got)
+	}
+}
+
+// The CONTROL column names the control each output device is on, both
+// controls when two fixed outputs match one device (OUT-12, OUT-04).
+func TestOUT12_ListShowsOutputControl(t *testing.T) {
+	path := writeConfig(t, `
+[outputs.speakers]
+name  = "Speakers"
+match = ["speakers"]
+
+[outputs.built-in]
+name  = "Built-in"
+match = ["built-in"]
+
+[outputs.music]
+name  = "Music"
+match = ["GOXLR MUSIC"]
+
+[outputs.main]
+device = "default"
+
+[layouts.default]
+slider7 = "speakers"
+knob7   = "built-in"
+slider6 = "music"
+slider5 = "main"
+`)
+	var out bytes.Buffer
+	if err := cmdList(path, &out, func() (*pulse.Listing, error) { return testListing(), nil }); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{
+		"  * Built-in Speakers  alsa_output.speakers     45%         slider7 (Speakers), knob7 (Built-in)\n",
+		"    GoXLR Music        alsa_output.goxlr-music  100% muted  slider6 (Music)\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "slider5") { // following the default is not built yet (OUT-03)
+		t.Errorf("the default output is shown on a control:\n%s", got)
 	}
 }
 
