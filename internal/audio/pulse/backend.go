@@ -642,6 +642,12 @@ func (b *Backend) restoreOutput(k *conn, name string, channels int, read float64
 // tests, and logs the server's answer at debug: a write the server accepted
 // shows as success, so a volume that still reads otherwise was changed
 // afterwards, not lost on the way (OUT-01, OUT-13, ADR 0027).
+//
+// A write the server accepted is also the guard's last read: it runs with
+// wire held, so no read can come in between, and a later restore is read
+// again. Without it, a KeepOutput right after the mixer's first volume
+// compared the read from before the write and set the volume twice (OUT-05,
+// CTRL-06, ADR 0027). A failed write keeps the read it had.
 func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64) error {
 	var err error
 	if b.outputWrite != nil {
@@ -654,6 +660,12 @@ func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64)
 	if err != nil {
 		attrs[len(attrs)-1] = "failed"
 		attrs = append(attrs, logattr.Error(logattr.ErrAudioApply, err))
+	} else {
+		b.mu.Lock()
+		if g := b.outGuard[name]; g != nil {
+			g.read = &v
+		}
+		b.mu.Unlock()
 	}
 	b.log.Debug("output volume request completed", attrs...)
 	return err

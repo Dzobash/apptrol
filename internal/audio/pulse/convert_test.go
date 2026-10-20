@@ -507,6 +507,67 @@ func TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt(t *testing.T) {
 	}
 }
 
+// The mixer's first volume for a new output, then its KeepOutput, writes the
+// volume once: the accepted write is the guard's last read, so KeepOutput does
+// not set it again or log a restore. A failed write keeps the old read, and a
+// later restore by the server is still defended (OUT-05, CTRL-06, QA-11,
+// ADR 0027).
+//
+//	read 100 % ─► Set 30 % (written) ─► KeepOutput ─► nothing ─► read 100 % ─► 30 % again
+func TestOUT05_KeepAfterTheFirstVolumeWritesItOnce(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failed write=%v", fail), func(t *testing.T) {
+			var logs bytes.Buffer
+			b := New(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})), "")
+			b.cur = &conn{} // never used: writes go through outputWrite
+			b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
+			var writes []float64
+			b.outputWrite = func(_ string, _ int, v float64) error {
+				writes = append(writes, v)
+				if fail {
+					return errors.New("write refused")
+				}
+				return nil
+			}
+			d := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
+			b.wire.Lock()
+			err := b.sinkRead(b.cur, &d, false) // it appears
+			b.wire.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 0.3}); (err != nil) != fail {
+				t.Fatalf("Apply(SetOutputVolume) = %v", err)
+			}
+			if err := b.Apply(mixer.KeepOutput{Device: "spk", Generation: d.Generation}); (err != nil) != fail {
+				t.Fatalf("Apply(KeepOutput) = %v", err)
+			}
+			restored := strings.Contains(logs.String(), "setting it again")
+			if fail {
+				// Nothing reached the server: KeepOutput tries again from the old read.
+				if len(writes) != 2 || !restored {
+					t.Fatalf("after a failed write: writes = %v, restore logged = %v; want a second try", writes, restored)
+				}
+				return
+			}
+			if len(writes) != 1 || restored {
+				t.Fatalf("writes = %v, restore logged = %v; want 0.3 once and no restore", writes, restored)
+			}
+
+			d.Volume = 1 // the server restores its remembered volume afterwards
+			b.wire.Lock()
+			err = b.sinkRead(b.cur, &d, true)
+			b.wire.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(writes) != 2 || writes[1] != 0.3 {
+				t.Errorf("later restore not defended: writes = %v", writes)
+			}
+		})
+	}
+}
+
 // A second notification must not defend an output while the mixer has yet to
 // release its renamed identity (CTRL-06, QA-11, ADR 0027). Direct calls force
 // the buffered-event order without sleeps or a running audio server.
