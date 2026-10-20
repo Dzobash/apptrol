@@ -19,7 +19,7 @@ type world struct {
 	devMute    map[string]bool
 	outVol     map[string]float64 // output devices' volume (OUT-01)
 	released   []string           // output devices released (ReleaseOutput), in order
-	leds      map[LED]bool
+	leds       map[LED]bool
 	saves      int
 	notices    []Notice
 	commands   []PlayerCommand // media player commands sent

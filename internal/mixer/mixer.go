@@ -28,7 +28,8 @@ type Mixer struct {
 	outputs   map[string]Device // output devices by name (OUT-12, ADR 0027)
 	outputFor map[string]string // output target id -> chosen device name (OUT-02)
 	// sharedOutputs is, per output device that two or more controls set, the
-	// controls as last logged, so it is logged once when it begins (OUT-04).
+	// controls as last logged, so it is logged once when it begins (OUT-04,
+	// ADR 0027 point 4).
 	sharedOutputs map[string]string
 
 	players        map[string]*playerInfo // media players by bus name (MEDIA-01, MEDIA-03)
@@ -390,7 +391,7 @@ func (m *Mixer) buttonPressed(a *actions, e ButtonPressed) {
 	if m.isOutputColumn(e.Column) && e.Button != ButtonR {
 		// Output mute and output solo come in the next steps of #85 (OUT-06,
 		// OUT-07); until then M and S do nothing there. R works as on an
-		// input column (OUT-09).
+		// input column (OUT-09, ADR 0027 point 8).
 		a.notice(slog.LevelDebug, "button has no function: not built yet on an output column", m.about(Control{Slider, e.Column}, logattr.KeyButton, button)...)
 		return
 	}
@@ -1129,7 +1130,7 @@ func (m *Mixer) configChanged(a *actions, s Setup) {
 			}
 		}
 	}
-	// Outputs likewise; a reload that leaves one without a device warns (OUT-02, OUT-13).
+	// Outputs likewise; a reload that leaves one without a device warns (OUT-02, OUT-13, ADR 0027).
 	outBefore := map[string]string{}
 	for id, dev := range m.outputFor {
 		outBefore[id] = dev

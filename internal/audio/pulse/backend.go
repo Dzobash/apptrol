@@ -378,7 +378,7 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) ([]mixer.E
 
 // sinkRead keeps what Apply needs about an output device just read: its
 // channel count, and a guard when it is new, so the volume WirePlumber
-// restores on it does not undo the one Apptrol sets (OUT-05). same says that
+// restores on it does not undo the one Apptrol sets (OUT-05, ADR 0027). same says that
 // the device was known with the same name and description: then only its
 // volume or mute changed, and Apptrol's volume is defended.
 func (b *Backend) sinkRead(k *conn, d SinkInfo, same bool) error {
@@ -501,7 +501,7 @@ func (b *Backend) defendDevice(k *conn, d SourceInfo) error {
 }
 
 // defendOutput is defendDevice for output devices: only their volume, which
-// Apptrol sets (OUT-01, OUT-05).
+// Apptrol sets (OUT-01, OUT-05, ADR 0027).
 func (b *Backend) defendOutput(k *conn, d SinkInfo) error {
 	var vol *float64
 	b.mu.Lock()
@@ -524,7 +524,7 @@ func (b *Backend) defendOutput(k *conn, d SinkInfo) error {
 }
 
 // setOutputVolume writes an output device's volume, through outputWrite in
-// tests (OUT-01).
+// tests (OUT-01, ADR 0027).
 func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64) error {
 	if b.outputWrite != nil {
 		return b.outputWrite(name, channels, v)

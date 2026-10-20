@@ -20,7 +20,8 @@ import (
 //	                  every stream on it plays at its own volume × 50 %
 
 // chooseReason says why outputs are chosen again, for what is logged when a
-// target is left without a device.
+// target is left without a device: a warning at a connect or reload, info when
+// a device goes (OUT-13, ADR 0027 point 12).
 type chooseReason int
 
 const (
@@ -33,13 +34,15 @@ const (
 // target, or "" if none matches (OUT-12, for `apptrol list`).
 func (m *Mixer) OutputDevice(targetID string) string { return m.outputFor[targetID] }
 
-// isOutputColumn reports whether the column's slider holds an output.
+// isOutputColumn reports whether the column's slider holds an output: its M
+// and S do nothing yet (OUT-06, ADR 0027).
 func (m *Mixer) isOutputColumn(col int) bool {
 	id, ok := m.setup.Assignments[Control{Slider, col}]
 	return ok && m.setup.Targets[id].Kind == Output
 }
 
-// outputTargets lists the output targets on a control, in control order.
+// outputTargets lists the output targets on a control, in control order;
+// targets on no control are never chosen a device (OUT-01, CTRL-06, ADR 0027).
 func (m *Mixer) outputTargets() []string {
 	var ids []string
 	for _, c := range m.assignedControls() {
@@ -76,7 +79,8 @@ func (m *Mixer) outputAdded(a *actions, d Device) {
 }
 
 // outputRemoved forgets an output device that is gone; its target takes the
-// next device that matches, or does nothing until one appears (OUT-02).
+// next device that matches, or does nothing until one appears (OUT-02,
+// ADR 0027).
 func (m *Mixer) outputRemoved(a *actions, name string) {
 	delete(m.outputs, name)
 	m.chooseOutputs(a, chooseChange)
@@ -100,7 +104,8 @@ func (m *Mixer) logIdleOutput(a *actions, d Device) {
 // chosen device gets its control's position when it is known, and is left
 // alone until the control is moved when it is not (OUT-05, PRIO-04). A device
 // that no target holds any more is released (ReleaseOutput, OUT-01, CTRL-06):
-// outputs have no mute yet, so only the adapter's guard has anything to let go.
+// outputs have no mute yet, so only the adapter's guard has anything to let go
+// (ADR 0027).
 func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 	names := sortedDeviceNames(m.outputs)
 	chosen := map[string]string{}
@@ -154,7 +159,7 @@ func (m *Mixer) releaseOutputs(a *actions, chosen map[string]string) {
 
 // applyOutputVolume sets an output device to its control's position, up to the
 // target's max_volume (OUT-01, CTRL-02, CTRL-03). An unknown position leaves
-// the device's volume alone (PRIO-04).
+// the device's volume alone (PRIO-04, ADR 0027).
 func (m *Mixer) applyOutputVolume(a *actions, id, dev string) {
 	if v, ok := m.positions[m.controlOf[id]]; ok {
 		a.add(SetOutputVolume{Device: dev, Volume: m.volume(id, v)})
@@ -197,7 +202,7 @@ func (m *Mixer) logSharedOutputs(a *actions) {
 
 // reapplyOutputs sets the volume again of every output that kept its device
 // across a reload but moved to another control or got another max_volume, as
-// for inputs (OUT-01, CFG-06). before holds the devices chosen before.
+// for inputs (OUT-01, CFG-06, ADR 0027). before holds the devices chosen before.
 func (m *Mixer) reapplyOutputs(a *actions, before map[string]string, oldControlOf map[string]Control, maxChanged func(string) bool) {
 	for _, id := range m.outputTargets() {
 		dev, ok := m.outputFor[id]
@@ -211,7 +216,7 @@ func (m *Mixer) reapplyOutputs(a *actions, before map[string]string, oldControlO
 
 // pickDevice returns the devices among names (sorted) that match target id,
 // and the one to use: cur while it still matches, otherwise the first by name;
-// "" if none matches (CFG-05 for inputs, OUT-02 for outputs).
+// "" if none matches (CFG-05 for inputs, OUT-02 and ADR 0027 for outputs).
 func (m *Mixer) pickDevice(id string, names []string, devices map[string]Device, cur string) (pick string, matches []string) {
 	for _, n := range names {
 		if m.deviceMatches(id, devices[n]) {
@@ -231,7 +236,7 @@ func (m *Mixer) pickDevice(id string, names []string, devices map[string]Device,
 }
 
 // sortedDeviceNames returns the devices' names in order, so the first match is
-// the first by name (CFG-05, OUT-02).
+// the first by name (CFG-05, OUT-02, ADR 0027).
 func sortedDeviceNames(devices map[string]Device) []string {
 	names := make([]string, 0, len(devices))
 	for n := range devices {
