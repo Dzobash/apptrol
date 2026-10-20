@@ -102,7 +102,10 @@ from one to another.
   both folders inside the repository. Check `git status` and the current branch before
   the first edit; if there are changes you did not make, stop and ask.
 - **Start another agent only when the owner asks** (a child task or a new thread), and
-  say which tool and model it runs on.
+  say which tool and model it runs on. It runs with its model's default settings (e.g.
+  the default reasoning level); anything else (a higher reasoning level, another model
+  than the table below names, wider permissions) needs the owner's OK first: ask, with
+  the reason and what it costs.
 - **Waiting and small jobs stay cheap.** Waiting on something that changes nothing (CI,
   a long read-only check) runs in the background, so the chat stays free: say so in one
   line, no need to ask. A small helper job that needs an agent (e.g. summing up check
