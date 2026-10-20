@@ -57,9 +57,10 @@ nfpms:
       Control each app's volume with the sliders and knobs of a Korg
       nanoKONTROL2. Mute and solo apps with its buttons, and use the media
       buttons to play, pause, stop or skip tracks.
+
       Apptrol runs in the background as a systemd user service, configured
       through a text file. It needs PipeWire with its PulseAudio-compatible
-      server (pipewire-pulse), or a PulseAudio server.
+      server (pipewire-pulse).
     license: MIT
     section: sound
     formats: [deb, rpm]

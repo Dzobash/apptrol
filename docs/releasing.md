@@ -123,12 +123,13 @@ available, check the snapshot deb before installing it:
 
 ```bash
 make snapshot
-lintian --display-info dist/*.deb
+lintian --info --display-info dist/*.deb
 ```
 
 There must be no `lintian` tag about the copyright file (NFR-09), such as
 `no-copyright-file`, tags ending in `-dep5-copyright`, or tags starting with
-`copyright-`. Other tags may appear and are out of scope; record them separately. CI suppresses
+`copyright-`. No informational (`I:`) tags are expected, including description tags
+(NFR-10). Record other tags separately; the `W:` warnings are tracked in #153. CI suppresses
 two tags, `no-changelog` and `statically-linked-binary`, each with its reason in
 `ci.yml`; a plain `lintian` run shows them too.
 For an installed release candidate, run

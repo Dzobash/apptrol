@@ -61,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - The .deb and .rpm descriptions now explain the controller features, background
   service and audio requirements, with a short synopsis for software centres. This
-  removes Lintian's two description hints (NFR-05, #152).
+  removes Lintian's two description hints (NFR-10, #152).
 - The .deb now carries its copyright file in Debian's standard machine-readable format, which `lintian` expects (NFR-09, #97).
 - App settings misplaced under a layout now point to the table they belong in,
   `[apps.<id>]`, `[inputs.<id>]` or `[outputs.<id>]`, in reload errors and `apptrol check` (CFG-08,
