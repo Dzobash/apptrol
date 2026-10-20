@@ -11,7 +11,7 @@ of [requirements.md](requirements.md#51-quality-assurance).
 | `make check` | Format check, `go vet`, `golangci-lint`, tests — the same checks CI runs |
 | `make release-check` | Validate GoReleaser packaging configuration (needs GoReleaser) |
 | `make snapshot` | Build release packages locally without publishing (needs GoReleaser) |
-| `lintian dist/*.deb` | Check built Debian packages, including the DEP-5 copyright file (needs lintian; see [package checks](releasing.md#trying-it-locally-first)) |
+| `lintian --info --display-info dist/*.deb` | Check built Debian packages, including description hints (NFR-10) and the DEP-5 copyright file (needs lintian; see [package checks](releasing.md#trying-it-locally-first)) |
 | `make test` | Tests with the race detector |
 | `make test-audio` | Integration tests against your running PipeWire (they add a silent test output and inputs and remove them afterwards) |
 | `make test-desktop` | D-Bus integration tests in a private session bus (`dbus-run-session`): media players, and a fake logind standing in for the system bus; your desktop's buses and media players are not touched |
@@ -63,8 +63,9 @@ Test job.
 CI's Packaging job runs `lintian` on every pull request (see *What runs in CI*), so the
 copyright file and the rest of the .deb are checked before a candidate exists. For
 Debian packaging changes, also run [TC-NFR-001](testing/cases/nfr.md) on the
-installed candidate. Record missing tools as blocked checks and Discover's license
-display as an observation, not a guarantee of the package format.
+installed candidate, including its description in Discover (NFR-10). Record missing tools as
+blocked checks and Discover's license display as an observation, not a guarantee of
+the package format.
 
 ## Configuration tables
 
