@@ -867,3 +867,49 @@ func TestSVC09_LEDsGoOffBeforeTheControllerIsReleased(t *testing.T) {
 	e.eventually("taken", func() bool { return e.ctl.callList() == "release, take" })
 	e.waitLog(`msg="this user is in front again; taking the controller" apptrol.component=mixer apptrol.seat.front=this_user`)
 }
+
+// Monitor warnings use ADR 0026's fixed message and identifying attributes on
+// startup and every reload, including old-form inputs (CFG-21, ADR 0016).
+func TestCFG21_MonitorWarningsAreLoggedOnStartAndReload(t *testing.T) {
+	src := strings.Replace(testConfig, "[inputs.mic]", "[apps.mic]\ntype = \"input\"", 1)
+	src = strings.Replace(src, `match = ["goxlr"]`, `match = ["test-input.monitor"]`, 1)
+	src += "\n[outputs.speakers]\nmatch = [\"test-output.MONITOR\"]\n"
+	e := newEnv(t, src).start()
+	const message = `msg="match names a monitor, which records an output and is never matched; use the output's name without .monitor" apptrol.component=config file.path=`
+	for _, attrs := range []string{"apptrol.app.id=mic apptrol.app.match=test-input.monitor", "apptrol.app.id=speakers apptrol.app.match=test-output.MONITOR"} {
+		e.waitLog(message + e.cfg + " " + attrs)
+	}
+	if n := strings.Count(e.out.String(), message); n != 2 {
+		t.Fatalf("startup warnings=%d, want 2", n)
+	}
+	e.write(src + "\n# reload\n")
+	e.waitLog("configuration reloaded")
+	e.eventually("monitor warnings repeated on reload", func() bool { return strings.Count(e.out.String(), message) == 4 })
+}
+
+// An invalid output selector cannot replace a working config; the shared
+// validator logs its reason with config_invalid (CFG-20, CFG-07, ADR 0016).
+func TestCFG20_InvalidOutputReloadKeepsConfiguration(t *testing.T) {
+	e := newEnv(t, testConfig).start()
+	e.waitLog("stream matched")
+	e.write(testConfig + "\n[outputs.main]\ndevice = \"default\"\nmatch = [\"test-output\"]\n")
+	e.waitLog(`msg="the changed configuration is invalid; keeping the current settings" apptrol.component=config file.path=` + e.cfg + ` error.type=config_invalid exception.message="outputs.main: set exactly one of match and device"`)
+	e.write(testConfig + "\n[outputs.main]\ndevice = \"default\"\n")
+	e.waitLog("configuration reloaded")
+	e.waitLog(`apptrol.warning="outputs.main: not assigned to any control"`)
+}
+
+// A valid output stays visible as inactive at every load while #85 is pending
+// (CFG-20, ADR 0026 implementation note, ADR 0016).
+func TestCFG20_InactiveOutputWarningOnStartAndReload(t *testing.T) {
+	src := testConfig + "\n[outputs.speakers]\nmatch = [\"test-speaker\"]\n"
+	e := newEnv(t, src).start()
+	const message = `msg="output control is not implemented yet; this target is inactive" apptrol.component=config file.path=`
+	e.waitLog(message + e.cfg + " apptrol.app.id=speakers apptrol.app.type=output")
+	if n := strings.Count(e.out.String(), message); n != 1 {
+		t.Fatalf("startup warnings=%d, want 1", n)
+	}
+	e.write(src + "\n# reload\n")
+	e.waitLog("configuration reloaded")
+	e.eventually("inactive output warning repeated on reload", func() bool { return strings.Count(e.out.String(), message) == 2 })
+}

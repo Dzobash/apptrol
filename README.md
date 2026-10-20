@@ -60,7 +60,9 @@ what you're doing.
 - **0.5.0:** several layouts, e.g. *Work* and *Gaming*, switched with Track and Cycle
 - **0.6.0:** a setup in the terminal and a tray icon
 
-The [roadmap](docs/roadmap.md) has the details.
+The [roadmap](docs/roadmap.md) has the details. The development version already accepts
+the separate `[apps]`, `[inputs]` and `[outputs]` configuration tables; output audio
+control is still being built. See the [configuration reference](docs/config.md).
 
 ## Before you install
 

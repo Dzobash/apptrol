@@ -52,7 +52,7 @@ How the service is put together. Decisions and their reasons are in
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
 | `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, whether the user's graphical session is unlocked, locked, behind another session or unknown, and whose session is in front at the seat (ADR 0029); reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
-| `internal/config` | TOML loading: `[apps]` and `[inputs]` into one map of targets, the old `type` form with a warning (ADR 0026); validation (including button rules, blocked commands and overlap warnings), its problems as `config.Problem`; warnings as `config.Warning`; file watching |
+| `internal/config` | TOML loading: `[apps]`, `[inputs]` and `[outputs]` into one map of targets, output selector validation and monitor warnings (CFG-20, CFG-21), the old `type` form with a warning (ADR 0026); validation (including button rules, blocked commands and overlap warnings), its problems as `config.Problem`; warnings as `config.Warning`; file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
 | `internal/logging` | Log outputs (journald, rotating file) and formats; keeps every record on one line |
 | `internal/logattr` | Names of log attributes and error types, following the OpenTelemetry conventions (ADR 0016); explained for users in [`logging.md`](logging.md) |
@@ -88,26 +88,52 @@ STATE-04, SVC-07, LED-08).
 
 **An invalid input never causes a write** ([ADR 0025](adr/0025-state-kept-while-config-invalid.md)).
 An invalid file on reload is rejected and the running settings stay. The shared config
-validator identifies app and input settings misplaced under a layout and names the table
-they belong in (`[apps.<id>]`, `[inputs.<id>]`); reload errors and `apptrol check` use
-the same diagnostic (CFG-08, CFG-11). Without a valid configuration at start, the mixer is created with `mixer.NewWithoutConfig`: it controls
+validator identifies app, input and output settings misplaced under a layout and names
+the table they belong in (`[apps.<id>]`, `[inputs.<id>]`, `[outputs.<id>]`); reload errors
+and `apptrol check` use the same diagnostic (CFG-08, CFG-11). Without a valid configuration at start, the mixer is created with `mixer.NewWithoutConfig`: it controls
 nothing and keeps the saved state unchanged, so its snapshot equals what is on disk and
 the saver writes nothing (apart from positions of controls moved meanwhile). The first
 valid configuration applies the kept state like a normal start (STATE-08).
 
 ## Configuration
 
-`internal/config` turns the file into one `Config`. Apps and inputs have their own tables
-(CFG-18, [ADR 0026](adr/0026-separate-tables-for-apps-inputs-outputs.md)), but are read
+`internal/config` turns the file into one `Config`. Apps, inputs and outputs have their
+own tables (CFG-18, [ADR 0026](adr/0026-separate-tables-for-apps-inputs-outputs.md)), but are read
 into **one map of targets**, `Config.Apps`, each with its `Type`: layouts and `[media]
 player` name a target by its id alone, so an id may be in only one table, and the mixer
-and everything after it do not change.
+can keep looking up targets by id. Reading `[outputs]` adds no adapter interface and no
+mixer behaviour of its own. The audio adapter already reports output devices as events
+(OUT-12, see [Audio](#audio)), but until the guard below is replaced, no control acts on
+them; output volume actions follow in #85 (ADR 0027).
 
 ```
-[apps.spotify]               ─┐
-[inputs.mic]                 ─┼─► Config.Apps   spotify (app)   mic (input)   old (input)
-[apps.old] type = "input"    ─┘                                                └ + warning
+[apps.spotify]              ─┐
+[inputs.mic]                ─┤
+[outputs.main]              ─┼─► Config.Apps[id]  TypeApp / TypeInput / TypeOutput
+[apps.old] type = "input"    ─┘                    TypeInput + warning
 ```
+
+The config API for outputs (CFG-20, ADR 0027) is the existing `config.App`:
+
+- `Type == config.TypeOutput` (`"output"`) identifies entries of `[outputs]`.
+- `Device == config.DeviceDefault` (`"default"`) selects the server's default output;
+  `Match` is empty in that case. Otherwise `Device` is empty and `Match` is nonempty.
+- `Name` defaults to the id; `MaxVolume` defaults to 100 and accepts 1–150.
+- `Config.Apps[id]`, sorted `Config.AppIDs()`, `Config.Layout()` and
+  `Layout.Assignment(control)` work for every target. There is no separate outputs map.
+
+The parser checks key presence, so an empty `match` alongside `device` is still an
+error. `type`, `talk_over_volume`, media-player pinning and R's `play_pause` cannot make
+an output behave like an input or app. `apptrol check` displays either the match list
+or `device = "default"`. The first-control-wins overlap warning only covers apps and
+inputs: outputs may share a device (ADR 0027 point 4).
+
+Until #85, `Config.Setup()` omits output targets and their assignments. Otherwise its
+existing conversion would turn them into app targets and match playback streams.
+Every parsed output gets the fixed warning `output control is not implemented yet; this target is inactive`,
+with `apptrol.app.id` and `apptrol.app.type=output`. #85 replaces the guard and removes
+this warning before 0.3.0 RC1 (ADR 0026 implementation note). The parsed config stays
+intact for `apptrol check` and for #85's implementation.
 
 The old form (`[apps.<id>]` with `type`) is read until 1.0 (CFG-19). Each such entry adds
 a `config.Warning`: a warning has a text for people, printed by `apptrol check`, and
@@ -119,6 +145,12 @@ optionally a fixed log message with attributes, so it can be searched for in the
 apptrol check   warning: apps.mic: type = "input" is the old form; move it to [inputs.mic]
 log             WARN config uses an old form; move the entry to its own table … apptrol.app.id=mic apptrol.config.table=inputs
 ```
+
+Monitor fragments on inputs (including the old form) and outputs add a warning with
+ADR 0026's fixed message and `apptrol.app.id` / `apptrol.app.match`. The service logs it
+at every startup and reload with `apptrol.component=config`; `apptrol check` prints its
+text. Matching is case-insensitive, so the suffix check is too; whitespace is trimmed
+as for any fragment. The configuration remains valid (CFG-21).
 
 An invalid configuration is a `config.ValidationError`, a list of `config.Problem`s. A
 problem works the same way: a text for people, and optionally attributes. The service
@@ -195,7 +227,8 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   same volume.
 - Monitors of outputs ("Monitor of GoXLR…") are not capture devices and are never
   matched. A monitor is a source, never a sink, so it is listed neither as an input nor
-  as an output (OUT-12).
+  as an output (OUT-12). The config validator warns about monitor fragments before the
+  audio adapter is needed (CFG-21).
 - WirePlumber restores an app's remembered volume shortly after the app starts. When that
   lands after Apptrol has set the slider's position, Apptrol sets it again: for 3 seconds
   after a stream or input appears, changes to what Apptrol set are undone (PRIO-03).
@@ -382,4 +415,7 @@ dialog.
   units (`make test-launcher`, not in CI, which has no user systemd).
 - `config`, `state`: unit tests and fuzzing on malformed input; the blocked-command check
   is fuzzed too. Inputs are tested in both forms, `[inputs.<id>]` and the old `type`
-  (CFG-18, CFG-19); the service test checks the old form's log record.
+  (CFG-18, CFG-19). Output tests cover selector presence, values, cross-table rules,
+  layout references and CLI display (CFG-20). Monitor warnings are checked on load,
+  in the CLI and on service startup/reload (CFG-21); documentation checks cover device
+  discovery instructions (CFG-22). See [configuration cases](testing/cases/cfg.md).

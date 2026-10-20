@@ -193,13 +193,13 @@ func parseButtons(layout string, raw map[string]rawButton, l Layout, apps map[st
 			}
 		case letter == 'r':
 			valid := []string{ModePlayPause, ModeOff}
-			if input || !assigned {
-				valid = []string{ModeOff} // play_pause needs an app (MEDIA-07)
+			if !assigned || app.Type != TypeApp {
+				valid = []string{ModeOff} // play_pause needs an app (CFG-20, ADR 0027 point 8)
 			}
 			if rb.Mode != nil && !contains(valid, b.Mode) {
 				switch {
-				case b.Mode == ModePlayPause && input:
-					errs.add("%s: %q needs an app on %s; %s holds the input %q", at(name), b.Mode, slider, slider, app.ID)
+				case b.Mode == ModePlayPause && assigned && app.Type != TypeApp:
+					errs.add("%s: %q needs an app on %s; %s holds the %s %q", at(name), b.Mode, slider, slider, app.Type, app.ID)
 				case b.Mode == ModePlayPause && !assigned:
 					errs.add("%s: %q needs an app on %s; nothing is assigned there", at(name), b.Mode, slider)
 				default:
@@ -213,7 +213,7 @@ func parseButtons(layout string, raw map[string]rawButton, l Layout, apps map[st
 			}
 			switch {
 			case !input && assigned:
-				errs.add("%s: needs an input on %s; %s holds the app %q", at(name), slider, slider, app.ID)
+				errs.add("%s: needs an input on %s; %s holds the %s %q", at(name), slider, slider, app.Type, app.ID)
 			case !input:
 				errs.add("%s: needs an input on %s; nothing is assigned there", at(name), slider)
 			case launcher:
