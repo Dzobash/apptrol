@@ -127,6 +127,7 @@ Project layout:
 | `internal/logging/` | Log outputs and formats |
 | `internal/logattr/` | Log attribute names and error types (ADR 0016) |
 | `internal/version/` | Build information (set at link time) |
+| `internal/repocheck/` | No code; tests that keep the agents' command lists in `.claude/` and `.codex/` equal (QA-15) |
 | `docs/` | The documentation, grouped in [docs/README.md](docs/README.md); also the website's source |
 | `docs/assets/` | Logo files (`brand/`, MIT) and third-party photos (`photos/`, each with its own license) |
 | `examples/` | Example configuration (built into the binary for the first start) |
