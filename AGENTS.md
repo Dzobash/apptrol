@@ -212,6 +212,10 @@ The owner wants to keep learning while working, not just receive finished result
   `make test-audio`. Before each one, say in one or two sentences what you are doing and
   why; afterwards, explain the result: what passed, what failed and what it means.
   Pushing still needs the owner's OK first (see Workflow).
+  **Anything not on this list needs the owner's OK first**, even when it would help
+  (e.g. Docker to rebuild CI's system, a VM, installing a package): a missing rule is
+  not permission. Say what you would run and why, then wait. A sub-agent's task names
+  the commands it may run.
   **During a manual test run only**
   ([how-to](docs/testing/how-to-run-release-tests.md)): also
   `docs/testing/apply-fixture.sh` and reading Apptrol's journal
