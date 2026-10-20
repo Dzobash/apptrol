@@ -74,9 +74,21 @@ and device discovery instructions (CFG-22). Config and CLI tests need no audio s
 service tests use fake adapters to verify warnings at startup and reload, and rejection
 of invalid output reloads. The `outputs-table` and `device-monitors` fixtures exercise
 the new table and warnings. A regression test checks that a fixed output matching
-`"speaker"` cannot control an app stream named `"speaker"` through the old setup
-conversion. #85 replaces the temporary omission guard and its tests before RC1; output
-audio behaviour is tested with that implementation.
+`"speaker"` never controls an app stream named `"speaker"` (OUT-01).
+
+## Output volume
+
+A fixed output (`match`) on a slider or knob sets its device's volume (OUT-01, OUT-02,
+[ADR 0027](adr/0027-output-volume.md)); `device = "default"` stays inactive, with a
+warning at every load, until #85's later step. The mixer's tests in
+`internal/mixer/output_test.go` cover choosing the device (case-insensitive, first by
+name with a warning, kept while it matches), the volume up to `max_volume`, an unknown
+position (left alone, PRIO-04), outside changes (not reverted), two outputs on one
+device, and that app solo, talk-over, M and S never change an output (OUT-07, OUT-11).
+The fuzz test has outputs on slider 7 and knob 7. `make test-audio` sets a silent test
+output to 30 % and reads it back (`TestIntegration_OUT01_OutputVolume`); the manual
+cases are [TC-OUT-003 and TC-OUT-004](testing/cases/out.md), with the `output-fixed`
+fixture.
 
 ## Manual hardware checklist
 
@@ -177,3 +189,9 @@ talk-over), VLC or Elisa on slider 1 instead of Spotify.
 | H-49 | Default `at_login_screen`. Note the time; play music; *Switch user*, and at the login screen move slider 1, press M1, press ● a few times, press ▶ and press R1; then log in as yourself again | At the login screen your LEDs stay lit, slider 1 and M1 work, and ● starts nothing: one warning per press, `launcher pressed while the screen is locked; nothing started` with `apptrol.screen.state=inactive`; the log has `login screen in front; keeping the controller`. The music pauses when the login screen appears and does not resume by itself: the system takes the speakers from your session (outside Apptrol). ▶ and R1 start nothing either: one warning per press, `media button pressed while this session is not in front; nothing sent`, and no `button pressed while the screen is locked` for them; the log has `media buttons blocked: this session is not in front` at the login screen and `media buttons allowed: this session is in front` after logging in (TC-MEDIA-001) | SVC-10, LAUNCH-13, LAUNCH-15, MEDIA-11 |
 | H-50 | Set `[controller] at_login_screen = "release"`, save. *Switch user*, at the login screen move slider 1; cancel back to your session | At the login screen all LEDs are off and slider 1 does nothing; the log has `another user is in front; releasing the controller` with `apptrol.seat.front=login_screen`. Back in the session, the LEDs return within about 5 seconds | SVC-10, CFG-24 |
 | H-51 | If an SSH server is installed: while you are logged in at the desk, log in as the second user over SSH (`ssh <second user>@localhost`) and start its Apptrol (`systemctl --user start apptrol`); use the controller | The controller stays with you at the desk; the second user's log (`journalctl --user -u apptrol`) has `another user is in front; releasing the controller` and no `controller_busy` errors | SVC-08 |
+
+### Phase 1.6
+
+| # | Step | Expected | Req. |
+|---|---|---|---|
+| H-52 | **Hearing safety: turn the speakers' own knob or amplifier low first, keep headphones off, and put slider 7 at the bottom before saving.** Put your real speakers on slider 7 (`[outputs.speakers]` with `match` = part of their name from `apptrol list`, `max_volume = 100`), save; play music; move slider 7 slowly from the bottom up to the middle, then down; move it to the middle and change the volume with the volume keys | The desktop's volume settings show the speakers' volume following slider 7 (about 50 % in the middle), and the music gets louder and quieter with it; the apps' own volumes do not move. The log has `output matched` with `apptrol.device.selected_by=match`. The volume keys' change stays until slider 7 is moved again. Left/right balance is reset to the middle (known issue) | OUT-01, OUT-02, OUT-05 |

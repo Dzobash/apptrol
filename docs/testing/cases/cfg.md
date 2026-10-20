@@ -89,18 +89,20 @@ Test: `TestCFG20_OutputsLoadWithEitherSelector`, `TestCFG20_RejectsInvalidSelect
 `TestCFG20_OutputOverlapDoesNotClaimFirstControlWins` in `internal/config/outputs_test.go`,
 `TestCFG20_CheckShowsOutputSelectors` in `cmd/apptrol/main_test.go`, and
 `TestCFG20_InvalidOutputReloadKeepsConfiguration` and
-`TestCFG20_InactiveOutputWarningOnStartAndReload` in `internal/service/service_test.go`.
-`TestCFG20_SetupOmitsOutputsUntilOutputControlExists` and
-`TestCFG20_FixedOutputCannotControlSameNamedPlaybackStream` in `internal/config/setup_test.go`
-check the temporary guard: a fixed output matching `"speaker"` cannot control a playback
-stream named `"speaker"`, including after reload. #85 replaces this guard before RC1.
+`TestCFG20_DefaultOutputWarningOnStartAndReload` in `internal/service/service_test.go`.
+`TestCFG20_SetupPassesFixedOutputsButNotDefault` in `internal/config/setup_test.go`
+checks the narrower guard: a fixed output reaches the mixer as an output, one with
+`device = "default"` stays out until #85 builds it. `TestOUT01_OutputNeverControlsAPlaybackStream`
+checks that a fixed output matching `"speaker"` never controls a playback stream named
+`"speaker"`, including after reload.
 
 ```text
 match only / device = "default" only  -> valid, selector shown by apptrol check
 both / neither / invalid device      -> config_invalid, running config kept
 ```
 
-This checks configuration only; output volume, mute and solo belong to #85.
+This checks configuration only; output volume is in [TC-OUT-003](out.md), mute and solo
+follow with #85.
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
@@ -134,7 +136,7 @@ Test: `TestCFG22_DeviceDiscoveryInstructions` in `internal/config/outputs_test.g
 Both files include `apptrol list`, `pactl list short sources`, `pactl list short sinks`,
 case-insensitive matching on name or description, full names for ambiguous matches,
 first-by-name selection with a warning, and the exclusion of monitors. `apptrol list`
-names outputs too (OUT-12); output matching is marked as pending #85.
+names outputs too (OUT-12).
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
@@ -149,11 +151,12 @@ Type: Manual
 - [ ] A candidate with the outputs table is installed
 
 **Steps**
-- [ ] Run `apptrol check` → no error; slider 7 shows `output: device = "default"`, knob 7 shows `output: apptrol-test-mic-sink`, both with `max 80 %`; one warning per output says `output control is not implemented yet; this target is inactive` until #85 lands
-- [ ] Save the configuration again (`touch ~/.config/apptrol/config.toml`) → the journal reports `configuration reloaded` without an invalid-configuration error and repeats each inactive-output warning until #85 lands
+- [ ] Run `apptrol check` → no error; slider 7 shows `output: device = "default"`, knob 7 shows `output: apptrol-test-mic-sink`, both with `max 80 %`; one warning, for `outputs.main` only, says `following the default output is not implemented yet; this target is inactive` (the fixed output on knob 7 works)
+- [ ] Save the configuration again (`touch ~/.config/apptrol/config.toml`) → the journal reports `configuration reloaded` without an invalid-configuration error and repeats the inactive-output warning for `apptrol.app.id=main`
 
 This case checks parsing and reload only, without moving output controls. Output
-volume and default switching are covered by #85's cases.
+volume is covered by [TC-OUT-003](out.md); following the default output by #85's later
+cases.
 
 **Result:** Pass / Fail / Blocked
 **Notes:**

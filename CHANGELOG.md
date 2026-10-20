@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- A slider or knob can set the volume of a whole output device: speakers, headphones or
+  one output of an audio interface. Put the output in `[outputs.<id>]` with a `match`
+  list, a case-insensitive part of its name or description from `apptrol list`, and
+  assign it like an app; `max_volume` works as for apps. The apps' own volumes stay as
+  they are, so the output turns the whole mix up or down. Until the control is moved,
+  Apptrol leaves the output's volume alone; volume keys and the desktop's applet still
+  change it, until the control is moved again. When several outputs match, the first by
+  name is used, with a warning; the chosen one is kept while it still matches.
+  `apptrol list` shows the control each output is on. M and S do nothing on an output
+  column yet (mute and output solo follow), and `device = "default"` is still inactive,
+  with a warning (OUT-01, OUT-02, OUT-04, OUT-05, OUT-13,
+  [ADR 0027](docs/adr/0027-output-volume.md), Refs #85).
 - `apptrol list` shows the output devices (speakers, headphones, each output of an
   audio interface) with their description, unique name and volume; `*` marks the one the
   system uses right now. Monitors are listed neither as inputs nor as outputs. With
@@ -17,9 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `[outputs.<id>]` configuration: either a fixed device's `match` list or
   `device = "default"`, with `name` and `max_volume`. Ids stay unique across all three
   target tables. `apptrol check` shows the selector and rejects misplaced or invalid
-  settings (CFG-20, ADR 0026, ADR 0027, #86). Output audio control follows in #85.
-  Until then, outputs warn that they are inactive and are omitted from the mixer, so
-  their names cannot accidentally match apps. #85 replaces this guard before 0.3.0 RC1.
+  settings (CFG-20, ADR 0026, ADR 0027, #86). A fixed output never controls a playback
+  stream, even one named like its match (OUT-01). Following the default output follows
+  in #85; until then, an output with `device = "default"` warns that it is inactive.
 - Input and output match fragments ending in `.monitor` warn at every load and in
   `apptrol check`, with the target id and fragment in the log; the file stays valid.
   The reference and example explain device names, matching and monitors (CFG-21, CFG-22).

@@ -121,3 +121,27 @@ PipeWire or PulseAudio.
 - The hardware checklist gets rows for a fixed output, the default output while
   switching outputs in the desktop's applet, output solo, and an output on a knob.
 - Built in 0.3.0, after the separate tables (ADR 0026).
+
+## Notes
+
+- 2026-10-20: Built in steps (#85). The first one, a fixed output (`match`) on a slider
+  or knob setting its device's volume (OUT-01, OUT-02), adds records the logging table
+  (point 12) does not have, approved by the owner:
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | info | `output device gone; the control does nothing until a device matches` | `apptrol.device.name` |
+  | debug | `button has no function: not built yet on an output column` | `apptrol.button` |
+  | debug | `audio server changed the volume of a new output; setting it again` (audio adapter) | `apptrol.device.name`, `apptrol.volume_percent`, `apptrol.wanted_percent` |
+
+  The first is how a fixed output's log explains a control that does nothing after its
+  device is unplugged, as `no default output; …` does for the default. The second is
+  temporary: M and S on an output column do nothing until mute (OUT-06) and output
+  solo (OUT-07) follow; R works as point 8 says. The third mirrors the new-stream and
+  new-input guard (PRIO-03): for 3 seconds after an output appears, a volume the audio
+  server restores over Apptrol's is set again. `two controls set the same output`
+  (point 4) also covers two fixed outputs that match the same device, and names the
+  first of the controls in `apptrol.control`. Every channel gets the same volume, as for
+  streams and inputs, so a left/right balance set elsewhere is lost (known issue).
+  `device = "default"` stays left out of the mixer, with the narrower warning
+  `following the default output is not implemented yet; this target is inactive`.

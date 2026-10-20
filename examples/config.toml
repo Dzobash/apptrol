@@ -40,7 +40,7 @@ max_files = 5                      # rotated files to keep
 # `pactl list short sinks` for outputs.
 # For inputs and fixed outputs, match a case-insensitive part of the name or
 # description. Use the full name if a short part fits several devices; the first
-# by name is used with a warning. Output matching arrives with output volume (#85).
+# by name is used with a warning, and kept while it still matches.
 # Monitors (<output>.monitor) record what an output plays and are never matched
 # as inputs or outputs. A fragment ending in .monitor warns on every load and
 # in `apptrol check`, but stays valid; use the output's name without .monitor.
@@ -71,22 +71,24 @@ name  = "Microphone"
 match = ["GoXLR"]                  # part of the input device's name
 # talk_over_volume = 25            # % apps go down to during talk-over (0–100, default 25)
 
-# Output configuration is accepted now; controlling output volume follows in #85.
-# Until then, each output warns that it is inactive and is left out of the mixer.
-# #85 replaces this temporary guard before 0.3.0 RC1.
-# Choose exactly one: match = ["Test speaker"] for a fixed output, or
-# device = "default" for the audio server's current default (the only device value).
+# An output's control sets the whole device's volume (speakers, headphones);
+# the apps keep their own volumes. Until the control is moved, Apptrol leaves
+# the output's volume alone. M and S do nothing on an output column yet (#85).
+# Choose exactly one: match = ["Speaker"] for a fixed output, or
+# device = "default" for the audio server's current default (the only device value;
+# not working yet: it warns that it is inactive until #85 builds it).
 # `device` is only for outputs; `type` and `talk_over_volume` are not allowed here.
-# [outputs.main]
-# name = "Main volume"
-# device = "default"
+# [outputs.speakers]
+# name = "Speakers"
+# match = ["Speaker"]              # part of the output's name, from `apptrol list`
 # max_volume = 100                 # 1–150, default 100; we recommend 100 or less
 #   Output volume is the last software level before speakers or headphones.
 #   Above 100 % it is amplified and can damage your hearing. The first move sets
-#   the volume at once. You are responsible for the volumes you set; no warranty.
-# [outputs.speakers]
-# name = "Speakers"
-# match = ["Test speaker"]
+#   the volume at once: put the slider low before you enable it. You are
+#   responsible for the volumes you set; no warranty.
+# [outputs.main]
+# name = "Main volume"
+# device = "default"
 
 # ── Layouts ───────────────────────────────────────────────────────────────────
 # Phase 1 uses only the layout called "default".
@@ -98,7 +100,7 @@ slider1 = "spotify"
 slider2 = "browser"
 slider3 = "discord"
 slider4 = "games"
-# slider7 = "main"                # after enabling [outputs.main]; audio control in #85
+# slider7 = "speakers"            # after enabling [outputs.speakers]
 slider8 = "mic"
 
 # ── Buttons ───────────────────────────────────────────────────────────────────

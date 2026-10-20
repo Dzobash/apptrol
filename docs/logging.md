@@ -205,17 +205,56 @@ Use the output's name without `.monitor` in `[outputs.<id>]`. Invalid output sel
 (such as both `match` and `device`) use the usual `config_invalid` error records, with
 the reason in `exception.message` and `apptrol.component=config`.
 
-Until output audio control (#85) lands, each configured output also gets this warning
-at startup and every reload, and in `apptrol check` (CFG-20, ADR 0026 implementation
-note). The target and its assignments are omitted from the mixer, so its match list
-cannot accidentally control an app:
+Until following the default output (#85) is built, each output with
+`device = "default"` gets this warning at startup and every reload, and in
+`apptrol check` (CFG-20, ADR 0026 implementation note). The target and its assignment
+are left out of the mixer. A fixed output (`match`) works and gets no warning:
 
 ```text
-WARN output control is not implemented yet; this target is inactive apptrol.component=config file.path=/home/you/.config/apptrol/config.toml apptrol.app.id=speakers apptrol.app.type=output
+WARN following the default output is not implemented yet; this target is inactive apptrol.component=config file.path=/home/you/.config/apptrol/config.toml apptrol.app.id=main apptrol.app.type=output
 ```
 
-#85 removes this temporary warning and connects the target to output devices before
-0.3.0 RC1. No new attributes or error types are introduced.
+A fixed output on slider 7 at connect, then moved; a second control on the same
+device; the device unplugged (OUT-01, OUT-04, OUT-13,
+[ADR 0027](adr/0027-output-volume.md)). The output records carry the layout, control
+and target like every mixer record, with `apptrol.app.type=output`:
+
+```text
+INFO output matched apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.device.name=alsa_output.pci-<card>.analog-stereo apptrol.device.description="Built-in Audio Analog Stereo" apptrol.device.selected_by=match
+DEBU volume changed apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.volume_percent=40
+INFO two controls set the same output apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.device.name=alsa_output.pci-<card>.analog-stereo apptrol.device.controls="slider7, knob7"
+INFO output device gone; the control does nothing until a device matches apptrol.component=mixer apptrol.layout=default apptrol.control=knob7 apptrol.app.id=headphones apptrol.app.name=Headphones apptrol.app.type=output apptrol.device.name=alsa_output.usb-<headset>.analog-stereo
+```
+
+When the match fits several outputs, the first by name is used, with a warning that
+names all of them; it comes again only when another device is chosen. A target that
+fits none warns at connect and after every reload:
+
+```text
+WARN several output devices match; using the first (make the match more specific: apptrol list shows each device's unique name) apptrol.component=mixer … apptrol.control=slider7 … apptrol.device.name=alsa_output.pci-<card>.analog-stereo apptrol.device.matches="alsa_output.pci-<card>.analog-stereo, alsa_output.usb-<dock>.analog-stereo"
+WARN no output device matches apptrol.component=mixer … apptrol.control=knob7 … apptrol.app.match=headset
+```
+
+M and S on an output column do nothing yet; mute and output solo come with #85's next
+steps. A press says so at debug:
+
+```text
+DEBU button has no function: not built yet on an output column apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.button=M7
+```
+
+For three seconds after an output appears, the audio adapter sets its volume again
+if the audio server restores a remembered one over Apptrol's (OUT-05), as for streams
+and inputs:
+
+```text
+DEBU audio server changed the volume of a new output; setting it again apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.volume_percent=100 apptrol.wanted_percent=40
+```
+
+To follow everything about outputs:
+
+```bash
+journalctl --user -u apptrol | grep -E 'apptrol.app.type=output|output (matched|device)|new output'
+```
 
 A slider moves (level `debug`):
 
@@ -316,7 +355,9 @@ Apptrol's own:
 | `apptrol.stream.corked` | Whether the app has paused the stream (`true`) or it plays (`false`) |
 | `apptrol.device.name` | An input or output device's unique name (what `match` compares, with the description) |
 | `apptrol.device.description` | An input or output device's readable name |
-| `apptrol.device.matches` | All input devices that match |
+| `apptrol.device.matches` | All input or output devices that match |
+| `apptrol.device.selected_by` | How an output's device was chosen: `match` (a fixed output); `default` later, with `device = "default"` |
+| `apptrol.device.controls` | The controls that set one output device, e.g. `slider7, knob7` |
 | `apptrol.audio.server` | The audio server and its version |
 | `apptrol.retry.delay_s` | Seconds until Apptrol tries again |
 | `apptrol.controller.port` | The controller's sound card id from the configuration |

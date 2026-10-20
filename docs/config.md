@@ -156,18 +156,47 @@ An output accepts `name`, `max_volume`, and exactly one of `match` and `device`.
 rejected in `[outputs]`. Layouts can refer to an output's id, but `[media] player`
 and R's `play_pause` require an app. R can be `off` or a launcher on an output column.
 
-The configuration table and `apptrol check` support these selectors now, and
-`apptrol list` shows the output devices. Output volume, mute, solo and following the
-default output arrive with
-[#85](https://github.com/Dzobash/apptrol/issues/85); assigning an output does not yet
-control its audio. Each configured output warns at every load and in `apptrol check`:
+### What an output control does
+
+A slider or knob on a fixed output (`match`) sets that output device's volume, from 0
+at the bottom to its `max_volume` at the top, as for apps. The apps keep their own
+volumes: PipeWire multiplies each app's volume by its output's, so the output control
+turns the whole mix up or down and keeps the balance between the apps.
 
 ```text
-warning: outputs.main: output control is not implemented yet; this target is inactive
+slider7 = "speakers"   (max_volume = 100)
+
+slider  ▕▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▏ bottom ──► Speakers   0 %
+        ▕██████████▁▁▁▁▁▁▁▁▁▁▏ middle ──► Speakers  50 %
+        ▕████████████████████▏ top    ──► Speakers 100 %
+
+what you hear:  Spotify 80 % × Speakers 50 %  ≈ 40 %
+                Firefox 60 % × Speakers 50 %  ≈ 30 %
 ```
 
-Output targets and assignments are temporarily left out of the mixer so they cannot
-match app streams by mistake. #85 replaces this guard before 0.3.0 RC1.
+- **Until you move the control**, Apptrol leaves the output's volume as it is, also
+  right after starting (the control's position is not known yet). Once you have moved
+  it, its position is saved, and a matching output that appears later (headphones
+  plugged in, the next start) gets it at once.
+- **Volume keys and the desktop's volume applet** still change the output. Apptrol does
+  not turn it back; the next move of the control sets its position again.
+- **All channels get the same volume**: a left/right balance set elsewhere is lost
+  ([known issue](known-issues.md)).
+- **Two outputs on the same device** (two match lists that fit one device) are allowed:
+  each control sets the volume when it is moved, and the log says so once.
+- **M and S on an output column do nothing yet**; muting and soloing an output follow
+  with [#85](https://github.com/Dzobash/apptrol/issues/85). R can be `off` or a
+  launcher.
+- **`device = "default"` does not work yet**: following the default output follows
+  with #85. Such an output warns at every load and in `apptrol check`, and its control
+  does nothing:
+
+```text
+warning: outputs.main: following the default output is not implemented yet; this target is inactive
+```
+
+Read [Hearing safety](#hearing-safety) before you put your speakers or headphones on a
+control: the first move sets their volume at once.
 
 ### The old form with `type`
 
@@ -225,8 +254,8 @@ warranty of any kind ([LICENSE](https://github.com/Dzobash/apptrol/blob/main/LIC
   other devices (KDE Connect) are never matched.
 - **Inputs and fixed outputs** — a case-insensitive part of the device's name or
   description. If several devices match, the first by name is used and a warning is
-  logged; use the full name when a short part fits several devices. Output matching
-  is part of #85, as noted above.
+  logged; use the full name when a short part fits several devices. The device chosen
+  is kept while it still matches, even when another one that comes first appears.
 - **Monitors** (`<output>.monitor`) record what an output plays. They are never matched
   as inputs or outputs. A device match fragment ending in `.monitor` (case-insensitive)
   gets a warning at every configuration load and in `apptrol check`; the configuration
@@ -285,8 +314,8 @@ control, in the order slider1 to slider8, then knob1 to knob8; the other app's c
 nothing for it. `apptrol check` and the log warn when two match lists overlap in this way
 (one fragment contains the other, such as `"fire"` and `"firefox"`).
 
-Run `apptrol list` to see the exact names of everything that is currently playing and every
-input device, and which control each one is on.
+Run `apptrol list` to see the exact names of everything that is currently playing, every
+input and every output device, and which control each one is on.
 
 A browser is always **one** app: all tabs share the browser's stream name, so YouTube in one
 tab cannot be controlled separately from another tab.
@@ -300,7 +329,7 @@ other layouts are accepted and ignored until Phase 2.
 
 | Key | Value | Description |
 |---|---|---|
-| `slider1` … `slider8` | app, input or output id | Sliders, left to right. The S and M buttons in the same column act on this target (output behaviour arrives with #85). |
+| `slider1` … `slider8` | app, input or output id | Sliders, left to right. The S and M buttons in the same column act on this target (on an output column they do nothing yet, #85). |
 | `knob1` … `knob8` | app, input or output id | Knobs, left to right. Volume only. |
 
 Rules checked on load:
