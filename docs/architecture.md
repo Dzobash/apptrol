@@ -103,7 +103,7 @@ into **one map of targets**, `Config.Apps`, each with its `Type`: layouts and `[
 player` name a target by its id alone, so an id may be in only one table, and the mixer
 can keep looking up targets by id. Reading `[outputs]` adds no adapter interface and no
 mixer behaviour of its own. The audio adapter already reports output devices as events
-(OUT-12, see [Audio](#audio)), but until the guard below is replaced, no control acts on
+(OUT-12, see [Audio access](#audio-access)), but until the guard below is replaced, no control acts on
 them; output volume actions follow in #85 (ADR 0027).
 
 ```
