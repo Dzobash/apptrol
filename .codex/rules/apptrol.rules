@@ -31,10 +31,15 @@ prefix_rule(pattern = ["git", ["branch", "switch", "pull", "add", "commit"]], de
 # Changes outside this checkout: only after the owner's OK (AGENTS.md › Workflow)
 prefix_rule(pattern = ["git", "push"], decision = "prompt")
 prefix_rule(
-    pattern = ["gh", "pr", ["create", "ready", "edit", "merge", "close", "comment", "review"]],
+    pattern = ["gh", "pr", ["create", "ready", "edit", "merge", "close", "comment", "review",
+                            "reopen", "lock", "unlock", "update-branch"]],
     decision = "prompt",
 )
-prefix_rule(pattern = ["gh", "issue", ["create", "edit", "close", "comment"]], decision = "prompt")
+prefix_rule(
+    pattern = ["gh", "issue", ["create", "edit", "close", "comment", "reopen", "delete",
+                               "lock", "unlock", "transfer", "pin", "unpin", "develop"]],
+    decision = "prompt",
+)
 prefix_rule(pattern = ["gh", "run", ["rerun", "cancel", "delete"]], decision = "prompt")
 prefix_rule(
     pattern = ["gh", ["api", "label", "release", "repo", "secret", "variable", "workflow"]],

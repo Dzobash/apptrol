@@ -233,7 +233,10 @@ func TestQA15_AgentCommandListsMatch(t *testing.T) {
 var mustAsk = []string{
 	"git push",
 	"gh pr create", "gh pr ready", "gh pr edit", "gh pr merge", "gh pr close", "gh pr comment", "gh pr review",
-	"gh issue create", "gh issue edit", "gh issue close", "gh issue comment",
+	"gh pr reopen", "gh pr lock", "gh pr unlock", "gh pr update-branch",
+	"gh issue create", "gh issue edit", "gh issue close", "gh issue comment", "gh issue reopen",
+	"gh issue delete", "gh issue lock", "gh issue unlock", "gh issue transfer", "gh issue pin",
+	"gh issue unpin", "gh issue develop",
 	"gh run rerun", "gh run cancel", "gh run delete",
 	"gh api", "gh label", "gh release", "gh repo", "gh secret", "gh variable", "gh workflow",
 }
