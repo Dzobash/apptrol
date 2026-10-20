@@ -39,6 +39,10 @@ type guard struct {
 	// new name or description waits for the mixer before it is defended
 	// (OUT-05, ADR 0027). Streams and inputs leave it nil.
 	read *float64
+	// Only the newest reported identity's answer can resume output defense.
+	// Volume-only notifications do not answer it (CTRL-06, ADR 0027).
+	generation uint64
+	answered   bool
 }
 
 // check returns what to set again, given the current values. It is called
@@ -104,6 +108,9 @@ type Backend struct {
 	guards   map[uint32]*guard // new streams
 	devGuard map[string]*guard // new capture devices
 	outGuard map[string]*guard // new output devices: only the volume, outputs have no mute yet (OUT-05)
+	// Never reset on removal or reconnect: an old buffered answer must not
+	// acknowledge a new incarnation of the same name (CTRL-06, ADR 0027).
+	outputGeneration uint64
 
 	muteWant    map[uint32]muteWant // the mute Apptrol last set on a stream
 	devMuteWant map[string]muteWant // the mute Apptrol last set on a device
@@ -226,11 +233,14 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 			t.devMute[d.Index] = d.Muted
 			devChans[d.Name] = d.Channels
 		}
-		for _, d := range sinks {
+		b.mu.Lock()
+		for i := range sinks {
+			b.outputGeneration++
+			sinks[i].Generation = b.outputGeneration
+			d := sinks[i]
 			t.outputs[d.Index] = d.Device
 			outChans[d.Name] = d.Channels
 		}
-		b.mu.Lock()
 		b.cur, b.channels, b.devChans, b.outChans = k, chans, devChans, outChans
 		b.guards, b.devGuard, b.outGuard = map[uint32]*guard{}, map[string]*guard{}, map[string]*guard{}
 		b.muteWant, b.devMuteWant = map[uint32]muteWant{}, map[string]muteWant{}
@@ -365,7 +375,7 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) ([]mixer.E
 		evs, err := outputChange(t, e.Index, kind == proto.EventRemove, func(index uint32) (SinkInfo, error) {
 			d, err := k.sink(index)
 			if err == nil {
-				defendErr = b.sinkRead(k, d, known && old == d.Device)
+				defendErr = b.sinkRead(k, &d, known && sameOutputIdentity(old, d.Device))
 			}
 			return d, err
 		})
@@ -389,7 +399,8 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) ([]mixer.E
 // channel count, and a guard when it is new, so the volume WirePlumber
 // restores on it does not undo the one Apptrol sets (OUT-05, ADR 0027). same says that
 // the device was known with the same name and description: then only its
-// volume or mute changed, and Apptrol's volume is defended.
+// volume or mute changed. Defense stays paused until the newest reported
+// generation is answered, even across those reads (CTRL-06, ADR 0027).
 //
 // A read that sees a new device, or a new name or description, is not
 // defended yet: the match may be on the description, so only the mixer knows
@@ -400,23 +411,36 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) ([]mixer.E
 //	read: description changed, volume 100 % ──► OutputAdded ──► mixer
 //	  still matches ──► KeepOutput    ──► guard: 100 % ≠ 30 % ──► set 30 % again
 //	  no longer     ──► ReleaseOutput ──► guard lets it go     ──► 100 % stays
-func (b *Backend) sinkRead(k *conn, d SinkInfo, same bool) error {
+func (b *Backend) sinkRead(k *conn, d *SinkInfo, same bool) error {
 	b.mu.Lock()
+	if !same {
+		b.outputGeneration++
+		d.Generation = b.outputGeneration
+	}
 	_, tracked := b.outChans[d.Name]
 	b.outChans[d.Name] = d.Channels
 	if !tracked {
 		b.outGuard[d.Name] = newGuardNow()
 	}
 	if g := b.outGuard[d.Name]; g != nil {
+		if !same {
+			g.generation, g.answered = d.Generation, false
+		}
 		v := d.Volume
 		g.read = &v
 	}
 	b.mu.Unlock()
 	if !same {
-		b.logOutputRead(d, guardIdentityChanged)
+		b.logOutputRead(*d, guardIdentityChanged)
 		return nil
 	}
-	return b.defendOutput(k, d)
+	return b.defendOutput(k, *d)
+}
+
+// sameOutputIdentity ignores the adapter's ownership token when deciding
+// whether matching needs another reported read (OUT-02, CTRL-06, ADR 0027).
+func sameOutputIdentity(a, b mixer.Device) bool {
+	return a.Name == b.Name && a.Description == b.Description
 }
 
 // outputChange returns the event for a change notification about the output
@@ -430,7 +454,7 @@ func outputChange(t *tracker, index uint32, removed bool, read func(uint32) (Sin
 		d, err := read(index)
 		switch {
 		case err == nil:
-			if known && old == d.Device {
+			if known && sameOutputIdentity(old, d.Device) {
 				return nil, nil
 			}
 			t.outputs[index] = d.Device
@@ -538,12 +562,13 @@ func (b *Backend) defendOutput(k *conn, d SinkInfo) error {
 // the log then says why a volume was or was not set again (OUT-05, OUT-13,
 // ADR 0027).
 const (
-	guardNone            = "no_guard"         // the output is not new, or nothing was read yet
-	guardExpired         = "expired"          // the guard's 3 seconds are over
-	guardNoVolume        = "no_volume_set"    // no control set it, or it was released
-	guardAtWanted        = "at_wanted_volume" // it reads what Apptrol set
-	guardRestore         = "restore_volume"   // it reads something else: set again
-	guardIdentityChanged = "identity_changed" // new, or a new name or description: the mixer decides first
+	guardNone             = "no_guard"          // the output is not new, or nothing was read yet
+	guardExpired          = "expired"           // the guard's 3 seconds are over
+	guardNoVolume         = "no_volume_set"     // no control set it, or it was released
+	guardAtWanted         = "at_wanted_volume"  // it reads what Apptrol set
+	guardRestore          = "restore_volume"    // it reads something else: set again
+	guardIdentityChanged  = "identity_changed"  // new, or a new name or description: the mixer decides first
+	guardOwnershipPending = "ownership_pending" // no answer for the newest reported identity yet
 )
 
 // checkOutputGuard returns the volume to set again on an output that reads
@@ -558,6 +583,8 @@ func (b *Backend) checkOutputGuard(name string, volume float64) (*float64, strin
 	case expired:
 		delete(b.outGuard, name)
 		return nil, guardExpired
+	case g.generation != 0 && !g.answered:
+		return nil, guardOwnershipPending
 	case g.volume == nil:
 		return nil, guardNoVolume
 	case vol == nil:
@@ -571,8 +598,15 @@ func (b *Backend) checkOutputGuard(name string, volume float64) (*float64, strin
 // (sinkRead), and its volume is checked now, without waiting for another
 // change from the server (KeepOutput, OUT-05, ADR 0027). It is called with
 // wire held, so no newer read can come in between.
-func (b *Backend) keepOutput(name string) error {
+func (b *Backend) keepOutput(name string, generation uint64) error {
 	b.mu.Lock()
+	if g := b.outGuard[name]; g != nil {
+		if g.generation != generation {
+			b.mu.Unlock()
+			return nil
+		}
+		g.answered = true
+	}
 	k, chans := b.cur, b.outChans[name]
 	var vol *float64
 	var read float64
@@ -683,7 +717,7 @@ func (b *Backend) Apply(a mixer.Action) error {
 		defer b.wire.Unlock()
 	}
 	if a, ok := a.(mixer.KeepOutput); ok {
-		return b.keepOutput(a.Device)
+		return b.keepOutput(a.Device, a.Generation)
 	}
 	b.mu.Lock()
 	k := b.cur
@@ -727,7 +761,8 @@ func (b *Backend) Apply(a mixer.Action) error {
 		// No control holds the output any more: its guard stops defending
 		// Apptrol's volume, and only sets one again if a control takes the
 		// output back within the window (OUT-01, CTRL-06, ADR 0027).
-		if g := b.outGuard[a.Device]; g != nil {
+		if g := b.outGuard[a.Device]; g != nil && g.generation == a.Generation {
+			g.answered = true
 			g.volume = nil
 		}
 	}

@@ -300,6 +300,9 @@ func newOutput(t *testing.T, base string) (*Backend, string) {
 	addSink(t, out, "Apptrol-Test-Output")
 	first := next(t, events, func(e mixer.OutputAdded) bool { return e.Device.Name == out })
 	t.Logf("output added: %q, description %q", first.Device.Name, first.Device.Description)
+	if err := b.Apply(mixer.KeepOutput{Device: out, Generation: first.Device.Generation}); err != nil {
+		t.Fatal(err)
+	}
 
 	mixerDone := make(chan struct{})
 	go func() {
@@ -311,7 +314,7 @@ func newOutput(t *testing.T, base string) (*Backend, string) {
 			case ev := <-events:
 				if e, ok := ev.(mixer.OutputAdded); ok && e.Device.Name == out {
 					t.Logf("output changed: description %q; keeping it", e.Device.Description)
-					if err := b.Apply(mixer.KeepOutput{Device: out}); err != nil {
+					if err := b.Apply(mixer.KeepOutput{Device: out, Generation: e.Device.Generation}); err != nil {
 						t.Errorf("Apply(KeepOutput) = %v", err)
 					}
 				}

@@ -232,16 +232,18 @@ type SetOutputVolume struct {
 // stays (OUT-01, CTRL-06, ADR 0027). The adapter forgets the volume its
 // new-output guard defends; the device's volume itself is left as it is.
 type ReleaseOutput struct {
-	Device string
+	Device     string
+	Generation uint64 // the reported read being answered (CTRL-06, ADR 0027)
 }
 
 // KeepOutput tells the audio adapter that a control still holds the output
-// device after it appeared, or after its name or description changed, and
-// got no new volume: the adapter waited for this before defending the volume
-// it read with that change, and checks it now (OUT-05, ADR 0027). A change
+// device after it appeared, or after its name or description changed: the
+// adapter waits for the newest generation's answer before defending the
+// volume last read, and checks it now (OUT-05, CTRL-06, ADR 0027). A change
 // that leaves the device to no control gives ReleaseOutput instead.
 type KeepOutput struct {
-	Device string
+	Device     string
+	Generation uint64 // the reported read being answered (CTRL-06, ADR 0027)
 }
 
 // SetDeviceMute mutes or unmutes a capture device.

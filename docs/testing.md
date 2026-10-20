@@ -94,6 +94,12 @@ description with a restored volume is defended only once the mixer keeps the out
 (`TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt`; in the mixer,
 `TestOUT05_OutputThatStillMatchesAfterARenameIsKept`), and each release is logged once
 (`TestOUT13_OutputReleasedIsLogged`).
+`TestCTRL06_RenamedOutputWaitsForReleaseAcrossNotifications` forces rename → second
+notification with restored volume → no guard write → late release, without sleeps;
+it fails on the original guard with an unwanted 30 % write (QA-11).
+`TestCTRL06_OutputOwnershipRejectsOlderGenerations` checks stale keep/release answers
+and removal/reappearance, and `TestCTRL06_OutputOwnershipEchoesReportedGeneration`
+checks that the pure mixer echoes tokens, including snapshots and reload releases.
 The fuzz test has outputs on slider 7 and knob 7, and checks that a released device is
 held by no target and a kept one by a target. `make test-audio` sets a silent test
 output to 30 % right after it appears and reads it back

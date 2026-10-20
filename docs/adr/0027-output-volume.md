@@ -168,3 +168,27 @@ PipeWire or PulseAudio.
   answers with `KeepOutput` when a control still holds the output (the adapter then
   checks the volume of that read without waiting for another change) or with
   `ReleaseOutput` when none does.
+- 2026-10-20: The owner chose generation-tagged ownership for #155's remaining
+  CTRL-06 race (option A). Pausing just the read that changed the description was
+  insufficient: another notification could restore the server's volume before the
+  mixer's buffered release arrived.
+
+  ```text
+  rename -> report generation 2 -> second notification -> guard skips
+  old answer (1) -> ignored      -> ReleaseOutput(2)    -> volume stays
+  ```
+
+  Each reported output identity (including snapshots) carries a generation. The pure
+  mixer echoes it in `KeepOutput` or `ReleaseOutput` (ADR 0015), even when it also sets
+  the volume or the output was already unassigned. The adapter owns the counter and
+  the pending state. It accepts only an answer for the newest reported generation;
+  intervening volume-only notifications update the latest volume but leave ownership
+  pending. Generations are not reused after removal, resync or reconnect. An explicit
+  volume write is not an ownership answer. `KeepOutput` checks the latest volume once
+  accepted; `ReleaseOutput` clears the defended volume. The adapter never waits for
+  the mixer (option B was rejected), and keeps the `wire` then `mu` lock order.
+
+  The existing debug record `output device read` uses
+  `apptrol.audio.guard.state=ownership_pending` to explain why it skipped defense.
+  No new attribute is needed. Deterministic unit tests force the rename, second
+  notification and late release order, and check stale answers (QA-11).

@@ -205,21 +205,37 @@ has chosen (`outputFor`):
 
   The mixer logs each release once at info (`output released; no control holds the
   device`), so the log says why an outside volume now stays.
-- **Keeping** (`KeepOutput`, OUT-05): a read that sees an output new, or with a new name
+- **Keeping** (`KeepOutput`, OUT-05, CTRL-06): a read that sees an output new, or with a new name
   or description, is not defended by the adapter at once, because a match on the
-  description may have ended. The mixer decides: a device a control still holds, and
-  that got no `SetOutputVolume` now, is kept, and the adapter checks the volume of that
+  description may have ended. The mixer decides: a device a control still holds
+  is kept, even when it also gets `SetOutputVolume`, and the adapter checks the latest
   read against its guard without waiting for another change; one no control holds is
   released instead, and its volume stays.
 
   ```
-  read: "Speakers Pro", 100 % ──► adapter waits ──► OutputAdded ──► mixer
+  read: "Speakers Pro", 100 % ──► defense paused ──► OutputAdded ──► mixer
      still matches ──► KeepOutput    ──► guard: 100 % ≠ 30 % ──► 30 % again
      no longer     ──► ReleaseOutput ──► guard lets it go     ──► 100 % stays
   ```
 
   At debug, the adapter logs each read of an output (`output device read`, with
   `apptrol.audio.guard.state`) and the server's answer to each volume it sets.
+  Every reported output identity, including snapshots, carries an adapter-generated
+  `Device.Generation`. The pure mixer only echoes it in `KeepOutput` or `ReleaseOutput`.
+  The adapter accepts only the newest generation's answer; until then, subsequent
+  volume-only notifications update the last read but cannot trigger a guard write
+  (`ownership_pending` at debug). Such notifications do not report a new identity or
+  advance its generation. A volume action does not acknowledge ownership. Generations
+  are never reused on removal, resync or reconnect. All guard checks, ownership answers
+  and output writes retain the `wire` then `mu` lock order; the adapter never waits
+  for the mixer's answer.
+
+  ```text
+  rename (generation 2) -> OutputAdded(2) -> mixer answer buffered
+  restored volume      -> ownership_pending -> no guard write
+  KeepOutput(1)        -> stale answer ignored
+  ReleaseOutput(2)     -> guard forgets its volume
+  ```
 - **Not yet:** M and S on an output column do nothing (a debug record), app solo and
   talk-over never touch outputs (OUT-07, OUT-11); output mute and solo follow in #85.
 - **Two controls on one device** are allowed (OUT-04); `sharedOutputs` remembers what
@@ -308,6 +324,8 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   Apptrol sets it again: for 3 seconds after a stream, input or output appears, changes
   to what Apptrol set are undone (PRIO-03, OUT-05). For an output only the volume is
   defended; outputs have no mute yet.
+  Output identity changes pause defense across notifications until the mixer answers
+  the newest reported generation; see [Output volume](#output-volume).
 - On connection loss the backend reconnects and the service re-applies the current state.
 - PipeWire (WirePlumber) remembers each app's volume and mute and restores them when the
   app starts again — also when Apptrol is not running. Apptrol therefore sets the mute of
@@ -474,7 +492,8 @@ dialog.
   simulated server keeps output volumes too; the fuzz test has outputs on slider 7 and
   knob 7 and checks that an output is set only while a target holds it, never muted, and
   that an output control changes no stream or input; a kept output is held by a target,
-  a released one by none.
+  a released one by none. Ownership tests check that reported generations are echoed
+  unchanged in snapshot, change and reload answers.
 - `service`: the whole loop against fake adapters: config reload, state, shutdown, a
   slider on an output reaching the audio adapter as `SetOutputVolume`.
 - `controller`: MIDI decoding and the CC map with byte-level tests and fuzzing.
@@ -485,7 +504,9 @@ dialog.
   30 % and read back, the new-output guard setting it back within its 3 seconds and
   leaving it after them, `apptrol list`'s data, and a reconnect. Turning sink
   notifications into events, and the new-output guard (a slider move during a guard
-  write, release, keep after a new description), are unit-tested on their own.
+  write, release, keep after a new description), are unit-tested on their own. Tests
+  also force a second notification before a pending release, and stale ownership
+  answers across renames and removal/reappearance, without sleeps (CTRL-06, QA-11).
 - `desktop`: integration tests in a private session bus with fake media players, locally
   (`make test-desktop`) and in CI; a bus restart and a missing bus included.
 - `session`: the same private bus stands in for the system bus, with a fake logind that

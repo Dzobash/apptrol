@@ -263,6 +263,11 @@ DEBU output device read apptrol.component=audio apptrol.device.index=<index> app
 DEBU output kept by a control; checking the volume last read apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.volume_percent=100 apptrol.audio.guard.state=restore_volume
 ```
 
+While the newest reported identity has no ownership answer, later volume notifications
+log `apptrol.audio.guard.state=ownership_pending` and do not restore the volume.
+An older answer cannot resume defense; the adapter waits for the newest generation's
+answer without blocking notifications (CTRL-06).
+
 When no control holds an output any more (a reload took its control away, or its new
 description no longer matches), the mixer releases it: a volume set elsewhere then
 stays, even within the guard's three seconds (CTRL-06):
@@ -382,7 +387,7 @@ Apptrol's own:
 | `apptrol.device.index` | The audio server's number for an output device (changes when it is added again) |
 | `apptrol.audio.channels` | How many channels a device has, as read or written |
 | `apptrol.audio.result` | The audio server's answer to a request: `success` or `failed` |
-| `apptrol.audio.guard.state` | What the new-output guard made of a read: `restore_volume` (set again), `at_wanted_volume`, `no_volume_set` (no control set it, or it was released), `expired`, `no_guard` (not new), `identity_changed` (new, or a new name or description: the mixer decides first) |
+| `apptrol.audio.guard.state` | What the new-output guard made of a read: `restore_volume` (set again), `at_wanted_volume`, `no_volume_set` (no control set it, or it was released), `expired`, `no_guard` (not new), `identity_changed` (new, or a new name or description: the mixer decides first), `ownership_pending` (no answer for the newest reported identity yet; no guard write) |
 | `apptrol.audio.guard.remaining_ms` | Milliseconds left in the new-output guard's 3 seconds |
 | `apptrol.audio.server` | The audio server and its version |
 | `apptrol.retry.delay_s` | Seconds until Apptrol tries again |

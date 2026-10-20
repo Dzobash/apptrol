@@ -256,6 +256,9 @@ type Player struct {
 type Device struct {
 	Name        string // unique name, e.g. alsa_input.usb-… or alsa_output.usb-…
 	Description string // human-readable, e.g. "GoXLR Mini Mic"
+	// Generation identifies an output read reported by the adapter. The mixer
+	// only echoes it in ownership answers (CTRL-06, ADR 0015, ADR 0027).
+	Generation uint64
 }
 
 // State is what the mixer persists (STATE-01): known control positions, the

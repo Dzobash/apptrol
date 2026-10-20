@@ -107,6 +107,7 @@ func outputWorld(t *testing.T, setup Setup) *world {
 	w.do(ControllerConnected{})
 	w.do(AudioSnapshot{Streams: []Stream{spotify, firefox, discord, steam, viber}, Devices: []Device{goxlr, webcam},
 		Outputs: []Device{speakers, headphones}})
+	w.kept, w.released = nil, nil
 	return w
 }
 
@@ -511,8 +512,8 @@ func TestOUT01_OutputNoControlHoldsIsReleased(t *testing.T) {
 // A device whose description changes while a control still holds it is kept:
 // the adapter then defends the volume Apptrol set against one the server
 // restored with the change. A description change that ends the match
-// releases it instead, and a newly chosen device that gets its volume needs
-// no KeepOutput (OUT-05, OUT-01, CTRL-06, ADR 0027).
+// releases it instead. A newly chosen device gets an ownership answer even
+// when it also gets a volume (OUT-05, OUT-01, CTRL-06, ADR 0027).
 //
 //	"Built-in Audio" → "Built-in Audio Pro"  still matches "built-in" ─► KeepOutput
 //	"Built-in Audio Pro" → "Lautsprecher"    no longer matches        ─► ReleaseOutput
@@ -543,15 +544,61 @@ func TestOUT05_OutputThatStillMatchesAfterARenameIsKept(t *testing.T) {
 		t.Errorf("released = %v, want the speakers", w.released)
 	}
 
-	// The headset comes back while knob7's position is known: its volume is
-	// set, which already tells the adapter what to defend.
+	// The headset gets both its volume and an ownership answer (OUT-05,
+	// CTRL-06, ADR 0027).
 	w.move(Knob, 7, 100)
 	w.do(OutputRemoved{Name: headphones.Name})
 	w.do(OutputAdded{Device: headphones})
 	w.wantOutputVolume(headphones.Name, Volume(100))
-	if len(w.kept) != 0 {
-		t.Errorf("a device that got its volume was also kept: %v", w.kept)
+	if len(w.kept) != 1 || w.kept[0] != headphones.Name {
+		t.Errorf("a device that got its volume needs an ownership answer: %v", w.kept)
 	}
+}
+
+// The core echoes the reported generation for snapshots, changed identities,
+// unassigned devices and reload releases, without interpreting the token
+// (CTRL-06, OUT-05, ADR 0015, ADR 0027).
+func TestCTRL06_OutputOwnershipEchoesReportedGeneration(t *testing.T) {
+	s := outputSetup()
+	w := newWorld(t, s, State{})
+	d := speakers
+	d.Generation = 41
+	w.do(AudioSnapshot{Outputs: []Device{d}})
+	want := func(keep bool) {
+		t.Helper()
+		count := 0
+		for _, a := range w.last {
+			switch a := a.(type) {
+			case KeepOutput:
+				if a.Device == d.Name {
+					count++
+					if !keep || a.Generation != d.Generation {
+						t.Errorf("keep = %+v, want generation %d, keep=%v", a, d.Generation, keep)
+					}
+				}
+			case ReleaseOutput:
+				if a.Device == d.Name {
+					count++
+					if keep || a.Generation != d.Generation {
+						t.Errorf("release = %+v, want generation %d, keep=%v", a, d.Generation, keep)
+					}
+				}
+			}
+		}
+		if count != 1 {
+			t.Errorf("got %d ownership answers, want one", count)
+		}
+	}
+	want(true)
+	d.Generation = 42
+	w.do(OutputAdded{Device: d})
+	want(true)
+	delete(s.Assignments, Control{Slider, 7})
+	w.do(ConfigChanged{Setup: s})
+	want(false)
+	d.Generation = 43
+	w.do(OutputAdded{Device: d})
+	want(false)
 }
 
 // A device no control holds any more is logged at info, once per release,

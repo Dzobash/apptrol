@@ -145,7 +145,7 @@ Slider 6's `match = ["apptrol-test"]` fits every test output. A second one,
 
 ### TC-OUT-005 — Output volume rules hold in every situation
 
-Covers: OUT-01, OUT-02, OUT-04, OUT-05, OUT-07, OUT-11, OUT-13, CFG-20 · Phase 1.6
+Covers: OUT-01, OUT-02, OUT-04, OUT-05, OUT-07, OUT-11, OUT-13, CFG-20, CTRL-06 · Phase 1.6
 Config: output-fixed
 Type: Automated
 
@@ -160,14 +160,18 @@ Test: in `internal/mixer/output_test.go`: `TestOUT01_SliderSetsOutputVolume`,
 `TestOUT13_OutputMatchedIsLogged`, `TestOUT13_NoOutputDeviceMatchesAtConnectAndReload`,
 `TestOUT13_OutputDeviceGoneIsLogged`, `TestOUT13_OutputReleasedIsLogged`,
 `TestOUT01_OutputNoControlHoldsIsReleased`,
-`TestOUT05_OutputThatStillMatchesAfterARenameIsKept`, and `FuzzMixer` with outputs on
+`TestOUT05_OutputThatStillMatchesAfterARenameIsKept`,
+`TestCTRL06_OutputOwnershipEchoesReportedGeneration`, and `FuzzMixer` with outputs on
 slider 7 and knob 7;
 `TestOUT01_OutputNeverControlsAPlaybackStream` and
 `TestCFG20_SetupPassesFixedOutputsButNotDefault` in `internal/config/setup_test.go`;
 `TestOUT01_SliderSetsOutputVolumeThroughTheAudioAdapter` in
 `internal/service/service_test.go`; `TestOUT05_GuardKeepsTheVolumeSetOnANewOutput`,
 `TestOUT01_LatestSliderPositionWinsOverAGuardWrite`,
-`TestCTRL06_ReleasedOutputIsNoLongerDefended` and
+`TestCTRL06_ReleasedOutputIsNoLongerDefended`,
+`TestCTRL06_RenamedOutputWaitsForReleaseAcrossNotifications` (rename, second notification,
+no write, late release; deterministic, no sleeps),
+`TestCTRL06_OutputOwnershipRejectsOlderGenerations` (stale answers and reappearance), and
 `TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt` in
 `internal/audio/pulse/convert_test.go`; `TestIntegration_OUT01_OutputVolume` and
 `TestIntegration_OUT05_GuardSetsTheOutputVolumeAgain` in

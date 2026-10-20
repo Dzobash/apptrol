@@ -66,33 +66,37 @@ func (m *Mixer) outputsSnapshot(a *actions, outputs []Device) {
 	m.sharedOutputs = map[string]string{}
 	m.chooseOutputs(a, chooseConnect)
 	for _, n := range sortedDeviceNames(m.outputs) {
+		m.answerOutput(a, m.outputs[n], 0)
 		m.logIdleOutput(a, m.outputs[n])
 	}
 }
 
 // outputAdded keeps an output device that appeared or was renamed; it may
 // match an output target now, or no longer (OUT-02, OUT-05, ADR 0027). One a
-// control still holds without getting a volume now is kept (KeepOutput), so
-// the adapter defends what it set against a volume the server restored with
-// the change; one no control holds any more is released by chooseOutputs.
+// control holds is kept with that read's generation, even if it also gets a
+// volume; a volume write alone cannot acknowledge ownership (CTRL-06).
 func (m *Mixer) outputAdded(a *actions, d Device) {
 	m.outputs[d.Name] = d
 	from := len(*a)
 	m.chooseOutputs(a, chooseChange)
-	if contains(m.outputFor, d.Name) && !setsOutputVolume((*a)[from:], d.Name) {
-		a.add(KeepOutput{Device: d.Name})
-	}
+	m.answerOutput(a, d, from)
 	m.logIdleOutput(a, d)
 }
 
-// setsOutputVolume reports whether acts set the volume of output device dev:
-// that write already gives the adapter's guard the volume to defend (OUT-05,
-// ADR 0027).
-func setsOutputVolume(acts []Action, dev string) bool {
-	return slices.ContainsFunc(acts, func(x Action) bool {
-		v, ok := x.(SetOutputVolume)
-		return ok && v.Device == dev
-	})
+// answerOutput echoes each reported generation without interpreting it. Even
+// an unassigned output gets an answer; a release already emitted while choosing
+// is not duplicated (CTRL-06, OUT-05, ADR 0015, ADR 0027).
+func (m *Mixer) answerOutput(a *actions, d Device, from int) {
+	if contains(m.outputFor, d.Name) {
+		a.add(KeepOutput{Device: d.Name, Generation: d.Generation})
+		return
+	}
+	if !slices.ContainsFunc((*a)[from:], func(x Action) bool {
+		r, ok := x.(ReleaseOutput)
+		return ok && r.Device == d.Name
+	}) {
+		a.add(ReleaseOutput{Device: d.Name, Generation: d.Generation})
+	}
 }
 
 // outputRemoved forgets an output device that is gone; its target takes the
@@ -172,7 +176,7 @@ func (m *Mixer) releaseOutputs(a *actions, chosen map[string]string) {
 	}
 	sort.Strings(released)
 	for _, dev := range released {
-		a.add(ReleaseOutput{Device: dev})
+		a.add(ReleaseOutput{Device: dev, Generation: m.outputs[dev].Generation})
 		a.notice(slog.LevelInfo, "output released; no control holds the device",
 			logattr.KeyDeviceName, dev)
 	}

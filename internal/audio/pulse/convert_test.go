@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"log/slog"
 	"math"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -466,7 +468,7 @@ func TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt(t *testing.T) {
 		b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
 
 		spk := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
-		if err := b.sinkRead(b.cur, spk, false); err != nil { // it appears
+		if err := b.sinkRead(b.cur, &spk, false); err != nil { // it appears
 			t.Fatal(err)
 		}
 		if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 0.3}); err != nil {
@@ -476,16 +478,16 @@ func TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt(t *testing.T) {
 
 		restored := spk
 		restored.Description, restored.Volume = "Speakers Pro", 1
-		if err := b.sinkRead(b.cur, restored, false); err != nil {
+		if err := b.sinkRead(b.cur, &restored, false); err != nil {
 			t.Fatal(err)
 		}
 		if len(writes) != 0 {
 			t.Fatalf("keep=%v: defended before the mixer decided: %v", keep, writes)
 		}
 
-		var a mixer.Action = mixer.ReleaseOutput{Device: "spk"}
+		var a mixer.Action = mixer.ReleaseOutput{Device: "spk", Generation: restored.Generation}
 		if keep {
-			a = mixer.KeepOutput{Device: "spk"}
+			a = mixer.KeepOutput{Device: "spk", Generation: restored.Generation}
 		}
 		if err := b.Apply(a); err != nil {
 			t.Fatal(err)
@@ -502,6 +504,121 @@ func TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt(t *testing.T) {
 	b := New(quietLog(), "")
 	if err := b.Apply(mixer.KeepOutput{Device: "spk"}); err != nil {
 		t.Errorf("Apply(KeepOutput) without a connection = %v", err)
+	}
+}
+
+// A second notification must not defend an output while the mixer has yet to
+// release its renamed identity (CTRL-06, QA-11, ADR 0027). Direct calls force
+// the buffered-event order without sleeps or a running audio server.
+//
+// rename -> restored volume notification -> no write -> late ReleaseOutput
+func TestCTRL06_RenamedOutputWaitsForReleaseAcrossNotifications(t *testing.T) {
+	var logs bytes.Buffer
+	b := New(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})), "")
+	b.cur = &conn{}
+	b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
+	var writes []float64
+	b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+	d := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
+	read := func(same bool) {
+		t.Helper()
+		b.wire.Lock()
+		err := b.sinkRead(b.cur, &d, same)
+		b.wire.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	read(false)
+	if err := b.Apply(mixer.KeepOutput{Device: d.Name, Generation: d.Generation}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Apply(mixer.SetOutputVolume{Device: d.Name, Volume: 0.3}); err != nil {
+		t.Fatal(err)
+	}
+	writes = nil
+	d.Description, d.Volume = "Unmatched", 0.3
+	read(false)
+	d.Volume = 1
+	read(true)
+	if len(writes) != 0 {
+		t.Errorf("guard wrote before the pending release: %v", writes)
+	}
+	if !strings.Contains(logs.String(), "apptrol.audio.guard.state=ownership_pending") {
+		t.Error("the skipped guard write did not log its pending ownership reason")
+	}
+	if err := b.Apply(mixer.ReleaseOutput{Device: d.Name, Generation: d.Generation}); err != nil {
+		t.Fatal(err)
+	}
+	read(true)
+	if len(writes) != 0 {
+		t.Errorf("released output was defended: %v", writes)
+	}
+}
+
+// Buffered answers for an older identity cannot resume or cancel defense of
+// the newest one; removing and recreating a device also changes its token
+// (CTRL-06, OUT-05, QA-11, ADR 0027).
+func TestCTRL06_OutputOwnershipRejectsOlderGenerations(t *testing.T) {
+	for _, removed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("removed=%v", removed), func(t *testing.T) {
+			b := New(quietLog(), "")
+			b.cur = &conn{}
+			b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
+			var writes []float64
+			b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+			tracker := tracker{outputs: map[uint32]mixer.Device{}}
+			d := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
+			read := func() mixer.Device {
+				t.Helper()
+				b.wire.Lock()
+				defer b.wire.Unlock()
+				old, known := tracker.outputs[d.Index]
+				evs, err := outputChange(&tracker, d.Index, false, func(uint32) (SinkInfo, error) {
+					err := b.sinkRead(b.cur, &d, known && sameOutputIdentity(old, d.Device))
+					return d, err
+				})
+				if err != nil || len(evs) != 1 {
+					t.Fatalf("reported read = %v, %v", evs, err)
+				}
+				return evs[0].(mixer.OutputAdded).Device
+			}
+			apply := func(a mixer.Action) {
+				t.Helper()
+				if err := b.Apply(a); err != nil {
+					t.Fatal(err)
+				}
+			}
+			first := read()
+			if removed {
+				delete(tracker.outputs, d.Index)
+				delete(b.outChans, d.Name)
+				delete(b.outGuard, d.Name)
+			}
+			d.Description = "Speakers Pro"
+			latest := read()
+			if latest.Generation <= first.Generation {
+				t.Fatal("new reported identity reused an older generation")
+			}
+			apply(mixer.SetOutputVolume{Device: d.Name, Volume: 0.3})
+			writes = nil
+			apply(mixer.KeepOutput{Device: d.Name, Generation: first.Generation})
+			apply(mixer.ReleaseOutput{Device: d.Name, Generation: first.Generation})
+			b.wire.Lock()
+			err := b.sinkRead(b.cur, &d, true)
+			b.wire.Unlock()
+			if err != nil || len(writes) != 0 {
+				t.Fatalf("old answers or volume write acknowledged the pending read: %v, %v", writes, err)
+			}
+			apply(mixer.KeepOutput{Device: d.Name, Generation: latest.Generation})
+			if len(writes) != 1 || writes[0] != 0.3 {
+				t.Fatalf("latest keep did not defend: %v", writes)
+			}
+			apply(mixer.ReleaseOutput{Device: d.Name, Generation: first.Generation})
+			if b.outGuard[d.Name].volume == nil {
+				t.Fatal("stale release cleared the newest ownership")
+			}
+		})
 	}
 }
 
