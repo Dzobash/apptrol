@@ -216,12 +216,16 @@ The owner wants to keep learning while working, not just receive finished result
 - **Commands you may run yourself:**
   ```
   read only     read and search files in this repository and its worktrees; git status,
-                log, diff, show; GitHub read only (gh pr / issue list and view, pr diff,
-                pr checks, run view)
+                log, diff, show, fetch; GitHub read only (gh pr / issue list and view, pr
+                diff, pr checks, run view)
   build, test   make check, make test-audio
   git           branch, commit (push only after the owner's OK, see Workflow)
   waiting       any of these in the background, e.g. gh pr checks --watch for CI
   ```
+  The same list is in [.claude/settings.json](.claude/settings.json) for Claude Code and
+  [.codex/rules/apptrol.rules](.codex/rules/apptrol.rules) for Codex, so the tools run
+  these without a prompt; change all three together. Run commands from the checkout's
+  folder, one per call (no `cd … &&`, no `git -C`), so the lists match them.
   Before a command that does more than read, say in one or two sentences what you are
   doing and why; afterwards, explain the result: what passed, what failed and what it
   means. Pushing, opening a PR, creating issues and any other change on GitHub still
