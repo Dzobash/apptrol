@@ -227,18 +227,28 @@ func TestQA15_AgentCommandListsMatch(t *testing.T) {
 	}
 }
 
-// mustAsk are the commands that push or change GitHub. They need the owner's OK
-// (AGENTS.md › Workflow), so this list is kept here on its own: removing one from
-// both files at once must still fail (QA-15).
+// mustAsk are the commands that push, change GitHub or delete a branch. They need the
+// owner's OK (AGENTS.md › Workflow), so this list is kept here on its own: removing
+// one from both files at once must still fail (QA-15).
 var mustAsk = []string{
 	"git push",
+	"git branch -d", "git branch -D", "git branch --delete", "git branch -m", "git branch -M",
+	"git branch --move", "git branch -c", "git branch -C", "git branch --copy", "git branch -f",
+	"git branch --force",
 	"gh pr create", "gh pr ready", "gh pr edit", "gh pr merge", "gh pr close", "gh pr comment", "gh pr review",
 	"gh pr reopen", "gh pr lock", "gh pr unlock", "gh pr update-branch",
 	"gh issue create", "gh issue edit", "gh issue close", "gh issue comment", "gh issue reopen",
 	"gh issue delete", "gh issue lock", "gh issue unlock", "gh issue transfer", "gh issue pin",
 	"gh issue unpin", "gh issue develop",
 	"gh run rerun", "gh run cancel", "gh run delete",
-	"gh api", "gh label", "gh release", "gh repo", "gh secret", "gh variable", "gh workflow",
+	"gh api", "gh secret", "gh variable",
+	"gh release create", "gh release edit", "gh release upload", "gh release download",
+	"gh release delete", "gh release delete-asset",
+	"gh repo create", "gh repo edit", "gh repo delete", "gh repo fork", "gh repo rename",
+	"gh repo archive", "gh repo unarchive", "gh repo sync", "gh repo set-default",
+	"gh repo clone", "gh repo autolink", "gh repo deploy-key",
+	"gh label create", "gh label edit", "gh label delete", "gh label clone",
+	"gh workflow run", "gh workflow enable", "gh workflow disable",
 }
 
 // TestQA15_ChangesOutsideTheCheckoutAsk: both tools ask before pushing or

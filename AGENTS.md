@@ -219,7 +219,8 @@ The owner wants to keep learning while working, not just receive finished result
                 GitHub commands that only read (status, log, diff, PR and issue views,
                 CI checks)
   build, test   make check, make test-audio
-  git           branch, commit (push only after the owner's OK, see Workflow)
+  git           list branches, git switch -c, commit (deleting or renaming a branch,
+                and push, only after the owner's OK, see Workflow)
   waiting       any of these in the background, e.g. gh pr checks --watch for CI
   ```
   The exact commands are in [.claude/settings.json](.claude/settings.json) for Claude
