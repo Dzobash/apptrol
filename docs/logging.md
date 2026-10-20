@@ -266,7 +266,21 @@ DEBU output kept by a control; checking the volume last read apptrol.component=a
 While the newest reported identity has no ownership answer, later volume notifications
 log `apptrol.audio.guard.state=ownership_pending` and do not restore the volume.
 An older answer cannot resume defense; the adapter waits for the newest generation's
-answer without blocking notifications (CTRL-06).
+answer without blocking notifications (CTRL-06). It logs each answer it ignores, with
+the identity the mixer answered for and the newest one it reported:
+
+```text
+rename ─► identity 3 ─► rename ─► identity 4 ─► KeepOutput(3): ignored ─► KeepOutput(4): defended
+```
+
+```text
+DEBU output ownership answer ignored; a newer identity was reported apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.action=KeepOutput apptrol.audio.ownership.answer_generation=3 apptrol.audio.ownership.generation=4
+```
+
+A volume Apptrol set and the server accepted counts as the last read, so
+`output kept by a control; …` right after the first volume of a new output sets
+nothing again. When nothing was read (the output was there at connect), that record
+has no `apptrol.volume_percent`.
 
 When no control holds an output any more (a reload took its control away, or its new
 description no longer matches), the mixer releases it: a volume set elsewhere then
@@ -374,7 +388,7 @@ Apptrol's own:
 | `apptrol.wanted_percent` | The volume Apptrol set, when PipeWire changed it back |
 | `apptrol.muted` | A mute state |
 | `apptrol.wanted_muted` | The mute state Apptrol set, when PipeWire changed it back |
-| `apptrol.action` | A change that could not be made |
+| `apptrol.action` | A change that could not be made, or an ownership answer the audio adapter ignored (`KeepOutput`, `ReleaseOutput`) |
 | `apptrol.led` | An LED, e.g. `S1` |
 | `apptrol.stream.id` | PipeWire's number for a playing stream |
 | `apptrol.stream.app_name` | The name the app gives its stream (what `match` compares) |
@@ -389,6 +403,8 @@ Apptrol's own:
 | `apptrol.audio.result` | The audio server's answer to a request: `success` or `failed` |
 | `apptrol.audio.guard.state` | What the new-output guard made of a read: `restore_volume` (set again), `at_wanted_volume`, `no_volume_set` (no control set it, or it was released), `expired`, `no_guard` (not new), `identity_changed` (new, or a new name or description: the mixer decides first), `ownership_pending` (no answer for the newest reported identity yet; no guard write) |
 | `apptrol.audio.guard.remaining_ms` | Milliseconds left in the new-output guard's 3 seconds |
+| `apptrol.audio.ownership.answer_generation` | The output identity an ignored `KeepOutput` or `ReleaseOutput` answered for |
+| `apptrol.audio.ownership.generation` | The newest output identity the audio adapter reported, which the answer lost to |
 | `apptrol.audio.server` | The audio server and its version |
 | `apptrol.retry.delay_s` | Seconds until Apptrol tries again |
 | `apptrol.controller.port` | The controller's sound card id from the configuration |

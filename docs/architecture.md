@@ -225,7 +225,10 @@ has chosen (`outputFor`):
   The adapter accepts only the newest generation's answer; until then, subsequent
   volume-only notifications update the last read but cannot trigger a guard write
   (`ownership_pending` at debug). Such notifications do not report a new identity or
-  advance its generation. A volume action does not acknowledge ownership. Generations
+  advance its generation. A volume action does not acknowledge ownership, but a write
+  the server accepted becomes the guard's last read, so the `KeepOutput` after the
+  first volume of a new output does not set it twice. An ignored older answer is
+  logged at debug with both generations. Generations
   are never reused on removal, resync or reconnect. All guard checks, ownership answers
   and output writes retain the `wire` then `mu` lock order; the adapter never waits
   for the mixer's answer.
@@ -233,7 +236,7 @@ has chosen (`outputFor`):
   ```text
   rename (generation 2) -> OutputAdded(2) -> mixer answer buffered
   restored volume      -> ownership_pending -> no guard write
-  KeepOutput(1)        -> stale answer ignored
+  KeepOutput(1)        -> stale answer ignored (logged: 1 vs 2)
   ReleaseOutput(2)     -> guard forgets its volume
   ```
 - **Not yet:** M and S on an output column do nothing (a debug record), app solo and

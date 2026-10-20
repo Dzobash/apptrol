@@ -78,6 +78,11 @@ const (
 	KeyGuardState     = "apptrol.audio.guard.state"        // why the new-output guard set a volume again or not
 	KeyGuardRemaining = "apptrol.audio.guard.remaining_ms" // milliseconds left in the new-output guard
 
+	// Why the adapter ignored an ownership answer for an older identity of an
+	// output (CTRL-06, ADR 0027).
+	KeyOwnerAnswerGeneration = "apptrol.audio.ownership.answer_generation" // the identity the mixer answered for
+	KeyOwnerGeneration       = "apptrol.audio.ownership.generation"        // the newest identity the adapter reported
+
 	KeyAudioServer  = "apptrol.audio.server"  // audio server name and version
 	KeyRetryDelay   = "apptrol.retry.delay_s" // seconds until the next attempt
 	KeyPort         = "apptrol.controller.port"

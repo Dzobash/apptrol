@@ -602,7 +602,9 @@ func (b *Backend) keepOutput(name string, generation uint64) error {
 	b.mu.Lock()
 	if g := b.outGuard[name]; g != nil {
 		if g.generation != generation {
+			current := g.generation
 			b.mu.Unlock()
+			b.logStaleAnswer("KeepOutput", name, generation, current)
 			return nil
 		}
 		g.answered = true
@@ -611,17 +613,30 @@ func (b *Backend) keepOutput(name string, generation uint64) error {
 	var vol *float64
 	var read float64
 	state := guardNone
+	attrs := []any{logattr.KeyDeviceName, name}
 	if g := b.outGuard[name]; g != nil && g.read != nil {
 		read = *g.read
 		vol, state = b.checkOutputGuard(name, read)
+		// Without a read (no guard, e.g. a snapshot) there is no volume to log.
+		attrs = append(attrs, logattr.KeyVolume, percent(read))
 	}
 	b.mu.Unlock()
 	b.log.Debug("output kept by a control; checking the volume last read",
-		logattr.KeyDeviceName, name, logattr.KeyVolume, percent(read), logattr.KeyGuardState, state)
+		append(attrs, logattr.KeyGuardState, state)...)
 	if k == nil {
 		return nil // the guards start again on a reconnect
 	}
 	return b.restoreOutput(k, name, chans, read, vol)
+}
+
+// logStaleAnswer logs, at debug, a KeepOutput or ReleaseOutput the guard
+// ignored because the adapter reported a newer identity of the output since:
+// only the newest answer may resume or end defense, and the log shows which
+// answer lost to which identity (CTRL-06, OUT-13, ADR 0027).
+func (b *Backend) logStaleAnswer(action, name string, answer, current uint64) {
+	b.log.Debug("output ownership answer ignored; a newer identity was reported",
+		logattr.KeyDeviceName, name, logattr.KeyAction, action,
+		logattr.KeyOwnerAnswerGeneration, answer, logattr.KeyOwnerGeneration, current)
 }
 
 // restoreOutput sets vol again on an output whose read volume the guard
@@ -734,6 +749,7 @@ func (b *Backend) Apply(a mixer.Action) error {
 	b.mu.Lock()
 	k := b.cur
 	var chans int
+	var staleRelease *uint64 // the newest generation, if a release came for an older one
 	switch a := a.(type) {
 	case mixer.SetStreamVolume:
 		chans = b.channels[a.StreamID]
@@ -773,12 +789,20 @@ func (b *Backend) Apply(a mixer.Action) error {
 		// No control holds the output any more: its guard stops defending
 		// Apptrol's volume, and only sets one again if a control takes the
 		// output back within the window (OUT-01, CTRL-06, ADR 0027).
-		if g := b.outGuard[a.Device]; g != nil && g.generation == a.Generation {
-			g.answered = true
-			g.volume = nil
+		if g := b.outGuard[a.Device]; g != nil {
+			if g.generation == a.Generation {
+				g.answered = true
+				g.volume = nil
+			} else {
+				current := g.generation
+				staleRelease = &current
+			}
 		}
 	}
 	b.mu.Unlock()
+	if a, ok := a.(mixer.ReleaseOutput); ok && staleRelease != nil {
+		b.logStaleAnswer("ReleaseOutput", a.Device, a.Generation, *staleRelease)
+	}
 	if k == nil {
 		switch a.(type) {
 		case mixer.SetStreamVolume, mixer.SetStreamMute, mixer.SetDeviceVolume, mixer.SetDeviceMute, mixer.SetOutputVolume:

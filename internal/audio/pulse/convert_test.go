@@ -500,10 +500,15 @@ func TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt(t *testing.T) {
 		}
 	}
 
-	// Kept without a connection, or with nothing to defend: nothing to do.
-	b := New(quietLog(), "")
+	// Kept without a connection, or with nothing to defend: nothing to do,
+	// and no volume is logged that was never read.
+	var logs bytes.Buffer
+	b := New(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})), "")
 	if err := b.Apply(mixer.KeepOutput{Device: "spk"}); err != nil {
 		t.Errorf("Apply(KeepOutput) without a connection = %v", err)
+	}
+	if strings.Contains(logs.String(), "apptrol.volume_percent") {
+		t.Errorf("keep without a read logged a volume: %s", logs.String())
 	}
 }
 
@@ -623,7 +628,8 @@ func TestCTRL06_RenamedOutputWaitsForReleaseAcrossNotifications(t *testing.T) {
 func TestCTRL06_OutputOwnershipRejectsOlderGenerations(t *testing.T) {
 	for _, removed := range []bool{false, true} {
 		t.Run(fmt.Sprintf("removed=%v", removed), func(t *testing.T) {
-			b := New(quietLog(), "")
+			var logs bytes.Buffer
+			b := New(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})), "")
 			b.cur = &conn{}
 			b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
 			var writes []float64
@@ -670,6 +676,16 @@ func TestCTRL06_OutputOwnershipRejectsOlderGenerations(t *testing.T) {
 			b.wire.Unlock()
 			if err != nil || len(writes) != 0 {
 				t.Fatalf("old answers or volume write acknowledged the pending read: %v, %v", writes, err)
+			}
+			// Each ignored answer says which identity it lost to.
+			for _, action := range []string{"KeepOutput", "ReleaseOutput"} {
+				want := fmt.Sprintf("output ownership answer ignored; a newer identity was reported\" "+
+					"apptrol.component=audio apptrol.device.name=spk apptrol.action=%s "+
+					"apptrol.audio.ownership.answer_generation=%d apptrol.audio.ownership.generation=%d",
+					action, first.Generation, latest.Generation)
+				if !strings.Contains(logs.String(), want) {
+					t.Errorf("no debug record for the stale %s; want %q in:\n%s", action, want, logs.String())
+				}
 			}
 			apply(mixer.KeepOutput{Device: d.Name, Generation: latest.Generation})
 			if len(writes) != 1 || writes[0] != 0.3 {

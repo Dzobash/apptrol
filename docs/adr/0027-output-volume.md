@@ -192,3 +192,23 @@ PipeWire or PulseAudio.
   `apptrol.audio.guard.state=ownership_pending` to explain why it skipped defense.
   No new attribute is needed. Deterministic unit tests force the rename, second
   notification and late release order, and check stale answers (QA-11).
+- 2026-10-20: From the review of generation-tagged ownership on #155, two follow-ups.
+  The note above said no new attribute was needed; an ignored answer was silent,
+  though, so the owner approved one more record for the logging table (point 12),
+  with two new attributes:
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | debug | `output ownership answer ignored; a newer identity was reported` (audio adapter) | `apptrol.device.name`, `apptrol.action` (`KeepOutput` or `ReleaseOutput`), `apptrol.audio.ownership.answer_generation`, `apptrol.audio.ownership.generation` |
+
+  `output kept by a control; …` logs `apptrol.volume_percent` only when the guard has
+  a read; an output known at connect has none. A volume write the server accepted
+  now also counts as the guard's last read, under `wire` as before. Otherwise the
+  `KeepOutput` that follows the mixer's first volume for a new output compared the
+  read from before that write, set the volume twice and logged a restore that never
+  happened. A failed write keeps the old read, and a later restore is still read and
+  defended:
+
+  ```text
+  read 100 % ─► Set 30 % (written, read = 30 %) ─► KeepOutput: at wanted ─► read 100 % ─► 30 % again
+  ```

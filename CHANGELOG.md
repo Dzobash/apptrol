@@ -20,7 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   any more is logged (`output released; no control holds the device`) and left as it
   is, including when another audio notification arrives before the mixer has answered
   a changed description (CTRL-06); with `level = "debug"`, the log shows each read of
-  an output and the volume Apptrol set on it. M and S do nothing on an output
+  an output, the volume Apptrol set on it, and each ownership answer it ignored because
+  the output changed again. M and S do nothing on an output
   column yet (mute and output solo follow), and `device = "default"` is still inactive,
   with a warning (OUT-01, OUT-02, OUT-04, OUT-05, OUT-13,
   [ADR 0027](docs/adr/0027-output-volume.md), Refs #85).
