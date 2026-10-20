@@ -53,3 +53,11 @@ process should be repeatable and not depend on anyone's machine.
   notice and full MIT text; bundled libraries and Go remain in `THIRD_PARTY_LICENSES`
   (NFR-08). RPM packages and archives keep `LICENSE`. Discover's license display for
   a local deb still needs observation; DEP-5 does not promise that Discover will show the license.
+- 2026-10-19: CI's Packaging job runs on every pull request, without a path filter
+  (the ruleset on `main` wants its checks on every pull request, and a skipped job
+  counts as missing). It runs `goreleaser check`, a snapshot build and `lintian` on the
+  .deb; errors fail it, warnings and informational tags are printed (NFR-05, NFR-08, NFR-09, #146). Two tags are
+  suppressed because the package is built by GoReleaser, not by Debian's tools:
+  `no-changelog` (we ship `CHANGELOG.md`, not `changelog.Debian.gz`) and
+  `statically-linked-binary` (the static binary is intended, above). A test keeps the MIT
+  text in `packaging/debian/copyright` equal to `LICENSE`.

@@ -28,8 +28,8 @@ Read these instead of guessing; this file only links to them:
 ## Workflow
 
 - Never work on `main`. Branch (`feat/`, `fix/`, `docs/`, …) → commit (Conventional
-  Commits, with requirement IDs, e.g. `fix: … (MUTE-07)`) → PR → all 6 CI checks green
-  (Lint, Test on two Go versions, Fuzz, Vulnerability check, Build) → squash merge.
+  Commits, with requirement IDs, e.g. `fix: … (MUTE-07)`) → PR → all 7 CI checks green
+  (Lint, Test on two Go versions, Fuzz, Vulnerability check, Build, Packaging) → squash merge.
   A ruleset on `main` enforces this.
 - The owner reviews and merges PRs. **Ask before pushing, opening a PR or creating
   issues.**

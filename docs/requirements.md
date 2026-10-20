@@ -346,7 +346,7 @@ Designed in [ADR 0027](adr/0027-output-volume.md).
 | NFR-06 | The project MUST be published under the MIT license. | MUST | 0 |
 | NFR-07 | Documentation MUST NOT use Korg trademarks in the project name or logo, and MUST state that the project is not affiliated with Korg. | MUST | 0 |
 | NFR-08 | Every release archive and package MUST contain the copyright notices and license texts of all libraries compiled into the binary, and of Go's standard library, generated at build time; a library with an unknown or restricted license MUST fail the build. *(Missing in 0.1.0, #33.)* | MUST | 1.5 |
-| NFR-09 | The .deb package MUST install a machine-readable DEP-5 copyright file at `/usr/share/doc/apptrol/copyright`, with Apptrol's copyright notice and full MIT license text. *(Missing until 0.3.0, #97.)* | MUST | 1.6 |
+| NFR-09 | The .deb package MUST install a machine-readable DEP-5 copyright file at `/usr/share/doc/apptrol/copyright`, with Apptrol's copyright notice and full MIT license text. CI MUST check it with `lintian` and keep its MIT text equal to `LICENSE` (#146). *(Missing until 0.3.0, #97.)* | MUST | 1.6 |
 
 ### 5.1 Quality assurance
 
@@ -355,7 +355,7 @@ How these are met is described in [ADR 0012](adr/0012-testing-strategy.md) and
 
 | ID | Requirement | Level | Phase |
 |---|---|---|---|
-| QA-01 | Every push and pull request MUST run CI: format check, `go vet`, `golangci-lint`, tests with the race detector, vulnerability scan, and a build with a smoke test. | MUST | 0 |
+| QA-01 | Every push and pull request MUST run CI: format check, `go vet`, `golangci-lint`, tests with the race detector, vulnerability scan, and a build with a smoke test. Since 0.3.0 also the packaging: `goreleaser check`, a snapshot build and `lintian` on the .deb (errors fail) (#146). | MUST | 0 |
 | QA-02 | Changes SHOULD only reach `main` when CI passes. Once the repository is public, this MUST be enforced with branch protection. | SHOULD | 0 |
 | QA-03 | Tests MUST run against the minimum Go version from `go.mod` and against the latest stable Go release. | MUST | 0 |
 | QA-04 | CI MUST fail when total test coverage drops below the configured minimum (currently 75 %). Logic packages (matching, mixer state, config, saved state) SHOULD reach at least 85 %. | MUST | 0 |
