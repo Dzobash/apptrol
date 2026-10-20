@@ -21,3 +21,8 @@ coverage.*
 # Personal Claude Code settings, and worktrees made by Claude Code's own tools
 .claude/settings.local.json
 .claude/worktrees/
+
+# Codex skills that T3 Code copies from .claude/commands/ into each checkout
+# (source-command-<name>). The real shared skills live in .agents/skills/<name>/; an
+# untracked copy stopped agents at `git status` and kept T3 from cleaning up worktrees.
+/.agents/skills/source-command-*/
