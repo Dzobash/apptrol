@@ -31,7 +31,7 @@ const (
 )
 
 // OutputDevice returns the name of the output device chosen for an output
-// target, or "" if none matches (OUT-12, for `apptrol list`).
+// target, or "" if none matches (OUT-12, ADR 0027, for `apptrol list`).
 func (m *Mixer) OutputDevice(targetID string) string { return m.outputFor[targetID] }
 
 // isOutputColumn reports whether the column's slider holds an output: its M
@@ -86,7 +86,8 @@ func (m *Mixer) outputAdded(a *actions, d Device) {
 }
 
 // setsOutputVolume reports whether acts set the volume of output device dev:
-// that write already gives the adapter's guard the volume to defend (OUT-05).
+// that write already gives the adapter's guard the volume to defend (OUT-05,
+// ADR 0027).
 func setsOutputVolume(acts []Action, dev string) bool {
 	return slices.ContainsFunc(acts, func(x Action) bool {
 		v, ok := x.(SetOutputVolume)
