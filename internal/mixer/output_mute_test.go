@@ -27,7 +27,7 @@ func TestOUT06_MuteSavedPerControlAndRestored(t *testing.T) {
 	}
 }
 
-// Outside mute belongs to the owner, even on a knob (OUT-05, ADR 0034).
+// Outside mute belongs to the owner, even on a knob (OUT-05, ADR 0035).
 func TestOUT05_OutsideMuteTakenOverOnSliderAndKnob(t *testing.T) {
 	for _, tc := range []struct {
 		control Control
@@ -67,7 +67,7 @@ func TestOUT05_ReplugRestoresPositionAndMute(t *testing.T) {
 	}
 }
 
-// Ownership transfers state from the new control, not the old one (OUT-04, ADR 0034).
+// Ownership transfers state from the new control, not the old one (OUT-04, ADR 0035).
 func TestOUT04_ChangingOwnerAppliesNewOwnersState(t *testing.T) {
 	s := outputSetup()
 	s.Targets["earlier"] = Target{ID: "earlier", Name: "Different label", Kind: Output, Match: []string{"built-in"}}
@@ -94,7 +94,7 @@ func TestOUT04_ChangingOwnerAppliesNewOwnersState(t *testing.T) {
 	}
 }
 
-// Device matching, not display labels, decides conflicts (OUT-04, ADR 0034).
+// Device matching, not display labels, decides conflicts (OUT-04, ADR 0035).
 func TestOUT04_SameLabelsOnDifferentDevicesDoNotConflict(t *testing.T) {
 	s := outputSetup()
 	p := s.Targets["phones"]
@@ -106,7 +106,7 @@ func TestOUT04_SameLabelsOnDifferentDevicesDoNotConflict(t *testing.T) {
 	}
 }
 
-// All sliders take precedence over all knobs (OUT-04, ADR 0034).
+// All sliders take precedence over all knobs (OUT-04, ADR 0035).
 func TestOUT04_SlidersPrecedeKnobs(t *testing.T) {
 	s := outputSetup()
 	s.Assignments[Control{Knob, 1}] = "phones"
@@ -135,7 +135,7 @@ func TestOUT06_ReloadUsesMuteOfNewControl(t *testing.T) {
 	}
 }
 
-// Unowned devices cannot change a control's saved mute (OUT-05, CTRL-06, ADR 0034).
+// Unowned devices cannot change a control's saved mute (OUT-05, CTRL-06, ADR 0035).
 func TestOUT05_UnownedOutputMuteDoesNotAffectControls(t *testing.T) {
 	w := outputWorld(t, outputSetup())
 	w.do(OutputMuteChanged{Name: "unassigned-output", Muted: true})

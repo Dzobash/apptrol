@@ -249,7 +249,7 @@ WARN no output device matches apptrol.component=mixer … apptrol.control=knob7 
 ```
 
 M toggles the owner's mute. An outside mute is taken over only by that owner,
-including on a knob (OUT-05/06, ADR 0034). Conflicts warn when they begin and at reload;
+including on a knob (OUT-05/06, ADR 0035). Conflicts warn when they begin and at reload;
 `apptrol.device.controls` lists the winner first, then the ignored control. A blocked
 M press and a blocked volume movement explain why they do not change the device:
 
@@ -279,11 +279,16 @@ DEBU audio server changed the volume of a new output; setting it again apptrol.c
 At debug, the audio adapter also logs each read of an output device, with what the
 guard made of it, and the server's answer to each volume it sets. A read that sees a
 new description waits for the mixer: `output kept by a control; …` then checks the
-volume it read (OUT-05, OUT-13). A volume that reads wrong although the request
-succeeded was changed afterwards, not lost on the way:
+volume it read (OUT-05, OUT-13). A request that succeeded was passed on to the
+device, not necessarily applied: within the three seconds, the adapter reads the
+output again 200 ms after each write and sets a volume the server lost again
+(`output read again after a volume write`, #166). If 64 read-backs are already
+waiting, which only happens when the adapter is stuck, the read is dropped and logged
+as `output read again skipped; too many waiting`:
 
 ```text
 DEBU output volume request completed apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.audio.channels=2 apptrol.wanted_percent=40 apptrol.audio.result=success
+DEBU output read again after a volume write apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo
 DEBU output device read apptrol.component=audio apptrol.device.index=<index> apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.description="USB Headset" apptrol.audio.channels=2 apptrol.volume_percent=100 apptrol.audio.guard.state=restore_volume apptrol.audio.guard.remaining_ms=2972 apptrol.wanted_percent=40
 DEBU output device read apptrol.component=audio apptrol.device.index=<index> apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.description="USB Headset Pro" apptrol.audio.channels=2 apptrol.volume_percent=100 apptrol.audio.guard.state=identity_changed apptrol.audio.guard.remaining_ms=2540 apptrol.wanted_percent=40
 DEBU output kept by a control; checking the volume last read apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.volume_percent=100 apptrol.audio.guard.state=restore_volume
@@ -423,7 +428,7 @@ Apptrol's own:
 | `apptrol.device.description` | An input or output device's readable name |
 | `apptrol.device.matches` | All input or output devices that match |
 | `apptrol.device.selected_by` | How an output's device was chosen: `match` (a fixed output); `default` later, with `device = "default"` |
-| `apptrol.device.controls` | Conflicting output controls: owner first, then ignored control, e.g. `slider7, knob7` (OUT-04, ADR 0034) |
+| `apptrol.device.controls` | Conflicting output controls: owner first, then ignored control, e.g. `slider7, knob7` (OUT-04, ADR 0035) |
 | `apptrol.device.index` | The audio server's number for an output device (changes when it is added again) |
 | `apptrol.audio.channels` | How many channels a device has, as read or written |
 | `apptrol.audio.result` | The audio server's answer to a request: `success` or `failed` |

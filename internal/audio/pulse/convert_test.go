@@ -700,6 +700,70 @@ func TestCTRL06_OutputOwnershipRejectsOlderGenerations(t *testing.T) {
 	}
 }
 
+// The guard's read-back after a write sets a lost volume again, and only
+// that: an output without a guard is not read, one that is gone or has a new
+// description is left to its notification, and pending ownership, a release
+// or an expired guard set nothing (OUT-05, CTRL-06, QA-11, ADR 0027, #166).
+//
+//	read-back: 100 %, guard wants 30 % ──► 30 % again    (every other case: no write)
+func TestOUT05_ReadBackSetsOnlyALostWriteAgain(t *testing.T) {
+	spk := mixer.Device{Name: "spk", Description: "Speakers"}
+	for _, tc := range []struct {
+		name     string
+		guard    func(g *guard) // nil: no guard
+		read     SinkInfo
+		readErr  error
+		wantRead bool
+		want     []float64
+	}{
+		{name: "lost write", guard: func(*guard) {}, wantRead: true, want: []float64{0.3}},
+		{name: "at wanted volume", guard: func(*guard) {}, wantRead: true,
+			read: SinkInfo{Device: spk, Volume: 0.3, Channels: 2}},
+		{name: "no guard", wantRead: false},
+		{name: "gone", guard: func(*guard) {}, readErr: proto.ErrNoSuchEntity, wantRead: true},
+		{name: "new description", guard: func(*guard) {}, wantRead: true,
+			read: SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers Pro"}, Volume: 1, Channels: 2}},
+		{name: "ownership pending", guard: func(g *guard) { g.generation, g.answered = 2, false }, wantRead: true},
+		{name: "released", guard: func(g *guard) { g.volume = nil }, wantRead: true},
+		{name: "expired", guard: func(g *guard) { g.until = time.Now().Add(-time.Second) }, wantRead: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			b := New(quietLog(), "")
+			b.cur = &conn{} // never used: reads and writes go through the hooks
+			b.outChans, b.outGuard = map[string]int{"spk": 2}, map[string]*guard{}
+			if tc.guard != nil {
+				g := newGuardNow()
+				v := 0.3
+				g.volume, g.generation, g.answered = &v, 1, true
+				tc.guard(g)
+				b.outGuard["spk"] = g
+			}
+			read := tc.read
+			if read.Name == "" {
+				read = SinkInfo{Device: spk, Volume: 1, Channels: 2} // the server lost 30 %
+			}
+			var reads int
+			b.outputRead = func(string) (SinkInfo, error) { reads++; return read, tc.readErr }
+			var writes []float64
+			b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+			tr := &tracker{outputs: map[uint32]mixer.Device{0: spk}}
+
+			b.wire.Lock()
+			err := b.recheckOutput(b.cur, tr, "spk")
+			b.wire.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (reads > 0) != tc.wantRead {
+				t.Errorf("reads = %d, want read %v", reads, tc.wantRead)
+			}
+			if fmt.Sprint(writes) != fmt.Sprint(tc.want) {
+				t.Errorf("writes = %v, want %v", writes, tc.want)
+			}
+		})
+	}
+}
+
 func TestSVC04_RunKeepsRetryingUntilCanceled(t *testing.T) {
 	b := New(quietLog(), "unix:"+filepath.Join(t.TempDir(), "no-such-socket"))
 	b.retryMin, b.retryMax = time.Millisecond, 4*time.Millisecond

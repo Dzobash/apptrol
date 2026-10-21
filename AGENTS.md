@@ -229,7 +229,11 @@ The owner wants to keep learning while working, not just receive finished result
   command starts, not its arguments (`make check` lets `make check other-target`
   through), so this list still decides which arguments are fine. Codex applies its rules
   to commands outside its sandbox, and only when the project is trusted in Codex, from
-  its next start. A new command goes into both files (a test checks they match). Run
+  its next start. A new command goes into both files (a test checks they match). When
+  the folder is trusted, Grok (Grok Build) reads `.claude/settings.json` and AGENTS.md
+  by itself, so it needs no file of its own; `grok inspect --json` shows
+  `projectTrusted` and how many rules it loaded (its `sources` line may name only the
+  personal `.claude/settings.local.json`, but the count includes the shared file). Run
   commands from the checkout's folder, one per call (no `cd … &&`, no `git -C`), so
   they match the lists.
   Before a command that does more than read, say in one or two sentences what you are
@@ -237,9 +241,20 @@ The owner wants to keep learning while working, not just receive finished result
   means. Pushing, opening a PR, creating issues and any other change on GitHub still
   need the owner's OK first (see Workflow).
   **Anything not on this list needs the owner's OK first**, even when it would help
-  (e.g. Docker to rebuild CI's system, a VM, installing a package): a missing rule is
-  not permission. Say what you would run and why, then wait. A sub-agent's task names
-  the commands it may run.
+  (e.g. a VM, installing a package): a missing rule is not permission. Say what you
+  would run and why, then wait. A sub-agent's task names the commands it may run.
+  **Containers** ([ADR 0034](docs/adr/0034-containers-through-one-script.md), QA-16):
+  rootless Podman only, never Docker and never `sudo podman`, and every run through
+  the repository's container script (`make test-systemd`, `make container-run
+  RECIPE=<name>`), which records it in `.audit/`. The script mounts only the checkout,
+  read-only, and `.tmp/<run>/` inside it as the one writable folder (ignored by git):
+  never `~/.ssh`, the rest of the home folder or `/run/user/…`, and no
+  `SSH_AUTH_SOCK`. A flag the script lacks is a pull request to the script. With the
+  script, typed `docker`, `podman` and `buildah` become blocked; until then each one
+  needs the owner's OK, and the request names both sides
+  (`host <repo>/bin/apptrol → container /usr/bin/apptrol, read-only`). The block
+  matches only a command's first word, so never wrap one to get past it (`sudo`,
+  `env`, `nice`, `bash -c`); the owner answers such a request no.
   **During a manual test run only**
   ([how-to](docs/testing/how-to-run-release-tests.md)): also
   `docs/testing/apply-fixture.sh` and reading Apptrol's journal

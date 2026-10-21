@@ -1,5 +1,5 @@
 # TC-OUT-006: exact re-plug target and an independent app on the knob's column
-# (OUT-05, OUT-06, ADR 0027, ADR 0034). The case creates the extra silent sink.
+# (OUT-05, OUT-06, ADR 0027, ADR 0035). The case creates the extra silent sink.
 [log]
 level = "debug"
 outputs = ["journald"]

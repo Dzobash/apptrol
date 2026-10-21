@@ -429,7 +429,7 @@ func TestOUT11_TalkOverDoesNotChangeOutputs(t *testing.T) {
 }
 
 // Distinct match strings can resolve to the same physical device. Its first
-// control owns both volume and mute (OUT-04, ADR 0034).
+// control owns both volume and mute (OUT-04, ADR 0035).
 func TestOUT04_FirstMatchingControlOwnsDevice(t *testing.T) {
 	s := outputSetup()
 	s.Targets["also"] = Target{ID: "also", Name: "Speakers too", Kind: Output, Match: []string{"built-in"}}

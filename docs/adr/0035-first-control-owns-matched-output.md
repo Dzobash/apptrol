@@ -1,4 +1,4 @@
-# 0034. The first control owns a matched output device
+# 0035. The first control owns a matched output device
 
 - **Status:** Accepted
 - **Date:** 2026-10-21

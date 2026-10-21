@@ -66,10 +66,22 @@ jobs:
           mkdir -p -m 700 "$XDG_RUNTIME_DIR"
           export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
           dbus-daemon --session --address="$DBUS_SESSION_BUS_ADDRESS" --fork --nopidfile
+          # Start the servers in order and wait for each, as a desktop session
+          # does: WirePlumber and pipewire-pulse connect to PipeWire. The 30 s
+          # are only a limit for a slow runner; it is ready within a second
+          # (#166). On failure the step prints the servers' logs.
+          wait_for() {
+            what=$1; shift
+            for _ in $(seq 150); do "$@" >/dev/null 2>&1 && return 0; sleep 0.2; done
+            echo "::error::$what was not ready within 30 s"
+            tail -n 50 "$RUNNER_TEMP"/*.log
+            return 1
+          }
           pipewire >"$RUNNER_TEMP/pipewire.log" 2>&1 &
+          wait_for "PipeWire" test -S "$XDG_RUNTIME_DIR/pipewire-0"
           wireplumber >"$RUNNER_TEMP/wireplumber.log" 2>&1 &
           pipewire-pulse >"$RUNNER_TEMP/pipewire-pulse.log" 2>&1 &
-          for _ in $(seq 50); do pactl info >/dev/null 2>&1 && break; sleep 0.2; done
+          wait_for "pipewire-pulse" pactl info
           # A silent output, as a desktop has one; streams on the dummy output fail.
           pactl load-module module-null-sink sink_name=ci_out
           pactl info
@@ -83,6 +95,9 @@ jobs:
         run: go vet ./...
       - name: Test with race detector and coverage
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Audio servers' logs, when a step failed (#166)
+        if: failure()
+        run: tail -n 200 "$RUNNER_TEMP"/*.log || true
       - name: Coverage report and minimum
         if: matrix.go == 'minimum'
         run: |

@@ -54,7 +54,7 @@ func FuzzMixer(f *testing.F) {
 				if arg%3 == 0 {
 					delete(s.Assignments, Control{Slider, 3})
 				}
-				if arg%7 == 0 { // overlapping matches exercise ignored controls (OUT-04, ADR 0034)
+				if arg%7 == 0 { // overlapping matches exercise ignored controls (OUT-04, ADR 0035)
 					s.Targets["earlier"] = Target{ID: "earlier", Kind: Output, Match: []string{"built-in"}}
 					s.Assignments[Control{Slider, 6}] = "earlier"
 				}
@@ -146,7 +146,7 @@ func checkInvariants(t *testing.T, w *world) {
 // checkOutputs checks the output rules after every event: an output device is
 // set only while an output target on a control holds it (apart from releasing
 // mute), and a control on an output changes no stream or input
-// (OUT-01, OUT-06, OUT-07, OUT-11, ADR 0034).
+// (OUT-01, OUT-06, OUT-07, OUT-11, ADR 0035).
 func checkOutputs(t *testing.T, w *world, ev Event) {
 	t.Helper()
 	var control Control

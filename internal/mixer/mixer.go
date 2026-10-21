@@ -28,7 +28,7 @@ type Mixer struct {
 	outputs   map[string]Device // output devices by name (OUT-12, ADR 0027)
 	outputFor map[string]string // output target id -> chosen device name (OUT-02)
 	// blockedOutputs records targets whose chosen device belongs to an earlier
-	// control, to ignore their buttons and log conflicts once (OUT-04, ADR 0034).
+	// control, to ignore their buttons and log conflicts once (OUT-04, ADR 0035).
 	blockedOutputs map[string]string
 	outputMuteSent map[string]bool // last output mute sent (OUT-06, ADR 0027)
 

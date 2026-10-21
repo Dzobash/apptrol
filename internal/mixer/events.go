@@ -253,7 +253,7 @@ type SetOutputVolume struct {
 	Volume float64
 }
 
-// SetOutputMute sets the owning control's output mute (OUT-06, ADR 0034).
+// SetOutputMute sets the owning control's output mute (OUT-06, ADR 0035).
 type SetOutputMute struct {
 	Device string
 	Muted  bool

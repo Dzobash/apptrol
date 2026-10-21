@@ -33,7 +33,7 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
 | Job | Checks |
 |---|---|
 | **Lint** | `golangci-lint` with the rules in [`.golangci.yml`](https://github.com/Dzobash/apptrol/blob/main/.golangci.yml) (includes `gofmt` and `goimports`) |
-| **Test** | Starts a headless PipeWire, then `go vet` and all tests including the audio integration tests, with the race detector, on the minimum Go version and the latest stable; coverage report in the job summary; fails below the minimum |
+| **Test** | Starts a headless PipeWire (PipeWire, then WirePlumber and pipewire-pulse, waiting until each is ready; their logs are printed when a step fails), then `go vet` and all tests including the audio integration tests, with the race detector, on the minimum Go version and the latest stable; coverage report in the job summary; fails below the minimum |
 | **Fuzz** | Runs every fuzz test (config, saved state, MIDI decoding, mixer) for 20 seconds |
 | **Vulnerability check** | `govulncheck` |
 | **Build** | Builds the Linux binary, runs `apptrol --version`, cross-compiles the portable packages for Windows without cgo (`make check-portable`, NFR-11), and checks third-party licenses |
@@ -90,7 +90,7 @@ name with a warning, kept while it matches), the volume up to `max_volume`, an u
 position (left alone, PRIO-04), outside changes (not reverted), first-control ownership
 when outputs match one device, and releasing a device no control holds any more
 (CTRL-06). `output_mute_test.go` covers M, saved mute, outside mute on sliders and
-knobs, re-plug, and ownership transfer (OUT-04/05/06, ADR 0034). App solo, talk-over
+knobs, re-plug, and ownership transfer (OUT-04/05/06, ADR 0035). App solo, talk-over
 and S never change an output (OUT-07, OUT-11); LEDs wait for PR 2c.
 `TestIntegration_OUT06_OutputMuteAndOutsideChange` exercises output mute writes and
 outside events on a silent output through the real server. Late server mute restoration
@@ -118,7 +118,11 @@ held by no target and a kept one by a target. `make test-audio` sets a silent te
 output to 30 % right after it appears and reads it back
 (`TestIntegration_OUT01_OutputVolume`), and checks the guard on a real server
 (`TestIntegration_OUT05_GuardSetsTheOutputVolumeAgain`): a volume set from outside
-within the 3 seconds goes back to 30 %, one set after them stays. Both log the
+within the 3 seconds goes back to 30 %, one set after them stays.
+`TestIntegration_OUT05_GuardSetsALostWriteAgain` drops Apptrol's first write, as
+PipeWire 1.0 lost one on CI (#166): the server reports no change, and the guard's read
+200 ms after the write sets 30 % again. Tests that count or drop writes wrap
+`serverOutputWrite`. All three log the
 adapter's debug records, so a failure on CI shows each read and write; the manual
 cases are [TC-OUT-003 and TC-OUT-004](testing/cases/out.md), with the `output-fixed`
 fixture.

@@ -27,7 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `apptrol list` shows the control each output is on. An output that no control holds
   any more is logged (`output released; no control holds the device`) and left as it
   is, including when another audio notification arrives before the mixer has answered
-  a changed description (CTRL-06); with `level = "debug"`, the log shows each read of
+  a changed description (CTRL-06). Right after an output appears, Apptrol reads its
+  volume back after setting it and sets it again if the audio server lost it, as
+  PipeWire 1.0 can (#166); with `level = "debug"`, the log shows each read of
   an output, the volume Apptrol set on it, and each ownership answer it ignored because
   the output changed again. S and output LEDs follow with #85, and `device = "default"` is still inactive,
   with a warning (OUT-01, OUT-02, OUT-04, OUT-05, OUT-13,
@@ -40,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before rematching, so a newly matching control keeps its saved mute consistent
   with the device. Guarding
   mute against late server restores on re-plug remains a separate follow-up
-  (OUT-04, OUT-05, OUT-06, [ADR 0034](docs/adr/0034-first-control-owns-matched-output.md), Refs #85).
+  (OUT-04, OUT-05, OUT-06, [ADR 0035](docs/adr/0035-first-control-owns-matched-output.md), Refs #85).
 - `make check` and CI cross-compile the shared packages for Windows without cgo,
   catching accidental Linux dependencies early. The configuration watcher keeps its
   inode check on Linux and uses modification time and size elsewhere. This guards

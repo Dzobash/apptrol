@@ -1,5 +1,5 @@
 # Test fixture "output-fixed": fixed outputs on the silent test output (OUT-01,
-# OUT-02, OUT-04, OUT-06, ADR 0027, ADR 0034). apply-fixture.sh creates apptrol-test-mic-sink for its
+# OUT-02, OUT-04, OUT-06, ADR 0027, ADR 0035). apply-fixture.sh creates apptrol-test-mic-sink for its
 # virtual microphone; it plays nothing, so no volume here can be heard.
 # For: TC-OUT-003 (first owner), TC-OUT-004 (several matches), TC-OUT-006 (mute).
 # Slider6 owns the mic sink when no extra test sink exists. TC-OUT-004 exercises transfer.

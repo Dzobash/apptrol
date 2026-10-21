@@ -31,7 +31,7 @@ func TestOUT05_OutputMuteAttribution(t *testing.T) {
 }
 
 // A mute read belongs to the owner before a description change, never to a
-// newly matched control whose saved mute is applied afterwards (OUT-05, ADR 0034).
+// newly matched control whose saved mute is applied afterwards (OUT-05, ADR 0035).
 func TestOUT05_DescriptionAndMuteChangePreserveOwnersState(t *testing.T) {
 	for _, tc := range []struct {
 		name, before, after string

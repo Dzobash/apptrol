@@ -128,7 +128,7 @@ func (m *Mixer) logIdleOutput(a *actions, d Device) {
 // alone until the control is moved when it is not (OUT-05, PRIO-04). A device
 // that no target holds any more is released (ReleaseOutput, OUT-01, CTRL-06):
 // its mute is released too. The first control owns a device when matches
-// overlap; later controls cannot write it (OUT-04, ADR 0034).
+// overlap; later controls cannot write it (OUT-04, ADR 0035).
 func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 	names := sortedDeviceNames(m.outputs)
 	chosen := map[string]string{}
@@ -219,7 +219,7 @@ func (m *Mixer) applyOutputMute(a *actions, dev string, want bool) {
 }
 
 // outputMuteChanged takes over an outside mute for the owning control only,
-// including knobs (OUT-05, MUTE-07, ADR 0034).
+// including knobs (OUT-05, MUTE-07, ADR 0035).
 func (m *Mixer) outputMuteChanged(a *actions, e OutputMuteChanged) {
 	for _, id := range m.outputTargets() {
 		if m.outputFor[id] != e.Name {

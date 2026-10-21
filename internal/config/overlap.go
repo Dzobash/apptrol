@@ -21,7 +21,7 @@ func overlaps(cfg *Config) []Warning {
 		for _, second := range as[i+1:] {
 			b := cfg.Apps[second.AppID]
 			// First-control ownership applies within each target kind
-			// (CFG-12, OUT-04, ADR 0034).
+			// (CFG-12, OUT-04, ADR 0035).
 			if a.Type != b.Type {
 				continue
 			}
