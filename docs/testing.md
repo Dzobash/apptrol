@@ -8,10 +8,11 @@ of [requirements.md](requirements.md#51-quality-assurance).
 
 | Command | What it does |
 |---|---|
-| `make check` | Format check, `go vet`, `golangci-lint`, tests — the same checks CI runs |
+| `make check` | Format check, `go vet`, `golangci-lint`, race tests, AppStream metadata and the portable Windows build (NFR-11) |
+| `make check-portable` | Cross-compile `internal/mixer`, `internal/config`, `internal/state`, `internal/controller`, `internal/logattr` and `internal/version` for Windows with `CGO_ENABLED=0`; builds packages without running Windows code (NFR-11) |
 | `make release-check` | Validate GoReleaser packaging configuration (needs GoReleaser) |
 | `make snapshot` | Build release packages locally without publishing (needs GoReleaser) |
-| `lintian dist/*.deb` | Check built Debian packages, including the DEP-5 copyright file (needs lintian; see [package checks](releasing.md#trying-it-locally-first)) |
+| `lintian --info --display-info dist/*.deb` | Check built Debian packages, including description hints (NFR-10) and the DEP-5 copyright file (needs lintian; see [package checks](releasing.md#trying-it-locally-first)) |
 | `make test` | Tests with the race detector |
 | `make test-audio` | Integration tests against your running PipeWire (they add a silent test output and inputs and remove them afterwards) |
 | `make test-desktop` | D-Bus integration tests in a private session bus (`dbus-run-session`): media players, and a fake logind standing in for the system bus; your desktop's buses and media players are not touched |
@@ -35,13 +36,15 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
 | **Test** | Starts a headless PipeWire, then `go vet` and all tests including the audio integration tests, with the race detector, on the minimum Go version and the latest stable; coverage report in the job summary; fails below the minimum |
 | **Fuzz** | Runs every fuzz test (config, saved state, MIDI decoding, mixer) for 20 seconds |
 | **Vulnerability check** | `govulncheck` |
-| **Build** | Builds the binary and runs `apptrol --version` |
+| **Build** | Builds the Linux binary, runs `apptrol --version`, cross-compiles the portable packages for Windows without cgo (`make check-portable`, NFR-11), and checks third-party licenses |
 | **Packaging** | `goreleaser check`, then the whole release as a snapshot (`make snapshot`: binaries, archives, .deb, .rpm; nothing is published, no secrets), then `lintian` on the .deb. Lintian errors fail the job; warnings and informational tags are only printed. Suppressed tags, each with its reason, are in the job's comments (NFR-05, NFR-08, NFR-09, #146) |
 
 The Packaging job has no path filter: the ruleset on `main` wants its checks on every
 pull request, and a skipped job would count as missing. `go test ./packaging` also keeps
 the MIT text in `packaging/debian/copyright` equal to `LICENSE` (NFR-09); it runs in the
-Test job.
+Test job. So does `go test ./internal/repocheck`, which keeps the command lists for
+Claude Code and Codex equal and checks that both ask before pushing or changing GitHub
+(QA-15).
 
 ## Writing tests
 
@@ -63,8 +66,9 @@ Test job.
 CI's Packaging job runs `lintian` on every pull request (see *What runs in CI*), so the
 copyright file and the rest of the .deb are checked before a candidate exists. For
 Debian packaging changes, also run [TC-NFR-001](testing/cases/nfr.md) on the
-installed candidate. Record missing tools as blocked checks and Discover's license
-display as an observation, not a guarantee of the package format.
+installed candidate, including its description in Discover (NFR-10). Record missing tools as
+blocked checks and Discover's license display as an observation, not a guarantee of
+the package format.
 
 ## Configuration tables
 

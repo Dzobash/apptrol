@@ -14,7 +14,8 @@ type Change struct {
 	Err     error // the file exists but could not be read
 }
 
-// stamp identifies a version of the file without reading it.
+// stamp identifies a version of the file without reading it (CFG-06, NFR-11,
+// ADR 0013).
 type stamp struct {
 	exists  bool
 	size    int64
@@ -27,7 +28,15 @@ func statFile(path string) stamp {
 	if err != nil {
 		return stamp{}
 	}
-	return stamp{exists: true, size: fi.Size(), modTime: fi.ModTime(), ino: inode(fi)}
+	s := metadataStamp(fi)
+	s.ino = inode(fi)
+	return s
+}
+
+// metadataStamp is the portable fallback: size and modification time identify
+// ordinary saves without OS-specific file identity (CFG-06, NFR-11, ADR 0013).
+func metadataStamp(fi os.FileInfo) stamp {
+	return stamp{exists: true, size: fi.Size(), modTime: fi.ModTime()}
 }
 
 // Watch reports changes of the file at path until ctx ends (CFG-06). It looks

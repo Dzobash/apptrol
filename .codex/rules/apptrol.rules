@@ -1,0 +1,75 @@
+# Commands Codex may run without asking, from AGENTS.md › How we work together ›
+# Commands you may run yourself. .claude/settings.json holds the same list for
+# Claude Code; change both together (QA-15). A rule matches how a command starts,
+# whatever arguments follow. These rules decide what runs outside Codex's sandbox;
+# they load only when the project is trusted in Codex, at Codex's start.
+
+# Read only
+prefix_rule(
+    pattern = ["git", ["status", "log", "diff", "show", "fetch", "ls-files", "ls-tree", "check-ignore"]],
+    decision = "allow",
+    match = ["git status --short --branch", "git fetch origin"],
+    not_match = ["git push origin main"],
+)
+prefix_rule(pattern = ["git", "worktree", "list"], decision = "allow")
+prefix_rule(pattern = ["git", "tag", ["--sort=-creatordate", "-l", "--list"]], decision = "allow")
+prefix_rule(
+    pattern = ["gh", "pr", ["list", "view", "diff", "checks"]],
+    decision = "allow",
+    match = ["gh pr checks 155 --watch"],
+    not_match = ["gh pr create --draft"],
+)
+prefix_rule(pattern = ["gh", "issue", ["list", "view", "status"]], decision = "allow")
+prefix_rule(pattern = ["gh", "pr", "status"], decision = "allow")
+prefix_rule(pattern = ["gh", ["search", "status"]], decision = "allow")
+prefix_rule(pattern = ["gh", "run", ["list", "view", "watch"]], decision = "allow")
+prefix_rule(pattern = ["gh", "release", ["list", "view"]], decision = "allow")
+prefix_rule(pattern = ["gh", "repo", "view"], decision = "allow")
+prefix_rule(pattern = ["gh", "label", "list"], decision = "allow")
+prefix_rule(pattern = ["gh", "workflow", ["list", "view"]], decision = "allow")
+# Shell readers (grep, cat, ls, find, …) are not listed: they run in Codex's sandbox,
+# and Claude Code runs them inside the checkout by itself. A rule would let them read
+# anywhere, ~/.ssh too. rg (--pre) and git grep (-O) can start other programs.
+
+# Build and test
+prefix_rule(pattern = ["make", ["check", "test-audio"]], decision = "allow")
+
+# Git. Branches are listed here, created with git switch -c; deleting, renaming and
+# copying ask. A rule sees only the switch right after "git branch".
+prefix_rule(
+    pattern = ["git", "branch", ["--list", "--show-current", "-a", "-r", "-v", "-vv",
+                                 "--merged", "--no-merged", "--contains"]],
+    decision = "allow",
+)
+prefix_rule(pattern = ["git", ["switch", "pull", "add", "commit"]], decision = "allow")
+prefix_rule(
+    pattern = ["git", "branch", ["-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C",
+                                 "--copy", "-f", "--force"]],
+    decision = "prompt",
+)
+
+# Changes outside this checkout: only after the owner's OK (AGENTS.md › Workflow)
+prefix_rule(pattern = ["git", "push"], decision = "prompt")
+prefix_rule(
+    pattern = ["gh", "pr", ["create", "ready", "edit", "merge", "close", "comment", "review",
+                            "reopen", "lock", "unlock", "update-branch"]],
+    decision = "prompt",
+)
+prefix_rule(
+    pattern = ["gh", "issue", ["create", "edit", "close", "comment", "reopen", "delete",
+                               "lock", "unlock", "transfer", "pin", "unpin", "develop"]],
+    decision = "prompt",
+)
+prefix_rule(pattern = ["gh", "run", ["rerun", "cancel", "delete"]], decision = "prompt")
+prefix_rule(pattern = ["gh", ["api", "secret", "variable"]], decision = "prompt")
+prefix_rule(
+    pattern = ["gh", "release", ["create", "edit", "upload", "download", "delete", "delete-asset"]],
+    decision = "prompt",
+)
+prefix_rule(
+    pattern = ["gh", "repo", ["create", "edit", "delete", "fork", "rename", "archive", "unarchive",
+                              "sync", "set-default", "clone", "autolink", "deploy-key"]],
+    decision = "prompt",
+)
+prefix_rule(pattern = ["gh", "label", ["create", "edit", "delete", "clone"]], decision = "prompt")
+prefix_rule(pattern = ["gh", "workflow", ["run", "enable", "disable"]], decision = "prompt")

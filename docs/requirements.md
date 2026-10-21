@@ -347,6 +347,8 @@ Designed in [ADR 0027](adr/0027-output-volume.md).
 | NFR-07 | Documentation MUST NOT use Korg trademarks in the project name or logo, and MUST state that the project is not affiliated with Korg. | MUST | 0 |
 | NFR-08 | Every release archive and package MUST contain the copyright notices and license texts of all libraries compiled into the binary, and of Go's standard library, generated at build time; a library with an unknown or restricted license MUST fail the build. *(Missing in 0.1.0, #33.)* | MUST | 1.5 |
 | NFR-09 | The .deb package MUST install a machine-readable DEP-5 copyright file at `/usr/share/doc/apptrol/copyright`, with Apptrol's copyright notice and full MIT license text. CI MUST check it with `lintian` and keep its MIT text equal to `LICENSE` (#146). *(Missing until 0.3.0, #97.)* | MUST | 1.6 |
+| NFR-10 | The .deb and .rpm packages MUST have a short summary that is not a sentence (no full stop) and an extended description of what Apptrol does and needs, as software centres show them. CI's lintian run MUST report no informational (`I:`) tags about them (#152). | MUST | 1.6 |
+| NFR-11 | OS-specific code MUST stay in adapters, and settings MUST describe user intent rather than OS mechanisms. The portable packages (`internal/mixer`, `internal/config`, `internal/state`, `internal/controller`, `internal/logattr`, `internal/version`) MUST build for Windows with `CGO_ENABLED=0`, checked by `make check` and CI. The config watcher MUST retain Linux's inode check; other systems MUST compare modification time and size (ADR 0013, #93). This does not provide Windows adapters or change paths (#92). | MUST | 1.6 |
 
 ### 5.1 Quality assurance
 
@@ -369,6 +371,7 @@ How these are met is described in [ADR 0012](adr/0012-testing-strategy.md) and
 | QA-12 | Before each release, the manual hardware checklist in [testing.md](testing.md) MUST be completed on a real controller: all of it for a MINOR release; for a PATCH release, the smoke set and every step that checks a requirement changed since the last release (ADR 0032). | MUST | 1 |
 | QA-13 | Integration tests against a private D-Bus session bus (`dbus-run-session`) SHOULD run in CI. They run only when `APPTROL_DBUS_TEST=1` is set. | SHOULD | 1.5 |
 | QA-14 | Every new feature or change of behaviour MUST add or update its manual test cases and fixtures in [docs/testing/](testing/cases/README.md), in the format there. A phase MUST NOT be released without test cases for it; each release's run MUST be recorded in `docs/testing/runs/` (ADR 0031). | MUST | 1.5 |
+| QA-15 | The command lists for coding agents' tools ([`.claude/settings.json`](https://github.com/Dzobash/apptrol/blob/main/.claude/settings.json) for Claude Code, [`.codex/rules/apptrol.rules`](https://github.com/Dzobash/apptrol/blob/main/.codex/rules/apptrol.rules) for Codex) MUST allow the same commands and ask about the same commands; pushing and changes on GitHub MUST ask in both ([AGENTS.md](https://github.com/Dzobash/apptrol/blob/main/AGENTS.md) › How we work together). | MUST | 1.6 |
 
 ## 6. Later phases (outline)
 

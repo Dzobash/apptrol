@@ -102,10 +102,15 @@ from one to another.
   both folders inside the repository. Check `git status` and the current branch before
   the first edit; if there are changes you did not make, stop and ask.
 - **Start another agent only when the owner asks** (a child task or a new thread), and
-  say which tool and model it runs on.
+  say which tool and model it runs on. It runs at its model's default reasoning level or
+  lower; a lower level needs no OK. Anything above the default (high, extra high, max,
+  …), another model than the table below names, or wider permissions need the owner's
+  OK first: ask, with the reason and what it costs.
 - **Waiting and small jobs stay cheap.** Waiting on something that changes nothing (CI,
   a long read-only check) runs in the background, so the chat stays free: say so in one
-  line, no need to ask. A small helper job that needs an agent (e.g. summing up check
+  line, no need to ask. Running in the background does not make a command allowed; only
+  the commands in How we work together › Commands you may run yourself run without
+  asking. A small helper job that needs an agent (e.g. summing up check
   results) runs on a small model, Claude **Haiku 5.5** or GPT **6-Luna**; plans, code
   and PR reviews follow the table below. Anything that changes something
   (push, merge, issues, edits) still needs the owner's OK.
@@ -208,10 +213,33 @@ The owner wants to keep learning while working, not just receive finished result
   or a dated note on one.
 - **The owner often dictates.** When a word in an answer looks odd (speech-to-text
   writes "Flatback" for Flatpak), ask what was meant before acting on it.
-- **Commands you may run yourself:** git (branch, commit, push), `make check`,
-  `make test-audio`. Before each one, say in one or two sentences what you are doing and
-  why; afterwards, explain the result: what passed, what failed and what it means.
-  Pushing still needs the owner's OK first (see Workflow).
+- **Commands you may run yourself:**
+  ```
+  read only     read and search files in this repository and its worktrees; git and
+                GitHub commands that only read (status, log, diff, PR and issue views,
+                CI checks)
+  build, test   make check, make test-audio
+  git           list branches, git switch -c, commit (deleting or renaming a branch,
+                and push, only after the owner's OK, see Workflow)
+  waiting       any of these in the background, e.g. gh pr checks --watch for CI
+  ```
+  The exact commands are in [.claude/settings.json](.claude/settings.json) for Claude
+  Code and [.codex/rules/apptrol.rules](.codex/rules/apptrol.rules) for Codex: those run
+  without a prompt, and pushing or changing GitHub prompts. Both lists match how a
+  command starts, not its arguments (`make check` lets `make check other-target`
+  through), so this list still decides which arguments are fine. Codex applies its rules
+  to commands outside its sandbox, and only when the project is trusted in Codex, from
+  its next start. A new command goes into both files (a test checks they match). Run
+  commands from the checkout's folder, one per call (no `cd … &&`, no `git -C`), so
+  they match the lists.
+  Before a command that does more than read, say in one or two sentences what you are
+  doing and why; afterwards, explain the result: what passed, what failed and what it
+  means. Pushing, opening a PR, creating issues and any other change on GitHub still
+  need the owner's OK first (see Workflow).
+  **Anything not on this list needs the owner's OK first**, even when it would help
+  (e.g. Docker to rebuild CI's system, a VM, installing a package): a missing rule is
+  not permission. Say what you would run and why, then wait. A sub-agent's task names
+  the commands it may run.
   **During a manual test run only**
   ([how-to](docs/testing/how-to-run-release-tests.md)): also
   `docs/testing/apply-fixture.sh` and reading Apptrol's journal

@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   column yet (mute and output solo follow), and `device = "default"` is still inactive,
   with a warning (OUT-01, OUT-02, OUT-04, OUT-05, OUT-13,
   [ADR 0027](docs/adr/0027-output-volume.md), Refs #85).
+- `make check` and CI cross-compile the shared packages for Windows without cgo,
+  catching accidental Linux dependencies early. The configuration watcher keeps its
+  inode check on Linux and uses modification time and size elsewhere. This guards
+  portability; Windows support remains separate (NFR-11, #93).
 - `apptrol list` shows the output devices (speakers, headphones, each output of an
   audio interface) with their description, unique name and volume; `*` marks the one the
   system uses right now. Monitors are listed neither as inputs nor as outputs. With
@@ -74,6 +78,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer read it (CFG-19).
 
 ### Fixed
+- A slider moved in the 3 seconds after an app's stream or an input appears can no
+  longer be undone by the older volume: when WirePlumber restored a remembered volume at
+  the same moment, Apptrol could set the slider's previous position after the new one.
+  The slider's volume now waits for Apptrol's own correction to finish (CTRL-04,
+  CTRL-05, PRIO-03, #158).
+- The .deb and .rpm descriptions now explain the controller features, background
+  service and audio requirements, with a short synopsis for software centres. This
+  removes Lintian's two description hints (NFR-10, #152).
 - The .deb now carries its copyright file in Debian's standard machine-readable format, which `lintian` expects (NFR-09, #97).
 - App settings misplaced under a layout now point to the table they belong in,
   `[apps.<id>]`, `[inputs.<id>]` or `[outputs.<id>]`, in reload errors and `apptrol check` (CFG-08,
