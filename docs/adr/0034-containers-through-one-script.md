@@ -145,8 +145,9 @@ command lists (AGENTS.md, QA-15). That did not work well:
 - **Allowing `docker` or `podman` with arguments in the command lists.** Not possible
   safely (point 2).
 - **Docker with `--privileged`.** Needed for systemd in a Docker container (the narrower
-  form exited silently); it is close to root on the host. Kept only as a fallback inside
-  the script if rootless Podman cannot run a check.
+  form exited silently). It is close to root on the host and it puts a bridge on the
+  host network. The script stays on rootless Podman. If that cannot run a check, the
+  decision is revisited in a new ADR.
 - **Docker Sandboxes**: the whole agent session in a microVM with its own Docker. Strong
   isolation, but it solves another problem (the agent, not the test), Docker lists only
   macOS and Windows as of 2026-10, and `make test-audio`, the controller and the test
