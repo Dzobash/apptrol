@@ -62,6 +62,16 @@ func (g *guard) check(volume float64, muted bool) (setVol *float64, setMute *boo
 
 func newGuardNow() *guard { return &guard{until: time.Now().Add(newGuard)} }
 
+// outputRecheck is how long after a volume write within the new-output guard's
+// window the adapter reads the output again. The server answers a write once
+// it has passed it on, not once the device has it: PipeWire 1.0 can lose a
+// write in a new device's first moments without reporting any change, so the
+// guard, which acts on reported changes, would never see it (OUT-05, ADR 0027,
+// #166).
+//
+//	write 30 % ─► success ─► (lost) ─► 200 ms: read 100 % ─► 30 % again ─► 200 ms: read 30 %
+const outputRecheck = 200 * time.Millisecond
+
 // ownMute is how long Apptrol waits to see the change its own mute caused.
 // It only bounds how long the expected value is kept, e.g. when a write
 // failed; it never hides a change (MUTE-07, #118).
@@ -111,6 +121,10 @@ type Backend struct {
 	// Never reset on removal or reconnect: an old buffered answer must not
 	// acknowledge a new incarnation of the same name (CTRL-06, ADR 0027).
 	outputGeneration uint64
+	// recheck carries the outputs to read again outputRecheck after a write
+	// within the guard's window; session reads them in turn with the change
+	// notifications (OUT-05, ADR 0027, #166).
+	recheck chan string
 
 	muteWant    map[uint32]muteWant // the mute Apptrol last set on a stream
 	devMuteWant map[string]muteWant // the mute Apptrol last set on a device
@@ -129,6 +143,9 @@ type Backend struct {
 	streamWrite func(id uint32, channels int, v float64) error
 	sourceWrite func(name string, channels int, v float64) error
 	outputWrite func(name string, channels int, v float64) error
+	// outputRead replaces recheckOutput's read of an output by name in tests;
+	// nil reads from the server (OUT-05, QA-11, #166).
+	outputRead func(name string) (SinkInfo, error)
 
 	// beforeWire, if set, runs in Apply just before it waits for wire, so a
 	// test knows when Apply waits instead of sleeping (QA-11); nil in use.
@@ -138,7 +155,8 @@ type Backend struct {
 // New returns a Backend. server is a PulseAudio server string; "" uses the
 // default (PULSE_SERVER, or the user's pipewire-pulse socket).
 func New(log *slog.Logger, server string) *Backend {
-	return &Backend{log: log.With(logattr.Component(logattr.Audio)), server: server, retryMin: 500 * time.Millisecond, retryMax: 5 * time.Second}
+	return &Backend{log: log.With(logattr.Component(logattr.Audio)), server: server, retryMin: 500 * time.Millisecond, retryMax: 5 * time.Second,
+		recheck: make(chan string, 64)}
 }
 
 // Run connects and keeps the connection until ctx is canceled. After each
@@ -280,8 +298,46 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 					return err
 				}
 			}
+		case name := <-b.recheck:
+			b.wire.Lock()
+			err := b.recheckOutput(k, &t, name)
+			b.wire.Unlock()
+			if err != nil {
+				return err
+			}
 		}
 	}
+}
+
+// recheckOutput reads an output again after a write within the new-output
+// guard's window and defends it as a reported volume change would be, so a
+// write the server lost is set again (OUT-05, ADR 0027, #166). It is called
+// with wire held. An output without a guard is left alone; one that is gone or
+// has a new name or description is left to its change notification, so the
+// mixer still decides first (CTRL-06).
+func (b *Backend) recheckOutput(k *conn, t *tracker, name string) error {
+	b.mu.Lock()
+	_, guarded := b.outGuard[name]
+	b.mu.Unlock()
+	if !guarded {
+		return nil
+	}
+	read := k.sinkByName
+	if b.outputRead != nil {
+		read = b.outputRead
+	}
+	d, err := read(name)
+	if err != nil {
+		if IsGone(err) {
+			return nil
+		}
+		return err
+	}
+	if old, known := t.outputs[d.Index]; !known || !sameOutputIdentity(old, d.Device) {
+		return nil
+	}
+	b.log.Debug("output read again after a volume write", logattr.KeyDeviceName, name)
+	return b.sinkRead(k, &d, true)
 }
 
 // handle turns one change notification into mixer events, possibly none. One
@@ -658,15 +714,16 @@ func (b *Backend) restoreOutput(k *conn, name string, channels int, read float64
 }
 
 // setOutputVolume writes an output device's volume, through outputWrite in
-// tests, and logs the server's answer at debug: a write the server accepted
-// shows as success, so a volume that still reads otherwise was changed
-// afterwards, not lost on the way (OUT-01, OUT-13, ADR 0027).
+// tests, and logs the server's answer at debug (OUT-01, OUT-13, ADR 0027).
 //
 // A write the server accepted is also the guard's last read: it runs with
 // wire held, so no read can come in between, and a later restore is read
 // again. Without it, a KeepOutput right after the mixer's first volume
 // compared the read from before the write and set the volume twice (OUT-05,
 // CTRL-06, ADR 0027). A failed write keeps the read it had.
+//
+// Accepted is not applied, though: within the guard's window the output is
+// read again after outputRecheck, which sets a lost write again (#166).
 func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64) error {
 	var err error
 	if b.outputWrite != nil {
@@ -676,6 +733,7 @@ func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64)
 	}
 	attrs := []any{logattr.KeyDeviceName, name, logattr.KeyAudioChannels, channels,
 		logattr.KeyWanted, percent(v), logattr.KeyAudioResult, "success"}
+	guarded := false
 	if err != nil {
 		attrs[len(attrs)-1] = "failed"
 		attrs = append(attrs, logattr.Error(logattr.ErrAudioApply, err))
@@ -683,10 +741,22 @@ func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64)
 		b.mu.Lock()
 		if g := b.outGuard[name]; g != nil {
 			g.read = &v
+			guarded = true
 		}
 		b.mu.Unlock()
 	}
 	b.log.Debug("output volume request completed", attrs...)
+	if guarded {
+		// A full queue drops the read again, logged so that a lost write left
+		// unchecked shows in the log; reported changes are still defended.
+		time.AfterFunc(outputRecheck, func() {
+			select {
+			case b.recheck <- name:
+			default:
+				b.log.Debug("output read again skipped; too many waiting", logattr.KeyDeviceName, name)
+			}
+		})
+	}
 	return err
 }
 

@@ -212,3 +212,32 @@ PipeWire or PulseAudio.
   ```text
   read 100 % ─► Set 30 % (written, read = 30 %) ─► KeepOutput: at wanted ─► read 100 % ─► 30 % again
   ```
+- 2026-10-21: A write the server accepted can still be lost (#166). On CI's PipeWire
+  1.0.5, Apptrol set a test output to 30 % one millisecond after it appeared; the
+  server answered success, but the output kept 100 % and no change was ever reported,
+  so the guard, which acts on reported changes, had nothing to answer. PipeWire's
+  pulse server answers once it has passed the request on to the device, not once the
+  device has it. The owner chose to have the guard check its own writes (option B)
+  over making only the test wait for a settled device (option A): OUT-05 promises that
+  a new output gets the control's volume, on any PipeWire version.
+
+  Within the guard's window, every volume write the server accepted is followed by a
+  read of the output 200 ms later, in turn with the change notifications (under
+  `wire`). The read is defended like a reported volume change: a lost write is set
+  again, and that write is checked again, until the window ends. An output that is
+  gone, or reads with a new name or description, is left to its own notification, so
+  the mixer still decides first (CTRL-06). One record is added to the logging table
+  (point 12), with no new attribute; the `output device read` that follows it shows
+  what the guard made of the read:
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | debug | `output read again after a volume write` (audio adapter) | `apptrol.device.name` |
+  | debug | `output read again skipped; too many waiting` (audio adapter) | `apptrol.device.name` |
+
+  The second, from the PR's review, logs a read-back dropped because 64 are already
+  waiting (only when the adapter is stuck), so that an unchecked write is not silent.
+
+  ```text
+  write 30 % ─► success ─► (lost) ─► 200 ms: read 100 % ─► 30 % again ─► 200 ms: read 30 %
+  ```

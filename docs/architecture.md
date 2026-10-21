@@ -238,6 +238,16 @@ has chosen (`outputFor`):
 
   At debug, the adapter logs each read of an output (`output device read`, with
   `apptrol.audio.guard.state`) and the server's answer to each volume it sets.
+  The server answers once it has passed a write on, not once the device has it, and
+  PipeWire 1.0 can lose a write to a brand-new device without reporting anything. So
+  within the guard's window, each accepted write schedules a read of the output
+  200 ms later; `session` takes it from the `recheck` queue in turn with the change
+  notifications (under `wire`) and defends it like a reported volume change (#166).
+
+  ```
+  write 30 % ─► success ─► (lost) ─► 200 ms: read 100 % ─► 30 % again ─► 200 ms: read 30 %
+  ```
+
   Every reported output identity, including snapshots, carries an adapter-generated
   `Device.Generation`. The pure mixer only echoes it in `KeepOutput` or `ReleaseOutput`.
   The adapter accepts only the newest generation's answer; until then, subsequent
@@ -581,7 +591,10 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
 - `audio/pulse`: integration tests against a headless PipeWire in CI: streams, a test
   input and a silent test output that appear and go, the test output's volume set to
   30 % and read back, the new-output guard setting it back within its 3 seconds and
-  leaving it after them, `apptrol list`'s data, and a reconnect. Turning sink
+  leaving it after them, a first write the server accepts but loses being set again
+  by the guard's read-back (#166), `apptrol list`'s data, and a reconnect. The
+  read-back's cases that must not write (no guard, gone, new description, pending
+  ownership, released, expired) are unit-tested through the `outputRead` hook. Turning sink
   notifications into events, and the new-output guard (a slider move during a guard
   write, release, keep after a new description), are unit-tested on their own, and so
   is a slider move during a new-stream or new-input guard's write (#158). Tests

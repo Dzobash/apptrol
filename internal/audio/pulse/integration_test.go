@@ -331,6 +331,21 @@ func newOutput(t *testing.T, base string) (*Backend, string) {
 	return b, out
 }
 
+// serverOutputWrite is what Backend.outputWrite does when nil: it writes an
+// output's volume over the backend's connection. Tests wrap it to count or
+// drop writes (OUT-05, #166).
+func serverOutputWrite(b *Backend) func(name string, channels int, v float64) error {
+	return func(name string, channels int, v float64) error {
+		b.mu.Lock()
+		k := b.cur
+		b.mu.Unlock()
+		if k == nil {
+			return ErrNotConnected
+		}
+		return k.setSinkVolume(name, channels, v)
+	}
+}
+
 // setSinkVolume changes an output's volume from outside Apptrol, as
 // WirePlumber restoring a remembered volume or the desktop's applet would.
 func setSinkVolume(t *testing.T, name, percent string) {
@@ -371,17 +386,12 @@ func TestIntegration_OUT05_GuardSetsTheOutputVolumeAgain(t *testing.T) {
 	// that too, so only the outcome is checked within the window.
 	var mu sync.Mutex
 	var writes []float64
+	write := serverOutputWrite(b)
 	b.outputWrite = func(name string, channels int, v float64) error {
-		b.mu.Lock()
-		k := b.cur
-		b.mu.Unlock()
-		if k == nil {
-			return ErrNotConnected
-		}
 		mu.Lock()
 		writes = append(writes, v)
 		mu.Unlock()
-		return k.setSinkVolume(name, channels, v)
+		return write(name, channels, v)
 	}
 	written := func() int { mu.Lock(); defer mu.Unlock(); return len(writes) }
 	if err := b.Apply(mixer.SetOutputVolume{Device: out, Volume: 0.3}); err != nil {
@@ -422,6 +432,39 @@ func TestIntegration_OUT05_GuardSetsTheOutputVolumeAgain(t *testing.T) {
 		mu.Unlock()
 	}
 	waitSink(t, out, func(s SinkInfo) bool { return near(s.Volume, 0.7) })
+}
+
+// TestIntegration_OUT05_GuardSetsALostWriteAgain: the server accepts
+// Apptrol's first volume for a new output but never applies it, and reports
+// no change, as PipeWire 1.0 did on CI (#166). The guard reads the output
+// again after its write and sets 30 % again (OUT-05, ADR 0027).
+//
+//	appears ─ Apply 30 % (accepted, lost) ─ 200 ms: read 100 % ─► 30 % again
+func TestIntegration_OUT05_GuardSetsALostWriteAgain(t *testing.T) {
+	needServer(t)
+	b, out := newOutput(t, "apptrol_test_lost_out")
+	var mu sync.Mutex
+	var writes []float64
+	write := serverOutputWrite(b)
+	b.outputWrite = func(name string, channels int, v float64) error {
+		mu.Lock()
+		writes = append(writes, v)
+		first := len(writes) == 1
+		mu.Unlock()
+		if first {
+			return nil // accepted, but never reaches the device
+		}
+		return write(name, channels, v)
+	}
+	if err := b.Apply(mixer.SetOutputVolume{Device: out, Volume: 0.3}); err != nil {
+		t.Fatal(err)
+	}
+	waitSink(t, out, func(s SinkInfo) bool { return near(s.Volume, 0.3) })
+	mu.Lock()
+	defer mu.Unlock()
+	if len(writes) < 2 {
+		t.Errorf("writes = %v, want the lost 30 %% set again", writes)
+	}
 }
 
 // TestIntegration_MEDIA10_Cork pauses and resumes a real stream, as a browser
