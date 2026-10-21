@@ -47,17 +47,33 @@ command lists (AGENTS.md, QA-15). That did not work well:
 
 2. **Every container run goes through one script, and only the script is allowed.**
    Agents run `make test-systemd` (the systemd check) or `make container-run
-   RECIPE=<name>` (anything else). Both run without asking. Typed `docker`, `podman`
-   and `buildah` are blocked for agents in both command lists (Claude Code `deny`,
-   Codex `forbidden`), so "every run is recorded" does not depend on an agent
-   remembering it. Needing a flag the script does not allow (a device, `--privileged`)
-   means a pull request that changes the script: limits change in review, in git.
+   RECIPE=<name>` (anything else). Both run without asking. With the script, typed
+   `docker`, `podman` and `buildah` become blocked for agents in both command lists
+   (Claude Code `deny`, Codex `forbidden`). Needing a flag the script does not allow (a
+   device, `--privileged`) means a pull request that changes the script: limits change
+   in review, in git.
 
    ```
    agent:   make container-run RECIPE=<name>          allowed
               └─ script: podman build / run / rm      fixed flags, the agent adds none
-   agent:   podman run …   docker run …               blocked
+   agent:   podman run …   docker run …               blocked: refused, the owner is not asked
+   agent:   sudo podman …  bash -c "podman …"         not blocked: the owner is asked → say no
    ```
+
+   **The block stops only the literal command.** Both lists match the first words of a
+   command (the same reason `docker run` cannot be allowed safely), so a command that
+   starts with another word (`sudo`, `env`, `nice`, `bash -c`, `/usr/bin/podman`) is
+   not blocked. It is not allowed either, so the owner is asked; a yes would run a
+   container outside the script, with no record and none of point 3's rules. Such a
+   request is answered no, as ADR 0022 says of denylists in general. The real guard is
+   that the script alone writes Podman's arguments:
+
+   - `RECIPE` is a plain name (letters, digits, `-`) of an existing recipe folder;
+     anything else is refused.
+   - The Makefile keeps no flags in variables: `make` lets the command line override a
+     variable (`make container-run RECIPE=x FLAGS=--privileged`), so nothing the
+     command line can set reaches Podman.
+   - `commands.sh` runs **inside** the container, never on the host.
 
 3. **The container sees only the repository.** The script mounts the checkout
    read-only, plus one writable folder inside it, and refuses any other host path, so
@@ -118,13 +134,27 @@ command lists (AGENTS.md, QA-15). That did not work well:
    machine) and compares `systemctl --user show -p StatusText apptrol` with the
    expected text: `<version> · controller not found`, then `waiting for a valid
    configuration` after a broken config, then `controller not found` again after the
-   fix (SVC-13). It is **not** one of the required checks at first. It becomes one when
-   `runs.log` shows **300 green runs of the same recipe in a row** on the owner's
-   machine (the failure rate is then below 1 % with 95 % confidence; rule of three)
-   **and 10 green CI runs** from normal pull requests. One unexplained red run resets
-   the count and gets an issue. Timeouts in the script are generous (60 s for systemd
-   to start, 15 s for a Status line to change), so a slow container under load is not
-   counted as a flaky test.
+   fix (SVC-13). A container has no controller, so its last line stays `controller not
+   found`; `controller connected · N controls assigned` is the hardware case's
+   (TC-SVC-001) and is not copied here. The job prepares rootless Podman on the runner
+   itself (user namespaces, the runner user's subuid and subgid ranges) before it calls
+   `make test-systemd`.
+
+   It is **not** one of the required checks at first. It becomes one when `runs.log`
+   shows **300 green runs in a row for each distro's recipe** on the owner's machine
+   (the failure rate is then below 1 % with 95 % confidence; rule of three) **and 10
+   green CI runs** from normal pull requests. The distros run side by side; each is
+   counted on its own, because each has its own systemd and one can be flaky while
+   another is not. A distro added later starts its own count.
+
+   ```
+   Ubuntu 26.04   ✓✓✓✓✓✓ … 300 in a row   → counts toward required
+   Fedora         ✓✓✓✗✓✓ …                → its count starts again; the red run gets an issue
+   ```
+
+   One unexplained red run resets that distro's count and gets an issue. Timeouts in
+   the script are generous (60 s for systemd to start, 15 s for a Status line to
+   change), so a slow container under load is not counted as a flaky test.
 
 7. **Files.** `test/container/` holds one Dockerfile per distro and the one script,
    used locally and in CI. `docs/testing/` stays the manual cases; `packaging/` stays
@@ -133,12 +163,31 @@ command lists (AGENTS.md, QA-15). That did not work well:
 8. **What containers cannot check** stays manual: the controller (no MIDI device), a
    second user in front of the computer (ADR 0029), sound (no PipeWire), and the short
    `stopping` state. TC-SVC-001 stays a hardware case. Later the same containers can
-   take installing the `.deb` and `.rpm` with `apt` and `dnf` and `make test-launcher`;
-   the desktop half of #116 (GNOME, on-screen display) stays in VMs.
+   take installing the `.deb` and `.rpm` with `apt` and `dnf` and `make test-launcher`:
+   that is the install half of #116. The rest of #116 stays in VMs: `make test-audio`
+   with PipeWire and with plain PulseAudio (the containers have no sound server), and
+   the desktops (GNOME, on-screen display).
 
-9. **Logging.** The script is a developer tool, not part of Apptrol: ADR 0016 does not
-   apply. Its record is `runs.log` (point 5); it prints each step with the host path,
-   the container path and the image, so a failed run can be read from its log alone.
+9. **To prove in the script's pull request.** The hand check in PR #167 ran in Docker
+   with `--privileged`; nobody has run it in rootless Podman yet. The script's pull
+   request shows it works, or brings the question back to the owner as a new ADR (see
+   *Considered and left for later*). Known points to check:
+
+   - systemd's login service may not start inside a container, so the test user's
+     systemd (`systemctl --user`) may need to be started by the image itself.
+   - With `--network none`, units that wait for a network (e.g.
+     `systemd-networkd-wait-online`) are masked in the image, or every run waits out
+     its timeout.
+   - Each limit in point 4 is applied or the run fails; a limit is never dropped
+     quietly. `--memory=512m --memory-swap=512m` was accepted on the owner's machine
+     (2026-10-21, image `ubuntu:24.04`, command `true`); a CI runner may lack the
+     `memory` controller.
+   - The missing cpu controller is this machine's systemd setting, not a property of
+     Podman; `nice` sets a priority, not a cap.
+
+10. **Logging.** The script is a developer tool, not part of Apptrol: ADR 0016 does not
+    apply. Its record is `runs.log` (point 5); it prints each step with the host path,
+    the container path and the image, so a failed run can be read from its log alone.
 
 ### Considered and left for later
 
@@ -157,15 +206,18 @@ command lists (AGENTS.md, QA-15). That did not work well:
 
 - Agents run containers without prompts, and the owner can see afterwards what ran
   (recipe), when, by which agent, on which commit, and whether it passed.
-- Raw `docker` and `podman` no longer work for agents at all, even with the owner's OK
-  in the chat. The owner can still use both. A new need is a change to the script.
+- With the script's pull request, a typed `docker` or `podman` is refused for agents,
+  even after an OK in the chat. A wrapped one (`sudo podman …`) is asked about and
+  answered no (point 2). The owner can still use both. A new need is a change to the
+  script.
 - Containers no longer touch the host's network setup or the desktop's network
   notifications.
 - The flakiness of the new CI job is measured, not guessed. The same `runs.log` could
   later count the reruns of the Test job (#166).
 - Podman must be installed on the developer's machine (`apt install podman`; it does
   not touch an installed Docker). Rootless Podman needs the user's subuid and subgid
-  ranges, which Ubuntu and Fedora create for new users.
+  ranges, which Ubuntu and Fedora create for new desktop users; a CI runner's user
+  gets them from the job (point 6).
 - Delivered in small pull requests: this decision and the AGENTS.md rule; then
   `test/container/`, the script, `make test-systemd` and `make container-run`, the
   command lists and their test (QA-15, QA-16); then the CI job; later, making it

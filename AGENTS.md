@@ -245,10 +245,12 @@ The owner wants to keep learning while working, not just receive finished result
   RECIPE=<name>`), which records it in `.audit/`. The script mounts only the checkout,
   read-only, and `.tmp/<run>/` inside it as the one writable folder (ignored by git):
   never `~/.ssh`, the rest of the home folder or `/run/user/…`, and no
-  `SSH_AUTH_SOCK`. Typed `docker`, `podman` and `buildah` are blocked; a flag the
-  script lacks is a pull request to the script. Until the script is merged, each
-  `podman` command needs the owner's OK, and the request names both sides
-  (`host <repo>/bin/apptrol → container /usr/bin/apptrol, read-only`).
+  `SSH_AUTH_SOCK`. A flag the script lacks is a pull request to the script. With the
+  script, typed `docker`, `podman` and `buildah` become blocked; until then each one
+  needs the owner's OK, and the request names both sides
+  (`host <repo>/bin/apptrol → container /usr/bin/apptrol, read-only`). The block
+  matches only a command's first word, so never wrap one to get past it (`sudo`,
+  `env`, `nice`, `bash -c`); the owner answers such a request no.
   **During a manual test run only**
   ([how-to](docs/testing/how-to-run-release-tests.md)): also
   `docs/testing/apply-fixture.sh` and reading Apptrol's journal
