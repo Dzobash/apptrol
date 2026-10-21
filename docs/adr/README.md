@@ -42,3 +42,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0031](0031-manual-test-cases-as-docs.md) | Manual test cases as docs, with fixtures and a record of every run | Accepted; how many run for a patch release: see 0032 |
 | [0032](0032-patch-releases-test-what-changed.md) | Patch releases test what changed, plus a smoke set | Accepted |
 | [0033](0033-r-and-play-ignore-short-pauses.md) | R and ▶ ignore pauses shorter than half a second | Accepted |
+| [0034](0034-containers-through-one-script.md) | Containers: rootless Podman through one script, with an audit record of every run | Accepted |
