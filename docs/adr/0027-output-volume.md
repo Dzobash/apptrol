@@ -233,6 +233,10 @@ PipeWire or PulseAudio.
   | Level | Message | Attributes |
   |---|---|---|
   | debug | `output read again after a volume write` (audio adapter) | `apptrol.device.name` |
+  | debug | `output read again skipped; too many waiting` (audio adapter) | `apptrol.device.name` |
+
+  The second, from the PR's review, logs a read-back dropped because 64 are already
+  waiting (only when the adapter is stuck), so that an unchecked write is not silent.
 
   ```text
   write 30 % ─► success ─► (lost) ─► 200 ms: read 100 % ─► 30 % again ─► 200 ms: read 30 %

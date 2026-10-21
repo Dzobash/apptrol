@@ -143,6 +143,9 @@ type Backend struct {
 	streamWrite func(id uint32, channels int, v float64) error
 	sourceWrite func(name string, channels int, v float64) error
 	outputWrite func(name string, channels int, v float64) error
+	// outputRead replaces recheckOutput's read of an output by name in tests;
+	// nil reads from the server (OUT-05, QA-11, #166).
+	outputRead func(name string) (SinkInfo, error)
 
 	// beforeWire, if set, runs in Apply just before it waits for wire, so a
 	// test knows when Apply waits instead of sleeping (QA-11); nil in use.
@@ -319,7 +322,11 @@ func (b *Backend) recheckOutput(k *conn, t *tracker, name string) error {
 	if !guarded {
 		return nil
 	}
-	d, err := k.sinkByName(name)
+	read := k.sinkByName
+	if b.outputRead != nil {
+		read = b.outputRead
+	}
+	d, err := read(name)
 	if err != nil {
 		if IsGone(err) {
 			return nil
@@ -707,9 +714,7 @@ func (b *Backend) restoreOutput(k *conn, name string, channels int, read float64
 }
 
 // setOutputVolume writes an output device's volume, through outputWrite in
-// tests, and logs the server's answer at debug: a write the server accepted
-// shows as success, so a volume that still reads otherwise was changed
-// afterwards, not lost on the way (OUT-01, OUT-13, ADR 0027).
+// tests, and logs the server's answer at debug (OUT-01, OUT-13, ADR 0027).
 //
 // A write the server accepted is also the guard's last read: it runs with
 // wire held, so no read can come in between, and a later restore is read
@@ -742,11 +747,13 @@ func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64)
 	}
 	b.log.Debug("output volume request completed", attrs...)
 	if guarded {
-		// A full queue drops the read again; reported changes are still defended.
+		// A full queue drops the read again, logged so that a lost write left
+		// unchecked shows in the log; reported changes are still defended.
 		time.AfterFunc(outputRecheck, func() {
 			select {
 			case b.recheck <- name:
 			default:
+				b.log.Debug("output read again skipped; too many waiting", logattr.KeyDeviceName, name)
 			}
 		})
 	}

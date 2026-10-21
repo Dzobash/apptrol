@@ -550,7 +550,10 @@ dialog.
 - `audio/pulse`: integration tests against a headless PipeWire in CI: streams, a test
   input and a silent test output that appear and go, the test output's volume set to
   30 % and read back, the new-output guard setting it back within its 3 seconds and
-  leaving it after them, `apptrol list`'s data, and a reconnect. Turning sink
+  leaving it after them, a first write the server accepts but loses being set again
+  by the guard's read-back (#166), `apptrol list`'s data, and a reconnect. The
+  read-back's cases that must not write (no guard, gone, new description, pending
+  ownership, released, expired) are unit-tested through the `outputRead` hook. Turning sink
   notifications into events, and the new-output guard (a slider move during a guard
   write, release, keep after a new description), are unit-tested on their own, and so
   is a slider move during a new-stream or new-input guard's write (#158). Tests

@@ -267,7 +267,9 @@ new description waits for the mixer: `output kept by a control; …` then checks
 volume it read (OUT-05, OUT-13). A request that succeeded was passed on to the
 device, not necessarily applied: within the three seconds, the adapter reads the
 output again 200 ms after each write and sets a volume the server lost again
-(`output read again after a volume write`, #166):
+(`output read again after a volume write`, #166). If 64 read-backs are already
+waiting, which only happens when the adapter is stuck, the read is dropped and logged
+as `output read again skipped; too many waiting`:
 
 ```text
 DEBU output volume request completed apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.audio.channels=2 apptrol.wanted_percent=40 apptrol.audio.result=success
