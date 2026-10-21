@@ -19,6 +19,7 @@ import (
 	"github.com/Dzobash/apptrol/internal/logattr"
 	"github.com/Dzobash/apptrol/internal/mixer"
 	"github.com/Dzobash/apptrol/internal/state"
+	"github.com/Dzobash/apptrol/internal/version"
 )
 
 // fakeAudio is an audio server that reports a fixed set of streams and
@@ -217,6 +218,50 @@ type env struct {
 	launcher     fakeLauncher
 	session      fakeSession
 	desktop      *fakeDesktop // nil: no media players
+	status       *fakeStatus  // nil: no Status line
+}
+
+// fakeStatus records the Status lines the service sends (SVC-13).
+type fakeStatus struct {
+	mu      sync.Mutex
+	texts   []string
+	flushed []string // the last text when Flush was called, and how long it may wait
+}
+
+func (f *fakeStatus) SetStatus(text string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.texts = append(f.texts, text)
+}
+
+func (f *fakeStatus) Flush(wait time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	last := ""
+	if len(f.texts) > 0 {
+		last = f.texts[len(f.texts)-1]
+	}
+	f.flushed = append(f.flushed, fmt.Sprintf("%s (waiting at most %v)", last, wait))
+}
+
+func (f *fakeStatus) list() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.texts...)
+}
+
+func (f *fakeStatus) last() string {
+	l := f.list()
+	if len(l) == 0 {
+		return ""
+	}
+	return l[len(l)-1]
+}
+
+// statusLine is the Status line with the running version in front.
+func statusLine(state string) string {
+	ver, _, _ := version.Info()
+	return ver + " · " + state
 }
 
 // fakeDesktop reports the media players a test sends through in.
@@ -354,6 +399,9 @@ func (e *env) start() *env {
 	}
 	if e.desktop != nil {
 		o.Desktop = e.desktop
+	}
+	if e.status != nil {
+		o.Status = e.status
 	}
 	go func() { e.done <- Run(ctx, o) }()
 	e.t.Cleanup(e.stop)
@@ -1002,4 +1050,124 @@ func TestMEDIA09_APauseShowsOnTheLEDsOnlyAfterTheDelay(t *testing.T) {
 		t.Errorf("R2 went dark after %v, before the 150 ms delay", waited)
 	}
 	e.waitLog("pause shown on the LEDs")
+}
+
+// waitStatus waits until the last Status line sent is want.
+func (e *env) waitStatus(want string) {
+	e.t.Helper()
+	e.eventually("status "+want, func() bool { return e.status.last() == want })
+}
+
+func TestSVC13_StatusLineFollowsTheController(t *testing.T) {
+	e := newEnv(t, testConfig)
+	e.status = &fakeStatus{}
+	e.start()
+
+	// The controller connects at once in the fake; testConfig assigns 3 controls.
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+
+	e.send(mixer.ControllerDisconnected{})
+	e.waitStatus(statusLine("controller not found"))
+
+	e.send(mixer.ControllerConnected{})
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+
+	e.send(mixer.SeatChanged{Front: mixer.FrontOtherUser, SessionID: "c2"})
+	e.waitStatus(statusLine("controller released (another user in front)"))
+
+	// A late event of the controller does not take it back (SVC-09).
+	e.send(mixer.ControllerConnected{Resync: true})
+	e.send(mixer.SeatChanged{Front: mixer.FrontThisUser, SessionID: "c1"})
+	e.waitStatus(statusLine("controller not found")) // until the controller connects again
+	e.send(mixer.ControllerConnected{})
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+}
+
+func TestSVC13_OnlyAChangeIsSent(t *testing.T) {
+	e := newEnv(t, testConfig)
+	e.status = &fakeStatus{}
+	e.start()
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+
+	// The controller says it is there again (LED resync), and the service
+	// resends the LEDs after the audio server's snapshot: nothing changes.
+	e.send(mixer.ControllerConnected{Resync: true})
+	e.send(slider(1, 64))
+	e.waitApplied(mixer.SetStreamVolume{StreamID: spotify.ID, Volume: 64.0 / 127})
+
+	want := []string{
+		statusLine("controller not found"),
+		statusLine("controller connected · 3 controls assigned"),
+	}
+	if got := e.status.list(); !reflect.DeepEqual(got, want) {
+		t.Errorf("status lines = %q, want %q", got, want)
+	}
+}
+
+func TestSVC13_WaitingForAValidConfiguration(t *testing.T) {
+	e := newEnv(t, "[apps.broken]\n")
+	e.status = &fakeStatus{}
+	e.start()
+	e.waitStatus(statusLine("waiting for a valid configuration"))
+
+	e.write(testConfig)
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+}
+
+func TestSVC13_TheNumberFollowsAReloadedConfiguration(t *testing.T) {
+	e := newEnv(t, testConfig)
+	e.status = &fakeStatus{}
+	e.start()
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+
+	e.write(strings.Replace(testConfig, `slider8 = "mic"`, "", 1))
+	e.waitStatus(statusLine("controller connected · 2 controls assigned"))
+}
+
+func TestSVC13_StatusSaysStoppingOnShutdown(t *testing.T) {
+	e := newEnv(t, testConfig)
+	e.status = &fakeStatus{}
+	e.start()
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+
+	e.stop()
+	if got, want := e.status.last(), statusLine("stopping"); got != want {
+		t.Errorf("last status = %q, want %q", got, want)
+	}
+	// Shutdown waits for it to reach systemd, but only briefly (SVC-13).
+	want := []string{statusLine("stopping") + " (waiting at most 200ms)"}
+	e.status.mu.Lock()
+	defer e.status.mu.Unlock()
+	if !reflect.DeepEqual(e.status.flushed, want) {
+		t.Errorf("Flush calls = %q, want %q", e.status.flushed, want)
+	}
+}
+
+// The controller's LED resends come from their own goroutine, so one can arrive
+// after the disconnect; it must not make a missing controller look connected,
+// because no later event would correct the Status line (SVC-13).
+func TestSVC13_ALateResyncDoesNotMakeTheControllerConnected(t *testing.T) {
+	s := &service{}
+	for _, step := range []struct {
+		ev   mixer.Event
+		want bool
+	}{
+		{mixer.ControllerConnected{}, true},
+		{mixer.ControllerConnected{Resync: true}, true},
+		{mixer.ControllerDisconnected{}, false},
+		{mixer.ControllerConnected{Resync: true}, false}, // late
+		{mixer.ControllerConnected{}, true},              // plugged in again
+	} {
+		s.trackController(step.ev)
+		if s.connected != step.want {
+			t.Fatalf("after %+v: connected = %v, want %v", step.ev, s.connected, step.want)
+		}
+	}
+
+	// A connect while the controller is let go does not count either (SVC-09).
+	s.connected, s.released = false, true
+	s.trackController(mixer.ControllerConnected{})
+	if s.connected {
+		t.Error("a connect event while released made the controller connected")
+	}
 }

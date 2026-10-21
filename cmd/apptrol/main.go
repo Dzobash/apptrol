@@ -37,6 +37,7 @@ import (
 	"github.com/Dzobash/apptrol/internal/service"
 	"github.com/Dzobash/apptrol/internal/session"
 	"github.com/Dzobash/apptrol/internal/state"
+	"github.com/Dzobash/apptrol/internal/systemd"
 	"github.com/Dzobash/apptrol/internal/version"
 )
 
@@ -163,6 +164,7 @@ func cmdRun(configPath string, level *slog.Level, levelName string) error {
 		Desktop:      desktop.New(log, ""),
 		Session:      session.New(log, ""),
 		Launcher:     launcher.NewStarter(log),
+		Status:       systemd.New(log), // the Status line of `systemctl status` (SVC-13)
 		NewController: func(port string) service.Controller {
 			return rawmidi.New(log, port)
 		},

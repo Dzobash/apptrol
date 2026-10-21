@@ -69,3 +69,48 @@ func TestNFR09_MITTextParsing(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+// TestSVC13_UnitTitleIsTheAppStreamSummary keeps the unit's Description= equal to
+// "Apptrol: " plus the AppStream summary, so `systemctl status` and the software
+// center describe Apptrol in the same words (#99). The unit also stays Type=simple
+// with NotifyAccess=main: Type=notify would make systemd wait for a ready message
+// Apptrol does not send (SVC-13, ADR 0007).
+func TestSVC13_UnitTitleIsTheAppStreamSummary(t *testing.T) {
+	metainfo, err := os.ReadFile("appstream/io.github.dzobash.apptrol.metainfo.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var summary string
+	for _, line := range strings.Split(string(metainfo), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "<summary>") && strings.HasSuffix(line, "</summary>") {
+			summary = strings.TrimSuffix(strings.TrimPrefix(line, "<summary>"), "</summary>")
+			break
+		}
+	}
+	if summary == "" {
+		t.Fatal("no <summary> in the AppStream data")
+	}
+
+	unit, err := os.ReadFile("systemd/apptrol.service")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(string(unit), "\n")
+	has := func(line string) bool {
+		for _, l := range lines {
+			if l == line {
+				return true
+			}
+		}
+		return false
+	}
+	if want := "Description=Apptrol: " + strings.ToLower(summary[:1]) + summary[1:]; !has(want) {
+		t.Errorf("the unit has no line %q (the AppStream summary is %q)", want, summary)
+	}
+	for _, line := range []string{"Type=simple", "NotifyAccess=main"} {
+		if !has(line) {
+			t.Errorf("the unit has no line %q (SVC-13, ADR 0007)", line)
+		}
+	}
+}

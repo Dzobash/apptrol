@@ -29,10 +29,10 @@ How the service is put together. Decisions and their reasons are in
   which media player belongs to which control, what R, the media keys and the launcher
   buttons do (and what they may do in each screen state), and every LED. It receives events and returns actions. It does no I/O and
   has no clock, so it is tested completely with plain unit tests.
-- **Adapters** (`controller`, `audio`, `desktop`, `session`, `launcher`, `config`, `state`,
-  `logging`) talk to the outside world. The service uses them through small interfaces
-  (`service.Controller`, `service.Audio`, `service.Desktop`, `service.Power`,
-  `service.Launcher`); tests use
+- **Adapters** (`controller`, `audio`, `desktop`, `session`, `launcher`, `systemd`,
+  `config`, `state`, `logging`) talk to the outside world. The service uses them through
+  small interfaces (`service.Controller`, `service.Audio`, `service.Desktop`,
+  `service.Power`, `service.Launcher`, `service.Status`); tests use
   in-memory fakes (QA-06).
 - **`service`** runs one event loop that owns all state: it takes events from the adapters,
   passes them to the mixer, and carries out the returned actions. One goroutine owns the
@@ -45,7 +45,7 @@ How the service is put together. Decisions and their reasons are in
 | Package | Responsibility |
 |---|---|
 | `cmd/apptrol` | Command line: `run`, `list`, `check`, `test`, `version`; wires everything together |
-| `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop`, `Power` and `Launcher` interfaces; turns mixer actions into adapter calls; the Record LED's flash (the mixer has no clock); config reload and its warnings, each logged by its text or with its own message and attributes; shutdown |
+| `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop`, `Power`, `Launcher` and `Status` interfaces; turns mixer actions into adapter calls; keeps the Status line up to date; the Record LED's flash (the mixer has no clock); config reload and its warnings, each logged by its text or with its own message and attributes; shutdown |
 | `internal/mixer` | Core logic (pure): matching streams, inputs, output devices and media players to controls, output volume, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write; lets go of the controller and takes it back (ADR 0029) |
@@ -53,6 +53,7 @@ How the service is put together. Decisions and their reasons are in
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
 | `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, whether the user's graphical session is unlocked, locked, behind another session or unknown, and whose session is in front at the seat (ADR 0029); reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
+| `internal/systemd` | The unit's Status line: sends `STATUS=` to systemd through go-systemd's `daemon` package (pure Go, no `sdjournal`, ADR 0017); sends nothing without `NOTIFY_SOCKET` (SVC-13, ADR 0007) |
 | `internal/config` | TOML loading: `[apps]`, `[inputs]` and `[outputs]` into one map of targets, output selector validation and monitor warnings (CFG-20, CFG-21), the old `type` form with a warning (ADR 0026); validation (including button rules, blocked commands and overlap warnings), its problems as `config.Problem`; warnings as `config.Warning`; file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
 | `internal/logging` | Log outputs (journald, rotating file) and formats; keeps every record on one line |
@@ -512,6 +513,41 @@ reliably, but text for a shell (`sh -c`) can always be disguised. Desktop IDs co
 installed packages and are not checked; apps that need root ask for the password in a
 dialog.
 
+## The Status line
+
+`systemctl --user status apptrol` shows a line that Apptrol keeps up to date (SVC-13,
+[ADR 0007](adr/0007-systemd-user-service.md)). The mixer is not involved: the service
+builds the text from what it already sees, and the `systemd` adapter sends it.
+
+```
+ controller events ─┐
+ release / take ────┼──► service ──► text changed? ──► systemd adapter ─ ─► sender goroutine
+ config (re)loaded ─┘      (version first, then the state)  (hands over,         │ newest text wins
+ shutdown                                                    never waits)        ▼
+                                                              sd_notify STATUS= ──► systemctl status:
+                                                                                    Status: "v0.3.0 · …"
+```
+
+| State | Text after the version |
+|---|---|
+| No controller yet, or it was unplugged | `controller not found` |
+| Controller connected | `controller connected · N controls assigned` |
+| Another user's session in front | `controller released (another user in front)` |
+| No valid configuration | `waiting for a valid configuration` |
+| Shutdown has begun | `stopping` |
+
+The first row that applies, from the bottom up, is shown: stopping beats everything,
+then a released controller, then a missing configuration, then the controller.
+Only a changed text is sent, so repeated "controller connected" events of the LED resend
+cost nothing. Writing to systemd's socket has no time limit and blocks when systemd stops
+reading, so the loop never writes: `SetStatus` hands the text to a sender goroutine and
+returns at once, and if an earlier text has not gone out yet, only the newest does. At
+shutdown the service calls `Flush`, which waits at most 200 ms for the last text
+(`stopping`). Without `NOTIFY_SOCKET` (started in a terminal) the adapter sends nothing
+and logs that once at debug, with `apptrol.component=systemd`. A failed send is a
+warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
+`NotifyAccess=main` and stays `Type=simple`: systemd does not wait for a ready message.
+
 ## Files at runtime
 
 | Path | Contents |
@@ -533,7 +569,12 @@ dialog.
   a released one by none. Ownership tests check that reported generations are echoed
   unchanged in snapshot, change and reload answers.
 - `service`: the whole loop against fake adapters: config reload, state, shutdown, a
-  slider on an output reaching the audio adapter as `SetOutputVolume`.
+  slider on an output reaching the audio adapter as `SetOutputVolume`; the Status line
+  through every state, only changes sent, and the flush at shutdown (SVC-13).
+- `systemd`: the Status line reaches a unix datagram socket given as `NOTIFY_SOCKET`
+  as `STATUS=…`; nothing is sent without one; a missing socket is a warning; a send that
+  blocks, also on a real socket whose queue is full and unread, never holds up the
+  caller, the newest text wins and `Flush` gives up after its time (SVC-13).
 - `controller`: MIDI decoding and the CC map with byte-level tests and fuzzing.
   `controller/rawmidi`: discovery, plug/unplug and busy devices against fake devices; the
   real controller is checked by hand (`apptrol test`, docs/testing.md).
@@ -558,7 +599,8 @@ dialog.
   starting apps against a fake systemd, and against the real user manager with harmless
   units (`make test-launcher`, not in CI, which has no user systemd).
 - `packaging`: a test keeps the MIT text of the .deb's DEP-5 copyright file equal to
-  `LICENSE` (NFR-09). CI's Packaging job builds the release as a snapshot and runs
+  `LICENSE` (NFR-09), and the unit's `Description=` equal to the AppStream summary, with
+  `Type=simple` and `NotifyAccess=main` kept (SVC-13). CI's Packaging job builds the release as a snapshot and runs
   `lintian` on the .deb (NFR-05, NFR-08, NFR-09, #146); it is the only place CI runs
   GoReleaser before a release candidate is tagged.
 - `config`, `state`: unit tests and fuzzing on malformed input; the blocked-command check

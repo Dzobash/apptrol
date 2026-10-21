@@ -58,6 +58,7 @@ Every line has `apptrol.component`:
 | `desktop` | The D-Bus session bus: connected, lost, and the media players found, gone or changing status (debug) |
 | `session` | logind, the login manager, on the D-Bus system bus: connected, lost; the computer going to sleep (debug) and waking up, when every LED is sent again; the screen locked or unlocked, which blocks or allows launchers |
 | `launcher` | Starting apps from launcher buttons: which app, in which systemd unit, and failures |
+| `systemd` | The Status line of `systemctl --user status apptrol`: each text sent (debug), that nothing is sent when Apptrol was not started by systemd (debug, once), and a failed send (warning) |
 | `mixer` | What your sliders, knobs and buttons do: volume, mute, solo, matching apps |
 
 ### Errors
@@ -106,6 +107,7 @@ ERRO the changed configuration is invalid; keeping the current settings apptrol.
 | `system_bus_lost` | The connection to the system bus broke (warning); launchers are blocked until Apptrol has reconnected by itself. |
 | `screen_state_unreadable` | logind did not say whether the screen is locked (warning); launchers are blocked, and Apptrol asks again every 5 seconds. |
 | `seat_unreadable` | logind did not say whose session is in front of the computer (warning). Apptrol holds the controller as before, and asks again every 5 seconds. |
+| `status_not_sent` | The Status line could not be sent to systemd (warning); Apptrol keeps running, and the line shows the last text that arrived. |
 
 ## Examples
 
@@ -459,6 +461,7 @@ Apptrol's own:
 | `apptrol.session.resend` | After a wake-up, which repeat of sending every LED this is: `1`, `2` or `3` (0.5, 2 and 5 seconds after waking up; debug) |
 | `apptrol.session.id` | logind's id of your graphical login session, whose lock state Apptrol follows; on `apptrol.seat.front` records, the session in front |
 | `apptrol.controller.at_login_screen` | `[controller] at_login_screen`: `keep` (the login screen changes nothing: the controller stays with whoever had it) or `release` (it belongs to nobody there) |
+| `apptrol.status` | The text of the Status line that `systemctl --user status apptrol` shows, as Apptrol sent it: the version first, then the state |
 | `apptrol.seat.front` | Whose session is in front of the computer: `this_user`; `other_user` (Apptrol lets go of the controller); `login_screen` (kept or let go, as `[controller] at_login_screen` says); `nobody`; `unknown` (it cannot be told: the controller is held as before) |
 | `apptrol.screen.state` | `unlocked`; `locked`; `inactive` (another user's session is in front); `unknown` (it cannot be told). Launchers start apps only when `unlocked`, or with `when_locked` also when `locked` or `inactive`; the media buttons and R send nothing when `inactive` |
 | `apptrol.screen.reason` | Why the state is `unknown`: `no_system_bus`, `system_bus_lost`, `no_graphical_session` (e.g. logged in only over SSH) or `unreadable` |

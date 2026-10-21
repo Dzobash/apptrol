@@ -67,6 +67,17 @@ type Controller interface {
 	Take()
 }
 
+// Status shows the state on the unit's Status line, which
+// `systemctl --user status apptrol` prints (SVC-13, ADR 0007). Like the other
+// adapters it never makes the loop wait: SetStatus hands the text over and
+// returns at once, and logs what became of it itself (ADR 0015).
+type Status interface {
+	SetStatus(text string)
+	// Flush waits at most wait for what was handed over to be sent. It is called
+	// once, for the last text at shutdown.
+	Flush(wait time.Duration)
+}
+
 // Logs applies the logging part of the configuration (LOG-08).
 type Logs interface {
 	Reconfigure(cfg config.Log) error
@@ -90,6 +101,7 @@ type Options struct {
 	// (LAUNCH-10); nil means launcher.Installed.
 	InstalledApps func() launcher.Apps
 	Launcher      Launcher // may be nil: launcher buttons do nothing
+	Status        Status   // may be nil: no Status line
 
 	// Zero values mean the defaults: the file is checked every second, and the
 	// state is saved at most once per second.
@@ -98,6 +110,11 @@ type Options struct {
 	LEDResync     time.Duration // zero: audioLEDResync
 	PauseDelay    time.Duration // zero: playerPauseDelay
 }
+
+// statusFlushWait is how long shutdown waits for the Status line's last text
+// ("stopping") to reach systemd. A systemd that has stopped reading must not
+// hold up the shutdown (SVC-13).
+const statusFlushWait = 200 * time.Millisecond
 
 // maxBatch bounds how many queued events are read before handling them.
 const maxBatch = 256
@@ -128,6 +145,12 @@ type service struct {
 	// back to the loop; actx ends with the adapters (MEDIA-09).
 	events chan<- mixer.Event
 	actx   context.Context
+	// The parts of the Status line (SVC-13): what the controller is doing, how
+	// many controls the configuration assigns, whether Apptrol is stopping, and
+	// the text sent last, so only a change is sent.
+	connected, released, stopping bool
+	controls                      int
+	status                        string
 }
 
 // Run runs Apptrol until ctx is canceled (SIGTERM or Ctrl+C), then saves the
@@ -162,6 +185,7 @@ func Run(ctx context.Context, o Options) error {
 	if cfg != nil {
 		setup = cfg.Setup()
 		s.port = cfg.Controller.Port
+		s.controls = len(cfg.Layout().Assignments)
 	}
 
 	saved := s.loadState()
@@ -207,14 +231,20 @@ func Run(ctx context.Context, o Options) error {
 		go func() { defer wg.Done(); run() }()
 	}
 
+	s.updateStatus()
 	s.log.Info("Apptrol running")
 	var ledResync <-chan time.Time // see audioLEDResync
 	for {
 		select {
 		case <-ctx.Done():
+			s.stopping = true
+			s.updateStatus()
 			s.shutdown()
 			stopAdapters()
 			waitTimeout(&wg, 3*time.Second)
+			if o.Status != nil {
+				o.Status.Flush(statusFlushWait)
+			}
 			s.log.Info("Apptrol stopped")
 			return nil
 		case ch := <-changes:
@@ -240,8 +270,10 @@ func Run(ctx context.Context, o Options) error {
 				if _, ok := e.(mixer.AudioSnapshot); ok {
 					ledResync = time.After(o.LEDResync)
 				}
+				s.trackController(e)
 				s.handle(e)
 			}
+			s.updateStatus()
 		}
 	}
 }
@@ -433,12 +465,64 @@ func (s *service) configChanged(ch config.Change) {
 			logattr.KeyPort, cfg.Controller.Port, logattr.KeyPortInUse, s.port)
 	}
 	waiting := s.m.Waiting()
+	s.controls = len(cfg.Layout().Assignments)
 	s.handle(mixer.ConfigChanged{Setup: cfg.Setup()})
+	s.updateStatus()
 	if waiting {
 		st := s.m.Snapshot()
 		s.logFor(logattr.State).Info("saved state applied",
 			logattr.KeyFilePath, s.o.StatePath, logattr.KeyPositions, len(st.Positions), logattr.KeyMutes, len(st.Muted))
 	}
+}
+
+// trackController notes whether the controller is there, for the Status line
+// (SVC-13). It only looks at events from the controller itself: the service's
+// own resend of the LEDs is not one, so it cannot say the controller is back.
+// Only a plain connect counts: the controller's LED resends (Resync) come from
+// their own goroutine and can arrive after the disconnect, and nothing would
+// correct the Status line afterwards. While the controller is let go, a late
+// event from it does not change that either (SVC-09).
+func (s *service) trackController(ev mixer.Event) {
+	switch e := ev.(type) {
+	case mixer.ControllerConnected:
+		if !e.Resync {
+			s.connected = !s.released
+		}
+	case mixer.ControllerDisconnected:
+		s.connected = false
+	}
+}
+
+// statusText is the state part of the Status line.
+func (s *service) statusText() string {
+	switch {
+	case s.stopping:
+		return "stopping"
+	case s.released:
+		return "controller released (another user in front)"
+	case s.m.Waiting():
+		return "waiting for a valid configuration"
+	case s.connected:
+		return fmt.Sprintf("controller connected · %d controls assigned", s.controls)
+	default:
+		return "controller not found"
+	}
+}
+
+// updateStatus sends the Status line when its text changed. It always starts
+// with the version, so `systemctl status` says which Apptrol runs (SVC-13).
+// Sending is the adapter's job and never waits (SVC-13, ADR 0015).
+func (s *service) updateStatus() {
+	if s.o.Status == nil {
+		return
+	}
+	ver, _, _ := version.Info()
+	text := ver + " · " + s.statusText()
+	if text == s.status {
+		return
+	}
+	s.status = text
+	s.o.Status.SetStatus(text)
 }
 
 // handle passes one event to the mixer and carries out its actions.
@@ -501,8 +585,12 @@ func (s *service) do(a mixer.Action) {
 		// LEDs first: once let go, the other user's Apptrol owns them (SVC-09).
 		s.ledsOff()
 		s.ctl.Release()
+		s.released, s.connected = true, false
+		s.updateStatus()
 	case mixer.TakeController:
 		s.ctl.Take() // ControllerConnected follows, and with it the LEDs (LED-07)
+		s.released = false
+		s.updateStatus()
 	case mixer.StateChanged:
 		s.saver.Request(s.m.Snapshot())
 	case mixer.Notice:
