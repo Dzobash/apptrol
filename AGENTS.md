@@ -243,7 +243,8 @@ The owner wants to keep learning while working, not just receive finished result
   rootless Podman only, never Docker and never `sudo podman`, and every run through
   the repository's container script (`make test-systemd`, `make container-run
   RECIPE=<name>`), which records it in `.audit/`. The script mounts only the checkout,
-  read-only: never `~/.ssh`, the rest of the home folder or `/run/user/…`, and no
+  read-only, and `.tmp/<run>/` inside it as the one writable folder (ignored by git):
+  never `~/.ssh`, the rest of the home folder or `/run/user/…`, and no
   `SSH_AUTH_SOCK`. Typed `docker`, `podman` and `buildah` are blocked; a flag the
   script lacks is a pull request to the script. Until the script is merged, each
   `podman` command needs the owner's OK, and the request names both sides

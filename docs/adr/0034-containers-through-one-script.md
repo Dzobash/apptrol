@@ -60,8 +60,19 @@ command lists (AGENTS.md, QA-15). That did not work well:
    ```
 
 3. **The container sees only the repository.** The script mounts the checkout
-   read-only and refuses any other host path, so `~/.ssh`, the rest of the home folder
-   and `/run/user/…` (where the SSH agent's socket lives) do not exist inside. No
+   read-only, plus one writable folder inside it, and refuses any other host path, so
+   `~/.ssh`, the rest of the home folder and `/run/user/…` (where the SSH agent's
+   socket lives) do not exist inside.
+
+   ```
+   host <repo>/              → container /src     read-only
+   host <repo>/.tmp/<run>/   → container /work    writable, one folder per run
+   any other host path       → refused by the script
+   ```
+
+   `.tmp/` is ignored by git and, like every folder starting with a dot, skipped by Go's
+   tools and `make check`. One folder per run keeps parallel runs apart; it is kept
+   after a failed run, to look at, and deleted after a passed one. No
    environment variable from the session is passed in (`SSH_AUTH_SOCK` would let a
    container use the user's keys without seeing them). A test keeps both rules in the
    script. Anything the owner is asked about names both sides:

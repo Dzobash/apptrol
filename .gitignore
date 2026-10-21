@@ -18,6 +18,12 @@ coverage.*
 # Worktrees that agents make by hand (git worktree add), named after no tool
 .worktrees/
 
+# Containers (ADR 0034): the only writable folder a container gets, one subfolder per
+# run; and full run logs, which can hold home paths or host names. Recipes and
+# .audit/runs.log are committed.
+/.tmp/
+/.audit/logs/
+
 # Personal Claude Code settings, and worktrees made by Claude Code's own tools
 .claude/settings.local.json
 .claude/worktrees/
