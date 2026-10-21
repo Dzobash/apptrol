@@ -27,6 +27,7 @@ const (
 	Desktop    = "desktop"    // session bus: media players (ADR 0017)
 	Session    = "session"    // logind on the system bus: sleep, wake-up (ADR 0023)
 	Launcher   = "launcher"   // starting apps (ADR 0019)
+	Systemd    = "systemd"    // the unit's Status line (SVC-13, ADR 0007)
 	Mixer      = "mixer"      // volume, mute, solo, matching
 )
 
@@ -135,6 +136,8 @@ const (
 	KeyScreenReason      = "apptrol.screen.reason"              // why the state is unknown
 	KeySeatFront         = "apptrol.seat.front"                 // whose session is in front at the seat (ADR 0029)
 	KeyAtLoginScreen     = "apptrol.controller.at_login_screen" // keep or release (CFG-24)
+
+	KeyStatus = "apptrol.status" // the text of the unit's Status line (SVC-13)
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records
@@ -163,6 +166,7 @@ const (
 	ErrSystemBusLost        = "system_bus_lost"
 	ErrScreenUnreadable     = "screen_state_unreadable"
 	ErrSeatUnreadable       = "seat_unreadable"
+	ErrStatusNotSent        = "status_not_sent"
 )
 
 // Component returns the apptrol.component attribute.

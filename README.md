@@ -92,6 +92,9 @@ systemctl --user daemon-reload
 systemctl --user enable --now apptrol
 ```
 
+`systemctl --user status apptrol` shows the running version and what Apptrol is doing, e.g.
+`Status: "v0.3.0 · controller connected · 6 controls assigned"`.
+
 Upgrading, building from source, checking a download and removing Apptrol are in the
 [installation guide](docs/install.md).
 

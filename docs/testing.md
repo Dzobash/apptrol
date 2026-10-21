@@ -142,7 +142,8 @@ After installing a candidate, restart Apptrol in **every** user's session that r
 (`systemctl --user restart apptrol`, or log that user out): a running Apptrol keeps the
 version it started with, whatever is installed. Check the running version in the log, not
 only with `apptrol --version`, which shows the installed file:
-`journalctl --user -u apptrol | grep "Apptrol starting"` names `service.version`.
+`journalctl --user -u apptrol | grep "Apptrol starting"` names `service.version`, and the
+Status line of `systemctl --user status apptrol` starts with it (SVC-13).
 
 For the steps with several users, set `level = "debug"` in every user's configuration, and
 read all users' logs in one timeline (as a member of the `adm` group, as the first user on

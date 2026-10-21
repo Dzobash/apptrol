@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `systemctl --user status apptrol` shows a Status line that Apptrol keeps up to date:
+  the version first, then the state, e.g. `v0.3.0 · controller connected · 6 controls
+  assigned`, `controller not found`, `controller released (another user in front)`,
+  `waiting for a valid configuration` or `stopping`. It counts the controls the
+  configuration assigns. Started in a terminal, nothing is sent. The unit stays
+  `Type=simple` and gets `NotifyAccess=main`; with `level = "debug"` the log shows each
+  line sent. After upgrading, `systemctl --user daemon-reload` and a restart make
+  systemd read the new unit (SVC-13, [ADR 0007](docs/adr/0007-systemd-user-service.md), #99).
 - A slider or knob can set the volume of a whole output device: speakers, headphones or
   one output of an audio interface. Put the output in `[outputs.<id>]` with a `match`
   list, a case-insensitive part of its name or description from `apptrol list`, and
@@ -58,6 +66,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   package cannot carry a different license text than the repository (NFR-09, #146).
 
 ### Changed
+- The service unit's title (`Description=`) is now `Apptrol: control each app's volume
+  with a hardware MIDI controller`, the AppStream summary, so `systemctl status` and
+  `journalctl` show the same line (SVC-13, #99).
 - At the login screen after *Switch user* (with `at_login_screen = "keep"`), ▶, ■, ◀◀, ▶▶
   and R in mode `play_pause` send nothing: the session has lost the speakers there, so
   they started playback nobody heard. Each press is one warning,

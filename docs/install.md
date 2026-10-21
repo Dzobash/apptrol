@@ -81,6 +81,22 @@ systemctl --user enable --now apptrol
 `daemon-reload` makes systemd read the newly installed service file; `enable --now` starts
 Apptrol at every login (`enable`) and right now (`--now`).
 
+Check that it runs:
+
+```bash
+systemctl --user status apptrol
+```
+
+```text
+     Active: active (running) since …
+     Status: "v0.3.0 · controller connected · 6 controls assigned"
+```
+
+The Status line always starts with the running version, then says what Apptrol is
+doing: `controller connected · N controls assigned`, `controller not found` (plug it in;
+see [Permissions](#permissions) if it stays that way), `controller released (another
+user in front)`, or `waiting for a valid configuration` (run `apptrol check`).
+
 ### Checking a download
 
 Each release has a `checksums.txt` with the SHA-256 of every file. In the folder with the
@@ -149,7 +165,9 @@ systemctl --user daemon-reload
 systemctl --user enable --now apptrol
 ```
 
-To update, pull the new code, run `make build` and the first `install` line again, then
+To update, pull the new code, run `make build` and both `install` lines and the `sed` line again
+(the unit changes between releases; 0.3.0 added `NotifyAccess=main`, without which
+systemd ignores the Status line), then `systemctl --user daemon-reload` and
 `systemctl --user restart apptrol`. To build your own `.deb` and `.rpm` packages instead,
 run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they end up in
 `dist/`. For changing the code, see [CONTRIBUTING.md](https://github.com/Dzobash/apptrol/blob/main/CONTRIBUTING.md).
