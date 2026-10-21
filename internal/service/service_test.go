@@ -968,7 +968,8 @@ func TestMEDIA09_APauseShowsOnTheLEDsOnlyAfterTheDelay(t *testing.T) {
 	e.desktop.in <- mixer.PlayerStatusChanged{BusName: tab.BusName, Status: mixer.StatusPlaying}
 	e.waitLog("short pause not shown on the LEDs")
 	time.Sleep(2 * 150 * time.Millisecond) // the test's PauseDelay has passed
-	// Events keep their order: once this one is handled, the timer's has been too.
+	// A marker after the wait, so the timer's event has most likely been handled;
+	// the stale-timer rules themselves are proved in the mixer's tests.
 	e.desktop.in <- mixer.PlayerAdded{Player: mixer.Player{BusName: "org.mpris.MediaPlayer2.other", Identity: "Other"}}
 	e.waitLog("media player not matched")
 	if !e.ctl.led(r2) || e.ctl.offCount(r2) != offs {
