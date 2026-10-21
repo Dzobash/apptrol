@@ -1,11 +1,15 @@
 [Unit]
-Description=Apptrol - per-app volume control with a MIDI controller
+Description=Apptrol: control each app's volume with a hardware MIDI controller
 Documentation=https://github.com/Dzobash/apptrol
 After=pipewire-pulse.service
 Wants=pipewire-pulse.service
 
 [Service]
 Type=simple
+# Lets Apptrol set the Status line that `systemctl --user status apptrol` shows
+# (SVC-13). The start is unchanged: Type=notify would make systemd wait for READY=1
+# (ADR 0007).
+NotifyAccess=main
 ExecStart=/usr/bin/apptrol
 Restart=on-failure
 RestartSec=3

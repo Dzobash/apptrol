@@ -135,6 +135,8 @@ const (
 	KeyScreenReason      = "apptrol.screen.reason"              // why the state is unknown
 	KeySeatFront         = "apptrol.seat.front"                 // whose session is in front at the seat (ADR 0029)
 	KeyAtLoginScreen     = "apptrol.controller.at_login_screen" // keep or release (CFG-24)
+
+	KeyStatus = "apptrol.status" // the text of the unit's Status line (SVC-13)
 )
 
 // Error types (error.type): what went wrong, in a few fixed words, so records
@@ -163,6 +165,7 @@ const (
 	ErrSystemBusLost        = "system_bus_lost"
 	ErrScreenUnreadable     = "screen_state_unreadable"
 	ErrSeatUnreadable       = "seat_unreadable"
+	ErrStatusNotSent        = "status_not_sent"
 )
 
 // Component returns the apptrol.component attribute.

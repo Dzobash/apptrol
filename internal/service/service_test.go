@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"github.com/Dzobash/apptrol/internal/logattr"
 	"github.com/Dzobash/apptrol/internal/mixer"
 	"github.com/Dzobash/apptrol/internal/state"
+	"github.com/Dzobash/apptrol/internal/version"
 )
 
 // fakeAudio is an audio server that reports a fixed set of streams and
@@ -217,6 +219,42 @@ type env struct {
 	launcher     fakeLauncher
 	session      fakeSession
 	desktop      *fakeDesktop // nil: no media players
+	status       *fakeStatus  // nil: no Status line
+}
+
+// fakeStatus records the Status lines the service sends (SVC-13).
+type fakeStatus struct {
+	mu    sync.Mutex
+	texts []string
+	sent  bool  // what SetStatus reports
+	err   error // what SetStatus returns
+}
+
+func (f *fakeStatus) SetStatus(text string) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.texts = append(f.texts, text)
+	return f.sent && f.err == nil, f.err
+}
+
+func (f *fakeStatus) list() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.texts...)
+}
+
+func (f *fakeStatus) last() string {
+	l := f.list()
+	if len(l) == 0 {
+		return ""
+	}
+	return l[len(l)-1]
+}
+
+// statusLine is the Status line with the running version in front.
+func statusLine(state string) string {
+	ver, _, _ := version.Info()
+	return ver + " · " + state
 }
 
 // fakeDesktop reports the media players a test sends through in.
@@ -354,6 +392,9 @@ func (e *env) start() *env {
 	}
 	if e.desktop != nil {
 		o.Desktop = e.desktop
+	}
+	if e.status != nil {
+		o.Status = e.status
 	}
 	go func() { e.done <- Run(ctx, o) }()
 	e.t.Cleanup(e.stop)
@@ -1002,4 +1043,127 @@ func TestMEDIA09_APauseShowsOnTheLEDsOnlyAfterTheDelay(t *testing.T) {
 		t.Errorf("R2 went dark after %v, before the 150 ms delay", waited)
 	}
 	e.waitLog("pause shown on the LEDs")
+}
+
+// waitStatus waits until the last Status line sent is want.
+func (e *env) waitStatus(want string) {
+	e.t.Helper()
+	e.eventually("status "+want, func() bool { return e.status.last() == want })
+}
+
+func TestSVC13_StatusLineFollowsTheController(t *testing.T) {
+	e := newEnv(t, testConfig)
+	e.status = &fakeStatus{sent: true}
+	e.start()
+
+	// The controller connects at once in the fake; testConfig assigns 3 controls.
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+
+	e.send(mixer.ControllerDisconnected{})
+	e.waitStatus(statusLine("controller not found"))
+
+	e.send(mixer.ControllerConnected{})
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+
+	e.send(mixer.SeatChanged{Front: mixer.FrontOtherUser, SessionID: "c2"})
+	e.waitStatus(statusLine("controller released (another user in front)"))
+
+	// A late event of the controller does not take it back (SVC-09).
+	e.send(mixer.ControllerConnected{Resync: true})
+	e.send(mixer.SeatChanged{Front: mixer.FrontThisUser, SessionID: "c1"})
+	e.waitStatus(statusLine("controller not found")) // until the controller connects again
+	e.send(mixer.ControllerConnected{})
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+}
+
+func TestSVC13_OnlyAChangeIsSent(t *testing.T) {
+	e := newEnv(t, testConfig)
+	e.status = &fakeStatus{sent: true}
+	e.start()
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+
+	// The controller says it is there again (LED resync), and the service
+	// resends the LEDs after the audio server's snapshot: nothing changes.
+	e.send(mixer.ControllerConnected{Resync: true})
+	e.send(slider(1, 64))
+	e.waitApplied(mixer.SetStreamVolume{StreamID: spotify.ID, Volume: 64.0 / 127})
+
+	want := []string{
+		statusLine("controller not found"),
+		statusLine("controller connected · 3 controls assigned"),
+	}
+	if got := e.status.list(); !reflect.DeepEqual(got, want) {
+		t.Errorf("status lines = %q, want %q", got, want)
+	}
+}
+
+func TestSVC13_WaitingForAValidConfiguration(t *testing.T) {
+	e := newEnv(t, "[apps.broken]\n")
+	e.status = &fakeStatus{sent: true}
+	e.start()
+	e.waitStatus(statusLine("waiting for a valid configuration"))
+
+	e.write(testConfig)
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+}
+
+func TestSVC13_TheNumberFollowsAReloadedConfiguration(t *testing.T) {
+	e := newEnv(t, testConfig)
+	e.status = &fakeStatus{sent: true}
+	e.start()
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+
+	e.write(strings.Replace(testConfig, `slider8 = "mic"`, "", 1))
+	e.waitStatus(statusLine("controller connected · 2 controls assigned"))
+}
+
+func TestSVC13_StatusSaysStoppingOnShutdown(t *testing.T) {
+	e := newEnv(t, testConfig)
+	e.status = &fakeStatus{sent: true}
+	e.start()
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+
+	e.stop()
+	if got, want := e.status.last(), statusLine("stopping"); got != want {
+		t.Errorf("last status = %q, want %q", got, want)
+	}
+}
+
+func TestSVC13_NotStartedBySystemdSendsNothingAndSaysSoOnce(t *testing.T) {
+	e := newEnv(t, testConfig)
+	e.status = &fakeStatus{sent: false} // no NOTIFY_SOCKET: SetStatus reports false
+	e.start()
+	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
+	e.send(mixer.ControllerDisconnected{})
+	e.waitStatus(statusLine("controller not found"))
+
+	if n := strings.Count(e.out.String(), "status line not sent; Apptrol was not started by systemd"); n != 1 {
+		t.Errorf("the record appeared %d times, want 1\nlog:\n%s", n, e.out.String())
+	}
+	if strings.Contains(e.out.String(), "status line sent") {
+		t.Errorf("a status line was logged as sent\nlog:\n%s", e.out.String())
+	}
+}
+
+func TestSVC13_AFailureToSendIsAWarningAndApptrolKeepsRunning(t *testing.T) {
+	e := newEnv(t, testConfig)
+	e.status = &fakeStatus{err: errors.New("socket gone")}
+	e.start()
+	e.waitLog("could not send the status line")
+	if !strings.Contains(e.out.String(), "error.type=status_not_sent") {
+		t.Errorf("the warning has no error.type\nlog:\n%s", e.out.String())
+	}
+
+	e.send(slider(1, 127))
+	e.waitApplied(mixer.SetStreamVolume{StreamID: spotify.ID, Volume: 1})
+}
+
+func TestSVC13_AStatusLineIsLoggedWhenSent(t *testing.T) {
+	e := newEnv(t, testConfig)
+	e.status = &fakeStatus{sent: true}
+	e.start()
+	e.waitLog("status line sent")
+	if !strings.Contains(e.out.String(), "apptrol.status=") {
+		t.Errorf("the record has no apptrol.status\nlog:\n%s", e.out.String())
+	}
 }

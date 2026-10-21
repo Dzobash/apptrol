@@ -81,6 +81,22 @@ systemctl --user enable --now apptrol
 `daemon-reload` makes systemd read the newly installed service file; `enable --now` starts
 Apptrol at every login (`enable`) and right now (`--now`).
 
+Check that it runs:
+
+```bash
+systemctl --user status apptrol
+```
+
+```text
+     Active: active (running) since …
+     Status: "v0.3.0 · controller connected · 6 controls assigned"
+```
+
+The Status line always starts with the running version, then says what Apptrol is
+doing: `controller connected · N controls assigned`, `controller not found` (plug it in;
+see [Permissions](#permissions) if it stays that way), `controller released (another
+user in front)`, or `waiting for a valid configuration` (run `apptrol check`).
+
 ### Checking a download
 
 Each release has a `checksums.txt` with the SHA-256 of every file. In the folder with the
