@@ -87,10 +87,15 @@ A fixed output (`match`) on a slider or knob sets its device's volume (OUT-01, O
 warning at every load, until #85's later step. The mixer's tests in
 `internal/mixer/output_test.go` cover choosing the device (case-insensitive, first by
 name with a warning, kept while it matches), the volume up to `max_volume`, an unknown
-position (left alone, PRIO-04), outside changes (not reverted), two outputs on one
-device, releasing a device no control holds any more (kept while another control holds
-it, CTRL-06), and that app solo, talk-over, M and S never change an output (OUT-07,
-OUT-11). The adapter's unit tests check that a slider move is never overwritten by the
+position (left alone, PRIO-04), outside changes (not reverted), first-control ownership
+when outputs match one device, and releasing a device no control holds any more
+(CTRL-06). `output_mute_test.go` covers M, saved mute, outside mute on sliders and
+knobs, re-plug, and ownership transfer (OUT-04/05/06, ADR 0034). App solo, talk-over
+and S never change an output (OUT-07, OUT-11); LEDs wait for PR 2c.
+`TestIntegration_OUT06_OutputMuteAndOutsideChange` exercises output mute writes and
+outside events on a silent output through the real server. Late server mute restoration
+after re-plug is not defended yet: extending the guard belongs in a follow-up PR.
+The adapter's unit tests check that a slider move is never overwritten by the
 new-output guard (`TestOUT01_LatestSliderPositionWinsOverAGuardWrite`) and that a
 released output is no longer defended (`TestCTRL06_ReleasedOutputIsNoLongerDefended`);
 both wait on a hook in `Apply` (`beforeWire`), not on sleeps. A read that sees a new

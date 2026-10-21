@@ -12,9 +12,9 @@ import (
 // ---- output devices (OUT-*, ADR 0027) ---------------------------------------
 //
 // An output target names one output device by match. Its slider or knob sets
-// that device's volume (OUT-01); nothing else touches outputs yet: no mute,
-// no solo, and talk-over and app solo never do (OUT-07, OUT-11). Mute and
-// output solo follow (#85).
+// that device's volume (OUT-01), and M toggles its saved mute (OUT-06).
+// Talk-over and app solo never affect outputs (OUT-07, OUT-11). Output solo
+// and LEDs follow in PR 2c (#85).
 //
 //	slider7 at 64 ──► "Speakers" (match "speaker") ──► SetOutputVolume 50 %
 //	                  every stream on it plays at its own volume × 50 %
@@ -34,8 +34,8 @@ const (
 // target, or "" if none matches (OUT-12, ADR 0027, for `apptrol list`).
 func (m *Mixer) OutputDevice(targetID string) string { return m.outputFor[targetID] }
 
-// isOutputColumn reports whether the column's slider holds an output: its M
-// and S do nothing yet (OUT-06, ADR 0027).
+// isOutputColumn reports whether the column's slider holds an output
+// (OUT-06, ADR 0027).
 func (m *Mixer) isOutputColumn(col int) bool {
 	id, ok := m.setup.Assignments[Control{Slider, col}]
 	return ok && m.setup.Targets[id].Kind == Output
@@ -63,7 +63,8 @@ func (m *Mixer) outputsSnapshot(a *actions, outputs []Device) {
 		m.outputs[d.Name] = d
 	}
 	m.outputFor = map[string]string{}
-	m.sharedOutputs = map[string]string{}
+	m.blockedOutputs = map[string]string{}
+	m.outputMuteSent = map[string]bool{}
 	m.chooseOutputs(a, chooseConnect)
 	for _, n := range sortedDeviceNames(m.outputs) {
 		m.answerOutput(a, m.outputs[n], 0)
@@ -104,6 +105,7 @@ func (m *Mixer) answerOutput(a *actions, d Device, from int) {
 // ADR 0027).
 func (m *Mixer) outputRemoved(a *actions, name string) {
 	delete(m.outputs, name)
+	delete(m.outputMuteSent, name)
 	m.chooseOutputs(a, chooseChange)
 }
 
@@ -125,11 +127,13 @@ func (m *Mixer) logIdleOutput(a *actions, d Device) {
 // chosen device gets its control's position when it is known, and is left
 // alone until the control is moved when it is not (OUT-05, PRIO-04). A device
 // that no target holds any more is released (ReleaseOutput, OUT-01, CTRL-06):
-// outputs have no mute yet, so only the adapter's guard has anything to let go
-// (ADR 0027).
+// its mute is released too. The first control owns a device when matches
+// overlap; later controls cannot write it (OUT-04, ADR 0034).
 func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 	names := sortedDeviceNames(m.outputs)
 	chosen := map[string]string{}
+	owners := map[string]string{}
+	blocked := map[string]string{}
 	for _, id := range m.outputTargets() {
 		cur, had := m.outputFor[id]
 		pick, matches := m.pickDevice(id, names, m.outputs, cur)
@@ -145,6 +149,16 @@ func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 			}
 			continue
 		}
+		if owner, exists := owners[pick]; exists {
+			blocked[id] = pick
+			if m.blockedOutputs[id] != pick || m.outputFor[owner] != pick || why == chooseReload {
+				a.notice(slog.LevelWarn, "output match ignored: an earlier control owns the device",
+					m.aboutTarget(id, logattr.KeyDeviceName, pick,
+						logattr.KeyDeviceControls, m.controlOf[owner].String()+", "+m.controlOf[id].String())...)
+			}
+			continue
+		}
+		owners[pick] = id
 		chosen[id] = pick
 		if pick == cur {
 			continue
@@ -156,10 +170,11 @@ func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 				m.aboutTarget(id, logattr.KeyDeviceName, pick, logattr.KeyDeviceMatches, strings.Join(matches, ", "))...)
 		}
 		m.applyOutputVolume(a, id, pick)
+		m.applyOutputMute(a, pick, m.effectiveMute(id))
 	}
 	m.releaseOutputs(a, chosen)
 	m.outputFor = chosen
-	m.logSharedOutputs(a)
+	m.blockedOutputs = blocked
 }
 
 // releaseOutputs releases each device that a target held before and none
@@ -176,6 +191,8 @@ func (m *Mixer) releaseOutputs(a *actions, chosen map[string]string) {
 	}
 	sort.Strings(released)
 	for _, dev := range released {
+		m.applyOutputMute(a, dev, false)
+		delete(m.outputMuteSent, dev)
 		a.add(ReleaseOutput{Device: dev, Generation: m.outputs[dev].Generation})
 		a.notice(slog.LevelInfo, "output released; no control holds the device",
 			logattr.KeyDeviceName, dev)
@@ -191,38 +208,30 @@ func (m *Mixer) applyOutputVolume(a *actions, id, dev string) {
 	}
 }
 
-// logSharedOutputs logs, once when it begins, each output device that two or
-// more controls set: allowed, and each control sets the volume when it is
-// moved (OUT-04, ADR 0027 point 4). It is logged again only when the set of
-// controls changes.
-func (m *Mixer) logSharedOutputs(a *actions) {
-	controls := map[string][]string{}
-	var order []string
+// applyOutputMute avoids redundant writes to the owned device (OUT-06,
+// PRIO-02, ADR 0027). Output and input names have separate mute caches.
+func (m *Mixer) applyOutputMute(a *actions, dev string, want bool) {
+	if sent, ok := m.outputMuteSent[dev]; ok && sent == want {
+		return
+	}
+	m.outputMuteSent[dev] = want
+	a.add(SetOutputMute{Device: dev, Muted: want})
+}
+
+// outputMuteChanged takes over an outside mute for the owning control only,
+// including knobs (OUT-05, MUTE-07, ADR 0034).
+func (m *Mixer) outputMuteChanged(a *actions, e OutputMuteChanged) {
 	for _, id := range m.outputTargets() {
-		dev, ok := m.outputFor[id]
-		if !ok {
+		if m.outputFor[id] != e.Name {
 			continue
 		}
-		if len(controls[dev]) == 0 {
-			order = append(order, dev)
+		if sent, ok := m.outputMuteSent[e.Name]; ok && sent == e.Muted {
+			return
 		}
-		controls[dev] = append(controls[dev], m.controlOf[id].String())
+		m.outputMuteSent[e.Name] = e.Muted
+		m.followMute(a, id, e.Muted, logattr.KeyDeviceName, e.Name)
+		return
 	}
-	shared := map[string]string{}
-	for _, dev := range order {
-		if len(controls[dev]) < 2 {
-			continue
-		}
-		list := strings.Join(controls[dev], ", ")
-		shared[dev] = list
-		if m.sharedOutputs[dev] == list {
-			continue
-		}
-		first, _ := ParseControl(controls[dev][0])
-		a.notice(slog.LevelInfo, "two controls set the same output",
-			m.about(first, logattr.KeyDeviceName, dev, logattr.KeyDeviceControls, list)...)
-	}
-	m.sharedOutputs = shared
 }
 
 // reapplyOutputs sets the volume again of every output that kept its device

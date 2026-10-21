@@ -27,10 +27,10 @@ type Mixer struct {
 	deviceFor map[string]string // input target id -> chosen device name
 	outputs   map[string]Device // output devices by name (OUT-12, ADR 0027)
 	outputFor map[string]string // output target id -> chosen device name (OUT-02)
-	// sharedOutputs is, per output device that two or more controls set, the
-	// controls as last logged, so it is logged once when it begins (OUT-04,
-	// ADR 0027 point 4).
-	sharedOutputs map[string]string
+	// blockedOutputs records targets whose chosen device belongs to an earlier
+	// control, to ignore their buttons and log conflicts once (OUT-04, ADR 0034).
+	blockedOutputs map[string]string
+	outputMuteSent map[string]bool // last output mute sent (OUT-06, ADR 0027)
 
 	players        map[string]*playerInfo // media players by bus name (MEDIA-01, MEDIA-03)
 	playSeq        int                    // counts players starting to play (lastPlaying)
@@ -67,7 +67,8 @@ func New(setup Setup, saved State) *Mixer {
 		deviceFor:      map[string]string{},
 		outputs:        map[string]Device{},
 		outputFor:      map[string]string{},
-		sharedOutputs:  map[string]string{},
+		blockedOutputs: map[string]string{},
+		outputMuteSent: map[string]bool{},
 		players:        map[string]*playerInfo{},
 		deviceMuteSent: map[string]bool{},
 		leds:           map[LED]bool{},
@@ -290,6 +291,8 @@ func (m *Mixer) Handle(ev Event) []Action {
 		m.outputAdded(&a, e.Device)
 	case OutputRemoved:
 		m.outputRemoved(&a, e.Name)
+	case OutputMuteChanged:
+		m.outputMuteChanged(&a, e)
 	case ConfigChanged:
 		m.configChanged(&a, e.Setup)
 	case PlayerSnapshot, PlayerAdded, PlayerRemoved, PlayerStatusChanged, PlayerPauseSettled:
@@ -338,6 +341,12 @@ func (m *Mixer) controlMoved(a *actions, e ControlMoved) {
 	case Output:
 		// The device's volume only: streams keep theirs, and talk-over and
 		// solo never change an output (OUT-01, OUT-07, OUT-11, ADR 0027).
+		if dev := m.blockedOutputs[id]; dev != "" {
+			a.notice(slog.LevelDebug, "position saved without changing volume: output belongs to an earlier control",
+				m.about(e.Control, logattr.KeyDeviceName, dev)...)
+			a.add(StateChanged{})
+			return
+		}
 		if dev, ok := m.outputFor[id]; ok {
 			a.add(SetOutputVolume{Device: dev, Volume: vol})
 		}
@@ -389,9 +398,8 @@ func (m *Mixer) buttonPressed(a *actions, e ButtonPressed) {
 		return
 	}
 	button := LED{Button: e.Button, Column: e.Column}.String()
-	if m.isOutputColumn(e.Column) && e.Button != ButtonR {
-		// Output mute and output solo come in the next steps of #85 (OUT-06,
-		// OUT-07); until then M and S do nothing there. R works as on an
+	if m.isOutputColumn(e.Column) && e.Button == ButtonS {
+		// Output solo comes in PR 2c of #85 (OUT-07). R works as on an
 		// input column (OUT-09, ADR 0027 point 8).
 		a.notice(slog.LevelDebug, "button has no function: not built yet on an output column", m.about(Control{Slider, e.Column}, logattr.KeyButton, button)...)
 		return
@@ -437,10 +445,15 @@ func (m *Mixer) aboutTarget(id string, extra ...any) []any {
 // toggleMute flips the user mute of the slider column's target (MUTE-01).
 func (m *Mixer) toggleMute(a *actions, col int, button string) {
 	c := Control{Slider, col}
-	_, ok := m.setup.Assignments[c]
+	id, ok := m.setup.Assignments[c]
 	if !ok {
 		a.notice(slog.LevelDebug, "button has no function: no app on this column", m.about(c, logattr.KeyButton, button)...)
 		return // MUTE-03
+	}
+	if dev := m.blockedOutputs[id]; dev != "" {
+		a.notice(slog.LevelDebug, "button ignored: output belongs to an earlier control",
+			m.about(c, logattr.KeyButton, button, logattr.KeyDeviceName, dev)...)
+		return
 	}
 	before := m.talkOver()
 	m.muted[c] = !m.muted[c]
@@ -603,6 +616,11 @@ func (m *Mixer) applyMutes(a *actions) {
 	for _, id := range m.inputTargets() {
 		if dev, ok := m.deviceFor[id]; ok {
 			m.applyDeviceMute(a, dev, m.effectiveMute(id))
+		}
+	}
+	for _, id := range m.outputTargets() {
+		if dev, ok := m.outputFor[id]; ok {
+			m.applyOutputMute(a, dev, m.effectiveMute(id))
 		}
 	}
 }

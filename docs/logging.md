@@ -233,7 +233,7 @@ and target like every mixer record, with `apptrol.app.type=output`:
 ```text
 INFO output matched apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.device.name=alsa_output.pci-<card>.analog-stereo apptrol.device.description="Built-in Audio Analog Stereo" apptrol.device.selected_by=match
 DEBU volume changed apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.volume_percent=40
-INFO two controls set the same output apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.device.name=alsa_output.pci-<card>.analog-stereo apptrol.device.controls="slider7, knob7"
+WARN output match ignored: an earlier control owns the device apptrol.component=mixer apptrol.layout=default apptrol.control=knob7 apptrol.app.id=also apptrol.app.name=Also apptrol.app.type=output apptrol.device.name=alsa_output.pci-<card>.analog-stereo apptrol.device.controls="slider7, knob7"
 INFO output device gone; the control does nothing until a device matches apptrol.component=mixer apptrol.layout=default apptrol.control=knob7 apptrol.app.id=headphones apptrol.app.name=Headphones apptrol.app.type=output apptrol.device.name=alsa_output.usb-<headset>.analog-stereo
 ```
 
@@ -246,11 +246,24 @@ WARN several output devices match; using the first (make the match more specific
 WARN no output device matches apptrol.component=mixer … apptrol.control=knob7 … apptrol.app.match=headset
 ```
 
-M and S on an output column do nothing yet; mute and output solo come with #85's next
-steps. A press says so at debug:
+M toggles the owner's mute. An outside mute is taken over only by that owner,
+including on a knob (OUT-05/06, ADR 0034). Conflicts warn when they begin and at reload;
+`apptrol.device.controls` lists the winner first, then the ignored control. A blocked
+M press and a blocked volume movement explain why they do not change the device:
 
 ```text
-DEBU button has no function: not built yet on an output column apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.button=M7
+INFO muted apptrol.component=mixer … apptrol.control=slider7 … apptrol.button=M7
+INFO unmuted outside Apptrol apptrol.component=mixer … apptrol.control=slider7 … apptrol.device.name=<output>
+DEBU output mute request completed apptrol.component=audio apptrol.device.name=<output> apptrol.muted=true apptrol.audio.result=success
+DEBU output mute echo ignored: matches Apptrol's write apptrol.component=audio apptrol.device.name=<output> apptrol.muted=true
+DEBU button ignored: output belongs to an earlier control apptrol.component=mixer … apptrol.control=slider8 … apptrol.button=M8 apptrol.device.name=<output>
+DEBU position saved without changing volume: output belongs to an earlier control apptrol.component=mixer … apptrol.control=slider8 … apptrol.device.name=<output>
+```
+
+S still waits for output solo in PR 2c. A press says so at debug:
+
+```text
+DEBU button has no function: not built yet on an output column apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.button=S7
 ```
 
 For three seconds after an output appears, the audio adapter sets its volume again
@@ -408,7 +421,7 @@ Apptrol's own:
 | `apptrol.device.description` | An input or output device's readable name |
 | `apptrol.device.matches` | All input or output devices that match |
 | `apptrol.device.selected_by` | How an output's device was chosen: `match` (a fixed output); `default` later, with `device = "default"` |
-| `apptrol.device.controls` | The controls that set one output device, e.g. `slider7, knob7` |
+| `apptrol.device.controls` | Conflicting output controls: owner first, then ignored control, e.g. `slider7, knob7` (OUT-04, ADR 0034) |
 | `apptrol.device.index` | The audio server's number for an output device (changes when it is added again) |
 | `apptrol.audio.channels` | How many channels a device has, as read or written |
 | `apptrol.audio.result` | The audio server's answer to a request: `success` or `failed` |

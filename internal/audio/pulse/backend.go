@@ -107,13 +107,14 @@ type Backend struct {
 	outChans map[string]int    // channel count per output device (OUT-01)
 	guards   map[uint32]*guard // new streams
 	devGuard map[string]*guard // new capture devices
-	outGuard map[string]*guard // new output devices: only the volume, outputs have no mute yet (OUT-05)
+	outGuard map[string]*guard // new output devices: volume only; mute defense is a follow-up (OUT-05)
 	// Never reset on removal or reconnect: an old buffered answer must not
 	// acknowledge a new incarnation of the same name (CTRL-06, ADR 0027).
 	outputGeneration uint64
 
 	muteWant    map[uint32]muteWant // the mute Apptrol last set on a stream
 	devMuteWant map[string]muteWant // the mute Apptrol last set on a device
+	outMuteWant map[string]muteWant // own output mute echoes (OUT-05, ADR 0027)
 
 	// wire makes mute writes and event handling take turns, so a mute read by
 	// handle is never older than the expected value it is compared with
@@ -186,6 +187,7 @@ type tracker struct {
 	muted   map[uint32]bool         // last seen mute, by stream
 	devMute map[uint32]bool         // last seen mute, by source index
 	outputs map[uint32]mixer.Device // by sink index (OUT-12, ADR 0027)
+	outMute map[uint32]bool         // last observed output mute (OUT-05, ADR 0027)
 }
 
 // session runs one connection until it breaks or ctx ends.
@@ -225,7 +227,7 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 			return err
 		}
 		t = tracker{streams: map[uint32]mixer.Stream{}, devices: map[uint32]mixer.Device{},
-			muted: map[uint32]bool{}, devMute: map[uint32]bool{}, outputs: map[uint32]mixer.Device{}}
+			muted: map[uint32]bool{}, devMute: map[uint32]bool{}, outputs: map[uint32]mixer.Device{}, outMute: map[uint32]bool{}}
 		chans, devChans, outChans := map[uint32]int{}, map[string]int{}, map[string]int{}
 		for _, s := range streams {
 			t.streams[s.ID] = s.Stream
@@ -243,11 +245,13 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 			sinks[i].Generation = b.outputGeneration
 			d := sinks[i]
 			t.outputs[d.Index] = d.Device
+			t.outMute[d.Index] = d.Muted
 			outChans[d.Name] = d.Channels
 		}
 		b.cur, b.channels, b.devChans, b.outChans = k, chans, devChans, outChans
 		b.guards, b.devGuard, b.outGuard = map[uint32]*guard{}, map[string]*guard{}, map[string]*guard{}
 		b.muteWant, b.devMuteWant = map[uint32]muteWant{}, map[string]muteWant{}
+		b.outMuteWant = map[string]muteWant{}
 		b.mu.Unlock()
 		return send(Snapshot(streams, sources, sinks))
 	}
@@ -386,15 +390,21 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) ([]mixer.E
 		if err == nil {
 			err = defendErr
 		}
+		filtered := evs[:0]
 		for _, ev := range evs {
+			if change, ok := ev.(mixer.OutputMuteChanged); ok && !b.outsideOutputMute(change.Name, change.Muted) {
+				continue
+			}
 			if r, ok := ev.(mixer.OutputRemoved); ok {
 				b.mu.Lock()
 				delete(b.outChans, r.Name)
 				delete(b.outGuard, r.Name)
+				delete(b.outMuteWant, r.Name)
 				b.mu.Unlock()
 			}
+			filtered = append(filtered, ev)
 		}
-		return evs, err
+		return filtered, err
 	}
 	return nil, nil
 }
@@ -450,7 +460,8 @@ func sameOutputIdentity(a, b mixer.Device) bool {
 // outputChange returns the event for a change notification about the output
 // device (sink) with index: OutputAdded when it appeared or its name or
 // description changed, OutputRemoved when it is gone, nothing for a change of
-// its volume or mute (OUT-12, ADR 0027). read reads the sink; an output gone
+// its volume, and OutputMuteChanged when mute changes (OUT-05, OUT-12,
+// ADR 0027). The caller filters own mute echoes. read reads the sink; an output gone
 // before it could be read counts as removed.
 func outputChange(t *tracker, index uint32, removed bool, read func(uint32) (SinkInfo, error)) ([]mixer.Event, error) {
 	old, known := t.outputs[index]
@@ -458,11 +469,25 @@ func outputChange(t *tracker, index uint32, removed bool, read func(uint32) (Sin
 		d, err := read(index)
 		switch {
 		case err == nil:
+			wasMuted := t.outMute[index]
+			if t.outMute == nil {
+				t.outMute = map[uint32]bool{}
+			}
+			t.outMute[index] = d.Muted
 			if known && sameOutputIdentity(old, d.Device) {
+				if wasMuted != d.Muted {
+					return []mixer.Event{mixer.OutputMuteChanged{Name: d.Name, Muted: d.Muted}}, nil
+				}
 				return nil, nil
 			}
 			t.outputs[index] = d.Device
-			return []mixer.Event{mixer.OutputAdded{Device: d.Device}}, nil
+			evs := []mixer.Event{mixer.OutputAdded{Device: d.Device}}
+			// A description and mute can change in one notification. Retain
+			// the outside mute after rematching the device (OUT-05, ADR 0027).
+			if known && old.Name == d.Name && wasMuted != d.Muted {
+				evs = append(evs, mixer.OutputMuteChanged{Name: d.Name, Muted: d.Muted})
+			}
+			return evs, nil
 		case !IsGone(err):
 			return nil, err
 		}
@@ -471,6 +496,7 @@ func outputChange(t *tracker, index uint32, removed bool, read func(uint32) (Sin
 		return nil, nil
 	}
 	delete(t.outputs, index)
+	delete(t.outMute, index)
 	return []mixer.Event{mixer.OutputRemoved{Name: old.Name}}, nil
 }
 
@@ -696,7 +722,7 @@ func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64)
 func (b *Backend) logOutputRead(d SinkInfo, state string) {
 	attrs := []any{logattr.KeyDeviceIndex, d.Index, logattr.KeyDeviceName, d.Name,
 		logattr.KeyDeviceDescription, d.Description, logattr.KeyAudioChannels, d.Channels,
-		logattr.KeyVolume, percent(d.Volume), logattr.KeyGuardState, state}
+		logattr.KeyVolume, percent(d.Volume), logattr.KeyMuted, d.Muted, logattr.KeyGuardState, state}
 	b.mu.Lock()
 	if g := b.outGuard[d.Name]; g != nil {
 		attrs = append(attrs, logattr.KeyGuardRemaining, max(0, time.Until(g.until).Milliseconds()))
@@ -730,6 +756,20 @@ func (b *Backend) outsideDeviceMute(name string, muted bool) bool {
 	return outsideMute(b.devMuteWant, name, muted)
 }
 
+// outsideOutputMute filters own echoes with the existing mute attribution
+// rule. Defending mute during server restoration is a separate change
+// (OUT-05, MUTE-07, ADR 0027).
+func (b *Backend) outsideOutputMute(name string, muted bool) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	outside := outsideMute(b.outMuteWant, name, muted)
+	if !outside {
+		b.log.Debug("output mute echo ignored: matches Apptrol's write",
+			logattr.KeyDeviceName, name, logattr.KeyMuted, muted)
+	}
+	return outside
+}
+
 // Apply carries out a volume or mute action: of a stream, an input, or an
 // output device (SetOutputVolume, OUT-01), and ReleaseOutput and KeepOutput,
 // which only change what the new-output guard defends and need no connection
@@ -738,7 +778,7 @@ func (b *Backend) outsideDeviceMute(name string, muted bool) bool {
 func (b *Backend) Apply(a mixer.Action) error {
 	switch a.(type) {
 	case mixer.SetStreamMute, mixer.SetDeviceMute, mixer.SetStreamVolume, mixer.SetDeviceVolume,
-		mixer.SetOutputVolume, mixer.ReleaseOutput, mixer.KeepOutput:
+		mixer.SetOutputVolume, mixer.SetOutputMute, mixer.ReleaseOutput, mixer.KeepOutput:
 		// A volume waits for a guard write in progress, and the guard then
 		// sees the new value: the latest slider position wins (CTRL-04,
 		// CTRL-05, PRIO-03, #158; OUT-01, OUT-05, ADR 0027).
@@ -784,6 +824,10 @@ func (b *Backend) Apply(a mixer.Action) error {
 		if b.devMuteWant != nil {
 			b.devMuteWant[a.Device] = muteWant{muted: a.Muted, until: time.Now().Add(ownMute)}
 		}
+	case mixer.SetOutputMute:
+		if b.outMuteWant != nil {
+			b.outMuteWant[a.Device] = muteWant{muted: a.Muted, until: time.Now().Add(ownMute)}
+		}
 	case mixer.SetOutputVolume:
 		chans = b.outChans[a.Device]
 		if g := b.outGuard[a.Device]; g != nil {
@@ -810,7 +854,7 @@ func (b *Backend) Apply(a mixer.Action) error {
 	}
 	if k == nil {
 		switch a.(type) {
-		case mixer.SetStreamVolume, mixer.SetStreamMute, mixer.SetDeviceVolume, mixer.SetDeviceMute, mixer.SetOutputVolume:
+		case mixer.SetStreamVolume, mixer.SetStreamMute, mixer.SetDeviceVolume, mixer.SetDeviceMute, mixer.SetOutputVolume, mixer.SetOutputMute:
 			return ErrNotConnected
 		}
 		return nil
@@ -839,6 +883,8 @@ func (b *Backend) Apply(a mixer.Action) error {
 		return b.setSourceVolume(k, a.Device, chans, a.Volume)
 	case mixer.SetDeviceMute:
 		return k.setSourceMute(a.Device, a.Muted)
+	case mixer.SetOutputMute:
+		return b.setOutputMute(k, a.Device, a.Muted)
 	case mixer.SetOutputVolume:
 		if chans == 0 {
 			d, err := k.sinkByName(a.Device)
@@ -850,6 +896,20 @@ func (b *Backend) Apply(a mixer.Action) error {
 		return b.setOutputVolume(k, a.Device, chans, a.Volume)
 	}
 	return nil
+}
+
+// setOutputMute logs the server's answer so an accepted write can be told
+// apart from a later outside change (OUT-05/06, LOG-15, ADR 0016, ADR 0027).
+func (b *Backend) setOutputMute(k *conn, name string, muted bool) error {
+	err := k.setSinkMute(name, muted)
+	attrs := []any{logattr.KeyDeviceName, name, logattr.KeyMuted, muted,
+		logattr.KeyAudioResult, "success"}
+	if err != nil {
+		attrs[len(attrs)-1] = "failed"
+		attrs = append(attrs, logattr.Error(logattr.ErrAudioApply, err))
+	}
+	b.log.Debug("output mute request completed", attrs...)
+	return err
 }
 
 // setStreamVolume writes a stream's volume, through streamWrite in tests

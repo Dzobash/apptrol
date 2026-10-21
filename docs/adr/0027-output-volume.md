@@ -3,6 +3,12 @@
 - **Status:** Accepted
 - **Date:** 2026-10-07
 
+**2026-10-21 decision update:** [ADR 0034](0034-first-control-owns-matched-output.md)
+supersedes point 4 for fixed outputs: the first control whose chosen device matches
+owns that device. Later conflicting controls cannot set its volume or mute.
+The shared-device info record in point 12 becomes a conflict warning for fixed
+outputs, naming the winning and ignored controls.
+
 ## Context
 
 Apptrol sets the volume of apps and of inputs, but not of an output device (#85). To

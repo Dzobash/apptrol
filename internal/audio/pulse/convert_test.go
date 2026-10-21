@@ -212,7 +212,8 @@ func TestOUT12_SinkFromReply(t *testing.T) {
 
 // An output device's life as the server reports it, one notification after
 // another: appearing, renaming and going away each become one event; a change
-// of only its volume or mute, and a repeated notification, become none. The
+// of only its volume, and a repeated notification, become none. Mute changes
+// are separate events (OUT-05). The
 // tracker holds the device as last reported, so a rename is not reported
 // twice (OUT-12, ADR 0027).
 func TestOUT12_OutputChanges(t *testing.T) {
@@ -229,11 +230,11 @@ func TestOUT12_OutputChanges(t *testing.T) {
 		tracked *mixer.Device // the tracker's entry afterwards; nil = none
 	}{
 		{"appeared", false, sink(speakers, 0.8, false), []mixer.Event{mixer.OutputAdded{Device: speakers}}, &speakers},
-		{"turned down and muted", false, sink(speakers, 0.3, true), nil, &speakers},
-		{"turned up past 100 % and unmuted", false, sink(speakers, 1.2, false), nil, &speakers},
-		{"renamed", false, sink(renamed, 1.2, false), []mixer.Event{mixer.OutputAdded{Device: renamed}}, &renamed},
-		{"renamed, the same notification again", false, sink(renamed, 1.2, false), nil, &renamed},
-		{"renamed, then muted", false, sink(renamed, 1.2, true), nil, &renamed},
+		{"turned down and muted", false, sink(speakers, 0.3, true), []mixer.Event{mixer.OutputMuteChanged{Name: speakers.Name, Muted: true}}, &speakers},
+		{"turned up past 100 % and unmuted", false, sink(speakers, 1.2, false), []mixer.Event{mixer.OutputMuteChanged{Name: speakers.Name}}, &speakers},
+		{"renamed and muted", false, sink(renamed, 1.2, true), []mixer.Event{mixer.OutputAdded{Device: renamed}, mixer.OutputMuteChanged{Name: speakers.Name, Muted: true}}, &renamed},
+		{"renamed, the same notification again", false, sink(renamed, 1.2, true), nil, &renamed},
+		{"renamed, then unmuted", false, sink(renamed, 1.2, false), []mixer.Event{mixer.OutputMuteChanged{Name: speakers.Name}}, &renamed},
 		{"removed", true, SinkInfo{}, []mixer.Event{mixer.OutputRemoved{Name: speakers.Name}}, nil},
 		{"removed again", true, SinkInfo{}, nil, nil},
 	}

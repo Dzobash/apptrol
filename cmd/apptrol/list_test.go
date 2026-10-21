@@ -121,7 +121,7 @@ slider5 = "main"
 	}
 	got := out.String()
 	for _, want := range []string{
-		"  * Built-in Speakers  alsa_output.speakers     45%         slider7 (Speakers), knob7 (Built-in)\n",
+		"  * Built-in Speakers  alsa_output.speakers     45%         slider7 (Speakers)\n",
 		"    GoXLR Music        alsa_output.goxlr-music  100% muted  slider6 (Music)\n",
 	} {
 		if !strings.Contains(got, want) {

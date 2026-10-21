@@ -18,6 +18,7 @@ type world struct {
 	devVol     map[string]float64
 	devMute    map[string]bool
 	outVol     map[string]float64 // output devices' volume (OUT-01)
+	outMute    map[string]bool    // output devices' mute (OUT-06)
 	released   []string           // output devices released (ReleaseOutput), in order
 	kept       []string           // output devices kept (KeepOutput), in order
 	leds       map[LED]bool
@@ -72,7 +73,7 @@ func newWorld(t *testing.T, setup Setup, saved State) *world {
 		t: t, m: New(setup, saved),
 		streamVol: map[uint32]float64{}, streamMute: map[uint32]bool{},
 		devVol: map[string]float64{}, devMute: map[string]bool{}, outVol: map[string]float64{},
-		leds: map[LED]bool{},
+		leds: map[LED]bool{}, outMute: map[string]bool{},
 	}
 	return w
 }
@@ -120,6 +121,8 @@ func (w *world) apply(acts []Action) {
 			w.devVol[a.Device] = a.Volume
 		case SetDeviceMute:
 			w.devMute[a.Device] = a.Muted
+		case SetOutputMute:
+			w.outMute[a.Device] = a.Muted
 		case SetOutputVolume:
 			if a.Volume < 0 || a.Volume > MaxBoost {
 				w.t.Fatalf("volume out of range: %v", a)
@@ -161,6 +164,9 @@ func (w *world) forgetGone(ev Event) {
 		delete(w.devMute, e.Name)
 	case OutputRemoved:
 		delete(w.outVol, e.Name)
+		delete(w.outMute, e.Name)
+	case OutputMuteChanged:
+		w.outMute[e.Name] = e.Muted
 	case AudioSnapshot:
 		present := map[uint32]bool{}
 		for _, s := range e.Streams {

@@ -182,11 +182,14 @@ what you hear:  Spotify 80 % × Speakers 50 %  ≈ 40 %
   not turn it back; the next move of the control sets its position again.
 - **All channels get the same volume**: a left/right balance set elsewhere is lost
   ([known issue](known-issues.md)).
-- **Two outputs on the same device** (two match lists that fit one device) are allowed:
-  each control sets the volume when it is moved, and the log says so once.
-- **M and S on an output column do nothing yet**; muting and soloing an output follow
-  with [#85](https://github.com/Dzobash/apptrol/issues/85). R can be `off` or a
-  launcher.
+- **Matching decides ownership.** If two targets choose the same device, the first
+  control wins: sliders 1–8, then knobs 1–8. Later conflicting controls do nothing to
+  that device and the log warns. Display names do not decide this.
+- **M toggles the owning slider's output mute**, saved per control. An outside mute
+  is taken over on sliders and knobs. Re-plug restores the mute; protection against
+  a late server mute restore is still pending a separate follow-up.
+- **S and output LEDs wait for PR 2c** of [#85](https://github.com/Dzobash/apptrol/issues/85).
+  R can be `off` or a launcher.
 - **`device = "default"` does not work yet**: following the default output follows
   with #85. Such an output warns at every load and in `apptrol check`, and its control
   does nothing:

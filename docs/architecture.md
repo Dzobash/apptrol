@@ -7,7 +7,7 @@ How the service is put together. Decisions and their reasons are in
 
 ```
  nanoKONTROL2 ──► controller ──┐                          ┌──► audio ──────► PipeWire
-  (raw MIDI)      (decode MIDI,│                          │    (volume, mute; output volume)
+  (raw MIDI)      (decode MIDI,│                          │    (volume and mute, including outputs)
                    drive LEDs) │       events   ┌───────┐ ├──► controller ─► LEDs
  config.toml ───► config ──────┼───────────────►│ mixer │─┤
                   (load,       │                │ (pure │ ├──► desktop ────► media players
@@ -49,7 +49,7 @@ How the service is put together. Decisions and their reasons are in
 | `internal/mixer` | Core logic (pure): matching streams, inputs, output devices and media players to controls, output volume, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write; lets go of the controller and takes it back (ADR 0029) |
-| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`): playback streams, capture devices and output devices, their volume (and mute of streams and inputs); the new-device guard; reconnects; `apptrol list` data |
+| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`): playback streams, capture devices and output devices, their volume and mute; the new-device guard; reconnects; `apptrol list` data |
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
 | `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, whether the user's graphical session is unlocked, locked, behind another session or unknown, and whose session is in front at the seat (ADR 0029); reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
@@ -81,7 +81,7 @@ is part of this guard. Windows adapters and path changes remain in #92.
    ADR 0020).
 2. The service passes it to `mixer.Handle(event)`.
 3. The mixer updates its model and returns actions: *set stream 57 to 71 %*, *mute
-   input "GoXLR"*, *set output "USB Headset" to 50 %*, *LED M2 on*, *pause the Spotify
+   input "GoXLR"*, *set output "USB Headset" to 50 %*, *mute an output*, *LED M2 on*, *pause the Spotify
    player*, *start OBS*, *state changed*.
 4. The service executes them. Failures are logged; they never stop the loop. Player
    commands and app starts are only handed over: their adapters log the outcome later.
@@ -144,8 +144,9 @@ The config API for outputs (CFG-20, ADR 0027) is the existing `config.App`:
 The parser checks key presence, so an empty `match` alongside `device` is still an
 error. `type`, `talk_over_volume`, media-player pinning and R's `play_pause` cannot make
 an output behave like an input or app. `apptrol check` displays either the match list
-or `device = "default"`. The first-control-wins overlap warning only covers apps and
-inputs: outputs may share a device (ADR 0027 point 4).
+or `device = "default"`. The first-control-wins overlap warning covers apps, inputs
+and fixed outputs. Runtime output matching also catches overlaps between different
+fragments that resolve to the same device ([ADR 0034](adr/0034-first-control-owns-matched-output.md)).
 
 `Config.Setup()` passes a fixed output (`match`) as `mixer.Output`, never as an app, so
 its match list is compared with output devices only, never with playback streams
@@ -256,10 +257,24 @@ has chosen (`outputFor`):
   KeepOutput(1)        -> stale answer ignored (logged: 1 vs 2)
   ReleaseOutput(2)     -> guard forgets its volume
   ```
-- **Not yet:** M and S on an output column do nothing (a debug record), app solo and
-  talk-over never touch outputs (OUT-07, OUT-11); output mute and solo follow in #85.
-- **Two controls on one device** are allowed (OUT-04); `sharedOutputs` remembers what
-  was logged, so `two controls set the same output` comes once when it begins.
+- **Mute** (`SetOutputMute`, OUT-06): M toggles the owning slider's saved mute.
+  `outputMuteSent` avoids redundant writes. `OutputMuteChanged` carries an outside
+  change from the adapter; only the owner takes it over, including knobs. The service
+  forwards output mute actions through `Audio.Apply`, as it does volume actions.
+  Snapshot and re-plug apply the control's saved mute. Releasing the device unmutes it.
+- **Not yet:** S and output LEDs wait for PR 2c; app solo and talk-over never touch
+  outputs (OUT-07, OUT-11).
+- **Conflicting matches** (OUT-04, ADR 0034): each target first chooses a device using
+  OUT-02. In control order (sliders then knobs), only the first target can claim that
+  device. Later targets have no `outputFor` entry; `blockedOutputs` remembers their
+  conflicts, ignores M, and limits warnings to conflict starts and reloads. The saved
+  position still follows movement, ready for a later ownership transfer. Labels play
+  no part in this decision. PR 2c must use this ownership for solo and LEDs too.
+
+  ```text
+  M7 -> saved mute -> SetOutputMute -> audio adapter -> sink mute
+  outside mute -> OutputMuteChanged -> owning control's saved mute
+  ```
 
 ```
 OutputAdded "USB Headset" ──► chooseOutputs ──► knob7 "phones" holds it (output matched)
@@ -305,10 +320,12 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   later   ──► StreamAdded / StreamRemoved    a playback stream
               DeviceAdded / DeviceRemoved    an input
               OutputAdded / OutputRemoved    an output (also when its description changes)
+              OutputMuteChanged              an outside output mute (own echoes filtered)
   ```
 - Output devices (OUT-12, [ADR 0027](adr/0027-output-volume.md)): the adapter reports
-  each sink's unique name and description; a change of only its volume or mute is not
-  an event. The mixer keeps them and logs each one that no control acts on at debug
+  each sink's unique name and description; a volume-only change is not an event.
+  Mute changes are reported separately, including when the description changes in the
+  same notification. The mixer keeps devices and logs each one that no control acts on at debug
   (`output device not on a control`), so the log shows the exact name for a match list.
   `apptrol list` reads the default output from the server information and marks it
   with `*`.
@@ -329,7 +346,7 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   change: unmuted ──► outside ──► mixer takes it over (hold-to-talk: muted again)
   ```
 - Volume is set per stream, per input and per output device (`SetSinkVolume` by the
-  sink's name, OUT-01); mute per stream and per input. The percentage is the one desktop
+  sink's name, OUT-01); mute per stream, per input and per output (`SetSinkMute`). The percentage is the one desktop
   mixers (KDE, GNOME, pavucontrol) show, so a slider at 50 % shows 50 % there. The top of
   a control is the target's `max_volume` (default 100 %, up to 150 %). All channels get
   the same volume, so an output's left/right balance is lost
@@ -343,7 +360,9 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   output's when it appears. When that lands after Apptrol has set the control's position,
   Apptrol sets it again: for 3 seconds after a stream, input or output appears, changes
   to what Apptrol set are undone (PRIO-03, OUT-05). For an output only the volume is
-  defended; outputs have no mute yet.
+  defended. Mute uses the existing own-write attribution (`outMuteWant`) but no new
+  guard: a late server mute restore can still be taken as an outside change. Extending
+  that guard is a separate follow-up; full OUT-05 under that race remains pending.
   Output identity changes pause defense across notifications until the mixer answers
   the newest reported generation; see [Output volume](#output-volume).
   Volume writes and the guard take turns (`wire`, as mute writes do), so the guard never
@@ -528,12 +547,14 @@ dialog.
 - `mixer`: table-driven tests per requirement ID against a simulated audio server and
   controller, plus a fuzz test over random event sequences — the bulk of the tests. The
   simulated server keeps output volumes too; the fuzz test has outputs on slider 7 and
-  knob 7 and checks that an output is set only while a target holds it, never muted, and
+  knob 7 and checks that an output is set only while a target holds it, and
   that an output control changes no stream or input; a kept output is held by a target,
   a released one by none. Ownership tests check that reported generations are echoed
   unchanged in snapshot, change and reload answers.
 - `service`: the whole loop against fake adapters: config reload, state, shutdown, a
-  slider on an output reaching the audio adapter as `SetOutputVolume`.
+  slider on an output reaching the audio adapter as `SetOutputVolume` and M as
+  `SetOutputMute`. Output mute tests also cover persistence, outside mute on sliders
+  and knobs, re-plug, conflicting matches and ownership transfer.
 - `controller`: MIDI decoding and the CC map with byte-level tests and fuzzing.
   `controller/rawmidi`: discovery, plug/unplug and busy devices against fake devices; the
   real controller is checked by hand (`apptrol test`, docs/testing.md).

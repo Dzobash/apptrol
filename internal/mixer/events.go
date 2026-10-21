@@ -107,6 +107,12 @@ type OutputAdded struct{ Device Device }
 // OutputRemoved reports that an output device is gone (OUT-12, ADR 0027).
 type OutputRemoved struct{ Name string }
 
+// OutputMuteChanged reports an outside output mute (OUT-05, MUTE-07, ADR 0027).
+type OutputMuteChanged struct {
+	Name  string
+	Muted bool
+}
+
 // StreamMuteChanged reports that a playback stream was muted or unmuted by
 // someone other than Apptrol, e.g. in the desktop's volume applet (MUTE-07).
 type StreamMuteChanged struct {
@@ -173,6 +179,7 @@ func (DeviceAdded) isEvent()            {}
 func (DeviceRemoved) isEvent()          {}
 func (OutputAdded) isEvent()            {}
 func (OutputRemoved) isEvent()          {}
+func (OutputMuteChanged) isEvent()      {}
 func (StreamMuteChanged) isEvent()      {}
 func (StreamCorkChanged) isEvent()      {}
 func (DeviceMuteChanged) isEvent()      {}
@@ -246,6 +253,12 @@ type SetOutputVolume struct {
 	Volume float64
 }
 
+// SetOutputMute sets the owning control's output mute (OUT-06, ADR 0034).
+type SetOutputMute struct {
+	Device string
+	Muted  bool
+}
+
 // ReleaseOutput tells the audio adapter that no control holds the output
 // device any more, after a reload or a change of devices: whatever Apptrol
 // set on it is no longer Apptrol's to defend, so a volume changed elsewhere
@@ -302,6 +315,7 @@ func (SetStreamMute) isAction()     {}
 func (SetDeviceVolume) isAction()   {}
 func (SetDeviceMute) isAction()     {}
 func (SetOutputVolume) isAction()   {}
+func (SetOutputMute) isAction()     {}
 func (ReleaseOutput) isAction()     {}
 func (KeepOutput) isAction()        {}
 func (SetLED) isAction()            {}
