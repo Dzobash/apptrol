@@ -27,6 +27,7 @@ const (
 	Desktop    = "desktop"    // session bus: media players (ADR 0017)
 	Session    = "session"    // logind on the system bus: sleep, wake-up (ADR 0023)
 	Launcher   = "launcher"   // starting apps (ADR 0019)
+	Systemd    = "systemd"    // the unit's Status line (SVC-13, ADR 0007)
 	Mixer      = "mixer"      // volume, mute, solo, matching
 )
 

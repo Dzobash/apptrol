@@ -164,7 +164,7 @@ func cmdRun(configPath string, level *slog.Level, levelName string) error {
 		Desktop:      desktop.New(log, ""),
 		Session:      session.New(log, ""),
 		Launcher:     launcher.NewStarter(log),
-		Status:       systemd.Notifier{}, // the Status line of `systemctl status` (SVC-13)
+		Status:       systemd.New(log), // the Status line of `systemctl status` (SVC-13)
 		NewController: func(port string) service.Controller {
 			return rawmidi.New(log, port)
 		},

@@ -521,10 +521,11 @@ builds the text from what it already sees, and the `systemd` adapter sends it.
 
 ```
  controller events ─┐
- release / take ────┼──► service ──► text changed? ──► systemd adapter ──► sd_notify STATUS=
- config (re)loaded ─┘     │  (version first, then the state)                  │
- shutdown                 └─ log (debug): status line sent                    ▼
-                                                              systemctl status: Status: "v0.3.0 · …"
+ release / take ────┼──► service ──► text changed? ──► systemd adapter ─ ─► sender goroutine
+ config (re)loaded ─┘      (version first, then the state)  (hands over,         │ newest text wins
+ shutdown                                                    never waits)        ▼
+                                                              sd_notify STATUS= ──► systemctl status:
+                                                                                    Status: "v0.3.0 · …"
 ```
 
 | State | Text after the version |
@@ -538,10 +539,14 @@ builds the text from what it already sees, and the `systemd` adapter sends it.
 The first row that applies, from the bottom up, is shown: stopping beats everything,
 then a released controller, then a missing configuration, then the controller.
 Only a changed text is sent, so repeated "controller connected" events of the LED resend
-cost nothing. Without `NOTIFY_SOCKET` (started in a terminal) the adapter sends nothing
-and the service logs that once at debug. A failed send is a warning
-(`error.type=status_not_sent`); Apptrol runs on. The unit has `NotifyAccess=main`
-and stays `Type=simple`: systemd does not wait for a ready message.
+cost nothing. Writing to systemd's socket has no time limit and blocks when systemd stops
+reading, so the loop never writes: `SetStatus` hands the text to a sender goroutine and
+returns at once, and if an earlier text has not gone out yet, only the newest does. At
+shutdown the service calls `Flush`, which waits at most 200 ms for the last text
+(`stopping`). Without `NOTIFY_SOCKET` (started in a terminal) the adapter sends nothing
+and logs that once at debug, with `apptrol.component=systemd`. A failed send is a
+warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
+`NotifyAccess=main` and stays `Type=simple`: systemd does not wait for a ready message.
 
 ## Files at runtime
 
@@ -565,9 +570,11 @@ and stays `Type=simple`: systemd does not wait for a ready message.
   unchanged in snapshot, change and reload answers.
 - `service`: the whole loop against fake adapters: config reload, state, shutdown, a
   slider on an output reaching the audio adapter as `SetOutputVolume`; the Status line
-  through every state, only changes sent, a failed send (SVC-13).
+  through every state, only changes sent, and the flush at shutdown (SVC-13).
 - `systemd`: the Status line reaches a unix datagram socket given as `NOTIFY_SOCKET`
-  as `STATUS=…`; nothing is sent without one; a missing socket is an error (SVC-13).
+  as `STATUS=…`; nothing is sent without one; a missing socket is a warning; a send that
+  blocks, also on a real socket whose queue is full and unread, never holds up the
+  caller, the newest text wins and `Flush` gives up after its time (SVC-13).
 - `controller`: MIDI decoding and the CC map with byte-level tests and fuzzing.
   `controller/rawmidi`: discovery, plug/unplug and busy devices against fake devices; the
   real controller is checked by hand (`apptrol test`, docs/testing.md).

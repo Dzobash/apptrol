@@ -68,11 +68,14 @@ type Controller interface {
 }
 
 // Status shows the state on the unit's Status line, which
-// `systemctl --user status apptrol` prints (SVC-13, ADR 0007). It reports
-// false, with no error, when nothing was sent because Apptrol was not started
-// by systemd.
+// `systemctl --user status apptrol` prints (SVC-13, ADR 0007). Like the other
+// adapters it never makes the loop wait: SetStatus hands the text over and
+// returns at once, and logs what became of it itself (ADR 0015).
 type Status interface {
-	SetStatus(text string) (sent bool, err error)
+	SetStatus(text string)
+	// Flush waits at most wait for what was handed over to be sent. It is called
+	// once, for the last text at shutdown.
+	Flush(wait time.Duration)
 }
 
 // Logs applies the logging part of the configuration (LOG-08).
@@ -107,6 +110,11 @@ type Options struct {
 	LEDResync     time.Duration // zero: audioLEDResync
 	PauseDelay    time.Duration // zero: playerPauseDelay
 }
+
+// statusFlushWait is how long shutdown waits for the Status line's last text
+// ("stopping") to reach systemd. A systemd that has stopped reading must not
+// hold up the shutdown (SVC-13).
+const statusFlushWait = 200 * time.Millisecond
 
 // maxBatch bounds how many queued events are read before handling them.
 const maxBatch = 256
@@ -143,7 +151,6 @@ type service struct {
 	connected, released, stopping bool
 	controls                      int
 	status                        string
-	noStatusLogged                bool
 }
 
 // Run runs Apptrol until ctx is canceled (SIGTERM or Ctrl+C), then saves the
@@ -235,6 +242,9 @@ func Run(ctx context.Context, o Options) error {
 			s.shutdown()
 			stopAdapters()
 			waitTimeout(&wg, 3*time.Second)
+			if o.Status != nil {
+				o.Status.Flush(statusFlushWait)
+			}
 			s.log.Info("Apptrol stopped")
 			return nil
 		case ch := <-changes:
@@ -501,7 +511,7 @@ func (s *service) statusText() string {
 
 // updateStatus sends the Status line when its text changed. It always starts
 // with the version, so `systemctl status` says which Apptrol runs (SVC-13).
-// A failure to send is a warning only: Apptrol runs the same without it.
+// Sending is the adapter's job and never waits (SVC-13, ADR 0015).
 func (s *service) updateStatus() {
 	if s.o.Status == nil {
 		return
@@ -512,17 +522,7 @@ func (s *service) updateStatus() {
 		return
 	}
 	s.status = text
-	log := s.log
-	sent, err := s.o.Status.SetStatus(text)
-	switch {
-	case err != nil:
-		log.Warn("could not send the status line", logattr.KeyStatus, text, logattr.Error(logattr.ErrStatusNotSent, err))
-	case sent:
-		log.Debug("status line sent", logattr.KeyStatus, text)
-	case !s.noStatusLogged:
-		s.noStatusLogged = true
-		log.Debug("status line not sent; Apptrol was not started by systemd", logattr.KeyStatus, text)
-	}
+	s.o.Status.SetStatus(text)
 }
 
 // handle passes one event to the mixer and carries out its actions.

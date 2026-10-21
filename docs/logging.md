@@ -58,6 +58,7 @@ Every line has `apptrol.component`:
 | `desktop` | The D-Bus session bus: connected, lost, and the media players found, gone or changing status (debug) |
 | `session` | logind, the login manager, on the D-Bus system bus: connected, lost; the computer going to sleep (debug) and waking up, when every LED is sent again; the screen locked or unlocked, which blocks or allows launchers |
 | `launcher` | Starting apps from launcher buttons: which app, in which systemd unit, and failures |
+| `systemd` | The Status line of `systemctl --user status apptrol`: each text sent (debug), that nothing is sent when Apptrol was not started by systemd (debug, once), and a failed send (warning) |
 | `mixer` | What your sliders, knobs and buttons do: volume, mute, solo, matching apps |
 
 ### Errors

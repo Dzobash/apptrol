@@ -3,7 +3,6 @@ package service
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -224,17 +223,25 @@ type env struct {
 
 // fakeStatus records the Status lines the service sends (SVC-13).
 type fakeStatus struct {
-	mu    sync.Mutex
-	texts []string
-	sent  bool  // what SetStatus reports
-	err   error // what SetStatus returns
+	mu      sync.Mutex
+	texts   []string
+	flushed []string // the last text when Flush was called, and how long it may wait
 }
 
-func (f *fakeStatus) SetStatus(text string) (bool, error) {
+func (f *fakeStatus) SetStatus(text string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.texts = append(f.texts, text)
-	return f.sent && f.err == nil, f.err
+}
+
+func (f *fakeStatus) Flush(wait time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	last := ""
+	if len(f.texts) > 0 {
+		last = f.texts[len(f.texts)-1]
+	}
+	f.flushed = append(f.flushed, fmt.Sprintf("%s (waiting at most %v)", last, wait))
 }
 
 func (f *fakeStatus) list() []string {
@@ -1053,7 +1060,7 @@ func (e *env) waitStatus(want string) {
 
 func TestSVC13_StatusLineFollowsTheController(t *testing.T) {
 	e := newEnv(t, testConfig)
-	e.status = &fakeStatus{sent: true}
+	e.status = &fakeStatus{}
 	e.start()
 
 	// The controller connects at once in the fake; testConfig assigns 3 controls.
@@ -1078,7 +1085,7 @@ func TestSVC13_StatusLineFollowsTheController(t *testing.T) {
 
 func TestSVC13_OnlyAChangeIsSent(t *testing.T) {
 	e := newEnv(t, testConfig)
-	e.status = &fakeStatus{sent: true}
+	e.status = &fakeStatus{}
 	e.start()
 	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
 
@@ -1099,7 +1106,7 @@ func TestSVC13_OnlyAChangeIsSent(t *testing.T) {
 
 func TestSVC13_WaitingForAValidConfiguration(t *testing.T) {
 	e := newEnv(t, "[apps.broken]\n")
-	e.status = &fakeStatus{sent: true}
+	e.status = &fakeStatus{}
 	e.start()
 	e.waitStatus(statusLine("waiting for a valid configuration"))
 
@@ -1109,7 +1116,7 @@ func TestSVC13_WaitingForAValidConfiguration(t *testing.T) {
 
 func TestSVC13_TheNumberFollowsAReloadedConfiguration(t *testing.T) {
 	e := newEnv(t, testConfig)
-	e.status = &fakeStatus{sent: true}
+	e.status = &fakeStatus{}
 	e.start()
 	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
 
@@ -1119,7 +1126,7 @@ func TestSVC13_TheNumberFollowsAReloadedConfiguration(t *testing.T) {
 
 func TestSVC13_StatusSaysStoppingOnShutdown(t *testing.T) {
 	e := newEnv(t, testConfig)
-	e.status = &fakeStatus{sent: true}
+	e.status = &fakeStatus{}
 	e.start()
 	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
 
@@ -1127,44 +1134,12 @@ func TestSVC13_StatusSaysStoppingOnShutdown(t *testing.T) {
 	if got, want := e.status.last(), statusLine("stopping"); got != want {
 		t.Errorf("last status = %q, want %q", got, want)
 	}
-}
-
-func TestSVC13_NotStartedBySystemdSendsNothingAndSaysSoOnce(t *testing.T) {
-	e := newEnv(t, testConfig)
-	e.status = &fakeStatus{sent: false} // no NOTIFY_SOCKET: SetStatus reports false
-	e.start()
-	e.waitStatus(statusLine("controller connected · 3 controls assigned"))
-	e.send(mixer.ControllerDisconnected{})
-	e.waitStatus(statusLine("controller not found"))
-
-	if n := strings.Count(e.out.String(), "status line not sent; Apptrol was not started by systemd"); n != 1 {
-		t.Errorf("the record appeared %d times, want 1\nlog:\n%s", n, e.out.String())
-	}
-	if strings.Contains(e.out.String(), "status line sent") {
-		t.Errorf("a status line was logged as sent\nlog:\n%s", e.out.String())
-	}
-}
-
-func TestSVC13_AFailureToSendIsAWarningAndApptrolKeepsRunning(t *testing.T) {
-	e := newEnv(t, testConfig)
-	e.status = &fakeStatus{err: errors.New("socket gone")}
-	e.start()
-	e.waitLog("could not send the status line")
-	if !strings.Contains(e.out.String(), "error.type=status_not_sent") {
-		t.Errorf("the warning has no error.type\nlog:\n%s", e.out.String())
-	}
-
-	e.send(slider(1, 127))
-	e.waitApplied(mixer.SetStreamVolume{StreamID: spotify.ID, Volume: 1})
-}
-
-func TestSVC13_AStatusLineIsLoggedWhenSent(t *testing.T) {
-	e := newEnv(t, testConfig)
-	e.status = &fakeStatus{sent: true}
-	e.start()
-	e.waitLog("status line sent")
-	if !strings.Contains(e.out.String(), "apptrol.status=") {
-		t.Errorf("the record has no apptrol.status\nlog:\n%s", e.out.String())
+	// Shutdown waits for it to reach systemd, but only briefly (SVC-13).
+	want := []string{statusLine("stopping") + " (waiting at most 200ms)"}
+	e.status.mu.Lock()
+	defer e.status.mu.Unlock()
+	if !reflect.DeepEqual(e.status.flushed, want) {
+		t.Errorf("Flush calls = %q, want %q", e.status.flushed, want)
 	}
 }
 

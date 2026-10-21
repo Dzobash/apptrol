@@ -49,6 +49,11 @@ Apptrol runs as a systemd **user** service (`systemctl --user`), shipped as
 
   | Level | Message | Attributes |
   |---|---|---|
-  | debug | `status line sent` | `apptrol.status` |
-  | debug | `status line not sent; Apptrol was not started by systemd` (once) | `apptrol.status` |
-  | warn | `could not send the status line` | `apptrol.status`, `error.type=status_not_sent`, `exception.message` |
+  | debug | `status line sent` | `apptrol.component=systemd`, `apptrol.status` |
+  | debug | `status line not sent; Apptrol was not started by systemd` (once) | `apptrol.component=systemd`, `apptrol.status` |
+  | warn | `could not send the status line` | `apptrol.component=systemd`, `apptrol.status`, `error.type=status_not_sent`, `exception.message` |
+
+  Review (2026-10-21): writing to systemd's socket has no time limit and blocks when
+  systemd stops reading. The event loop must never wait for that (ADR 0015), so the
+  adapter sends from its own goroutine, the newest text wins, and shutdown waits at most
+  200 ms for the last one. The owner chose this over a write deadline in the loop.
