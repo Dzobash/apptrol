@@ -287,8 +287,9 @@ The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
   blink them (MEDIA-09, ADR 0033). The mixer has no clock: a pause it did not ask for
   becomes the action `HoldPauseLED{BusName, Seq}`; the service runs a timer
   (`playerPauseDelay`) and sends `PlayerPauseSettled{BusName, Seq}` back through the
-  event channel, and the mixer ignores it unless `Seq` is still the player's latest
-  status change. A pause started by R or ▶ darkens the LEDs at once, and buttons always
+  event channel, and the mixer ignores it unless `Seq` names the player's running
+  hold (a counter of the whole mixer, so a player that comes back under the same bus name
+  never matches its predecessor's timer). A pause started by R or ▶ darkens the LEDs at once, and buttons always
   act on the player's real status; only the LEDs wait.
 
 ## Sleep and wake-up

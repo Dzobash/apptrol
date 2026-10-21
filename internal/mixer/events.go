@@ -146,8 +146,8 @@ type PlayerStatusChanged struct {
 }
 
 // PlayerPauseSettled reports that the delay asked for with HoldPauseLED is
-// over. Seq is the one the action carried: if the player has changed its
-// status since, the event is stale and the mixer ignores it (MEDIA-09,
+// over. Seq is the one the action carried: if the hold it names has ended,
+// or the player is a new one, the event is stale and the mixer ignores it (MEDIA-09,
 // ADR 0033).
 type PlayerPauseSettled struct {
 	BusName string

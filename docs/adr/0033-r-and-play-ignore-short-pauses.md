@@ -32,8 +32,9 @@ pause while you seek (Spotify, VLC, Elisa, Video.js, SoundCloud) never show it.
 4. **The mixer stays pure (ADR 0015).** It has no clock: a pause that Apptrol did not
    ask for makes the mixer emit `HoldPauseLED{BusName, Seq}`; the service starts a timer
    and, after the delay, sends `PlayerPauseSettled{BusName, Seq}`. The mixer darkens the
-   LEDs only if `Seq` is still the player's latest status change, so a timer for a pause
-   that has ended, or for a newer one, does nothing.
+   LEDs only if `Seq` names the player's running hold. `Seq` comes from one counter of
+   the whole mixer, so a timer for a pause that has ended, for a newer one, or for a
+   player that went away and came back under the same bus name, does nothing.
 
 ```
 status:  Playing ──┐ ~80 ms ┌── Playing        (seek inside the loaded part)

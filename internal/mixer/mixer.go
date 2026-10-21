@@ -29,6 +29,7 @@ type Mixer struct {
 
 	players        map[string]*playerInfo // media players by bus name (MEDIA-01, MEDIA-03)
 	playSeq        int                    // counts players starting to play (lastPlaying)
+	holdSeq        int                    // counts pause holds, over all players (MEDIA-09, ADR 0033)
 	deviceMuteSent map[string]bool        // last mute sent per device
 	leds           map[LED]bool           // last LED state sent
 	screen         ScreenState            // launchers start only while unlocked (LAUNCH-13, ADR 0024); media buttons send nothing while inactive (MEDIA-11, ADR 0030)

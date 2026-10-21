@@ -268,3 +268,27 @@ func TestMEDIA09_AConfigReloadDoesNotEndTheDelayEarly(t *testing.T) {
 	w.pauseDelayOver(tab.BusName)
 	w.wantLEDs(2, false, false, false)
 }
+
+func TestMEDIA09_ATimerOfARemovedPlayerDoesNotEndTheHoldOfItsReplacement(t *testing.T) {
+	// The browser restarts under the same bus name while a delay is running.
+	for name, replace := range map[string]func(w *world, tab Player){
+		"removed and added": func(w *world, tab Player) {
+			w.do(PlayerRemoved{BusName: tab.BusName}, PlayerAdded{Player: tab})
+		},
+		"snapshot": func(w *world, tab Player) { w.do(PlayerSnapshot{Players: []Player{tab}}) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := started(t)
+			tab := player("firefox.instance_1_1", "Firefox", "")
+			w.do(PlayerSnapshot{Players: []Player{tab}})
+			w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused})
+			old := w.holds[0]
+			replace(w, tab)
+			w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused}) // the new player's first pause
+			w.do(PlayerPauseSettled{BusName: tab.BusName, Seq: old.Seq})          // the old timer fires
+			w.wantLEDs(2, false, false, true)
+			w.pauseDelayOver(tab.BusName)
+			w.wantLEDs(2, false, false, false)
+		})
+	}
+}
