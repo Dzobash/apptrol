@@ -106,6 +106,7 @@ func TestLED06_PlayIsLitWhileTheMediaKeyPlayerPlays(t *testing.T) {
 		t.Error("▶ not lit while Spotify plays")
 	}
 	w.do(PlayerStatusChanged{BusName: spotifyPlayer.BusName, Status: StatusPaused})
+	w.pauseDelayOver(spotifyPlayer.BusName) // a pause shows once it has lasted (MEDIA-09)
 	if w.playLED() {
 		t.Error("▶ lit after Spotify paused")
 	}

@@ -203,7 +203,24 @@ type env struct {
 	logLevelFlag string // Options.LogLevelFlag
 	launcher     fakeLauncher
 	session      fakeSession
+	desktop      *fakeDesktop // nil: no media players
 }
+
+// fakeDesktop reports the media players a test sends through in.
+type fakeDesktop struct{ in chan mixer.Event }
+
+func (f *fakeDesktop) Run(ctx context.Context, out chan<- mixer.Event) error {
+	for {
+		select {
+		case ev := <-f.in:
+			out <- ev
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (f *fakeDesktop) Apply(mixer.Action) error { return nil }
 
 // fakeSession reports an unlocked screen, as on a desktop, then passes on
 // the events a test sends (internal/session). ready is closed once the
@@ -316,10 +333,14 @@ func (e *env) start() *env {
 		WatchInterval: 10 * time.Millisecond,
 		SaveDelay:     10 * time.Millisecond,
 		LEDResync:     20 * time.Millisecond,
+		PauseDelay:    150 * time.Millisecond,
 		// Only Discord is installed in the tests, whatever the machine has.
 		InstalledApps: func() launcher.Apps { return launcher.Apps{"discord": {ID: "discord", Name: "Discord"}} },
 		Launcher:      &e.launcher,
 		Session:       &e.session,
+	}
+	if e.desktop != nil {
+		o.Desktop = e.desktop
 	}
 	go func() { e.done <- Run(ctx, o) }()
 	e.t.Cleanup(e.stop)
@@ -912,4 +933,30 @@ func TestCFG20_InactiveOutputWarningOnStartAndReload(t *testing.T) {
 	e.write(src + "\n# reload\n")
 	e.waitLog("configuration reloaded")
 	e.eventually("inactive output warning repeated on reload", func() bool { return strings.Count(e.out.String(), message) == 2 })
+}
+
+// A browser pauses for a moment while you seek with the mouse; R must not
+// blink, and must go dark when the pause lasts (MEDIA-09, ADR 0033).
+func TestMEDIA09_APauseShowsOnTheLEDsOnlyAfterTheDelay(t *testing.T) {
+	e := newEnv(t, testConfig)
+	e.desktop = &fakeDesktop{in: make(chan mixer.Event, 8)}
+	e.start()
+	r2 := mixer.LED{Button: mixer.ButtonR, Column: 2}
+	tab := mixer.Player{BusName: "org.mpris.MediaPlayer2.firefox.instance_1_1", Identity: "Firefox", Status: mixer.StatusPlaying}
+	e.desktop.in <- mixer.PlayerAdded{Player: tab}
+	e.eventually("R2 lit", func() bool { return e.ctl.led(r2) })
+
+	time.Sleep(100 * time.Millisecond) // the start's LED resync (LED-07) is over
+	offs := e.ctl.setCount(r2)
+	e.desktop.in <- mixer.PlayerStatusChanged{BusName: tab.BusName, Status: mixer.StatusPaused}
+	e.desktop.in <- mixer.PlayerStatusChanged{BusName: tab.BusName, Status: mixer.StatusPlaying}
+	e.waitLog("short pause not shown on the LEDs")
+	time.Sleep(300 * time.Millisecond) // the old timer fires and is ignored
+	if !e.ctl.led(r2) || e.ctl.setCount(r2) != offs {
+		t.Errorf("R2 blinked during a short pause (lit %v, %d writes since)", e.ctl.led(r2), e.ctl.setCount(r2)-offs)
+	}
+
+	e.desktop.in <- mixer.PlayerStatusChanged{BusName: tab.BusName, Status: mixer.StatusPaused}
+	e.eventually("R2 dark after the delay", func() bool { return !e.ctl.led(r2) })
+	e.waitLog("pause shown on the LEDs")
 }

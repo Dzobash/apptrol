@@ -284,7 +284,7 @@ func (m *Mixer) Handle(ev Event) []Action {
 		delete(m.outputs, e.Name)
 	case ConfigChanged:
 		m.configChanged(&a, e.Setup)
-	case PlayerSnapshot, PlayerAdded, PlayerRemoved, PlayerStatusChanged:
+	case PlayerSnapshot, PlayerAdded, PlayerRemoved, PlayerStatusChanged, PlayerPauseSettled:
 		m.playersChanged(&a, e)
 	}
 	return a

@@ -282,7 +282,14 @@ The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
   a player that refuses is logged when its answer arrives.
 - **LEDs from players:** R and ▶ follow the players' `PlaybackStatus`, which arrives
   milliseconds after a command, not the audio stream, which apps pause only seconds
-  later (ADR 0018, notes).
+  later (ADR 0018, notes). They go dark only after a player has stayed `Paused` for
+  500 ms, so the 60–100 ms pauses a browser makes while you seek with the mouse do not
+  blink them (MEDIA-09, ADR 0033). The mixer has no clock: a pause it did not ask for
+  becomes the action `HoldPauseLED{BusName, Seq}`; the service runs a timer
+  (`playerPauseDelay`) and sends `PlayerPauseSettled{BusName, Seq}` back through the
+  event channel, and the mixer ignores it unless `Seq` is still the player's latest
+  status change. A pause started by R or ▶ darkens the LEDs at once, and buttons always
+  act on the player's real status; only the LEDs wait.
 
 ## Sleep and wake-up
 

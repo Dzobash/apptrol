@@ -40,3 +40,34 @@ Was: H-49 (the media buttons part)
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
+
+### TC-MEDIA-002 — Seeking a browser video with the mouse does not blink R and ▶
+
+Covers: MEDIA-09, LED-03, LED-06 · Phase 1.6
+Config: browser-player
+Type: Manual
+
+**Setup**
+- [ ] A long video plays in a browser tab whose player pauses while you scrub (YouTube,
+  or the browser's own controls on a plain video file); slider 1 in the middle
+- [ ] R1 and ▶ are lit
+- [ ] Note the time, for reading the log afterwards
+
+**Steps**
+- [ ] Click a point in the loaded part of the progress bar → R1 and ▶ stay lit, with
+  no flicker
+- [ ] Drag the progress bar back and forth a few times → R1 and ▶ stay lit
+- [ ] Press the keyboard's right arrow key to seek → R1 and ▶ stay lit
+- [ ] Click a point far beyond the loaded part, so the video buffers for a second or more
+  → R1 and ▶ go dark until the video plays again, then light up again at once
+- [ ] Press R1 → the video pauses and R1 and ▶ go dark at once, without waiting
+- [ ] Press R1 again → the video plays; R1 and ▶ light up at once
+- [ ] Pause the video with the browser's own button → R1 and ▶ go dark about half a
+  second later
+- [ ] Run `journalctl --user -u apptrol --since <time> | grep -E 'playback status|on the LEDs'`
+  → each skipped seek pause shows `playback status changed` (`Paused`, then `Playing`)
+  and `short pause not shown on the LEDs`; the buffering and the browser's own pause
+  show `pause shown on the LEDs`; the presses of R1 show none of the two messages
+
+**Result:** Pass / Fail / Blocked
+**Notes:**

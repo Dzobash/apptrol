@@ -1,0 +1,18 @@
+# Test fixture "browser-player": a browser on slider 1 (R and ▶ follow its video).
+# For: the R and ▶ LEDs with a real media player. Play a video in the browser.
+# Applied by docs/testing/apply-fixture.sh; format of 0.2.x (docs/config.md).
+# TestFixturesAreValid in internal/config checks that it loads.
+
+[controller]
+port = "nanoKONTROL2"
+
+[log]
+level   = "debug"                  # the cases read the log
+outputs = ["journald"]
+
+[apps.browser]
+name  = "Browser"
+match = ["firefox", "chrome", "vivaldi"]
+
+[layouts.default]
+slider1 = "browser"

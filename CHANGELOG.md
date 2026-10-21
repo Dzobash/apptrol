@@ -63,6 +63,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   package cannot carry a different license text than the repository (NFR-09, #146).
 
 ### Fixed
+- R and ▶ no longer blink when you seek in a browser video with the mouse. Many web
+  players pause the video for 60–100 ms while you scrub, and the LEDs followed every
+  pause. They now go dark only after a player has stayed paused for 500 ms; buffering
+  still darkens them, and a pause made with R or ▶ still shows at once. A debug line
+  records each pause the LEDs skipped (MEDIA-09, LED-03, LED-06,
+  [ADR 0033](docs/adr/0033-r-and-play-ignore-short-pauses.md), #163).
 - A slider moved in the 3 seconds after an app's stream or an input appears can no
   longer be undone by the older volume: when WirePlumber restored a remembered volume at
   the same moment, Apptrol could set the slider's previous position after the new one.
