@@ -229,7 +229,9 @@ The owner wants to keep learning while working, not just receive finished result
   command starts, not its arguments (`make check` lets `make check other-target`
   through), so this list still decides which arguments are fine. Codex applies its rules
   to commands outside its sandbox, and only when the project is trusted in Codex, from
-  its next start. A new command goes into both files (a test checks they match). Run
+  its next start. A new command goes into both files (a test checks they match). Grok
+  (Grok Build) reads `.claude/settings.json` and AGENTS.md by itself (`grok inspect
+  --json` shows the rules it loaded); it needs no file of its own. Run
   commands from the checkout's folder, one per call (no `cd … &&`, no `git -C`), so
   they match the lists.
   Before a command that does more than read, say in one or two sentences what you are
