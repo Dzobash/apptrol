@@ -145,6 +145,15 @@ type PlayerStatusChanged struct {
 	Status  string
 }
 
+// PlayerPauseSettled reports that the delay asked for with HoldPauseLED is
+// over. Seq is the one the action carried: if the hold it names has ended,
+// or the player is a new one, the event is stale and the mixer ignores it (MEDIA-09,
+// ADR 0033).
+type PlayerPauseSettled struct {
+	BusName string
+	Seq     int
+}
+
 // ConfigChanged carries a new, valid configuration (CFG-06).
 type ConfigChanged struct{ Setup Setup }
 
@@ -172,6 +181,7 @@ func (PlayerSnapshot) isEvent()         {}
 func (PlayerAdded) isEvent()            {}
 func (PlayerRemoved) isEvent()          {}
 func (PlayerStatusChanged) isEvent()    {}
+func (PlayerPauseSettled) isEvent()     {}
 
 // Action is something the service must do.
 type Action interface{ isAction() }
@@ -194,6 +204,16 @@ type PlayerCommand struct {
 type LaunchApp struct {
 	Button LED
 	Launch Launch
+}
+
+// HoldPauseLED asks the service to send PlayerPauseSettled with the same Seq
+// after the pause delay. The mixer has no clock; until the event comes, the
+// LEDs keep showing the player as playing, so a pause that lasts only
+// milliseconds, as a browser makes while you seek with the mouse, does not
+// blink them (MEDIA-09, ADR 0033).
+type HoldPauseLED struct {
+	BusName string
+	Seq     int
 }
 
 // Player commands (MPRIS method names).
@@ -289,5 +309,6 @@ func (StateChanged) isAction()      {}
 func (Notice) isAction()            {}
 func (PlayerCommand) isAction()     {}
 func (LaunchApp) isAction()         {}
+func (HoldPauseLED) isAction()      {}
 func (ReleaseController) isAction() {}
 func (TakeController) isAction()    {}

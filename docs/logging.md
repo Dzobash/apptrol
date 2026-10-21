@@ -157,6 +157,17 @@ WARN launcher pressed while the screen is locked; started (when_locked) apptrol.
 INFO launchers allowed: the screen is unlocked apptrol.component=session apptrol.session.id=<id>
 ```
 
+A browser pauses its video for a moment while you seek with the mouse. R and ▶ stay lit
+for pauses shorter than 500 ms, and the debug log says so; a longer pause (buffering, or
+the browser's own pause button) darkens them (MEDIA-09, ADR 0033):
+
+```text
+DEBU playback status changed apptrol.component=desktop apptrol.player.bus_name=org.mpris.MediaPlayer2.chromium.instance<pid> apptrol.player.status=Paused
+DEBU playback status changed apptrol.component=desktop apptrol.player.bus_name=org.mpris.MediaPlayer2.chromium.instance<pid> apptrol.player.status=Playing
+DEBU short pause not shown on the LEDs apptrol.component=mixer apptrol.player.bus_name=org.mpris.MediaPlayer2.chromium.instance<pid> apptrol.player.identity=Chrome
+DEBU pause shown on the LEDs apptrol.component=mixer apptrol.player.bus_name=org.mpris.MediaPlayer2.chromium.instance<pid> apptrol.player.identity=Chrome
+```
+
 After *Switch user*, with the login screen in front and `at_login_screen = "keep"`, the
 session has lost the speakers: the media buttons and R send nothing, and each press is one
 warning instead of `button pressed while the screen is locked` (MEDIA-11, ADR 0030).

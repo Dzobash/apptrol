@@ -103,7 +103,8 @@ func TestMEDIA09_RLightsWhileAPlayerOfTheAppPlays(t *testing.T) {
 	w.do(PlayerAdded{Player: spotifyPlayer})
 	w.wantLEDs(1, false, false, true)
 	w.do(PlayerStatusChanged{BusName: spotifyPlayer.BusName, Status: StatusPaused})
-	w.wantLEDs(1, false, false, false) // at once, not when the app corks its stream
+	w.pauseDelayOver(spotifyPlayer.BusName)
+	w.wantLEDs(1, false, false, false) // after the delay, not when the app corks its stream
 	w.do(StreamCorkChanged{ID: spotify.ID, Corked: true})
 	w.wantLEDs(1, false, false, false)
 	w.do(PlayerStatusChanged{BusName: spotifyPlayer.BusName, Status: StatusPlaying})
@@ -123,6 +124,7 @@ func TestMEDIA09_RLightsWhileAnyOfSeveralPlayersPlays(t *testing.T) {
 	w.do(PlayerSnapshot{Players: []Player{a, withStatus(b, StatusPaused)}})
 	w.wantLEDs(2, false, false, true)
 	w.do(PlayerStatusChanged{BusName: a.BusName, Status: StatusPaused})
+	w.pauseDelayOver(a.BusName)
 	w.wantLEDs(2, false, false, false)
 	w.do(PlayerStatusChanged{BusName: b.BusName, Status: StatusPlaying})
 	w.wantLEDs(2, false, false, true)
@@ -134,4 +136,159 @@ func TestMEDIA09_PhonePlayersDoNotLightR(t *testing.T) {
 	w.wantLEDs(1, false, false, false)
 	w.press(ButtonR, 1)
 	w.wantCommands()
+}
+
+// ---- a short pause does not blink R and ▶ (MEDIA-09, ADR 0033) ----------------
+
+// pauseDelayOver models the service's timer: the delay of the player's latest
+// HoldPauseLED is over.
+func (w *world) pauseDelayOver(busName string) {
+	w.t.Helper()
+	for i := len(w.holds) - 1; i >= 0; i-- {
+		if w.holds[i].BusName == busName {
+			w.do(PlayerPauseSettled{BusName: busName, Seq: w.holds[i].Seq})
+			return
+		}
+	}
+	w.t.Fatalf("no pause delay was asked for %s", busName)
+}
+
+func (w *world) wantPlayLED(want bool) {
+	w.t.Helper()
+	if got := w.playLED(); got != want {
+		w.t.Errorf("▶ LED = %v, want %v", got, want)
+	}
+}
+
+func TestMEDIA09_AShortPauseDoesNotDarkenR(t *testing.T) {
+	// A browser pauses for ~80 ms while you seek with the mouse.
+	w := started(t)
+	tab := player("firefox.instance_1_1", "Firefox", "")
+	w.do(PlayerSnapshot{Players: []Player{tab}})
+	w.wantLEDs(2, false, false, true)
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused})
+	w.wantLEDs(2, false, false, true) // still lit: the delay is running
+	if len(w.holds) != 1 {
+		t.Fatalf("pause delays asked for = %v, want 1", w.holds)
+	}
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPlaying})
+	w.wantLEDs(2, false, false, true)
+	w.wantNotice(slog.LevelDebug, "short pause not shown on the LEDs")
+	w.pauseDelayOver(tab.BusName) // the timer comes late: nothing to do
+	w.wantLEDs(2, false, false, true)
+}
+
+func TestMEDIA09_APauseThatLastsDarkensR(t *testing.T) {
+	// Buffering after a seek beyond the loaded part: nothing plays.
+	w := started(t)
+	tab := player("firefox.instance_1_1", "Firefox", "")
+	w.do(PlayerSnapshot{Players: []Player{tab}})
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused})
+	w.pauseDelayOver(tab.BusName)
+	w.wantLEDs(2, false, false, false)
+	w.wantNotice(slog.LevelDebug, "pause shown on the LEDs")
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPlaying})
+	w.wantLEDs(2, false, false, true) // lighting up stays immediate
+}
+
+func TestMEDIA09_AnOldDelayDoesNotEndANewerPause(t *testing.T) {
+	w := started(t)
+	tab := player("firefox.instance_1_1", "Firefox", "")
+	w.do(PlayerSnapshot{Players: []Player{tab}})
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused})
+	first := w.holds[0]
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPlaying})
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused}) // a second seek
+	w.do(PlayerPauseSettled{BusName: tab.BusName, Seq: first.Seq})        // the first timer fires
+	w.wantLEDs(2, false, false, true)                                     // the second pause has not lasted yet
+	w.pauseDelayOver(tab.BusName)
+	w.wantLEDs(2, false, false, false)
+}
+
+func TestMEDIA09_StoppedAndRemovedPlayersDarkenAtOnce(t *testing.T) {
+	w := started(t)
+	tab := player("firefox.instance_1_1", "Firefox", "")
+	w.do(PlayerSnapshot{Players: []Player{tab}})
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: "Stopped"})
+	w.wantLEDs(2, false, false, false)
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPlaying})
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused})
+	w.do(PlayerRemoved{BusName: tab.BusName})
+	w.wantLEDs(2, false, false, false)
+	w.do(PlayerPauseSettled{BusName: tab.BusName, Seq: w.holds[0].Seq}) // a timer for a gone player
+	w.wantLEDs(2, false, false, false)
+}
+
+func TestMEDIA09_ThePauseOfAPressShowsAtOnce(t *testing.T) {
+	// R and ▶ pause on purpose: the LED must not lag behind the press.
+	w := started(t)
+	tab := player("firefox.instance_1_1", "Firefox", "")
+	w.do(PlayerSnapshot{Players: []Player{tab}})
+	w.press(ButtonR, 2)
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused})
+	w.wantLEDs(2, false, false, false)
+	if len(w.holds) != 0 {
+		t.Errorf("pause delays asked for = %v, want none", w.holds)
+	}
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPlaying})
+	w.key(Play) // ▶ pauses the media-key player
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused})
+	w.wantLEDs(2, false, false, false)
+	w.wantPlayLED(false)
+}
+
+func TestMEDIA09_PressesActOnTheRealStatusDuringTheDelay(t *testing.T) {
+	w := started(t)
+	tab := player("firefox.instance_1_1", "Firefox", "")
+	w.do(PlayerSnapshot{Players: []Player{tab}})
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused})
+	w.wantLEDs(2, false, false, true) // R still looks lit…
+	w.press(ButtonR, 2)
+	w.wantCommands(PlayerCommand{BusName: tab.BusName, Command: CommandPlay}) // …but the player is paused: R resumes
+}
+
+func TestMEDIA09_APauseDoesNotBlinkTheMediaKeyLED(t *testing.T) {
+	w := started(t)
+	tab := player("firefox.instance_1_1", "Firefox", "")
+	w.do(PlayerSnapshot{Players: []Player{tab}})
+	w.wantPlayLED(true)
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused})
+	w.wantPlayLED(true)
+	w.pauseDelayOver(tab.BusName)
+	w.wantPlayLED(false)
+}
+
+func TestMEDIA09_AConfigReloadDoesNotEndTheDelayEarly(t *testing.T) {
+	w := started(t)
+	tab := player("firefox.instance_1_1", "Firefox", "")
+	w.do(PlayerSnapshot{Players: []Player{tab}})
+	w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused})
+	w.do(ConfigChanged{Setup: testSetup()})
+	w.wantLEDs(2, false, false, true)
+	w.pauseDelayOver(tab.BusName)
+	w.wantLEDs(2, false, false, false)
+}
+
+func TestMEDIA09_ATimerOfARemovedPlayerDoesNotEndTheHoldOfItsReplacement(t *testing.T) {
+	// The browser restarts under the same bus name while a delay is running.
+	for name, replace := range map[string]func(w *world, tab Player){
+		"removed and added": func(w *world, tab Player) {
+			w.do(PlayerRemoved{BusName: tab.BusName}, PlayerAdded{Player: tab})
+		},
+		"snapshot": func(w *world, tab Player) { w.do(PlayerSnapshot{Players: []Player{tab}}) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			w := started(t)
+			tab := player("firefox.instance_1_1", "Firefox", "")
+			w.do(PlayerSnapshot{Players: []Player{tab}})
+			w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused})
+			old := w.holds[0]
+			replace(w, tab)
+			w.do(PlayerStatusChanged{BusName: tab.BusName, Status: StatusPaused}) // the new player's first pause
+			w.do(PlayerPauseSettled{BusName: tab.BusName, Seq: old.Seq})          // the old timer fires
+			w.wantLEDs(2, false, false, true)
+			w.pauseDelayOver(tab.BusName)
+			w.wantLEDs(2, false, false, false)
+		})
+	}
 }

@@ -172,10 +172,11 @@ func (m *Mixer) playerMatches(p Player, id string) bool {
 }
 
 // mediaKeyPlaying reports whether the media-key player plays: the ▶ LED is
-// lit then (LED-06).
+// lit then (LED-06), but not darkened by a pause shorter than the pause
+// delay (MEDIA-09, ADR 0033).
 func (m *Mixer) mediaKeyPlaying() bool {
 	p, _ := m.mediaKeyPlayer()
-	return p != nil && p.Status == StatusPlaying
+	return p != nil && p.ledPlaying
 }
 
 // launcherButtons are the transport buttons that can start apps (LAUNCH-01).
@@ -211,6 +212,7 @@ func (m *Mixer) transportPressed(a *actions, b TransportButton) {
 		command = CommandPlay
 		if p.Status == StatusPlaying {
 			command = CommandPause
+			p.pauseCommanded = true // its Paused shows at once (ADR 0033)
 		}
 	}
 	a.add(PlayerCommand{BusName: p.BusName, Command: command})

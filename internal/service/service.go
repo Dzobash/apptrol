@@ -96,6 +96,7 @@ type Options struct {
 	WatchInterval time.Duration
 	SaveDelay     time.Duration
 	LEDResync     time.Duration // zero: audioLEDResync
+	PauseDelay    time.Duration // zero: playerPauseDelay
 }
 
 // maxBatch bounds how many queued events are read before handling them.
@@ -107,6 +108,12 @@ const maxBatch = 256
 // connections (LED-07).
 const audioLEDResync = 2 * time.Second
 
+// playerPauseDelay is how long a media player must stay paused before R and ▶
+// go dark. Browsers pause a video for 60–100 ms while you seek with the mouse,
+// and for 0.7–1.2 s while it buffers; only the second leaves nothing playing
+// (MEDIA-09, ADR 0033).
+const playerPauseDelay = 500 * time.Millisecond
+
 type service struct {
 	o    Options
 	log  *slog.Logger // apptrol.component=service; see logFor for the others
@@ -117,6 +124,10 @@ type service struct {
 	// flashEnd fires when the Record LED's flash is over (LAUNCH-08).
 	flashEnd <-chan time.Time
 	saver    *state.Saver
+	// events and actx let the pause delay's timers hand PlayerPauseSettled
+	// back to the loop; actx ends with the adapters (MEDIA-09).
+	events chan<- mixer.Event
+	actx   context.Context
 }
 
 // Run runs Apptrol until ctx is canceled (SIGTERM or Ctrl+C), then saves the
@@ -130,6 +141,9 @@ func Run(ctx context.Context, o Options) error {
 	}
 	if o.LEDResync == 0 {
 		o.LEDResync = audioLEDResync
+	}
+	if o.PauseDelay == 0 {
+		o.PauseDelay = playerPauseDelay
 	}
 	s := &service{o: o, logs: map[string]*slog.Logger{}}
 	s.log = s.logFor(logattr.Service)
@@ -172,6 +186,7 @@ func Run(ctx context.Context, o Options) error {
 	actx, stopAdapters := context.WithCancel(context.Background())
 	defer stopAdapters()
 	events := make(chan mixer.Event, maxBatch)
+	s.events, s.actx = events, actx
 	changes := make(chan config.Change, 4)
 	var wg sync.WaitGroup
 	runs := []func(){
@@ -463,6 +478,16 @@ func (s *service) do(a mixer.Action) {
 			_ = s.ctl.SetLED(a.Button, true)
 			s.flashEnd = time.After(recordFlash)
 		}
+	case mixer.HoldPauseLED:
+		// The mixer has no clock: the event comes back after the delay, and
+		// the mixer drops it if the player changed its status meanwhile
+		// (MEDIA-09, ADR 0033).
+		time.AfterFunc(s.o.PauseDelay, func() {
+			select {
+			case s.events <- mixer.PlayerPauseSettled(a):
+			case <-s.actx.Done():
+			}
+		})
 	case mixer.PlayerCommand:
 		if s.o.Desktop == nil {
 			return

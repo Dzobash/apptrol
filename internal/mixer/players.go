@@ -23,6 +23,19 @@ type playerInfo struct {
 	// lastPlaying orders players by when they last started playing while
 	// Apptrol ran (MEDIA-07); 0 = not since Apptrol started.
 	lastPlaying int
+	// ledPlaying is what R and ▶ show: the player plays. It follows Status,
+	// except that a pause stays unshown while holding is set, so the short
+	// pauses a browser makes while you seek do not blink the LEDs (MEDIA-09,
+	// ADR 0033). Buttons always act on Status.
+	ledPlaying bool
+	holding    bool // Paused, LEDs still lit, waiting for PlayerPauseSettled
+	// holdSeq names the running hold. It comes from a counter of the whole
+	// mixer, not of the player: a player that goes away and comes back under
+	// the same bus name must not match the timer of its predecessor.
+	holdSeq int
+	// pauseCommanded is set when Apptrol itself sent Pause: that pause is
+	// real and shows at once (ADR 0033).
+	pauseCommanded bool
 }
 
 // StatusPlaying and StatusPaused are MPRIS PlaybackStatus values.
@@ -101,8 +114,13 @@ func playerAttrs(p Player) []any {
 func (m *Mixer) placePlayer(a *actions, p Player, quiet bool) {
 	before, known := m.players[p.BusName]
 	info := &playerInfo{Player: p}
+	info.ledPlaying = p.Status == StatusPlaying
 	if known {
 		info.lastPlaying = before.lastPlaying
+		if before.Status == p.Status { // a configuration reload must not end a hold early
+			info.ledPlaying, info.holding = before.ledPlaying, before.holding
+			info.holdSeq, info.pauseCommanded = before.holdSeq, before.pauseCommanded
+		}
 	}
 	if p.Status == StatusPlaying && (!known || before.Status != StatusPlaying) {
 		info.lastPlaying = m.nextPlaySeq()
@@ -142,13 +160,45 @@ func (m *Mixer) playersChanged(a *actions, ev Event) {
 		delete(m.players, e.BusName)
 	case PlayerStatusChanged:
 		if p, ok := m.players[e.BusName]; ok {
-			if e.Status == StatusPlaying && p.Status != StatusPlaying {
-				p.lastPlaying = m.nextPlaySeq()
-			}
-			p.Status = e.Status
+			m.statusChanged(a, p, e.Status)
+		}
+	case PlayerPauseSettled:
+		if p, ok := m.players[e.BusName]; ok && p.holding && p.holdSeq == e.Seq {
+			p.holding, p.ledPlaying = false, false
+			a.notice(slog.LevelDebug, "pause shown on the LEDs", playerAttrs(p.Player)...)
 		}
 	}
 	m.syncLEDs(a, false) // a player playing, pausing or going changes the R LED (MEDIA-09)
+}
+
+// statusChanged applies a player's new status and decides what the LEDs show.
+// Playing lights them at once. A pause that Apptrol did not ask for keeps
+// them lit and starts the pause delay; any other status, or a pause Apptrol
+// asked for, darkens them at once (MEDIA-09, ADR 0033).
+func (m *Mixer) statusChanged(a *actions, p *playerInfo, status string) {
+	before := p.Status
+	if status == before {
+		return
+	}
+	if status == StatusPlaying {
+		p.lastPlaying = m.nextPlaySeq()
+	}
+	p.Status = status
+	commanded := p.pauseCommanded
+	p.pauseCommanded = false
+	switch {
+	case status == StatusPlaying:
+		if p.holding {
+			a.notice(slog.LevelDebug, "short pause not shown on the LEDs", playerAttrs(p.Player)...)
+		}
+		p.holding, p.ledPlaying = false, true
+	case status == StatusPaused && before == StatusPlaying && p.ledPlaying && !commanded:
+		m.holdSeq++
+		p.holding, p.holdSeq = true, m.holdSeq
+		a.add(HoldPauseLED{BusName: p.BusName, Seq: p.holdSeq})
+	default:
+		p.holding, p.ledPlaying = false, false
+	}
 }
 
 func (m *Mixer) nextPlaySeq() int {
@@ -215,6 +265,7 @@ func (m *Mixer) playPause(a *actions, c Control, button string) {
 		switch p.Status {
 		case StatusPlaying:
 			a.add(PlayerCommand{BusName: p.BusName, Command: CommandPause})
+			p.pauseCommanded = true // its Paused shows at once (ADR 0033)
 			a.notice(slog.LevelInfo, "paused", m.about(c, logattr.KeyButton, button, logattr.KeyPlayerBusName, p.BusName)...)
 			paused = true
 		case StatusPaused:
@@ -234,16 +285,18 @@ func (m *Mixer) playPause(a *actions, c Control, button string) {
 }
 
 // rLit reports whether the R LED of an app column is lit: in play_pause mode,
-// while one of the app's media players reports Playing (MEDIA-09). Lit means
-// pressing R pauses; dark means it resumes, or does nothing. The player's
-// status arrives right after a press, while apps cork their stream only
-// seconds after pausing (ADR 0018, note of 2026-10-02).
+// while one of the app's media players reports Playing, ignoring a pause
+// shorter than the pause delay (MEDIA-09, ADR 0033). Lit means pressing R
+// pauses; dark means it resumes, or does nothing; the one exception is the
+// pause delay, when the LED still shows a player that is already paused and R
+// resumes it. The player's status arrives right after a press, while apps cork
+// their stream only seconds after pausing (ADR 0018, note of 2026-10-02).
 func (m *Mixer) rLit(col int, id string) bool {
 	if m.rMode(col) != ModePlayPause {
 		return false
 	}
 	for _, p := range m.appPlayers(id) {
-		if p.Status == StatusPlaying {
+		if p.ledPlaying {
 			return true
 		}
 	}
