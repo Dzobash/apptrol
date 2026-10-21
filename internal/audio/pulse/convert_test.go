@@ -232,7 +232,7 @@ func TestOUT12_OutputChanges(t *testing.T) {
 		{"appeared", false, sink(speakers, 0.8, false), []mixer.Event{mixer.OutputAdded{Device: speakers}}, &speakers},
 		{"turned down and muted", false, sink(speakers, 0.3, true), []mixer.Event{mixer.OutputMuteChanged{Name: speakers.Name, Muted: true}}, &speakers},
 		{"turned up past 100 % and unmuted", false, sink(speakers, 1.2, false), []mixer.Event{mixer.OutputMuteChanged{Name: speakers.Name}}, &speakers},
-		{"renamed and muted", false, sink(renamed, 1.2, true), []mixer.Event{mixer.OutputAdded{Device: renamed}, mixer.OutputMuteChanged{Name: speakers.Name, Muted: true}}, &renamed},
+		{"renamed and muted", false, sink(renamed, 1.2, true), []mixer.Event{mixer.OutputMuteChanged{Name: speakers.Name, Muted: true}, mixer.OutputAdded{Device: renamed}}, &renamed},
 		{"renamed, the same notification again", false, sink(renamed, 1.2, true), nil, &renamed},
 		{"renamed, then unmuted", false, sink(renamed, 1.2, false), []mixer.Event{mixer.OutputMuteChanged{Name: speakers.Name}}, &renamed},
 		{"removed", true, SinkInfo{}, []mixer.Event{mixer.OutputRemoved{Name: speakers.Name}}, nil},

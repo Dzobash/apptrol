@@ -481,13 +481,13 @@ func outputChange(t *tracker, index uint32, removed bool, read func(uint32) (Sin
 				return nil, nil
 			}
 			t.outputs[index] = d.Device
-			evs := []mixer.Event{mixer.OutputAdded{Device: d.Device}}
-			// A description and mute can change in one notification. Retain
-			// the outside mute after rematching the device (OUT-05, ADR 0027).
+			var evs []mixer.Event
+			// The mute was read before rematching: a newly owning control
+			// must apply its saved mute afterwards (OUT-05, ADR 0034).
 			if known && old.Name == d.Name && wasMuted != d.Muted {
 				evs = append(evs, mixer.OutputMuteChanged{Name: d.Name, Muted: d.Muted})
 			}
-			return evs, nil
+			return append(evs, mixer.OutputAdded{Device: d.Device}), nil
 		case !IsGone(err):
 			return nil, err
 		}

@@ -29,13 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is, including when another audio notification arrives before the mixer has answered
   a changed description (CTRL-06); with `level = "debug"`, the log shows each read of
   an output, the volume Apptrol set on it, and each ownership answer it ignored because
-  the output changed again. S and output LEDs follow in PR 2c, and `device = "default"` is still inactive,
+  the output changed again. S and output LEDs follow with #85, and `device = "default"` is still inactive,
   with a warning (OUT-01, OUT-02, OUT-04, OUT-05, OUT-13,
   [ADR 0027](docs/adr/0027-output-volume.md), Refs #85).
 - M toggles a fixed output's mute, saved per control. Outside mutes are taken over
   on sliders and knobs; re-plug applies the saved mute and known position. When two
   controls match the same device, only the first controls it (sliders before knobs),
-  with a warning identifying the conflict. Labels do not decide ownership. Guarding
+  with a warning identifying the conflict. Labels do not decide ownership.
+  When a device's description and mute change together, the outside mute is handled
+  before rematching, so a newly matching control keeps its saved mute consistent
+  with the device. Guarding
   mute against late server restores on re-plug remains a separate follow-up
   (OUT-04, OUT-05, OUT-06, [ADR 0034](docs/adr/0034-first-control-owns-matched-output.md), Refs #85).
 - `make check` and CI cross-compile the shared packages for Windows without cgo,

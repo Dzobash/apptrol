@@ -2,6 +2,7 @@ package mixer
 
 import "testing"
 
+// Moving and restarting must preserve M's saved mute (OUT-06, STATE-01, ADR 0027).
 func TestOUT06_MuteSavedPerControlAndRestored(t *testing.T) {
 	w := outputWorld(t, outputSetup())
 	w.move(Slider, 7, 64)
@@ -26,6 +27,7 @@ func TestOUT06_MuteSavedPerControlAndRestored(t *testing.T) {
 	}
 }
 
+// Outside mute belongs to the owner, even on a knob (OUT-05, ADR 0034).
 func TestOUT05_OutsideMuteTakenOverOnSliderAndKnob(t *testing.T) {
 	for _, tc := range []struct {
 		control Control
@@ -54,6 +56,7 @@ func TestOUT05_OutsideMuteTakenOverOnSliderAndKnob(t *testing.T) {
 	}
 }
 
+// A new incarnation receives the control's known state (OUT-05, ADR 0027).
 func TestOUT05_ReplugRestoresPositionAndMute(t *testing.T) {
 	w := outputWorld(t, outputSetup())
 	w.move(Slider, 7, 64).press(ButtonM, 7)
@@ -64,6 +67,7 @@ func TestOUT05_ReplugRestoresPositionAndMute(t *testing.T) {
 	}
 }
 
+// Ownership transfers state from the new control, not the old one (OUT-04, ADR 0034).
 func TestOUT04_ChangingOwnerAppliesNewOwnersState(t *testing.T) {
 	s := outputSetup()
 	s.Targets["earlier"] = Target{ID: "earlier", Name: "Different label", Kind: Output, Match: []string{"built-in"}}
@@ -90,6 +94,7 @@ func TestOUT04_ChangingOwnerAppliesNewOwnersState(t *testing.T) {
 	}
 }
 
+// Device matching, not display labels, decides conflicts (OUT-04, ADR 0034).
 func TestOUT04_SameLabelsOnDifferentDevicesDoNotConflict(t *testing.T) {
 	s := outputSetup()
 	p := s.Targets["phones"]
@@ -101,6 +106,7 @@ func TestOUT04_SameLabelsOnDifferentDevicesDoNotConflict(t *testing.T) {
 	}
 }
 
+// All sliders take precedence over all knobs (OUT-04, ADR 0034).
 func TestOUT04_SlidersPrecedeKnobs(t *testing.T) {
 	s := outputSetup()
 	s.Assignments[Control{Knob, 1}] = "phones"
@@ -116,6 +122,7 @@ func TestOUT04_SlidersPrecedeKnobs(t *testing.T) {
 	w.wantOutputVolume(speakers.Name, 1)
 }
 
+// Mute is saved per control rather than per target (OUT-06, ADR 0027).
 func TestOUT06_ReloadUsesMuteOfNewControl(t *testing.T) {
 	s := outputSetup()
 	w := outputWorld(t, s)
@@ -128,6 +135,7 @@ func TestOUT06_ReloadUsesMuteOfNewControl(t *testing.T) {
 	}
 }
 
+// Unowned devices cannot change a control's saved mute (OUT-05, CTRL-06, ADR 0034).
 func TestOUT05_UnownedOutputMuteDoesNotAffectControls(t *testing.T) {
 	w := outputWorld(t, outputSetup())
 	w.do(OutputMuteChanged{Name: "unassigned-output", Muted: true})

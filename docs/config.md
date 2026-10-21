@@ -188,7 +188,7 @@ what you hear:  Spotify 80 % × Speakers 50 %  ≈ 40 %
 - **M toggles the owning slider's output mute**, saved per control. An outside mute
   is taken over on sliders and knobs. Re-plug restores the mute; protection against
   a late server mute restore is still pending a separate follow-up.
-- **S and output LEDs wait for PR 2c** of [#85](https://github.com/Dzobash/apptrol/issues/85).
+- **S and output LEDs follow with [#85](https://github.com/Dzobash/apptrol/issues/85)**.
   R can be `off` or a launcher.
 - **`device = "default"` does not work yet**: following the default output follows
   with #85. Such an output warns at every load and in `apptrol check`, and its control

@@ -328,18 +328,13 @@ by [ADR 0034](adr/0034-first-control-owns-matched-output.md).
 | OUT-04 | When fixed output targets choose the same device, the first control (sliders 1–8, then knobs 1–8) MUST own it. Later conflicting controls MUST NOT change its volume, mute or solo; their M presses MUST NOT change saved mute. The conflict MUST be logged at warning when it begins and at reload, identifying the device, winning control and ignored control. Actual matched devices, not target display names or equality of match lists, decide conflicts (ADR 0034). Overlap with `device = "default"` is deferred to PR 3. | MUST |
 | OUT-05 | PRIO-01, PRIO-02 and MUTE-07 MUST apply to outputs as to apps: outside volume changes are not reverted, outside mutes are taken over. A device that appears and matches a fixed output MUST get the control's known position and mute. | MUST |
 | OUT-06 | M on an output column MUST toggle the output's mute (MUTE-01); the mute is saved per control (STATE-01). An output on a knob MUST only be silenced by output solo or an outside mute. | MUST |
-| OUT-07 | S on an output column MUST solo the output: while it is on, every other output on the layout's controls MUST be muted. Only one output is soloed at a time; pressing S on another output column moves it, pressing it again ends it (SOLO-04, SOLO-05). Output solo MUST NOT touch apps or inputs, and app solo MUST NOT touch outputs; one of each MAY be on at the same time. The soloed output's device MUST NOT be muted by its own solo, even when another control holds it. | MUST |
+| OUT-07 | S on an output column MUST solo the output: while it is on, every other output on the layout's controls MUST be muted. Only one output is soloed at a time; pressing S on another output column moves it, pressing it again ends it (SOLO-04, SOLO-05). Output solo MUST NOT touch apps or inputs, and app solo MUST NOT touch outputs; one of each MAY be on at the same time. The soloed output's device MUST NOT be muted by its own solo. Fixed-output ownership follows OUT-04: an ignored conflicting control MUST NOT solo the device. | MUST |
 | OUT-08 | Output solo MUST be saved and restored like app solo (STATE-04), and ended on shutdown, unmuting every output it silenced (SVC-07). | MUST |
 | OUT-09 | R on an output column MUST be `off` (default) or a launcher; `play_pause` MUST be rejected. R MUST NOT change the output or the default output. | MUST |
 | OUT-10 | LEDs of an output column MUST behave as on an app column: S lit while soloed, M lit while muted with M (not when only silenced by solo), R off. | MUST |
 | OUT-11 | Talk-over (INPUT-04) MUST NOT change outputs. | MUST |
 | OUT-12 | `apptrol list` SHOULD print the output devices like the input devices: description, name, the control each is on, and `*` on the default output. Monitors MUST NOT be listed as inputs or outputs. | SHOULD |
 | OUT-13 | Every output decision MUST be logged with its reason (LOG-15): a device matched (info, with `apptrol.device.selected_by` `match` or `default`), several or no devices matching (warning), the default output changing and keeping its volume (info), no default output (info), conflicting fixed controls on one device (warning, OUT-04), devices on no control (debug); records as in ADR 0027 (point 12), updated for fixed-output ownership by ADR 0034. | MUST |
-
-Implementation boundary for PR 2b: M, outside mute and the initial re-plug write are
-implemented. Extending the output guard to defend mute against a late server restore
-is a separate follow-up; OUT-05 under that race is not yet complete. Solo and LEDs
-remain PR 2c; default outputs remain PR 3.
 
 ## 5. Non-functional requirements
 

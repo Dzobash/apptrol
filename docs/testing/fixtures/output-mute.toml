@@ -1,0 +1,20 @@
+# TC-OUT-006: exact re-plug target and an independent app on the knob's column
+# (OUT-05, OUT-06, ADR 0027, ADR 0034). The case creates the extra silent sink.
+[log]
+level = "debug"
+outputs = ["journald"]
+
+[outputs.replug]
+match = ["apptrol-test-extra-sink"]
+max_volume = 80
+
+[outputs.knob]
+match = ["apptrol-test-mic-sink"]
+
+[apps.tone]
+match = ["apptrol-test-a"]
+
+[layouts.default]
+slider6 = "replug"
+slider7 = "tone"
+knob7 = "knob"

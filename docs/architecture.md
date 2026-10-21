@@ -326,7 +326,9 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
 - Output devices (OUT-12, [ADR 0027](adr/0027-output-volume.md)): the adapter reports
   each sink's unique name and description; a volume-only change is not an event.
   Mute changes are reported separately, including when the description changes in the
-  same notification. The mixer keeps devices and logs each one that no control acts on at debug
+  same notification. The mute event comes first, so it belongs to the old owner;
+  a newly matching control applies its saved mute afterwards. The mixer keeps devices
+  and logs each one that no control acts on at debug
   (`output device not on a control`), so the log shows the exact name for a match list.
   `apptrol list` reads the default output from the server information and marks it
   with `*`.

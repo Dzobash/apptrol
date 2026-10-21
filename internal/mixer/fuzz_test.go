@@ -14,6 +14,7 @@ func FuzzMixer(f *testing.F) {
 	outs := []Device{speakers, headphones}
 	screens := []ScreenState{ScreenUnlocked, ScreenLocked, ScreenInactive, ScreenUnknown}
 	f.Add([]byte{16, 0, 0, 7, 1, 7, 17, 0, 8, 1, 16, 0, 2, 7, 3, 7})
+	f.Add([]byte{16, 0, 8, 7, 2, 7, 0, 7, 18, 0, 18, 2})
 	f.Fuzz(func(t *testing.T, data []byte) {
 		setup := outputSetup() // with outputs on slider7 and knob7 (OUT-01)
 		setup.Launchers = map[LED]Launch{
@@ -23,7 +24,7 @@ func FuzzMixer(f *testing.F) {
 		w := newWorld(t, setup, State{})
 		w.do(ControllerConnected{})
 		for i := 0; i+1 < len(data); i += 2 {
-			op, arg := data[i]%18, int(data[i+1])
+			op, arg := data[i]%19, int(data[i+1])
 			var ev Event
 			switch op {
 			case 0:
@@ -53,6 +54,10 @@ func FuzzMixer(f *testing.F) {
 				if arg%3 == 0 {
 					delete(s.Assignments, Control{Slider, 3})
 				}
+				if arg%7 == 0 { // overlapping matches exercise ignored controls (OUT-04, ADR 0034)
+					s.Targets["earlier"] = Target{ID: "earlier", Kind: Output, Match: []string{"built-in"}}
+					s.Assignments[Control{Slider, 6}] = "earlier"
+				}
 				ev = ConfigChanged{s}
 			case 9:
 				ev = AudioSnapshot{Streams: pool[:arg%len(pool)], Devices: devices[:arg%3], Outputs: outs[:arg%3]}
@@ -80,6 +85,8 @@ func FuzzMixer(f *testing.F) {
 				ev = OutputAdded{outs[arg%2]}
 			case 17:
 				ev = OutputRemoved{outs[arg%2].Name}
+			case 18:
+				ev = OutputMuteChanged{Name: outs[arg%2].Name, Muted: arg%3 == 0}
 			}
 			launched := len(w.launched)
 			w.do(ev)
@@ -142,13 +149,27 @@ func checkInvariants(t *testing.T, w *world) {
 // (OUT-01, OUT-06, OUT-07, OUT-11, ADR 0034).
 func checkOutputs(t *testing.T, w *world, ev Event) {
 	t.Helper()
+	var control Control
+	switch e := ev.(type) {
+	case ControlMoved:
+		control = e.Control
+	case ButtonPressed:
+		control = Control{Slider, e.Column}
+	}
+	blocked := w.m.blockedOutputs[w.m.setup.Assignments[control]] != ""
 	for _, a := range w.last {
 		switch a := a.(type) {
 		case SetOutputVolume:
+			if blocked {
+				t.Fatalf("blocked control changed output volume: %v", ev)
+			}
 			if !contains(w.m.outputFor, a.Device) {
 				t.Fatalf("%T: output %s set but held by no target (%v)", ev, a.Device, w.m.outputFor)
 			}
 		case SetOutputMute:
+			if blocked {
+				t.Fatalf("blocked control changed output mute: %v", ev)
+			}
 			if a.Muted && !contains(w.m.outputFor, a.Device) {
 				t.Fatalf("%T: output %s muted without an owner", ev, a.Device)
 			}

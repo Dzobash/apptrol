@@ -69,7 +69,8 @@ Config: output-fixed
 Type: Manual
 
 The fixture matches the silent test output `apptrol-test-mic-sink` from slider 7,
-knob 7 and slider 6. Slider 6 wins, up to 80 %. It plays nothing.
+knob 7 and slider 6. With no extra test sink present, slider 6 wins, up to 80 %.
+It plays nothing.
 
 ```
 slider6 ──► "Any test output" (max 80 %) ──► apptrol-test-mic-sink
@@ -135,10 +136,15 @@ Slider 6's `match = ["apptrol-test"]` fits every test output. A second one,
   `apptrol.device.name=apptrol-test-extra-sink` and
   `apptrol.device.matches="apptrol-test-extra-sink, apptrol-test-mic-sink"`; the message
   says that `apptrol list` shows each device's unique name
+- [ ] Run `apptrol list` → slider6 owns `apptrol-test-extra-sink`; slider7 now owns
+  `apptrol-test-mic-sink`. The journal has `output match ignored` with
+  `apptrol.device.controls="slider7, knob7"` for the mic sink.
 - [ ] Run `pactl get-sink-volume apptrol-test-extra-sink` → slider 6's position: a
   device that appears for a control with a known position gets it at once
 - [ ] Run `pactl unload-module <module>` → the journal has `output matched` for slider 6
   with `apptrol.device.name=apptrol-test-mic-sink`
+- [ ] Read the new `output match ignored` warnings → `slider6, slider7` and
+  `slider6, knob7`. `apptrol list` shows slider6 owning the mic sink again.
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
@@ -195,30 +201,50 @@ new description, no longer        -> ReleaseOutput, logged once: an outside volu
 ### TC-OUT-006 — Output mute, outside changes and saved state
 
 Covers: OUT-04, OUT-05, OUT-06, MUTE-01, MUTE-07, STATE-01 · Phase 1.6
-Config: output-fixed
+Config: output-fixed, output-mute
 Type: Manual + Automated
 
 ```text
-M6 -> muted -> restart -> still muted -> outside unmute -> saved unmute
+M6 -> saved mute -> stop -> outside unmute -> start -> muted again
 M7 -> ignored: slider6 owns the same matched device
 ```
 
 **Steps**
-- [ ] Apply `output-fixed`; move slider 6 to the middle.
-- [ ] Press M6; `pactl get-sink-mute apptrol-test-mic-sink` reports yes. Output LEDs
-  remain off until PR 2c. M7 has no effect.
-- [ ] Restart Apptrol; the output is still muted. Press M6; it becomes unmuted.
-- [ ] Run `pactl set-sink-mute apptrol-test-mic-sink 1`; the journal records
-  `muted outside Apptrol` on slider6. Move slider6; mute stays on.
-- [ ] Press M6; the output becomes unmuted. Restart; it stays unmuted.
-- [ ] Remove slider6 and slider7 assignments from the fixture's copied config and
-  reload. Knob7 now owns the output. Set its mute from outside; move knob7; mute stays.
-  M7 must not change the knob's mute. Restore the fixture afterwards.
+- [ ] Apply `output-fixed` with no extra test sink present; move slider6 to the middle
+  → `pactl get-sink-volume apptrol-test-mic-sink` reports about 40 %.
+- [ ] Press M6 → `pactl get-sink-mute apptrol-test-mic-sink` reports yes. Press M7
+  → still yes; the journal explains the conflicting control was ignored. Output LEDs
+  remain off until output LED support is implemented.
+- [ ] Run `systemctl --user stop apptrol`, then
+  `pactl set-sink-mute apptrol-test-mic-sink 0`
+  → `pactl get-sink-mute apptrol-test-mic-sink` reports no.
+- [ ] Run `systemctl --user start apptrol`
+  → `pactl get-sink-mute apptrol-test-mic-sink` reports yes: saved state restored it.
+- [ ] Press M6 → mute reports no. Run `pactl set-sink-mute apptrol-test-mic-sink 1`
+  → the journal records `muted outside Apptrol` on slider6. Move slider6 → mute stays on.
+- [ ] Press M6 → mute reports no.
+- [ ] Apply `output-mute` → `apptrol list` shows knob7 owning the mic sink and slider7
+  assigned to the test app; slider6 warns that its extra sink is not present yet.
+- [ ] Run `pactl set-sink-mute apptrol-test-mic-sink 1`, then move knob7
+  → mute stays on; `muted outside Apptrol` names knob7.
+- [ ] Press M7 → the test app mutes, while `pactl get-sink-mute apptrol-test-mic-sink`
+  still reports yes. Press M7 again → the app unmutes, while the output stays muted.
+- [ ] Run `pactl load-module module-null-sink sink_name=apptrol-test-extra-sink`
+  → note `<module>`; the journal matches it to slider6.
+- [ ] Move slider6 to the middle, press M6 → `pactl get-sink-mute apptrol-test-extra-sink`
+  reports yes and `pactl get-sink-volume apptrol-test-extra-sink` reports about 40 %.
+- [ ] Run `pactl unload-module <module>`, then
+  `pactl load-module module-null-sink sink_name=apptrol-test-extra-sink`
+  → note `<new-module>`; the new sink reports muted and about 40 % without a control move.
+- [ ] Run `pactl unload-module <new-module>` and restore the fixture with
+  `docs/testing/apply-fixture.sh --restore` → the extra sink is gone and the original
+  configuration is restored.
 
 Automated: `TestOUT06_MuteSavedPerControlAndRestored`,
 `TestOUT05_OutsideMuteTakenOverOnSliderAndKnob`, `TestOUT05_ReplugRestoresPositionAndMute`,
 `TestOUT04_ChangingOwnerAppliesNewOwnersState`,
 `TestOUT04_SameLabelsOnDifferentDevicesDoNotConflict`, `TestOUT05_OutputMuteAttribution`,
+`TestOUT05_DescriptionAndMuteChangePreserveOwnersState`,
 and `TestIntegration_OUT06_OutputMuteAndOutsideChange`. Re-plug is exercised with a
 silent server output; guarding against a competing late server mute restore is a
 separate follow-up and is not claimed by this case.

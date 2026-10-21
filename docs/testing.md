@@ -95,6 +95,10 @@ and S never change an output (OUT-07, OUT-11); LEDs wait for PR 2c.
 `TestIntegration_OUT06_OutputMuteAndOutsideChange` exercises output mute writes and
 outside events on a silent output through the real server. Late server mute restoration
 after re-plug is not defended yet: extending the guard belongs in a follow-up PR.
+`TestOUT05_DescriptionAndMuteChangePreserveOwnersState` feeds a combined adapter
+notification into the mixer: newly matched, still matched and no longer matched
+devices keep physical and saved mute consistent. The fuzz test generates outside
+output mutes and overlapping matches, checking that ignored controls cannot write outputs.
 The adapter's unit tests check that a slider move is never overwritten by the
 new-output guard (`TestOUT01_LatestSliderPositionWinsOverAGuardWrite`) and that a
 released output is no longer defended (`TestCTRL06_ReleasedOutputIsNoLongerDefended`);

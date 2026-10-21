@@ -31,6 +31,18 @@ An outside mute belongs only to the owner, including when that owner is a knob.
 Re-plug applies that control's saved mute and known position. Releasing a device
 removes its mute and leaves its volume. No shared OR of mute states remains.
 
+Taking over an outside mute makes it the control's saved mute; its origin is not
+retained. Releasing the device therefore unmutes it even if that mute was first set
+in the desktop applet. On reconnect or snapshot resync, saved state is applied again;
+an outside change made while Apptrol could not observe it may be overwritten. These
+are the same restoration and release rules used for inputs, not a new distinction
+between M and outside mutes. The default-output decision remains separate.
+
+When one notification changes both description and mute, report the mute before
+the identity change. The owner at the time of the read takes it over. If the device
+was unowned and now matches, it ignores the old outside change and then receives
+the new owner's saved state (OUT-05).
+
 PR 2c must use the same ownership for output solo and LEDs; a conflicting control
 must not solo the device. This PR does not implement either feature. Default-output
 ownership and overlap remain a decision for PR 3; `device = "default"` stays inactive.

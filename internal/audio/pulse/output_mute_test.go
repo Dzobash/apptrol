@@ -30,6 +30,56 @@ func TestOUT05_OutputMuteAttribution(t *testing.T) {
 	}
 }
 
+// A mute read belongs to the owner before a description change, never to a
+// newly matched control whose saved mute is applied afterwards (OUT-05, ADR 0034).
+func TestOUT05_DescriptionAndMuteChangePreserveOwnersState(t *testing.T) {
+	for _, tc := range []struct {
+		name, before, after string
+		want                bool
+	}{
+		{"newly matches", "Other", "Test speakers", true},
+		{"still matches", "Test speakers", "Test speakers renamed", false},
+		{"no longer matches", "Test speakers", "Other", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := mixer.Control{Kind: mixer.Slider, Column: 7}
+			old := mixer.Device{Name: "test-output", Description: tc.before}
+			m := mixer.New(mixer.Setup{
+				Targets:     map[string]mixer.Target{"test": {ID: "test", Kind: mixer.Output, Match: []string{"speakers"}}},
+				Assignments: map[mixer.Control]string{c: "test"},
+			}, mixer.State{Muted: map[mixer.Control]bool{c: true}})
+			m.Handle(mixer.AudioSnapshot{Outputs: []mixer.Device{old}})
+			tr := &tracker{outputs: map[uint32]mixer.Device{1: old}, outMute: map[uint32]bool{1: true}}
+			now := SinkInfo{Device: mixer.Device{Name: old.Name, Description: tc.after}, Index: 1, Muted: false}
+			events, err := outputChange(tr, 1, false, func(uint32) (SinkInfo, error) { return now, nil })
+			if err != nil {
+				t.Fatal(err)
+			}
+			deviceMuted := now.Muted
+			for _, e := range events {
+				for _, a := range m.Handle(e) {
+					if mute, ok := a.(mixer.SetOutputMute); ok {
+						deviceMuted = mute.Muted
+					}
+				}
+			}
+			if saved := m.Snapshot().Muted[c]; saved != tc.want || deviceMuted != tc.want {
+				t.Fatalf("saved mute=%v, device mute=%v, want both %v", saved, deviceMuted, tc.want)
+			}
+			if tc.name == "newly matches" {
+				for _, a := range m.Handle(mixer.ButtonPressed{Button: mixer.ButtonM, Column: 7}) {
+					if mute, ok := a.(mixer.SetOutputMute); ok {
+						deviceMuted = mute.Muted
+					}
+				}
+				if deviceMuted {
+					t.Fatal("one M press did not unmute newly owned output")
+				}
+			}
+		})
+	}
+}
+
 // M and outside mute cross the actual server boundary. Only a silent test
 // output is controlled, and checks wait for state (OUT-05/06, QA-06, ADR 0027).
 func TestIntegration_OUT06_OutputMuteAndOutsideChange(t *testing.T) {

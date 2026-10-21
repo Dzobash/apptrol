@@ -35,7 +35,7 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0024](0024-launchers-only-when-unlocked.md) | Launchers start apps only while the screen is unlocked, unless opted in | Accepted; another user in front: see 0029; switched away: see 0030 |
 | [0025](0025-state-kept-while-config-invalid.md) | The saved state is kept while the configuration is invalid | Accepted |
 | [0026](0026-separate-tables-for-apps-inputs-outputs.md) | Separate configuration tables for apps, inputs and outputs | Accepted |
-| [0027](0027-output-volume.md) | Output volume: a control for a whole output device | Accepted |
+| [0027](0027-output-volume.md) | Output volume: a control for a whole output device | Accepted; point 4 superseded for fixed outputs by [0034](0034-first-control-owns-matched-output.md) |
 | [0028](0028-docs-as-code-for-the-website.md) | Docs as code for the website; the roadmap as its single source | Accepted |
 | [0029](0029-controller-follows-the-user-in-front.md) | The controller follows the user in front of the computer | Accepted |
 | [0030](0030-three-screen-states.md) | Three screen states: locked, switched away, logged out | Accepted |
