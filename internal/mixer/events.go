@@ -217,6 +217,35 @@ type SetDeviceVolume struct {
 	Volume float64
 }
 
+// SetOutputVolume sets an output device's volume; Volume is 0–1, up to
+// MaxBoost with a raised max_volume (OUT-01, ADR 0027). It is its own type, not
+// SetDeviceVolume: an input and an output may share a name prefix, and the
+// audio server keeps them apart as sources and sinks.
+type SetOutputVolume struct {
+	Device string
+	Volume float64
+}
+
+// ReleaseOutput tells the audio adapter that no control holds the output
+// device any more, after a reload or a change of devices: whatever Apptrol
+// set on it is no longer Apptrol's to defend, so a volume changed elsewhere
+// stays (OUT-01, CTRL-06, ADR 0027). The adapter forgets the volume its
+// new-output guard defends; the device's volume itself is left as it is.
+type ReleaseOutput struct {
+	Device     string
+	Generation uint64 // the reported read being answered (CTRL-06, ADR 0027)
+}
+
+// KeepOutput tells the audio adapter that a control still holds the output
+// device after it appeared, or after its name or description changed: the
+// adapter waits for the newest generation's answer before defending the
+// volume last read, and checks it now (OUT-05, CTRL-06, ADR 0027). A change
+// that leaves the device to no control gives ReleaseOutput instead.
+type KeepOutput struct {
+	Device     string
+	Generation uint64 // the reported read being answered (CTRL-06, ADR 0027)
+}
+
 // SetDeviceMute mutes or unmutes a capture device.
 type SetDeviceMute struct {
 	Device string
@@ -252,6 +281,9 @@ func (SetStreamVolume) isAction()   {}
 func (SetStreamMute) isAction()     {}
 func (SetDeviceVolume) isAction()   {}
 func (SetDeviceMute) isAction()     {}
+func (SetOutputVolume) isAction()   {}
+func (ReleaseOutput) isAction()     {}
+func (KeepOutput) isAction()        {}
 func (SetLED) isAction()            {}
 func (StateChanged) isAction()      {}
 func (Notice) isAction()            {}

@@ -26,6 +26,11 @@ type Mixer struct {
 	devices   map[string]Device // by name
 	deviceFor map[string]string // input target id -> chosen device name
 	outputs   map[string]Device // output devices by name (OUT-12, ADR 0027)
+	outputFor map[string]string // output target id -> chosen device name (OUT-02)
+	// sharedOutputs is, per output device that two or more controls set, the
+	// controls as last logged, so it is logged once when it begins (OUT-04,
+	// ADR 0027 point 4).
+	sharedOutputs map[string]string
 
 	players        map[string]*playerInfo // media players by bus name (MEDIA-01, MEDIA-03)
 	playSeq        int                    // counts players starting to play (lastPlaying)
@@ -60,6 +65,8 @@ func New(setup Setup, saved State) *Mixer {
 		devices:        map[string]Device{},
 		deviceFor:      map[string]string{},
 		outputs:        map[string]Device{},
+		outputFor:      map[string]string{},
+		sharedOutputs:  map[string]string{},
 		players:        map[string]*playerInfo{},
 		deviceMuteSent: map[string]bool{},
 		leds:           map[LED]bool{},
@@ -281,7 +288,7 @@ func (m *Mixer) Handle(ev Event) []Action {
 	case OutputAdded:
 		m.outputAdded(&a, e.Device)
 	case OutputRemoved:
-		delete(m.outputs, e.Name)
+		m.outputRemoved(&a, e.Name)
 	case ConfigChanged:
 		m.configChanged(&a, e.Setup)
 	case PlayerSnapshot, PlayerAdded, PlayerRemoved, PlayerStatusChanged:
@@ -326,6 +333,12 @@ func (m *Mixer) controlMoved(a *actions, e ControlMoved) {
 	case Input:
 		if dev, ok := m.deviceFor[id]; ok {
 			a.add(SetDeviceVolume{Device: dev, Volume: vol}) // CTRL-05
+		}
+	case Output:
+		// The device's volume only: streams keep theirs, and talk-over and
+		// solo never change an output (OUT-01, OUT-07, OUT-11, ADR 0027).
+		if dev, ok := m.outputFor[id]; ok {
+			a.add(SetOutputVolume{Device: dev, Volume: vol})
 		}
 	}
 	attrs := []any{logattr.KeyVolume, int(math.Round(vol * 100))}
@@ -375,6 +388,13 @@ func (m *Mixer) buttonPressed(a *actions, e ButtonPressed) {
 		return
 	}
 	button := LED{Button: e.Button, Column: e.Column}.String()
+	if m.isOutputColumn(e.Column) && e.Button != ButtonR {
+		// Output mute and output solo come in the next steps of #85 (OUT-06,
+		// OUT-07); until then M and S do nothing there. R works as on an
+		// input column (OUT-09, ADR 0027 point 8).
+		a.notice(slog.LevelDebug, "button has no function: not built yet on an output column", m.about(Control{Slider, e.Column}, logattr.KeyButton, button)...)
+		return
+	}
 	if m.isInputColumn(e.Column) {
 		switch b := (LED{Button: e.Button, Column: e.Column}); {
 		case e.Button == ButtonS, e.Button == ButtonM && m.holdToTalk(e.Column):
@@ -993,29 +1013,13 @@ func (m *Mixer) deviceMatches(id string, d Device) bool {
 // still matches, otherwise the first match by name (CFG-05). Newly chosen
 // devices get the control's position and mute.
 func (m *Mixer) chooseDevices(a *actions) {
-	names := make([]string, 0, len(m.devices))
-	for n := range m.devices {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-
+	names := sortedDeviceNames(m.devices)
 	chosen := map[string]string{}
 	for _, id := range m.inputTargets() {
-		var matches []string
-		for _, n := range names {
-			if m.deviceMatches(id, m.devices[n]) {
-				matches = append(matches, n)
-			}
-		}
-		if len(matches) == 0 {
-			continue
-		}
-		pick := matches[0]
 		cur := m.deviceFor[id]
-		for _, n := range matches {
-			if n == cur {
-				pick = cur
-			}
+		pick, matches := m.pickDevice(id, names, m.devices, cur)
+		if pick == "" {
+			continue
 		}
 		chosen[id] = pick
 		if pick != cur {
@@ -1126,6 +1130,13 @@ func (m *Mixer) configChanged(a *actions, s Setup) {
 			}
 		}
 	}
+	// Outputs likewise; a reload that leaves one without a device warns (OUT-02, OUT-13, ADR 0027).
+	outBefore := map[string]string{}
+	for id, dev := range m.outputFor {
+		outBefore[id] = dev
+	}
+	m.chooseOutputs(a, chooseReload)
+	m.reapplyOutputs(a, outBefore, oldControlOf, maxChanged)
 	m.applyChange(a, talkBefore, Control{}) // talk-over may have ended, or changed its volume
 	m.decideController(a)                   // at_login_screen may have changed (CFG-24)
 	a.add(StateChanged{})

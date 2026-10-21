@@ -30,27 +30,32 @@ func launcherLED(name string) (mixer.LED, bool) {
 	return mixer.LED{}, false
 }
 
-// Setup returns apps, inputs, active assignments and buttons for the mixer.
-// Outputs stay in Config but are omitted here until #85 implements their audio
-// behavior, so they cannot become app matches (CFG-20, ADR 0026 implementation
-// note, ADR 0027). That implementation must replace this temporary guard.
+// Setup returns apps, inputs, fixed outputs, active assignments and buttons for
+// the mixer. A fixed output (match) becomes a mixer.Output, which acts on an
+// output device and never on a playback stream (OUT-01, ADR 0027). An output
+// with device = "default" stays in Config but is omitted here, with its
+// assignment, until #85 builds following the default (OUT-03); it gets the
+// inactive warning instead (CFG-20, ADR 0026 implementation note).
 func (c *Config) Setup() mixer.Setup {
 	s := mixer.Setup{Layout: DefaultLayout, Targets: map[string]mixer.Target{}, Assignments: map[mixer.Control]string{},
 		Buttons: map[mixer.LED]mixer.Button{}, MediaPlayer: c.Media.Player, Launchers: map[mixer.LED]mixer.Launch{},
 		ReleaseAtLoginScreen: c.Controller.AtLoginScreen == AtLoginScreenRelease}
 	for id, app := range c.Apps {
-		if app.Type == TypeOutput {
+		if app.followsDefault() {
 			continue
 		}
 		kind := mixer.App
-		if app.Type == TypeInput {
+		switch app.Type {
+		case TypeInput:
 			kind = mixer.Input
+		case TypeOutput:
+			kind = mixer.Output
 		}
 		s.Targets[id] = mixer.Target{ID: id, Name: app.Name, Kind: kind, Match: append([]string(nil), app.Match...),
 			MaxVolume: float64(app.MaxVolume) / 100, TalkOverVolume: app.TalkOverVolume}
 	}
 	for _, a := range c.Layout().Assignments {
-		if c.Apps[a.AppID].Type == TypeOutput {
+		if app := c.Apps[a.AppID]; app.followsDefault() {
 			continue
 		}
 		kind := mixer.Slider
@@ -79,3 +84,7 @@ func (c *Config) Setup() mixer.Setup {
 	}
 	return s
 }
+
+// followsDefault reports whether the target is an output with device =
+// "default", which the mixer cannot follow yet (OUT-03, CFG-20, ADR 0027).
+func (a App) followsDefault() bool { return a.Type == TypeOutput && a.Device == DeviceDefault }

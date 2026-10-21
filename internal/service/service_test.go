@@ -899,15 +899,33 @@ func TestCFG20_InvalidOutputReloadKeepsConfiguration(t *testing.T) {
 	e.waitLog(`apptrol.warning="outputs.main: not assigned to any control"`)
 }
 
-// A valid output stays visible as inactive at every load while #85 is pending
-// (CFG-20, ADR 0026 implementation note, ADR 0016).
-func TestCFG20_InactiveOutputWarningOnStartAndReload(t *testing.T) {
-	src := testConfig + "\n[outputs.speakers]\nmatch = [\"test-speaker\"]\n"
+// A slider on a fixed output sets the output device's volume through the
+// audio adapter; a fixed output no longer gets the inactive warning (OUT-01,
+// CFG-20, ADR 0027).
+func TestOUT01_SliderSetsOutputVolumeThroughTheAudioAdapter(t *testing.T) {
+	src := testConfig + "\n[outputs.speakers]\nname = \"Speakers\"\nmatch = [\"test-speaker\"]\n"
+	src = strings.Replace(src, `slider8 = "mic"`, "slider8 = \"mic\"\nslider7 = \"speakers\"", 1)
+	e := newEnv(t, src)
+	out := mixer.Device{Name: "alsa_output.test-speaker.analog-stereo", Description: "Test Speaker"}
+	e.audio.snapshot.Outputs = []mixer.Device{out}
+	e.start()
+	e.waitLog(`msg="output matched" apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.device.name=` + out.Name)
+	e.send(slider(7, 127))
+	e.waitApplied(mixer.SetOutputVolume{Device: out.Name, Volume: 1})
+	if strings.Contains(e.out.String(), "is not implemented yet") {
+		t.Errorf("a fixed output is still called inactive:\n%s", e.out.String())
+	}
+}
+
+// An output that follows the default stays inactive, with its warning at
+// every load, until #85 builds it (CFG-20, ADR 0027, ADR 0016).
+func TestCFG20_DefaultOutputWarningOnStartAndReload(t *testing.T) {
+	src := testConfig + "\n[outputs.main]\ndevice = \"default\"\n[outputs.speakers]\nmatch = [\"test-speaker\"]\n"
 	e := newEnv(t, src).start()
-	const message = `msg="output control is not implemented yet; this target is inactive" apptrol.component=config file.path=`
-	e.waitLog(message + e.cfg + " apptrol.app.id=speakers apptrol.app.type=output")
+	const message = `msg="following the default output is not implemented yet; this target is inactive" apptrol.component=config file.path=`
+	e.waitLog(message + e.cfg + " apptrol.app.id=main apptrol.app.type=output")
 	if n := strings.Count(e.out.String(), message); n != 1 {
-		t.Fatalf("startup warnings=%d, want 1", n)
+		t.Fatalf("startup warnings=%d, want 1 (the fixed output has none)", n)
 	}
 	e.write(src + "\n# reload\n")
 	e.waitLog("configuration reloaded")

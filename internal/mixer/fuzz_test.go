@@ -11,9 +11,11 @@ func FuzzMixer(f *testing.F) {
 	f.Add([]byte{14, 0, 15, 0, 14, 1, 15, 0, 14, 3, 15, 0})
 	pool := []Stream{spotify, firefox, ffTab2, discord, steam, viber}
 	devices := []Device{goxlr, webcam}
+	outs := []Device{speakers, headphones}
 	screens := []ScreenState{ScreenUnlocked, ScreenLocked, ScreenInactive, ScreenUnknown}
+	f.Add([]byte{16, 0, 0, 7, 1, 7, 17, 0, 8, 1, 16, 0, 2, 7, 3, 7})
 	f.Fuzz(func(t *testing.T, data []byte) {
-		setup := testSetup()
+		setup := outputSetup() // with outputs on slider7 and knob7 (OUT-01)
 		setup.Launchers = map[LED]Launch{
 			{Transport: Record}:    {DesktopID: "com.obsproject.Studio"},
 			{Transport: MarkerSet}: {Command: []string{"lights-off"}, WhenLocked: true},
@@ -21,7 +23,7 @@ func FuzzMixer(f *testing.F) {
 		w := newWorld(t, setup, State{})
 		w.do(ControllerConnected{})
 		for i := 0; i+1 < len(data); i += 2 {
-			op, arg := data[i]%16, int(data[i+1])
+			op, arg := data[i]%18, int(data[i+1])
 			var ev Event
 			switch op {
 			case 0:
@@ -41,7 +43,10 @@ func FuzzMixer(f *testing.F) {
 			case 7:
 				ev = DeviceRemoved{devices[arg%2].Name}
 			case 8:
-				s := testSetup()
+				s := outputSetup()
+				if arg%5 == 0 { // the outputs change controls
+					s.Assignments[Control{Slider, 7}], s.Assignments[Control{Knob, 7}] = "phones", "main"
+				}
 				if arg%2 == 0 {
 					s.Assignments[Control{Slider, 1}], s.Assignments[Control{Slider, 2}] = "browser", "spotify"
 				}
@@ -50,7 +55,7 @@ func FuzzMixer(f *testing.F) {
 				}
 				ev = ConfigChanged{s}
 			case 9:
-				ev = AudioSnapshot{Streams: pool[:arg%len(pool)], Devices: devices[:arg%3]}
+				ev = AudioSnapshot{Streams: pool[:arg%len(pool)], Devices: devices[:arg%3], Outputs: outs[:arg%3]}
 			case 10:
 				ev = ButtonPressed{ButtonR, arg % 10}
 			case 11:
@@ -71,10 +76,15 @@ func FuzzMixer(f *testing.F) {
 				ev = ScreenChanged{State: screens[arg%len(screens)]}
 			case 15:
 				ev = TransportPressed{Button: []TransportButton{Record, MarkerSet}[arg%2]}
+			case 16:
+				ev = OutputAdded{outs[arg%2]}
+			case 17:
+				ev = OutputRemoved{outs[arg%2].Name}
 			}
 			launched := len(w.launched)
 			w.do(ev)
 			checkInvariants(t, w)
+			checkOutputs(t, w, ev)
 			// Launchers start apps only while the screen is unlocked; with
 			// when_locked also while locked, but never while unknown
 			// (LAUNCH-13, LAUNCH-14).
@@ -123,5 +133,35 @@ func checkInvariants(t *testing.T, w *world) {
 	}
 	if w.streamMute[viber.ID] {
 		t.Fatal("viber was muted")
+	}
+}
+
+// checkOutputs checks the output rules after every event: an output device is
+// set only while an output target on a control holds it, never muted, and a
+// control on an output changes no stream or input (OUT-01, OUT-07, OUT-11).
+func checkOutputs(t *testing.T, w *world, ev Event) {
+	t.Helper()
+	for _, a := range w.last {
+		switch a := a.(type) {
+		case SetOutputVolume:
+			if !contains(w.m.outputFor, a.Device) {
+				t.Fatalf("%T: output %s set but held by no target (%v)", ev, a.Device, w.m.outputFor)
+			}
+		case ReleaseOutput:
+			if contains(w.m.outputFor, a.Device) {
+				t.Fatalf("%T: output %s released but still held (%v)", ev, a.Device, w.m.outputFor)
+			}
+		case KeepOutput:
+			if !contains(w.m.outputFor, a.Device) {
+				t.Fatalf("%T: output %s kept but held by no target (%v)", ev, a.Device, w.m.outputFor)
+			}
+		case SetDeviceMute:
+			if a.Device == speakers.Name || a.Device == headphones.Name {
+				t.Fatalf("%T muted an output: %v", ev, a)
+			}
+		}
+	}
+	if e, ok := ev.(ControlMoved); ok && w.m.setup.Targets[w.m.setup.Assignments[e.Control]].Kind == Output {
+		w.noStreamOrInputActions()
 	}
 }

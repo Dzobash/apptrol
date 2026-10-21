@@ -170,10 +170,13 @@ knob2 = "speakers"
 	if code != 0 || stderr.Len() != 0 {
 		t.Fatalf("code=%d, stderr=%s", code, &stderr)
 	}
-	for _, want := range []string{`output: device = "default"`, "output: Test speaker", "max 80 %", "warning: outputs.main: output control is not implemented yet; this target is inactive", "warning: outputs.speakers: output control is not implemented yet; this target is inactive"} {
+	for _, want := range []string{`output: device = "default"`, "output: Test speaker", "max 80 %", "warning: outputs.main: following the default output is not implemented yet; this target is inactive"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("missing %q in %s", want, &stdout)
 		}
+	}
+	if strings.Contains(stdout.String(), "outputs.speakers: ") { // a fixed output works (OUT-01)
+		t.Errorf("the fixed output got a warning: %s", &stdout)
 	}
 	stdout.Reset()
 	stderr.Reset()

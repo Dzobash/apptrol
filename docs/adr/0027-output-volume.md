@@ -121,3 +121,94 @@ PipeWire or PulseAudio.
 - The hardware checklist gets rows for a fixed output, the default output while
   switching outputs in the desktop's applet, output solo, and an output on a knob.
 - Built in 0.3.0, after the separate tables (ADR 0026).
+
+## Notes
+
+- 2026-10-20: Built in steps (#85). The first one, a fixed output (`match`) on a slider
+  or knob setting its device's volume (OUT-01, OUT-02), adds records the logging table
+  (point 12) does not have, approved by the owner:
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | info | `output device gone; the control does nothing until a device matches` | `apptrol.device.name` |
+  | debug | `button has no function: not built yet on an output column` | `apptrol.button` |
+  | debug | `audio server changed the volume of a new output; setting it again` (audio adapter) | `apptrol.device.name`, `apptrol.volume_percent`, `apptrol.wanted_percent` |
+
+  The first is how a fixed output's log explains a control that does nothing after its
+  device is unplugged, as `no default output; …` does for the default. The second is
+  temporary: M and S on an output column do nothing until mute (OUT-06) and output
+  solo (OUT-07) follow; R works as point 8 says. The third mirrors the new-stream and
+  new-input guard (PRIO-03): for 3 seconds after an output appears, a volume the audio
+  server restores over Apptrol's is set again. It defends only the latest position (a
+  slider move waits for a guard write in progress) and only while a control holds the
+  output: a reload or a device change that leaves the output on no control releases it
+  (`ReleaseOutput`, CTRL-06), so a volume changed elsewhere stays. `two controls set the same output`
+  (point 4) also covers two fixed outputs that match the same device, and names the
+  first of the controls in `apptrol.control`. Every channel gets the same volume, as for
+  streams and inputs, so a left/right balance set elsewhere is lost (known issue).
+  `device = "default"` stays left out of the mixer, with the narrower warning
+  `following the default output is not implemented yet; this target is inactive`.
+- 2026-10-20: More records for the logging table (point 12), from #155's review: the
+  release record (at info, as the owner agreed) and the audio adapter's diagnostics for
+  the new-output guard, at debug:
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | info | `output released; no control holds the device` | `apptrol.device.name` |
+  | debug | `output device read` (audio adapter) | `apptrol.device.index`, `apptrol.device.name`, `apptrol.device.description`, `apptrol.audio.channels`, `apptrol.volume_percent`, `apptrol.audio.guard.state`, `apptrol.audio.guard.remaining_ms`, `apptrol.wanted_percent` |
+  | debug | `output volume request completed` (audio adapter) | `apptrol.device.name`, `apptrol.audio.channels`, `apptrol.wanted_percent`, `apptrol.audio.result`, `error.type` on failure |
+  | debug | `output kept by a control; checking the volume last read` (audio adapter) | `apptrol.device.name`, `apptrol.volume_percent`, `apptrol.audio.guard.state` |
+
+  The release record comes once per release, from the mixer, so the log explains why a
+  volume set elsewhere now stays. The debug records show every read of an output with
+  what the guard made of it and why it set nothing, and the server's answer to each
+  write: a volume that reads wrong after a successful write was changed afterwards.
+  A read that sees an output new, or with a new name or description, is not defended at
+  once, because the match may be on the description: the mixer decides first and
+  answers with `KeepOutput` when a control still holds the output (the adapter then
+  checks the volume of that read without waiting for another change) or with
+  `ReleaseOutput` when none does.
+- 2026-10-20: The owner chose generation-tagged ownership for #155's remaining
+  CTRL-06 race (option A). Pausing just the read that changed the description was
+  insufficient: another notification could restore the server's volume before the
+  mixer's buffered release arrived.
+
+  ```text
+  rename -> report generation 2 -> second notification -> guard skips
+  old answer (1) -> ignored      -> ReleaseOutput(2)    -> volume stays
+  ```
+
+  Each reported output identity (including snapshots) carries a generation. The pure
+  mixer echoes it in `KeepOutput` or `ReleaseOutput` (ADR 0015), even when it also sets
+  the volume or the output was already unassigned. The adapter owns the counter and
+  the pending state. It accepts only an answer for the newest reported generation;
+  intervening volume-only notifications update the latest volume but leave ownership
+  pending. Generations are not reused after removal, resync or reconnect. An explicit
+  volume write is not an ownership answer. `KeepOutput` checks the latest volume once
+  accepted; `ReleaseOutput` clears the defended volume. The adapter never waits for
+  the mixer (option B was rejected), and keeps the `wire` then `mu` lock order.
+
+  The existing debug record `output device read` uses
+  `apptrol.audio.guard.state=ownership_pending` to explain why it skipped defense.
+  No new attribute is needed. Deterministic unit tests force the rename, second
+  notification and late release order, and check stale answers (QA-11).
+- 2026-10-20: From the review of generation-tagged ownership on #155, two follow-ups.
+  The note above said no new attribute was needed; an ignored answer was silent,
+  though, so the owner approved one more record for the logging table (point 12),
+  with two new attributes:
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | debug | `output ownership answer ignored; a newer identity was reported` (audio adapter) | `apptrol.device.name`, `apptrol.action` (`KeepOutput` or `ReleaseOutput`), `apptrol.audio.ownership.answer_generation`, `apptrol.audio.ownership.generation` |
+
+  `output kept by a control; …` logs `apptrol.volume_percent` only when the guard has
+  a read; an output known at connect has none. A volume write the server accepted
+  now also counts as the guard's last read, under `wire` as before. Otherwise the
+  `KeepOutput` that follows the mixer's first volume for a new output compared the
+  read from before that write, set the volume twice and logged a restore that never
+  happened. A failed write keeps the old read, and a later restore is still read and
+  defended:
+
+  ```text
+  read 100 % ─► Set 30 % (written, read = 30 %) ─► KeepOutput: at wanted ─► read 100 % ─► 30 % again
+  ```

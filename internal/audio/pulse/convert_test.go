@@ -1,6 +1,7 @@
 package pulse
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"log/slog"
 	"math"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -302,6 +304,7 @@ func TestSVC04_ApplyWithoutConnection(t *testing.T) {
 	for _, a := range []mixer.Action{
 		mixer.SetStreamVolume{StreamID: 1, Volume: 1}, mixer.SetStreamMute{StreamID: 1},
 		mixer.SetDeviceVolume{Device: "x"}, mixer.SetDeviceMute{Device: "x"},
+		mixer.SetOutputVolume{Device: "x", Volume: 0.5},
 	} {
 		if err := b.Apply(a); !errors.Is(err, ErrNotConnected) {
 			t.Errorf("Apply(%T) = %v, want ErrNotConnected", a, err)
@@ -310,6 +313,389 @@ func TestSVC04_ApplyWithoutConnection(t *testing.T) {
 	// Actions that are not about audio are ignored.
 	if err := b.Apply(mixer.SetLED{}); err != nil {
 		t.Errorf("Apply(SetLED) = %v", err)
+	}
+}
+
+// The volume Apptrol sets on a new output is what its guard defends against
+// WirePlumber's remembered volume; an output that is not new has no guard
+// (OUT-05, PRIO-03, ADR 0027).
+func TestOUT05_GuardKeepsTheVolumeSetOnANewOutput(t *testing.T) {
+	b := New(quietLog(), "")
+	b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
+	b.outGuard["new"] = newGuardNow()
+	_ = b.Apply(mixer.SetOutputVolume{Device: "new", Volume: 0.3})
+	_ = b.Apply(mixer.SetOutputVolume{Device: "old", Volume: 0.6})
+	g := b.outGuard["new"]
+	if g.volume == nil || *g.volume != 0.3 || g.muted != nil {
+		t.Fatalf("guard = %+v, want volume 0.3 and no mute", g)
+	}
+	if v, _, _ := g.check(1, false); v == nil || *v != 0.3 {
+		t.Errorf("the server restored 100 %%; guard returned %v", v)
+	}
+	if _, guarded := b.outGuard["old"]; guarded {
+		t.Error("an output that is not new got a guard")
+	}
+}
+
+// A slider moved while the new-output guard is writing the volume it had set
+// before wins: its write waits for the guard's, instead of being overwritten
+// by it, and the guard defends the new value from then on (OUT-01, OUT-05,
+// ADR 0027).
+func TestOUT01_LatestSliderPositionWinsOverAGuardWrite(t *testing.T) {
+	b := New(quietLog(), "")
+	b.cur = &conn{} // never used: writes go through outputWrite
+	b.outChans, b.outGuard = map[string]int{"spk": 2}, map[string]*guard{"spk": newGuardNow()}
+	v := 1.0
+	b.outGuard["spk"].volume = &v // the slider was at 100 % when the output appeared
+
+	var mu sync.Mutex
+	var writes []float64 // in the order they finished
+	guardWriting, sliderWaits := make(chan struct{}), make(chan struct{})
+	b.beforeWire = func() { close(sliderWaits) }
+	b.outputWrite = func(_ string, _ int, v float64) error {
+		if v == 1.0 {
+			// The guard's write lasts until the slider's Apply is at wire:
+			// if Apply did not wait there, its write would finish first.
+			close(guardWriting)
+			<-sliderWaits
+		}
+		mu.Lock()
+		writes = append(writes, v)
+		mu.Unlock()
+		return nil
+	}
+
+	// The server restored 50 %; the guard sets 100 % again, holding wire as
+	// session does around handle.
+	guardDone := make(chan error, 1)
+	go func() {
+		b.wire.Lock()
+		defer b.wire.Unlock()
+		guardDone <- b.defendOutput(b.cur, SinkInfo{Device: mixer.Device{Name: "spk"}, Volume: 0.5, Channels: 2})
+	}()
+	<-guardWriting
+	if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 0.1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-guardDone; err != nil {
+		t.Fatal(err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(writes) != 2 || writes[len(writes)-1] != 0.1 {
+		t.Fatalf("writes in order = %v, want the slider's 0.1 last", writes)
+	}
+	if g := b.outGuard["spk"]; g.volume == nil || *g.volume != 0.1 {
+		t.Errorf("guard defends %v, want 0.1", g.volume)
+	}
+}
+
+// An output a reload left without a control is released: within the guard's
+// window, a volume changed elsewhere then stays, instead of being set back to
+// what Apptrol set; a control taking it back is defended again (OUT-01,
+// CTRL-06, ADR 0027). Releasing waits for a guard write in progress.
+func TestCTRL06_ReleasedOutputIsNoLongerDefended(t *testing.T) {
+	b := New(quietLog(), "")
+	b.cur = &conn{} // never used: writes go through outputWrite
+	b.outChans, b.outGuard = map[string]int{"spk": 2}, map[string]*guard{"spk": newGuardNow()}
+	var writes []float64
+	b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+	if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The reload releases it while an event is being handled: it waits.
+	b.wire.Lock()
+	waits := make(chan struct{})
+	b.beforeWire = func() { close(waits) }
+	released := make(chan error, 1)
+	go func() { released <- b.Apply(mixer.ReleaseOutput{Device: "spk"}) }()
+	<-waits
+	b.mu.Lock()
+	early := b.outGuard["spk"].volume == nil
+	b.mu.Unlock()
+	if early {
+		t.Error("released while an event held wire")
+	}
+	b.wire.Unlock()
+	if err := <-released; err != nil {
+		t.Fatal(err)
+	}
+	b.beforeWire = nil
+
+	writes = nil
+	lowered := SinkInfo{Device: mixer.Device{Name: "spk"}, Volume: 0.2, Channels: 2} // set elsewhere
+	if err := b.defendOutput(b.cur, lowered); err != nil {
+		t.Fatal(err)
+	}
+	if len(writes) != 0 {
+		t.Errorf("a released output was set back: %v", writes)
+	}
+
+	// A control takes it back within the window: defended again.
+	if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 0.6}); err != nil {
+		t.Fatal(err)
+	}
+	writes = nil
+	if err := b.defendOutput(b.cur, lowered); err != nil {
+		t.Fatal(err)
+	}
+	if len(writes) != 1 || writes[0] != 0.6 {
+		t.Errorf("writes = %v, want 0.6 set again", writes)
+	}
+	// Releasing needs no connection, and an output with no guard is fine.
+	b.cur = nil
+	if err := b.Apply(mixer.ReleaseOutput{Device: "other"}); err != nil {
+		t.Errorf("Apply(ReleaseOutput) without a connection = %v", err)
+	}
+}
+
+// A read that sees an output's description change together with a volume the
+// server restored is not defended at once: the mixer decides first. When a
+// control still holds the output (KeepOutput), the volume read is set back
+// without waiting for another change; when the change released it
+// (ReleaseOutput), the read volume stays (OUT-05, CTRL-06, ADR 0027).
+//
+//	Apply 30 % ─► read: "Speakers Pro", 100 % ─► nothing yet ─► KeepOutput    ─► 30 % again
+//	                                                         └► ReleaseOutput ─► 100 % stays
+func TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt(t *testing.T) {
+	for _, keep := range []bool{true, false} {
+		b := New(quietLog(), "")
+		b.cur = &conn{} // never used: writes go through outputWrite
+		b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
+		var writes []float64
+		b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+
+		spk := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
+		if err := b.sinkRead(b.cur, &spk, false); err != nil { // it appears
+			t.Fatal(err)
+		}
+		if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 0.3}); err != nil {
+			t.Fatal(err)
+		}
+		writes = nil
+
+		restored := spk
+		restored.Description, restored.Volume = "Speakers Pro", 1
+		if err := b.sinkRead(b.cur, &restored, false); err != nil {
+			t.Fatal(err)
+		}
+		if len(writes) != 0 {
+			t.Fatalf("keep=%v: defended before the mixer decided: %v", keep, writes)
+		}
+
+		var a mixer.Action = mixer.ReleaseOutput{Device: "spk", Generation: restored.Generation}
+		if keep {
+			a = mixer.KeepOutput{Device: "spk", Generation: restored.Generation}
+		}
+		if err := b.Apply(a); err != nil {
+			t.Fatal(err)
+		}
+		switch {
+		case keep && (len(writes) != 1 || writes[0] != 0.3):
+			t.Errorf("kept: writes = %v, want 0.3 set again", writes)
+		case !keep && len(writes) != 0:
+			t.Errorf("released: writes = %v, want none", writes)
+		}
+	}
+
+	// Kept without a connection, or with nothing to defend: nothing to do,
+	// and no volume is logged that was never read.
+	var logs bytes.Buffer
+	b := New(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})), "")
+	if err := b.Apply(mixer.KeepOutput{Device: "spk"}); err != nil {
+		t.Errorf("Apply(KeepOutput) without a connection = %v", err)
+	}
+	if strings.Contains(logs.String(), "apptrol.volume_percent") {
+		t.Errorf("keep without a read logged a volume: %s", logs.String())
+	}
+}
+
+// The mixer's first volume for a new output, then its KeepOutput, writes the
+// volume once: the accepted write is the guard's last read, so KeepOutput does
+// not set it again or log a restore. A failed write keeps the old read, and a
+// later restore by the server is still defended (OUT-05, CTRL-06, QA-11,
+// ADR 0027).
+//
+//	read 100 % ─► Set 30 % (written) ─► KeepOutput ─► nothing ─► read 100 % ─► 30 % again
+func TestOUT05_KeepAfterTheFirstVolumeWritesItOnce(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failed write=%v", fail), func(t *testing.T) {
+			var logs bytes.Buffer
+			b := New(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})), "")
+			b.cur = &conn{} // never used: writes go through outputWrite
+			b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
+			var writes []float64
+			b.outputWrite = func(_ string, _ int, v float64) error {
+				writes = append(writes, v)
+				if fail {
+					return errors.New("write refused")
+				}
+				return nil
+			}
+			d := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
+			b.wire.Lock()
+			err := b.sinkRead(b.cur, &d, false) // it appears
+			b.wire.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 0.3}); (err != nil) != fail {
+				t.Fatalf("Apply(SetOutputVolume) = %v", err)
+			}
+			if err := b.Apply(mixer.KeepOutput{Device: "spk", Generation: d.Generation}); (err != nil) != fail {
+				t.Fatalf("Apply(KeepOutput) = %v", err)
+			}
+			restored := strings.Contains(logs.String(), "setting it again")
+			if fail {
+				// Nothing reached the server: KeepOutput tries again from the old read.
+				if len(writes) != 2 || !restored {
+					t.Fatalf("after a failed write: writes = %v, restore logged = %v; want a second try", writes, restored)
+				}
+				return
+			}
+			if len(writes) != 1 || restored {
+				t.Fatalf("writes = %v, restore logged = %v; want 0.3 once and no restore", writes, restored)
+			}
+
+			d.Volume = 1 // the server restores its remembered volume afterwards
+			b.wire.Lock()
+			err = b.sinkRead(b.cur, &d, true)
+			b.wire.Unlock()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(writes) != 2 || writes[1] != 0.3 {
+				t.Errorf("later restore not defended: writes = %v", writes)
+			}
+		})
+	}
+}
+
+// A second notification must not defend an output while the mixer has yet to
+// release its renamed identity (CTRL-06, QA-11, ADR 0027). Direct calls force
+// the buffered-event order without sleeps or a running audio server.
+//
+// rename -> restored volume notification -> no write -> late ReleaseOutput
+func TestCTRL06_RenamedOutputWaitsForReleaseAcrossNotifications(t *testing.T) {
+	var logs bytes.Buffer
+	b := New(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})), "")
+	b.cur = &conn{}
+	b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
+	var writes []float64
+	b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+	d := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
+	read := func(same bool) {
+		t.Helper()
+		b.wire.Lock()
+		err := b.sinkRead(b.cur, &d, same)
+		b.wire.Unlock()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	read(false)
+	if err := b.Apply(mixer.KeepOutput{Device: d.Name, Generation: d.Generation}); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Apply(mixer.SetOutputVolume{Device: d.Name, Volume: 0.3}); err != nil {
+		t.Fatal(err)
+	}
+	writes = nil
+	d.Description, d.Volume = "Unmatched", 0.3
+	read(false)
+	d.Volume = 1
+	read(true)
+	if len(writes) != 0 {
+		t.Errorf("guard wrote before the pending release: %v", writes)
+	}
+	if !strings.Contains(logs.String(), "apptrol.audio.guard.state=ownership_pending") {
+		t.Error("the skipped guard write did not log its pending ownership reason")
+	}
+	if err := b.Apply(mixer.ReleaseOutput{Device: d.Name, Generation: d.Generation}); err != nil {
+		t.Fatal(err)
+	}
+	read(true)
+	if len(writes) != 0 {
+		t.Errorf("released output was defended: %v", writes)
+	}
+}
+
+// Buffered answers for an older identity cannot resume or cancel defense of
+// the newest one; removing and recreating a device also changes its token
+// (CTRL-06, OUT-05, QA-11, ADR 0027).
+func TestCTRL06_OutputOwnershipRejectsOlderGenerations(t *testing.T) {
+	for _, removed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("removed=%v", removed), func(t *testing.T) {
+			var logs bytes.Buffer
+			b := New(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})), "")
+			b.cur = &conn{}
+			b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
+			var writes []float64
+			b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+			tracker := tracker{outputs: map[uint32]mixer.Device{}}
+			d := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
+			read := func() mixer.Device {
+				t.Helper()
+				b.wire.Lock()
+				defer b.wire.Unlock()
+				old, known := tracker.outputs[d.Index]
+				evs, err := outputChange(&tracker, d.Index, false, func(uint32) (SinkInfo, error) {
+					err := b.sinkRead(b.cur, &d, known && sameOutputIdentity(old, d.Device))
+					return d, err
+				})
+				if err != nil || len(evs) != 1 {
+					t.Fatalf("reported read = %v, %v", evs, err)
+				}
+				return evs[0].(mixer.OutputAdded).Device
+			}
+			apply := func(a mixer.Action) {
+				t.Helper()
+				if err := b.Apply(a); err != nil {
+					t.Fatal(err)
+				}
+			}
+			first := read()
+			if removed {
+				delete(tracker.outputs, d.Index)
+				delete(b.outChans, d.Name)
+				delete(b.outGuard, d.Name)
+			}
+			d.Description = "Speakers Pro"
+			latest := read()
+			if latest.Generation <= first.Generation {
+				t.Fatal("new reported identity reused an older generation")
+			}
+			apply(mixer.SetOutputVolume{Device: d.Name, Volume: 0.3})
+			writes = nil
+			apply(mixer.KeepOutput{Device: d.Name, Generation: first.Generation})
+			apply(mixer.ReleaseOutput{Device: d.Name, Generation: first.Generation})
+			b.wire.Lock()
+			err := b.sinkRead(b.cur, &d, true)
+			b.wire.Unlock()
+			if err != nil || len(writes) != 0 {
+				t.Fatalf("old answers or volume write acknowledged the pending read: %v, %v", writes, err)
+			}
+			// Each ignored answer says which identity it lost to.
+			for _, action := range []string{"KeepOutput", "ReleaseOutput"} {
+				want := fmt.Sprintf("output ownership answer ignored; a newer identity was reported\" "+
+					"apptrol.component=audio apptrol.device.name=spk apptrol.action=%s "+
+					"apptrol.audio.ownership.answer_generation=%d apptrol.audio.ownership.generation=%d",
+					action, first.Generation, latest.Generation)
+				if !strings.Contains(logs.String(), want) {
+					t.Errorf("no debug record for the stale %s; want %q in:\n%s", action, want, logs.String())
+				}
+			}
+			apply(mixer.KeepOutput{Device: d.Name, Generation: latest.Generation})
+			if len(writes) != 1 || writes[0] != 0.3 {
+				t.Fatalf("latest keep did not defend: %v", writes)
+			}
+			apply(mixer.ReleaseOutput{Device: d.Name, Generation: first.Generation})
+			if b.outGuard[d.Name].volume == nil {
+				t.Fatal("stale release cleared the newest ownership")
+			}
+		})
 	}
 }
 

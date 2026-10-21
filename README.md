@@ -61,8 +61,9 @@ what you're doing.
 - **0.6.0:** a setup in the terminal and a tray icon
 
 The [roadmap](docs/roadmap.md) has the details. The development version already accepts
-the separate `[apps]`, `[inputs]` and `[outputs]` configuration tables; output audio
-control is still being built. See the [configuration reference](docs/config.md).
+the separate `[apps]`, `[inputs]` and `[outputs]` configuration tables, and a slider or
+knob sets a fixed output's volume; mute, solo and following the default output are
+still being built. See the [configuration reference](docs/config.md).
 
 ## Before you install
 

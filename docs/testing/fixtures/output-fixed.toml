@@ -1,0 +1,27 @@
+# Test fixture "output-fixed": fixed outputs on the silent test output (OUT-01,
+# OUT-02, OUT-04, ADR 0027). apply-fixture.sh creates apptrol-test-mic-sink for its
+# virtual microphone; it plays nothing, so no volume here can be heard.
+# For: TC-OUT-003 (slider and knob) and TC-OUT-004 (several matches).
+# TestFixturesAreValid in internal/config checks that it loads.
+
+[log]
+level   = "debug"                  # the cases read the log
+outputs = ["journald"]
+
+[outputs.test-out]
+name       = "Test output"
+match      = ["apptrol-test-mic-sink"]
+max_volume = 80
+
+[outputs.test-out-knob]
+name  = "Test output (knob)"
+match = ["apptrol-test-mic-sink"]  # the same device as slider 7 (OUT-04)
+
+[outputs.any-test]
+name  = "Any test output"
+match = ["apptrol-test"]           # every test output: TC-OUT-004 adds a second one
+
+[layouts.default]
+slider7 = "test-out"
+knob7   = "test-out-knob"
+slider6 = "any-test"

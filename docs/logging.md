@@ -205,17 +205,96 @@ Use the output's name without `.monitor` in `[outputs.<id>]`. Invalid output sel
 (such as both `match` and `device`) use the usual `config_invalid` error records, with
 the reason in `exception.message` and `apptrol.component=config`.
 
-Until output audio control (#85) lands, each configured output also gets this warning
-at startup and every reload, and in `apptrol check` (CFG-20, ADR 0026 implementation
-note). The target and its assignments are omitted from the mixer, so its match list
-cannot accidentally control an app:
+Until following the default output (#85) is built, each output with
+`device = "default"` gets this warning at startup and every reload, and in
+`apptrol check` (CFG-20, ADR 0026 implementation note). The target and its assignment
+are left out of the mixer. A fixed output (`match`) works and gets no warning:
 
 ```text
-WARN output control is not implemented yet; this target is inactive apptrol.component=config file.path=/home/you/.config/apptrol/config.toml apptrol.app.id=speakers apptrol.app.type=output
+WARN following the default output is not implemented yet; this target is inactive apptrol.component=config file.path=/home/you/.config/apptrol/config.toml apptrol.app.id=main apptrol.app.type=output
 ```
 
-#85 removes this temporary warning and connects the target to output devices before
-0.3.0 RC1. No new attributes or error types are introduced.
+A fixed output on slider 7 at connect, then moved; a second control on the same
+device; the device unplugged (OUT-01, OUT-04, OUT-13,
+[ADR 0027](adr/0027-output-volume.md)). The output records carry the layout, control
+and target like every mixer record, with `apptrol.app.type=output`:
+
+```text
+INFO output matched apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.device.name=alsa_output.pci-<card>.analog-stereo apptrol.device.description="Built-in Audio Analog Stereo" apptrol.device.selected_by=match
+DEBU volume changed apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.volume_percent=40
+INFO two controls set the same output apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.device.name=alsa_output.pci-<card>.analog-stereo apptrol.device.controls="slider7, knob7"
+INFO output device gone; the control does nothing until a device matches apptrol.component=mixer apptrol.layout=default apptrol.control=knob7 apptrol.app.id=headphones apptrol.app.name=Headphones apptrol.app.type=output apptrol.device.name=alsa_output.usb-<headset>.analog-stereo
+```
+
+When the match fits several outputs, the first by name is used, with a warning that
+names all of them; it comes again only when another device is chosen. A target that
+fits none warns at connect and after every reload:
+
+```text
+WARN several output devices match; using the first (make the match more specific: apptrol list shows each device's unique name) apptrol.component=mixer … apptrol.control=slider7 … apptrol.device.name=alsa_output.pci-<card>.analog-stereo apptrol.device.matches="alsa_output.pci-<card>.analog-stereo, alsa_output.usb-<dock>.analog-stereo"
+WARN no output device matches apptrol.component=mixer … apptrol.control=knob7 … apptrol.app.match=headset
+```
+
+M and S on an output column do nothing yet; mute and output solo come with #85's next
+steps. A press says so at debug:
+
+```text
+DEBU button has no function: not built yet on an output column apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.button=M7
+```
+
+For three seconds after an output appears, the audio adapter sets its volume again
+if the audio server restores a remembered one over Apptrol's (OUT-05), as for streams
+and inputs:
+
+```text
+DEBU audio server changed the volume of a new output; setting it again apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.volume_percent=100 apptrol.wanted_percent=40
+```
+
+At debug, the audio adapter also logs each read of an output device, with what the
+guard made of it, and the server's answer to each volume it sets. A read that sees a
+new description waits for the mixer: `output kept by a control; …` then checks the
+volume it read (OUT-05, OUT-13). A volume that reads wrong although the request
+succeeded was changed afterwards, not lost on the way:
+
+```text
+DEBU output volume request completed apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.audio.channels=2 apptrol.wanted_percent=40 apptrol.audio.result=success
+DEBU output device read apptrol.component=audio apptrol.device.index=<index> apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.description="USB Headset" apptrol.audio.channels=2 apptrol.volume_percent=100 apptrol.audio.guard.state=restore_volume apptrol.audio.guard.remaining_ms=2972 apptrol.wanted_percent=40
+DEBU output device read apptrol.component=audio apptrol.device.index=<index> apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.description="USB Headset Pro" apptrol.audio.channels=2 apptrol.volume_percent=100 apptrol.audio.guard.state=identity_changed apptrol.audio.guard.remaining_ms=2540 apptrol.wanted_percent=40
+DEBU output kept by a control; checking the volume last read apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.volume_percent=100 apptrol.audio.guard.state=restore_volume
+```
+
+While the newest reported identity has no ownership answer, later volume notifications
+log `apptrol.audio.guard.state=ownership_pending` and do not restore the volume.
+An older answer cannot resume defense; the adapter waits for the newest generation's
+answer without blocking notifications (CTRL-06). It logs each answer it ignores, with
+the identity the mixer answered for and the newest one it reported:
+
+```text
+rename ─► identity 3 ─► rename ─► identity 4 ─► KeepOutput(3): ignored ─► KeepOutput(4): defended
+```
+
+```text
+DEBU output ownership answer ignored; a newer identity was reported apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.action=KeepOutput apptrol.audio.ownership.answer_generation=3 apptrol.audio.ownership.generation=4
+```
+
+A volume Apptrol set and the server accepted counts as the last read, so
+`output kept by a control; …` right after the first volume of a new output sets
+nothing again. When nothing was read (the output was there at connect), that record
+has no `apptrol.volume_percent`.
+
+When no control holds an output any more (a reload took its control away, or its new
+description no longer matches), the mixer releases it: a volume set elsewhere then
+stays, even within the guard's three seconds (CTRL-06):
+
+```text
+INFO output released; no control holds the device apptrol.component=mixer apptrol.device.name=alsa_output.usb-<headset>.analog-stereo
+```
+
+To follow everything about outputs:
+
+```bash
+journalctl --user -u apptrol | grep -E 'apptrol.app.type=output|output (matched|device|released|kept|volume)|new output'
+```
 
 A slider moves (level `debug`):
 
@@ -309,14 +388,23 @@ Apptrol's own:
 | `apptrol.wanted_percent` | The volume Apptrol set, when PipeWire changed it back |
 | `apptrol.muted` | A mute state |
 | `apptrol.wanted_muted` | The mute state Apptrol set, when PipeWire changed it back |
-| `apptrol.action` | A change that could not be made |
+| `apptrol.action` | A change that could not be made, or an ownership answer the audio adapter ignored (`KeepOutput`, `ReleaseOutput`) |
 | `apptrol.led` | An LED, e.g. `S1` |
 | `apptrol.stream.id` | PipeWire's number for a playing stream |
 | `apptrol.stream.app_name` | The name the app gives its stream (what `match` compares) |
 | `apptrol.stream.corked` | Whether the app has paused the stream (`true`) or it plays (`false`) |
 | `apptrol.device.name` | An input or output device's unique name (what `match` compares, with the description) |
 | `apptrol.device.description` | An input or output device's readable name |
-| `apptrol.device.matches` | All input devices that match |
+| `apptrol.device.matches` | All input or output devices that match |
+| `apptrol.device.selected_by` | How an output's device was chosen: `match` (a fixed output); `default` later, with `device = "default"` |
+| `apptrol.device.controls` | The controls that set one output device, e.g. `slider7, knob7` |
+| `apptrol.device.index` | The audio server's number for an output device (changes when it is added again) |
+| `apptrol.audio.channels` | How many channels a device has, as read or written |
+| `apptrol.audio.result` | The audio server's answer to a request: `success` or `failed` |
+| `apptrol.audio.guard.state` | What the new-output guard made of a read: `restore_volume` (set again), `at_wanted_volume`, `no_volume_set` (no control set it, or it was released), `expired`, `no_guard` (not new), `identity_changed` (new, or a new name or description: the mixer decides first), `ownership_pending` (no answer for the newest reported identity yet; no guard write) |
+| `apptrol.audio.guard.remaining_ms` | Milliseconds left in the new-output guard's 3 seconds |
+| `apptrol.audio.ownership.answer_generation` | The output identity an ignored `KeepOutput` or `ReleaseOutput` answered for |
+| `apptrol.audio.ownership.generation` | The newest output identity the audio adapter reported, which the answer lost to |
 | `apptrol.audio.server` | The audio server and its version |
 | `apptrol.retry.delay_s` | Seconds until Apptrol tries again |
 | `apptrol.controller.port` | The controller's sound card id from the configuration |

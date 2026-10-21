@@ -7,7 +7,7 @@ How the service is put together. Decisions and their reasons are in
 
 ```
  nanoKONTROL2 ──► controller ──┐                          ┌──► audio ──────► PipeWire
-  (raw MIDI)      (decode MIDI,│                          │    (volume, mute)
+  (raw MIDI)      (decode MIDI,│                          │    (volume, mute; output volume)
                    drive LEDs) │       events   ┌───────┐ ├──► controller ─► LEDs
  config.toml ───► config ──────┼───────────────►│ mixer │─┤
                   (load,       │                │ (pure │ ├──► desktop ────► media players
@@ -25,6 +25,7 @@ How the service is put together. Decisions and their reasons are in
 ```
 
 - **`mixer`** holds all behaviour: assignments, mute, solo, the held microphone buttons,
+  which output device each output control sets (and that nothing else touches it),
   which media player belongs to which control, what R, the media keys and the launcher
   buttons do (and what they may do in each screen state), and every LED. It receives events and returns actions. It does no I/O and
   has no clock, so it is tested completely with plain unit tests.
@@ -45,10 +46,10 @@ How the service is put together. Decisions and their reasons are in
 |---|---|
 | `cmd/apptrol` | Command line: `run`, `list`, `check`, `test`, `version`; wires everything together |
 | `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop`, `Power` and `Launcher` interfaces; turns mixer actions into adapter calls; the Record LED's flash (the mixer has no clock); config reload and its warnings, each logged by its text or with its own message and attributes; shutdown |
-| `internal/mixer` | Core logic (pure): matching streams, inputs and media players to controls, the output devices it knows, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
+| `internal/mixer` | Core logic (pure): matching streams, inputs, output devices and media players to controls, output volume, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write; lets go of the controller and takes it back (ADR 0029) |
-| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`): playback streams, capture devices and output devices; reconnects; `apptrol list` data |
+| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`): playback streams, capture devices and output devices, their volume (and mute of streams and inputs); the new-device guard; reconnects; `apptrol list` data |
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
 | `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, whether the user's graphical session is unlocked, locked, behind another session or unknown, and whose session is in front at the seat (ADR 0029); reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
@@ -80,7 +81,8 @@ is part of this guard. Windows adapters and path changes remain in #92.
    ADR 0020).
 2. The service passes it to `mixer.Handle(event)`.
 3. The mixer updates its model and returns actions: *set stream 57 to 71 %*, *mute
-   input "GoXLR"*, *LED M2 on*, *pause the Spotify player*, *start OBS*, *state changed*.
+   input "GoXLR"*, *set output "USB Headset" to 50 %*, *LED M2 on*, *pause the Spotify
+   player*, *start OBS*, *state changed*.
 4. The service executes them. Failures are logged; they never stop the loop. Player
    commands and app starts are only handed over: their adapters log the outcome later.
 
@@ -118,10 +120,10 @@ valid configuration applies the kept state like a normal start (STATE-08).
 own tables (CFG-18, [ADR 0026](adr/0026-separate-tables-for-apps-inputs-outputs.md)), but are read
 into **one map of targets**, `Config.Apps`, each with its `Type`: layouts and `[media]
 player` name a target by its id alone, so an id may be in only one table, and the mixer
-can keep looking up targets by id. Reading `[outputs]` adds no adapter interface and no
-mixer behaviour of its own. The audio adapter already reports output devices as events
-(OUT-12, see [Audio access](#audio-access)), but until the guard below is replaced, no control acts on
-them; output volume actions follow in #85 (ADR 0027).
+can keep looking up targets by id. A fixed output becomes a `mixer.Output` target in
+`Config.Setup()`; the mixer chooses its device and sets its volume (see
+[Output volume](#output-volume)). No adapter interface is new: output volume goes
+through `service.Audio` like every other volume.
 
 ```
 [apps.spotify]              ─┐
@@ -145,12 +147,18 @@ an output behave like an input or app. `apptrol check` displays either the match
 or `device = "default"`. The first-control-wins overlap warning only covers apps and
 inputs: outputs may share a device (ADR 0027 point 4).
 
-Until #85, `Config.Setup()` omits output targets and their assignments. Otherwise its
-existing conversion would turn them into app targets and match playback streams.
-Every parsed output gets the fixed warning `output control is not implemented yet; this target is inactive`,
-with `apptrol.app.id` and `apptrol.app.type=output`. #85 replaces the guard and removes
-this warning before 0.3.0 RC1 (ADR 0026 implementation note). The parsed config stays
-intact for `apptrol check` and for #85's implementation.
+`Config.Setup()` passes a fixed output (`match`) as `mixer.Output`, never as an app, so
+its match list is compared with output devices only, never with playback streams
+(OUT-01). An output with `device = "default"` is still left out, with its assignment,
+until following the default is built (#85, OUT-03); it gets the fixed warning
+`following the default output is not implemented yet; this target is inactive`, with
+`apptrol.app.id` and `apptrol.app.type=output`, at every load and in `apptrol check`
+(ADR 0026 implementation note and its 2026-10-20 note). The parsed config stays intact.
+
+```
+[outputs.speakers] match = [...]   ──► mixer.Output     (sets the device's volume)
+[outputs.main] device = "default"  ──► left out + warning, until #85 builds it
+```
 
 The old form (`[apps.<id>]` with `type`) is read until 1.0 (CFG-19). Each such entry adds
 a `config.Warning`: a warning has a text for people, printed by `apptrol check`, and
@@ -179,6 +187,88 @@ attributes so far (CFG-18, ADR 0026 point 7):
 apptrol check   - inputs.mic: the same id is defined in two tables ([apps] and [inputs])
 log             ERRO the changed configuration is invalid; keeping the current settings … apptrol.app.id=mic error.type=config_invalid exception.message="inputs.mic: the same id …"
 ```
+
+## Output volume
+
+An output target names one output device ([ADR 0027](adr/0027-output-volume.md)). The
+mixer keeps the output devices the audio adapter reports (`AudioSnapshot.Outputs`,
+`OutputAdded`, `OutputRemoved`) and, for each output target on a control, the device it
+has chosen (`outputFor`):
+
+- **Choosing** (`chooseOutputs`, OUT-02): the current device while it still matches,
+  otherwise the first match by name, case-insensitive on name or description. It shares
+  `pickDevice` with inputs (CFG-05); nothing else of the input code is shared, so solo,
+  talk-over and held buttons, which only look at apps and inputs, can never reach an
+  output. Choosing runs after a snapshot, a device that appears, changes or goes, and a
+  reload.
+- **Volume** (`SetOutputVolume`, its own action, not `SetDeviceVolume`): when the
+  control moves, and when a device is newly chosen while the control's position is
+  known (OUT-05). An unknown position leaves the device alone (PRIO-04); an output
+  moved to another control or given another `max_volume` gets its volume again on a
+  reload, as inputs do. Outside changes are not reverted (PRIO-02): the adapter does not
+  even report an output's volume.
+- **Releasing** (`ReleaseOutput`, CTRL-06): a device that no output target holds any
+  more after choosing (a reload took its control away or changed its match) is released;
+  one another control still holds is kept, one that is gone has nothing to release. The
+  adapter's new-output guard then stops defending Apptrol's volume on it, so a volume
+  changed elsewhere within the guard's 3 seconds stays. Output volume writes and the
+  guard take turns (`wire`, as mute writes do), so the guard never writes a position
+  the slider has already left.
+
+  ```
+  reload: slider7 no longer on "main" ──► nobody holds Speakers ──► ReleaseOutput Speakers
+                                                                     └─► the guard lets it go
+  ```
+
+  The mixer logs each release once at info (`output released; no control holds the
+  device`), so the log says why an outside volume now stays.
+- **Keeping** (`KeepOutput`, OUT-05, CTRL-06): a read that sees an output new, or with a new name
+  or description, is not defended by the adapter at once, because a match on the
+  description may have ended. The mixer decides: a device a control still holds
+  is kept, even when it also gets `SetOutputVolume`, and the adapter checks the latest
+  read against its guard without waiting for another change; one no control holds is
+  released instead, and its volume stays.
+
+  ```
+  read: "Speakers Pro", 100 % ──► defense paused ──► OutputAdded ──► mixer
+     still matches ──► KeepOutput    ──► guard: 100 % ≠ 30 % ──► 30 % again
+     no longer     ──► ReleaseOutput ──► guard lets it go     ──► 100 % stays
+  ```
+
+  At debug, the adapter logs each read of an output (`output device read`, with
+  `apptrol.audio.guard.state`) and the server's answer to each volume it sets.
+  Every reported output identity, including snapshots, carries an adapter-generated
+  `Device.Generation`. The pure mixer only echoes it in `KeepOutput` or `ReleaseOutput`.
+  The adapter accepts only the newest generation's answer; until then, subsequent
+  volume-only notifications update the last read but cannot trigger a guard write
+  (`ownership_pending` at debug). Such notifications do not report a new identity or
+  advance its generation. A volume action does not acknowledge ownership, but a write
+  the server accepted becomes the guard's last read, so the `KeepOutput` after the
+  first volume of a new output does not set it twice. An ignored older answer is
+  logged at debug with both generations. Generations
+  are never reused on removal, resync or reconnect. All guard checks, ownership answers
+  and output writes retain the `wire` then `mu` lock order; the adapter never waits
+  for the mixer's answer.
+
+  ```text
+  rename (generation 2) -> OutputAdded(2) -> mixer answer buffered
+  restored volume      -> ownership_pending -> no guard write
+  KeepOutput(1)        -> stale answer ignored (logged: 1 vs 2)
+  ReleaseOutput(2)     -> guard forgets its volume
+  ```
+- **Not yet:** M and S on an output column do nothing (a debug record), app solo and
+  talk-over never touch outputs (OUT-07, OUT-11); output mute and solo follow in #85.
+- **Two controls on one device** are allowed (OUT-04); `sharedOutputs` remembers what
+  was logged, so `two controls set the same output` comes once when it begins.
+
+```
+OutputAdded "USB Headset" ──► chooseOutputs ──► knob7 "phones" holds it (output matched)
+                                             └─► knob7 position known? ──► SetOutputVolume 40 %
+ControlMoved knob7 = 51   ──► SetOutputVolume { "alsa_output.usb-…", 0.40 } ──► audio ──► PipeWire
+```
+
+`apptrol list` asks the mixer for each output target's device (`OutputDevice`) and
+shows the control in the output devices' CONTROL column (OUT-12).
 
 ## Controller access
 
@@ -238,19 +328,26 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   change: muted   ──► Apptrol's own, want used up
   change: unmuted ──► outside ──► mixer takes it over (hold-to-talk: muted again)
   ```
-- Volume is set per stream and per input; mute likewise. The percentage is the one desktop
+- Volume is set per stream, per input and per output device (`SetSinkVolume` by the
+  sink's name, OUT-01); mute per stream and per input. The percentage is the one desktop
   mixers (KDE, GNOME, pavucontrol) show, so a slider at 50 % shows 50 % there. The top of
-  a control is the app's `max_volume` (default 100 %, up to 150 %). All channels get the
-  same volume.
+  a control is the target's `max_volume` (default 100 %, up to 150 %). All channels get
+  the same volume, so an output's left/right balance is lost
+  ([known issue](known-issues.md)). The adapter keeps each sink's channel count, as it
+  does for streams and inputs.
 - Monitors of outputs ("Monitor of GoXLR…") are not capture devices and are never
   matched. A monitor is a source, never a sink, so it is listed neither as an input nor
   as an output (OUT-12). The config validator warns about monitor fragments before the
   audio adapter is needed (CFG-21).
-- WirePlumber restores an app's remembered volume shortly after the app starts. When that
-  lands after Apptrol has set the slider's position, Apptrol sets it again: for 3 seconds
-  after a stream or input appears, changes to what Apptrol set are undone (PRIO-03).
+- WirePlumber restores an app's remembered volume shortly after the app starts, and an
+  output's when it appears. When that lands after Apptrol has set the control's position,
+  Apptrol sets it again: for 3 seconds after a stream, input or output appears, changes
+  to what Apptrol set are undone (PRIO-03, OUT-05). For an output only the volume is
+  defended; outputs have no mute yet.
+  Output identity changes pause defense across notifications until the mixer answers
+  the newest reported generation; see [Output volume](#output-volume).
   Volume writes and the guard take turns (`wire`, as mute writes do), so the guard never
-  writes a position the slider has moved away from in the meantime (#158):
+  writes a position the control has moved away from in the meantime (#158, OUT-05):
 
   ```
   guard: reads 50 %, writes 100 % ─┐
@@ -421,15 +518,26 @@ dialog.
   Config tests exercise the fallback metadata comparison on Linux as well, and
   verify Linux still detects an inode change with equal size and modification time.
 - `mixer`: table-driven tests per requirement ID against a simulated audio server and
-  controller, plus a fuzz test over random event sequences — the bulk of the tests.
-- `service`: the whole loop against fake adapters: config reload, state, shutdown.
+  controller, plus a fuzz test over random event sequences — the bulk of the tests. The
+  simulated server keeps output volumes too; the fuzz test has outputs on slider 7 and
+  knob 7 and checks that an output is set only while a target holds it, never muted, and
+  that an output control changes no stream or input; a kept output is held by a target,
+  a released one by none. Ownership tests check that reported generations are echoed
+  unchanged in snapshot, change and reload answers.
+- `service`: the whole loop against fake adapters: config reload, state, shutdown, a
+  slider on an output reaching the audio adapter as `SetOutputVolume`.
 - `controller`: MIDI decoding and the CC map with byte-level tests and fuzzing.
   `controller/rawmidi`: discovery, plug/unplug and busy devices against fake devices; the
   real controller is checked by hand (`apptrol test`, docs/testing.md).
 - `audio/pulse`: integration tests against a headless PipeWire in CI: streams, a test
-  input and a silent test output that appear and go, `apptrol list`'s data, and a
-  reconnect. Turning sink notifications into events is unit-tested on its own, and so
-  is a slider move during a new-stream or new-input guard's write (#158).
+  input and a silent test output that appear and go, the test output's volume set to
+  30 % and read back, the new-output guard setting it back within its 3 seconds and
+  leaving it after them, `apptrol list`'s data, and a reconnect. Turning sink
+  notifications into events, and the new-output guard (a slider move during a guard
+  write, release, keep after a new description), are unit-tested on their own, and so
+  is a slider move during a new-stream or new-input guard's write (#158). Tests
+  also force a second notification before a pending release, and stale ownership
+  answers across renames and removal/reappearance, without sleeps (CTRL-06, QA-11).
 - `desktop`: integration tests in a private session bus with fake media players, locally
   (`make test-desktop`) and in CI; a bus restart and a missing bus included.
 - `session`: the same private bus stands in for the system bus, with a fake logind that
@@ -448,6 +556,6 @@ dialog.
 - `config`, `state`: unit tests and fuzzing on malformed input; the blocked-command check
   is fuzzed too. Inputs are tested in both forms, `[inputs.<id>]` and the old `type`
   (CFG-18, CFG-19). Output tests cover selector presence, values, cross-table rules,
-  layout references and CLI display (CFG-20). Monitor warnings are checked on load,
+  layout references, CLI display and what `Setup` passes to the mixer (CFG-20, OUT-01). Monitor warnings are checked on load,
   in the CLI and on service startup/reload (CFG-21); documentation checks cover device
   discovery instructions (CFG-22). See [configuration cases](testing/cases/cfg.md).

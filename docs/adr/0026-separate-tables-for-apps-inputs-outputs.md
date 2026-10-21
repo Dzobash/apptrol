@@ -117,3 +117,12 @@ This is a temporary integration guard, not the release behaviour. #85 replaces t
 omission with proper output targets, removes the warning and updates the temporary
 guard tests. Both #86 and #85 must be integrated and tested before 0.3.0 RC1; RC1 must
 provide the output behaviour in ADR 0027. The mixer itself is unchanged by #86.
+
+## Notes
+
+- 2026-10-20: The guard is narrower now (#85, first step). `Config.Setup()` passes a
+  fixed output (`match`) to the mixer as an output target, which acts on an output
+  device and never on a playback stream (OUT-01). Only an output with
+  `device = "default"` is still left out, with its assignment, and only it gets the
+  warning, now `following the default output is not implemented yet; this target is
+  inactive` (same attributes). It goes when following the default is built (OUT-03).

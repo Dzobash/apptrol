@@ -223,8 +223,8 @@ func parse(path string, data []byte) (*Config, []Warning, error) {
 
 	// Unused targets are harmless, but worth knowing (CFG-12, ADR 0026).
 	for _, id := range cfg.AppIDs() {
-		if cfg.Apps[id].Type == TypeOutput {
-			warnings = append(warnings, inactiveOutputWarning(id))
+		if cfg.Apps[id].followsDefault() {
+			warnings = append(warnings, inactiveDefaultOutputWarning(id))
 		}
 		used := false
 		for _, l := range cfg.Layouts {

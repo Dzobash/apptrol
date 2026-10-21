@@ -10,10 +10,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -240,6 +242,186 @@ func TestIntegration_OUT12_OutputDevices(t *testing.T) {
 		r, ok := e.(mixer.OutputRemoved)
 		return ok && r.Name == out
 	})
+}
+
+// waitSink is waitStream for output devices. On failure it also lists every
+// volume it saw, in order, to tell a volume never set from one set back.
+func waitSink(t *testing.T, name string, ok func(SinkInfo) bool) {
+	t.Helper()
+	var last SinkInfo
+	var seen []int
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		l, err := List("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, s := range l.Sinks {
+			if s.Name == name {
+				if p := percent(s.Volume); len(seen) == 0 || seen[len(seen)-1] != p {
+					seen = append(seen, p)
+				}
+				if last = s; ok(s) {
+					return
+				}
+			}
+		}
+	}
+	t.Fatalf("output %q: last seen %+v; volumes seen (%%): %v", name, last, seen)
+}
+
+// testLog sends the backend's log, debug included, to the test's output, so a
+// failure on CI shows what the backend saw and did (QA-09).
+func testLog(t *testing.T) *slog.Logger {
+	return slog.New(slog.NewTextHandler(testWriter{t}, &slog.HandlerOptions{Level: slog.LevelDebug}))
+}
+
+type testWriter struct{ t *testing.T }
+
+func (w testWriter) Write(p []byte) (int, error) {
+	w.t.Log(strings.TrimSuffix(string(p), "\n"))
+	return len(p), nil
+}
+
+// newOutput runs a backend with its log in the test's output, adds a silent
+// test output and waits until the backend reports it. Afterwards it acts as
+// the mixer would for a control that holds the output: each later
+// OutputAdded for it (a new description) is logged and answered with
+// KeepOutput (OUT-05, ADR 0027).
+func newOutput(t *testing.T, base string) (*Backend, string) {
+	t.Helper()
+	b := New(testLog(t), "")
+	events := make(chan mixer.Event, 256)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- b.Run(ctx, events) }()
+	next(t, events, func(mixer.AudioSnapshot) bool { return true })
+
+	out := unique(base)
+	addSink(t, out, "Apptrol-Test-Output")
+	first := next(t, events, func(e mixer.OutputAdded) bool { return e.Device.Name == out })
+	t.Logf("output added: %q, description %q", first.Device.Name, first.Device.Description)
+	if err := b.Apply(mixer.KeepOutput{Device: out, Generation: first.Device.Generation}); err != nil {
+		t.Fatal(err)
+	}
+
+	mixerDone := make(chan struct{})
+	go func() {
+		defer close(mixerDone)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case ev := <-events:
+				if e, ok := ev.(mixer.OutputAdded); ok && e.Device.Name == out {
+					t.Logf("output changed: description %q; keeping it", e.Device.Description)
+					if err := b.Apply(mixer.KeepOutput{Device: out, Generation: e.Device.Generation}); err != nil {
+						t.Errorf("Apply(KeepOutput) = %v", err)
+					}
+				}
+			}
+		}
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-mixerDone
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Errorf("Run = %v", err)
+		}
+	})
+	return b, out
+}
+
+// setSinkVolume changes an output's volume from outside Apptrol, as
+// WirePlumber restoring a remembered volume or the desktop's applet would.
+func setSinkVolume(t *testing.T, name, percent string) {
+	t.Helper()
+	if out, err := exec.Command("pactl", "set-sink-volume", name, percent).CombinedOutput(); err != nil {
+		t.Fatalf("pactl set-sink-volume: %v %s", err, out)
+	}
+}
+
+// TestIntegration_OUT01_OutputVolume sets the volume of a silent test output
+// right after it appeared, and only of it (OUT-01): Apply(SetOutputVolume 0.3)
+// makes it read 30 %, as `pactl get-sink-volume` would show. The backend's
+// log in the output shows each read of the output and the server's answer.
+func TestIntegration_OUT01_OutputVolume(t *testing.T) {
+	needServer(t)
+	b, out := newOutput(t, "apptrol_test_out")
+	if err := b.Apply(mixer.SetOutputVolume{Device: out, Volume: 0.3}); err != nil {
+		t.Fatal(err)
+	}
+	waitSink(t, out, func(s SinkInfo) bool { return near(s.Volume, 0.3) })
+	if err := b.Apply(mixer.SetOutputVolume{Device: out + "_missing", Volume: 0.3}); err == nil || !IsGone(err) {
+		t.Errorf("Apply on a missing output = %v, want IsGone", err)
+	}
+}
+
+// TestIntegration_OUT05_GuardSetsTheOutputVolumeAgain: a volume set from
+// outside within the new-output guard's window, as WirePlumber restores a
+// remembered one, is set back to Apptrol's 30 % (OUT-05); after the window an
+// outside change stays (PRIO-02, ADR 0027).
+//
+//	appears ─ Apply 30 % ─ outside 80 % ─► 30 % again ─┤ 3 s ├─ outside 70 % ─► stays
+func TestIntegration_OUT05_GuardSetsTheOutputVolumeAgain(t *testing.T) {
+	needServer(t)
+	b, out := newOutput(t, "apptrol_test_guard_out")
+	// Count the writes of the output's volume, which still go to the server.
+	// The server may also restore a volume on its own right after Apptrol's
+	// first write (PipeWire sets a new output to 100 %): the guard answers
+	// that too, so only the outcome is checked within the window.
+	var mu sync.Mutex
+	var writes []float64
+	b.outputWrite = func(name string, channels int, v float64) error {
+		b.mu.Lock()
+		k := b.cur
+		b.mu.Unlock()
+		if k == nil {
+			return ErrNotConnected
+		}
+		mu.Lock()
+		writes = append(writes, v)
+		mu.Unlock()
+		return k.setSinkVolume(name, channels, v)
+	}
+	written := func() int { mu.Lock(); defer mu.Unlock(); return len(writes) }
+	if err := b.Apply(mixer.SetOutputVolume{Device: out, Volume: 0.3}); err != nil {
+		t.Fatal(err)
+	}
+	waitSink(t, out, func(s SinkInfo) bool { return near(s.Volume, 0.3) })
+
+	b.mu.Lock()
+	until := b.outGuard[out].until
+	b.mu.Unlock()
+	if left := time.Until(until); left < time.Second {
+		t.Fatalf("only %v of the guard left before the outside change; the server was too slow to test it", left)
+	}
+	// pactl returns once the server has set 80 %: reading 30 % afterwards
+	// means the guard set it again.
+	setSinkVolume(t, out, "80%")
+	waitSink(t, out, func(s SinkInfo) bool { return near(s.Volume, 0.3) })
+
+	// After the window, a change from outside stays. The read that sees it
+	// finds the guard expired and drops it; no write may follow.
+	time.Sleep(time.Until(until))
+	before := written()
+	setSinkVolume(t, out, "70%")
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		b.mu.Lock()
+		_, guarded := b.outGuard[out]
+		b.mu.Unlock()
+		if !guarded {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the guard was not dropped after its window")
+		}
+	}
+	if n := written(); n != before {
+		mu.Lock()
+		t.Errorf("set %v after the guard's window; an outside change must stay", writes[before:])
+		mu.Unlock()
+	}
+	waitSink(t, out, func(s SinkInfo) bool { return near(s.Volume, 0.7) })
 }
 
 // TestIntegration_MEDIA10_Cork pauses and resumes a real stream, as a browser

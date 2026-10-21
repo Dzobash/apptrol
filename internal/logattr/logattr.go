@@ -67,6 +67,21 @@ const (
 	KeyDeviceName        = "apptrol.device.name"        // an input or output device's unique name (ADR 0027)
 	KeyDeviceDescription = "apptrol.device.description" // an input or output device's description
 	KeyDeviceMatches     = "apptrol.device.matches"     // devices that match, comma-separated
+	KeyDeviceSelectedBy  = "apptrol.device.selected_by" // how an output's device was chosen: match or default (OUT-13, ADR 0027)
+	KeyDeviceControls    = "apptrol.device.controls"    // the controls that set one output device, comma-separated (OUT-04)
+
+	// What the audio adapter read from and wrote to an output device, and
+	// what its new-output guard decided (OUT-05, OUT-13, ADR 0027).
+	KeyDeviceIndex    = "apptrol.device.index"             // the audio server's index of an output device
+	KeyAudioChannels  = "apptrol.audio.channels"           // channels read or written
+	KeyAudioResult    = "apptrol.audio.result"             // the server's answer to a request: success or failed
+	KeyGuardState     = "apptrol.audio.guard.state"        // why the new-output guard set a volume again or not
+	KeyGuardRemaining = "apptrol.audio.guard.remaining_ms" // milliseconds left in the new-output guard
+
+	// Why the adapter ignored an ownership answer for an older identity of an
+	// output (CTRL-06, ADR 0027).
+	KeyOwnerAnswerGeneration = "apptrol.audio.ownership.answer_generation" // the identity the mixer answered for
+	KeyOwnerGeneration       = "apptrol.audio.ownership.generation"        // the newest identity the adapter reported
 
 	KeyAudioServer  = "apptrol.audio.server"  // audio server name and version
 	KeyRetryDelay   = "apptrol.retry.delay_s" // seconds until the next attempt

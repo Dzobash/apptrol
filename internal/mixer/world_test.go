@@ -17,6 +17,9 @@ type world struct {
 	streamMute map[uint32]bool
 	devVol     map[string]float64
 	devMute    map[string]bool
+	outVol     map[string]float64 // output devices' volume (OUT-01)
+	released   []string           // output devices released (ReleaseOutput), in order
+	kept       []string           // output devices kept (KeepOutput), in order
 	leds       map[LED]bool
 	saves      int
 	notices    []Notice
@@ -67,7 +70,7 @@ func newWorld(t *testing.T, setup Setup, saved State) *world {
 	w := &world{
 		t: t, m: New(setup, saved),
 		streamVol: map[uint32]float64{}, streamMute: map[uint32]bool{},
-		devVol: map[string]float64{}, devMute: map[string]bool{},
+		devVol: map[string]float64{}, devMute: map[string]bool{}, outVol: map[string]float64{},
 		leds: map[LED]bool{},
 	}
 	return w
@@ -116,6 +119,15 @@ func (w *world) apply(acts []Action) {
 			w.devVol[a.Device] = a.Volume
 		case SetDeviceMute:
 			w.devMute[a.Device] = a.Muted
+		case SetOutputVolume:
+			if a.Volume < 0 || a.Volume > MaxBoost {
+				w.t.Fatalf("volume out of range: %v", a)
+			}
+			w.outVol[a.Device] = a.Volume
+		case ReleaseOutput:
+			w.released = append(w.released, a.Device)
+		case KeepOutput:
+			w.kept = append(w.kept, a.Device)
 		case SetLED:
 			w.leds[a.LED] = a.On
 		case StateChanged:
@@ -144,6 +156,8 @@ func (w *world) forgetGone(ev Event) {
 	case DeviceRemoved:
 		delete(w.devVol, e.Name)
 		delete(w.devMute, e.Name)
+	case OutputRemoved:
+		delete(w.outVol, e.Name)
 	case AudioSnapshot:
 		present := map[uint32]bool{}
 		for _, s := range e.Streams {
@@ -163,6 +177,15 @@ func (w *world) forgetGone(ev Event) {
 			if !devs[n] {
 				delete(w.devMute, n)
 				delete(w.devVol, n)
+			}
+		}
+		outs := map[string]bool{}
+		for _, d := range e.Outputs {
+			outs[d.Name] = true
+		}
+		for n := range w.outVol {
+			if !outs[n] {
+				delete(w.outVol, n)
 			}
 		}
 	case StreamMuteChanged: // someone else changed it on the server (MUTE-07)

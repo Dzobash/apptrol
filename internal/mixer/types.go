@@ -131,14 +131,18 @@ type TargetKind int
 
 // Target kinds.
 const (
-	App   TargetKind = iota // playback streams of an application
-	Input                   // one capture device
+	App    TargetKind = iota // playback streams of an application
+	Input                    // one capture device
+	Output                   // one output device, chosen by match (OUT-01, ADR 0027)
 )
 
-// String is the name the configuration uses: "app" or "input".
+// String is the name the configuration uses: "app", "input" or "output".
 func (k TargetKind) String() string {
-	if k == Input {
+	switch k {
+	case Input:
 		return "input"
+	case Output:
+		return "output"
 	}
 	return "app"
 }
@@ -252,6 +256,9 @@ type Player struct {
 type Device struct {
 	Name        string // unique name, e.g. alsa_input.usb-… or alsa_output.usb-…
 	Description string // human-readable, e.g. "GoXLR Mini Mic"
+	// Generation identifies an output read reported by the adapter. The mixer
+	// only echoes it in ownership answers (CTRL-06, ADR 0015, ADR 0027).
+	Generation uint64
 }
 
 // State is what the mixer persists (STATE-01): known control positions, the
