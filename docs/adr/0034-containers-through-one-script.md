@@ -65,14 +65,15 @@ command lists (AGENTS.md, QA-15). That did not work well:
    starts with another word (`sudo`, `env`, `nice`, `bash -c`, `/usr/bin/podman`) is
    not blocked. It is not allowed either, so the owner is asked; a yes would run a
    container outside the script, with no record and none of point 3's rules. Such a
-   request is answered no, as ADR 0022 says of denylists in general. The real guard is
-   that the script alone writes Podman's arguments:
+   request is answered no. The real guard is that the script alone writes Podman's
+   arguments:
 
-   - `RECIPE` is a plain name (letters, digits, `-`) of an existing recipe folder;
-     anything else is refused.
-   - The Makefile keeps no flags in variables: `make` lets the command line override a
-     variable (`make container-run RECIPE=x FLAGS=--privileged`), so nothing the
-     command line can set reaches Podman.
+   - The script takes only the recipe name. `RECIPE` is a plain name (letters, digits,
+     `-`) of an existing recipe folder; anything else is refused.
+   - It ignores its environment and any further arguments, and writes every Podman
+     argument itself. `make` passes command-line variables on to the script's
+     environment (`make container-run RECIPE=x FLAGS=--privileged` sets `FLAGS`), so
+     a test runs exactly that and checks that `FLAGS` never reaches the Podman command.
    - `commands.sh` runs **inside** the container, never on the host.
 
 3. **The container sees only the repository.** The script mounts the checkout
@@ -101,8 +102,8 @@ command lists (AGENTS.md, QA-15). That did not work well:
    memory       --memory=512m --memory-swap=512m   no swap: a container that grows is
                                                    stopped, the desktop is not pushed into swap
    processes    --pids-limit=256
-   CPU          no limit; nice -n 10               rootless Podman gets no cpu controller
-                                                   (podman info: memory, pids), and CPU can wait
+   CPU          no cap; nice -n 10                 CPU can wait; nice is only a priority
+                                                   (whether a cpu controller exists: point 9)
    network      --network none for the run         the build may download packages
    parallel     JOBS=16 by default                 before starting, the script keeps 4 GB of
                                                    memory free and starts fewer if needed
@@ -135,17 +136,18 @@ command lists (AGENTS.md, QA-15). That did not work well:
    expected text: `<version> · controller not found`, then `waiting for a valid
    configuration` after a broken config, then `controller not found` again after the
    fix (SVC-13). A container has no controller, so its last line stays `controller not
-   found`; `controller connected · N controls assigned` is the hardware case's
-   (TC-SVC-001) and is not copied here. The job prepares rootless Podman on the runner
+   found`; `controller connected · N controls assigned` is the line in the hardware
+   case TC-SVC-001, and it is not copied here. The job prepares rootless Podman on the runner
    itself (user namespaces, the runner user's subuid and subgid ranges) before it calls
    `make test-systemd`.
 
    It is **not** one of the required checks at first. It becomes one when `runs.log`
    shows **300 green runs in a row for each distro's recipe** on the owner's machine
    (the failure rate is then below 1 % with 95 % confidence; rule of three) **and 10
-   green CI runs** from normal pull requests. The distros run side by side; each is
-   counted on its own, because each has its own systemd and one can be flaky while
-   another is not. A distro added later starts its own count.
+   green CI runs for each distro** from normal pull requests. The distros run side by
+   side; each is counted on its own, because each has its own systemd and one can be
+   flaky while another is not. A distro added later runs outside the required job until
+   it has its own 300 and its own 10.
 
    ```
    Ubuntu 26.04   ✓✓✓✓✓✓ … 300 in a row   → counts toward required
@@ -163,8 +165,9 @@ command lists (AGENTS.md, QA-15). That did not work well:
 8. **What containers cannot check** stays manual: the controller (no MIDI device), a
    second user in front of the computer (ADR 0029), sound (no PipeWire), and the short
    `stopping` state. TC-SVC-001 stays a hardware case. Later the same containers can
-   take installing the `.deb` and `.rpm` with `apt` and `dnf` and `make test-launcher`:
-   that is the install half of #116. The rest of #116 stays in VMs: `make test-audio`
+   take installing the `.deb` and `.rpm` with `apt` and `dnf`: part of the install half
+   of #116 (which also has `zypper` and a build from source). Separately, `make
+   test-launcher` could use their user systemd. The rest of #116 stays in VMs: `make test-audio`
    with PipeWire and with plain PulseAudio (the containers have no sound server), and
    the desktops (GNOME, on-screen display).
 
@@ -206,9 +209,9 @@ command lists (AGENTS.md, QA-15). That did not work well:
 
 - Agents run containers without prompts, and the owner can see afterwards what ran
   (recipe), when, by which agent, on which commit, and whether it passed.
-- With the script's pull request, a typed `docker` or `podman` is refused for agents,
-  even after an OK in the chat. A wrapped one (`sudo podman …`) is asked about and
-  answered no (point 2). The owner can still use both. A new need is a change to the
+- With the script's pull request, a typed `docker`, `podman` or `buildah` is refused
+  for agents, even after an OK in the chat. A wrapped one (`sudo podman …`) is asked
+  about and answered no (point 2). The owner can still use all three. A new need is a change to the
   script.
 - Containers no longer touch the host's network setup or the desktop's network
   notifications.
