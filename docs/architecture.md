@@ -237,6 +237,16 @@ has chosen (`outputFor`):
 
   At debug, the adapter logs each read of an output (`output device read`, with
   `apptrol.audio.guard.state`) and the server's answer to each volume it sets.
+  The server answers once it has passed a write on, not once the device has it, and
+  PipeWire 1.0 can lose a write to a brand-new device without reporting anything. So
+  within the guard's window, each accepted write schedules a read of the output
+  200 ms later; `session` takes it from the `recheck` queue in turn with the change
+  notifications (under `wire`) and defends it like a reported volume change (#166).
+
+  ```
+  write 30 % ─► success ─► (lost) ─► 200 ms: read 100 % ─► 30 % again ─► 200 ms: read 30 %
+  ```
+
   Every reported output identity, including snapshots, carries an adapter-generated
   `Device.Generation`. The pure mixer only echoes it in `KeepOutput` or `ReleaseOutput`.
   The adapter accepts only the newest generation's answer; until then, subsequent

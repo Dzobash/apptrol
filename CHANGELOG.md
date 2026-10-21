@@ -19,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `apptrol list` shows the control each output is on. An output that no control holds
   any more is logged (`output released; no control holds the device`) and left as it
   is, including when another audio notification arrives before the mixer has answered
-  a changed description (CTRL-06); with `level = "debug"`, the log shows each read of
+  a changed description (CTRL-06). Right after an output appears, Apptrol reads its
+  volume back after setting it and sets it again if the audio server lost it, as
+  PipeWire 1.0 can (#166); with `level = "debug"`, the log shows each read of
   an output, the volume Apptrol set on it, and each ownership answer it ignored because
   the output changed again. M and S do nothing on an output
   column yet (mute and output solo follow), and `device = "default"` is still inactive,

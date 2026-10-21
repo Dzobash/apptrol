@@ -62,6 +62,16 @@ func (g *guard) check(volume float64, muted bool) (setVol *float64, setMute *boo
 
 func newGuardNow() *guard { return &guard{until: time.Now().Add(newGuard)} }
 
+// outputRecheck is how long after a volume write within the new-output guard's
+// window the adapter reads the output again. The server answers a write once
+// it has passed it on, not once the device has it: PipeWire 1.0 can lose a
+// write in a new device's first moments without reporting any change, so the
+// guard, which acts on reported changes, would never see it (OUT-05, ADR 0027,
+// #166).
+//
+//	write 30 % ─► success ─► (lost) ─► 200 ms: read 100 % ─► 30 % again ─► 200 ms: read 30 %
+const outputRecheck = 200 * time.Millisecond
+
 // ownMute is how long Apptrol waits to see the change its own mute caused.
 // It only bounds how long the expected value is kept, e.g. when a write
 // failed; it never hides a change (MUTE-07, #118).
@@ -111,6 +121,10 @@ type Backend struct {
 	// Never reset on removal or reconnect: an old buffered answer must not
 	// acknowledge a new incarnation of the same name (CTRL-06, ADR 0027).
 	outputGeneration uint64
+	// recheck carries the outputs to read again outputRecheck after a write
+	// within the guard's window; session reads them in turn with the change
+	// notifications (OUT-05, ADR 0027, #166).
+	recheck chan string
 
 	muteWant    map[uint32]muteWant // the mute Apptrol last set on a stream
 	devMuteWant map[string]muteWant // the mute Apptrol last set on a device
@@ -138,7 +152,8 @@ type Backend struct {
 // New returns a Backend. server is a PulseAudio server string; "" uses the
 // default (PULSE_SERVER, or the user's pipewire-pulse socket).
 func New(log *slog.Logger, server string) *Backend {
-	return &Backend{log: log.With(logattr.Component(logattr.Audio)), server: server, retryMin: 500 * time.Millisecond, retryMax: 5 * time.Second}
+	return &Backend{log: log.With(logattr.Component(logattr.Audio)), server: server, retryMin: 500 * time.Millisecond, retryMax: 5 * time.Second,
+		recheck: make(chan string, 64)}
 }
 
 // Run connects and keeps the connection until ctx is canceled. After each
@@ -280,8 +295,42 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 					return err
 				}
 			}
+		case name := <-b.recheck:
+			b.wire.Lock()
+			err := b.recheckOutput(k, &t, name)
+			b.wire.Unlock()
+			if err != nil {
+				return err
+			}
 		}
 	}
+}
+
+// recheckOutput reads an output again after a write within the new-output
+// guard's window and defends it as a reported volume change would be, so a
+// write the server lost is set again (OUT-05, ADR 0027, #166). It is called
+// with wire held. An output without a guard is left alone; one that is gone or
+// has a new name or description is left to its change notification, so the
+// mixer still decides first (CTRL-06).
+func (b *Backend) recheckOutput(k *conn, t *tracker, name string) error {
+	b.mu.Lock()
+	_, guarded := b.outGuard[name]
+	b.mu.Unlock()
+	if !guarded {
+		return nil
+	}
+	d, err := k.sinkByName(name)
+	if err != nil {
+		if IsGone(err) {
+			return nil
+		}
+		return err
+	}
+	if old, known := t.outputs[d.Index]; !known || !sameOutputIdentity(old, d.Device) {
+		return nil
+	}
+	b.log.Debug("output read again after a volume write", logattr.KeyDeviceName, name)
+	return b.sinkRead(k, &d, true)
 }
 
 // handle turns one change notification into mixer events, possibly none. One
@@ -667,6 +716,9 @@ func (b *Backend) restoreOutput(k *conn, name string, channels int, read float64
 // again. Without it, a KeepOutput right after the mixer's first volume
 // compared the read from before the write and set the volume twice (OUT-05,
 // CTRL-06, ADR 0027). A failed write keeps the read it had.
+//
+// Accepted is not applied, though: within the guard's window the output is
+// read again after outputRecheck, which sets a lost write again (#166).
 func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64) error {
 	var err error
 	if b.outputWrite != nil {
@@ -676,6 +728,7 @@ func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64)
 	}
 	attrs := []any{logattr.KeyDeviceName, name, logattr.KeyAudioChannels, channels,
 		logattr.KeyWanted, percent(v), logattr.KeyAudioResult, "success"}
+	guarded := false
 	if err != nil {
 		attrs[len(attrs)-1] = "failed"
 		attrs = append(attrs, logattr.Error(logattr.ErrAudioApply, err))
@@ -683,10 +736,20 @@ func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64)
 		b.mu.Lock()
 		if g := b.outGuard[name]; g != nil {
 			g.read = &v
+			guarded = true
 		}
 		b.mu.Unlock()
 	}
 	b.log.Debug("output volume request completed", attrs...)
+	if guarded {
+		// A full queue drops the read again; reported changes are still defended.
+		time.AfterFunc(outputRecheck, func() {
+			select {
+			case b.recheck <- name:
+			default:
+			}
+		})
+	}
 	return err
 }
 

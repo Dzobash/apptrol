@@ -109,7 +109,11 @@ held by no target and a kept one by a target. `make test-audio` sets a silent te
 output to 30 % right after it appears and reads it back
 (`TestIntegration_OUT01_OutputVolume`), and checks the guard on a real server
 (`TestIntegration_OUT05_GuardSetsTheOutputVolumeAgain`): a volume set from outside
-within the 3 seconds goes back to 30 %, one set after them stays. Both log the
+within the 3 seconds goes back to 30 %, one set after them stays.
+`TestIntegration_OUT05_GuardSetsALostWriteAgain` drops Apptrol's first write, as
+PipeWire 1.0 lost one on CI (#166): the server reports no change, and the guard's read
+200 ms after the write sets 30 % again. Tests that count or drop writes wrap
+`serverOutputWrite`. All three log the
 adapter's debug records, so a failure on CI shows each read and write; the manual
 cases are [TC-OUT-003 and TC-OUT-004](testing/cases/out.md), with the `output-fixed`
 fixture.

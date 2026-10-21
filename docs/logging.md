@@ -264,11 +264,14 @@ DEBU audio server changed the volume of a new output; setting it again apptrol.c
 At debug, the audio adapter also logs each read of an output device, with what the
 guard made of it, and the server's answer to each volume it sets. A read that sees a
 new description waits for the mixer: `output kept by a control; …` then checks the
-volume it read (OUT-05, OUT-13). A volume that reads wrong although the request
-succeeded was changed afterwards, not lost on the way:
+volume it read (OUT-05, OUT-13). A request that succeeded was passed on to the
+device, not necessarily applied: within the three seconds, the adapter reads the
+output again 200 ms after each write and sets a volume the server lost again
+(`output read again after a volume write`, #166):
 
 ```text
 DEBU output volume request completed apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.audio.channels=2 apptrol.wanted_percent=40 apptrol.audio.result=success
+DEBU output read again after a volume write apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo
 DEBU output device read apptrol.component=audio apptrol.device.index=<index> apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.description="USB Headset" apptrol.audio.channels=2 apptrol.volume_percent=100 apptrol.audio.guard.state=restore_volume apptrol.audio.guard.remaining_ms=2972 apptrol.wanted_percent=40
 DEBU output device read apptrol.component=audio apptrol.device.index=<index> apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.description="USB Headset Pro" apptrol.audio.channels=2 apptrol.volume_percent=100 apptrol.audio.guard.state=identity_changed apptrol.audio.guard.remaining_ms=2540 apptrol.wanted_percent=40
 DEBU output kept by a control; checking the volume last read apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.volume_percent=100 apptrol.audio.guard.state=restore_volume
