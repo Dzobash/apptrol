@@ -373,6 +373,7 @@ How these are met is described in [ADR 0012](adr/0012-testing-strategy.md) and
 | QA-13 | Integration tests against a private D-Bus session bus (`dbus-run-session`) SHOULD run in CI. They run only when `APPTROL_DBUS_TEST=1` is set. | SHOULD | 1.5 |
 | QA-14 | Every new feature or change of behaviour MUST add or update its manual test cases and fixtures in [docs/testing/](testing/cases/README.md), in the format there. A phase MUST NOT be released without test cases for it; each release's run MUST be recorded in `docs/testing/runs/` (ADR 0031). | MUST | 1.5 |
 | QA-15 | The command lists for coding agents' tools ([`.claude/settings.json`](https://github.com/Dzobash/apptrol/blob/main/.claude/settings.json) for Claude Code, [`.codex/rules/apptrol.rules`](https://github.com/Dzobash/apptrol/blob/main/.codex/rules/apptrol.rules) for Codex) MUST allow the same commands and ask about the same commands; pushing and changes on GitHub MUST ask in both ([AGENTS.md](https://github.com/Dzobash/apptrol/blob/main/AGENTS.md) › How we work together). | MUST | 1.6 |
+| QA-16 | Every container a coding agent runs MUST run with rootless Podman through the repository's container script, with only the checkout mounted (read-only, plus `.tmp/<run>/` writable) and the script's fixed limits, and MUST leave a record in `.audit/` (recipe and one `runs.log` line). Both command lists MUST block `docker`, `podman` and `buildah` for agents (ADR 0034). | MUST | 1.6 |
 
 ## 6. Later phases (outline)
 
