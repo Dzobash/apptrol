@@ -468,12 +468,16 @@ func (s *service) configChanged(ch config.Change) {
 // trackController notes whether the controller is there, for the Status line
 // (SVC-13). It only looks at events from the controller itself: the service's
 // own resend of the LEDs is not one, so it cannot say the controller is back.
-// While the controller is let go, a late event from it does not change that
-// (SVC-09).
+// Only a plain connect counts: the controller's LED resends (Resync) come from
+// their own goroutine and can arrive after the disconnect, and nothing would
+// correct the Status line afterwards. While the controller is let go, a late
+// event from it does not change that either (SVC-09).
 func (s *service) trackController(ev mixer.Event) {
-	switch ev.(type) {
+	switch e := ev.(type) {
 	case mixer.ControllerConnected:
-		s.connected = !s.released
+		if !e.Resync {
+			s.connected = !s.released
+		}
 	case mixer.ControllerDisconnected:
 		s.connected = false
 	}

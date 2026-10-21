@@ -165,7 +165,9 @@ systemctl --user daemon-reload
 systemctl --user enable --now apptrol
 ```
 
-To update, pull the new code, run `make build` and the first `install` line again, then
+To update, pull the new code, run `make build` and both `install` lines and the `sed` line again
+(the unit changes between releases; 0.3.0 added `NotifyAccess=main`, without which
+systemd ignores the Status line), then `systemctl --user daemon-reload` and
 `systemctl --user restart apptrol`. To build your own `.deb` and `.rpm` packages instead,
 run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they end up in
 `dist/`. For changing the code, see [CONTRIBUTING.md](https://github.com/Dzobash/apptrol/blob/main/CONTRIBUTING.md).

@@ -1167,3 +1167,32 @@ func TestSVC13_AStatusLineIsLoggedWhenSent(t *testing.T) {
 		t.Errorf("the record has no apptrol.status\nlog:\n%s", e.out.String())
 	}
 }
+
+// The controller's LED resends come from their own goroutine, so one can arrive
+// after the disconnect; it must not make a missing controller look connected,
+// because no later event would correct the Status line (SVC-13).
+func TestSVC13_ALateResyncDoesNotMakeTheControllerConnected(t *testing.T) {
+	s := &service{}
+	for _, step := range []struct {
+		ev   mixer.Event
+		want bool
+	}{
+		{mixer.ControllerConnected{}, true},
+		{mixer.ControllerConnected{Resync: true}, true},
+		{mixer.ControllerDisconnected{}, false},
+		{mixer.ControllerConnected{Resync: true}, false}, // late
+		{mixer.ControllerConnected{}, true},              // plugged in again
+	} {
+		s.trackController(step.ev)
+		if s.connected != step.want {
+			t.Fatalf("after %+v: connected = %v, want %v", step.ev, s.connected, step.want)
+		}
+	}
+
+	// A connect while the controller is let go does not count either (SVC-09).
+	s.connected, s.released = false, true
+	s.trackController(mixer.ControllerConnected{})
+	if s.connected {
+		t.Error("a connect event while released made the controller connected")
+	}
+}
