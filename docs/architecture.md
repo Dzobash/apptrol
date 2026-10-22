@@ -57,7 +57,7 @@ How the service is put together. Decisions and their reasons are in
 | `internal/config` | TOML loading: `[apps]`, `[inputs]` and `[outputs]` into one map of targets, output selector validation and monitor warnings (CFG-20, CFG-21), the old `type` form with a warning (ADR 0026); validation (including button rules, blocked commands and overlap warnings), its problems as `config.Problem`; warnings as `config.Warning`; file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
 | `internal/logging` | Log outputs (journald, rotating file) and formats; keeps every record on one line |
-| `internal/logattr` | Names of log attributes and error types, following the OpenTelemetry conventions (ADR 0016); explained for users in [`logging.md`](logging.md) |
+| `internal/logattr` | Names of log attributes and error types, following the OpenTelemetry conventions (ADR 0016); explained for users in [`log-attributes.md`](log-attributes.md) |
 | `internal/version` | Build information |
 | `examples` | The example configuration, built into the binary for the first start (CFG-09) |
 

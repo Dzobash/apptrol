@@ -21,7 +21,7 @@ Read these instead of guessing; this file only links to them:
 | Tests, CI, hardware checklist | [docs/testing.md](docs/testing.md) |
 | Manual test cases, fixtures, runs | [docs/testing/](docs/testing/strategy.md), [ADR 0031](docs/adr/0031-manual-test-cases-as-docs.md), [how to run them](docs/testing/how-to-run-release-tests.md) |
 | Releases and release candidates | [docs/releasing.md](docs/releasing.md) |
-| Log format and attributes | [docs/logging.md](docs/logging.md), [ADR 0016](docs/adr/0016-log-records-follow-opentelemetry.md) |
+| Log format and attributes | [docs/logging.md](docs/logging.md), [docs/log-attributes.md](docs/log-attributes.md), [ADR 0016](docs/adr/0016-log-records-follow-opentelemetry.md) |
 | Decisions | [docs/adr/](docs/adr/) |
 | All docs by type (Diátaxis), docs rules | [docs/README.md](docs/README.md), [CONTRIBUTING.md › Documentation](CONTRIBUTING.md#documentation) |
 
@@ -158,7 +158,7 @@ from one to another.
 - Logs follow ADR 0016 (OpenTelemetry conventions): attribute names from
   `internal/logattr`, `apptrol.component` on every record, `error.type` on errors, one
   line per record with a fixed message. New attributes and error types also go in
-  [docs/logging.md](docs/logging.md) (a test checks this).
+  [docs/log-attributes.md](docs/log-attributes.md) (a test checks this).
 - **Every feature must be troubleshootable from its logs alone.** Plan its logs with the
   design: log each decision with the reason (e.g. `apptrol.player.matched_by`), and
   rejected or ignored candidates at debug. A feature's ADR has a logging table: level,
