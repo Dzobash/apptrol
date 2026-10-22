@@ -36,7 +36,8 @@ Read these instead of guessing; this file only links to them:
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, so it is clear which
   agent did what.
 - The owner reviews and merges PRs. **Ask before pushing, opening a PR or creating
-  issues.**
+  issues.** Once the owner has OK'd a PR, its review fixes and marking it ready need
+  no new question (Several agents at once › Draft until reviewed).
 - Suggest an issue for every bug found, every idea or task left for later, and every
   bug in another app (rules in [CONTRIBUTING.md](CONTRIBUTING.md#issues)); a fix's PR
   says `Fixes #n`.
@@ -140,10 +141,17 @@ from one to another.
   Astra is the stronger GPT model, like Opus. **Routine:** docs, tests, small fixes.
   **Complex or important:** a change of behaviour, a release, anything touching audio,
   the controller, privacy or security. When unsure, ask the owner which one it is.
-- **Draft until reviewed.** Open a PR as a draft (`gh pr create --draft`) and mark it
-  ready (`gh pr ready <n>`) only after the other provider's review is done and its
-  findings are fixed, so it cannot be merged halfway. Fixes after a review are new
-  commits, not a rewritten history.
+- **Draft until reviewed.** Open a PR as a draft (`gh pr create --draft`), so it cannot
+  be merged halfway. The other provider reviews it in rounds:
+  ```
+  round with findings     →  fix (new commits, not a rewritten history), push,
+                             CI green  →  next round, still draft
+  round with no findings  →  gh pr ready <n> at once
+  ```
+  The agent that wrote the PR marks it ready itself, without asking in the chat again:
+  the owner's OK for the PR covers pushing review fixes, the next rounds and marking it
+  ready. The tools' own prompts for `git push` and `gh pr ready` stay (QA-15); the owner
+  answers them with a click, not a new decision.
 
 ## Code and docs
 
