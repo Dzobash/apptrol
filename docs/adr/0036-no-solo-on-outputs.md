@@ -47,3 +47,7 @@ note of 2026-10-20). No new attribute.
 - Listening only on headphones means muting the other outputs with M, or choosing
   the output in the desktop's sound settings.
 - OUT-08 is withdrawn; OUT-07 and OUT-10 describe the new behaviour.
+- Listening on one output from the controller, by an output solo with a rule for app
+  solo, or by moving apps between outputs, stays an idea for later
+  ([#178](https://github.com/Dzobash/apptrol/issues/178), backlog); it would need a
+  new ADR that supersedes this one.

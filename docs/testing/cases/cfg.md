@@ -101,8 +101,8 @@ match only / device = "default" only  -> valid, selector shown by apptrol check
 both / neither / invalid device      -> config_invalid, running config kept
 ```
 
-This checks configuration only; output volume is in [TC-OUT-003](out.md), mute and solo
-follow with #85.
+This checks configuration only; output volume is in [TC-OUT-003](out.md), mute in
+[TC-OUT-006](out.md), M's LED in [TC-OUT-007](out.md). Outputs have no solo (ADR 0036).
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
