@@ -140,10 +140,15 @@ from one to another.
   Astra is the stronger GPT model, like Opus. **Routine:** docs, tests, small fixes.
   **Complex or important:** a change of behaviour, a release, anything touching audio,
   the controller, privacy or security. When unsure, ask the owner which one it is.
-- **Draft until reviewed.** Open a PR as a draft (`gh pr create --draft`) and mark it
-  ready (`gh pr ready <n>`) only after the other provider's review is done and its
-  findings are fixed, so it cannot be merged halfway. Fixes after a review are new
-  commits, not a rewritten history.
+- **Draft until reviewed.** Open a PR as a draft (`gh pr create --draft`), so it cannot
+  be merged halfway. The other provider reviews it in rounds:
+  ```
+  round with findings     →  fix (new commits, not a rewritten history), push,
+                             CI green  →  next round, still draft
+  round with no findings  →  gh pr ready <n> at once
+  ```
+  The agent that wrote the PR marks it ready itself, without asking again: the owner's
+  OK for the PR covers pushing review fixes, the next rounds and marking it ready.
 
 ## Code and docs
 
