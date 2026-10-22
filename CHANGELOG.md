@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   volume back after setting it and sets it again if the audio server lost it, as
   PipeWire 1.0 can (#166); with `level = "debug"`, the log shows each read of
   an output, the volume Apptrol set on it, and each ownership answer it ignored because
-  the output changed again. S and output LEDs follow with #85, and `device = "default"` is still inactive,
+  the output changed again. `device = "default"` is still inactive,
   with a warning (OUT-01, OUT-02, OUT-04, OUT-05, OUT-13,
   [ADR 0027](docs/adr/0027-output-volume.md), Refs #85).
 - M toggles a fixed output's mute, saved per control. Outside mutes are taken over
@@ -43,6 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the device. Guarding
   mute against late server restores on re-plug remains a separate follow-up
   (OUT-04, OUT-05, OUT-06, [ADR 0035](docs/adr/0035-first-control-owns-matched-output.md), Refs #85).
+- M's LED on an output column is lit while the output is muted, with M or from outside
+  Apptrol; S and R stay off. A control whose device an earlier control owns shows no
+  mute. Outputs have no solo: S on an output column does nothing, as next to app solo
+  it made everything too complicated; app solo never mutes an output (OUT-07, OUT-10,
+  [ADR 0036](docs/adr/0036-no-solo-on-outputs.md), Refs #85).
 - `make check` and CI cross-compile the shared packages for Windows without cgo,
   catching accidental Linux dependencies early. The configuration watcher keeps its
   inode check on Linux and uses modification time and size elsewhere. This guards

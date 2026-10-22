@@ -90,8 +90,10 @@ name with a warning, kept while it matches), the volume up to `max_volume`, an u
 position (left alone, PRIO-04), outside changes (not reverted), first-control ownership
 when outputs match one device, and releasing a device no control holds any more
 (CTRL-06). `output_mute_test.go` covers M, saved mute, outside mute on sliders and
-knobs, re-plug, and ownership transfer (OUT-04/05/06, ADR 0035). App solo, talk-over
-and S never change an output (OUT-07, OUT-11); LEDs wait for PR 2c.
+knobs, re-plug, ownership transfer (OUT-04/05/06, ADR 0035), and M's LED: lit while
+muted with M or from outside, also from saved state, dark on a control whose device an
+earlier control owns (OUT-10). App solo, talk-over and S never change an output
+(OUT-07, OUT-11, ADR 0036).
 `TestIntegration_OUT06_OutputMuteAndOutsideChange` exercises output mute writes and
 outside events on a silent output through the real server. Late server mute restoration
 after re-plug is not defended yet: extending the guard belongs in a follow-up PR.
@@ -233,3 +235,4 @@ talk-over), VLC or Elisa on slider 1 instead of Spotify.
 | # | Step | Expected | Req. |
 |---|---|---|---|
 | H-52 | **Hearing safety: turn the speakers' own knob or amplifier low first, keep headphones off, and put slider 7 at the bottom before saving.** Put your real speakers on slider 7 (`[outputs.speakers]` with `match` = part of their name from `apptrol list`, `max_volume = 100`), save; play music; move slider 7 slowly from the bottom up to the middle, then down; move it to the middle and change the volume with the volume keys | The desktop's volume settings show the speakers' volume following slider 7 (about 50 % in the middle), and the music gets louder and quieter with it; the apps' own volumes do not move. The log has `output matched` with `apptrol.device.selected_by=match`. The volume keys' change stays until slider 7 is moved again. Left/right balance is reset to the middle (known issue) | OUT-01, OUT-02, OUT-05 |
+| H-53 | With the speakers on slider 7 and music playing: press M7, press S7, press M7 again; then solo an app on another column with its S | M7 lights and the music stops; S7 does nothing and stays dark; the second M7 brings the music back and M7 goes dark. The app solo silences the other apps but not the speakers, and S7 and M7 stay dark | OUT-06, OUT-07, OUT-10, SOLO-03 |
