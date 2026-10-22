@@ -102,3 +102,5 @@ INFO system resumed; sending LEDs again apptrol.component=power
 - 2026-10-04: Each repeat is logged too, at debug: `LEDs sent again after waking up` with
   `apptrol.session.resend` (`1` to `3`), so a log shows whether the repeats ran when LEDs
   come back late or not at all ([#59](https://github.com/Dzobash/apptrol/issues/59)).
+- 2026-10-23: Error types are listed in [docs/log-attributes.md](../log-attributes.md);
+  component names stay in [docs/logging.md](../logging.md) (#88).

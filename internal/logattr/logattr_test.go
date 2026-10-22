@@ -173,10 +173,10 @@ func TestADR0016_LogCallsUseNamedKeys(t *testing.T) {
 	}
 }
 
-// TestLogDocListsEverything keeps docs/logging.md complete: every attribute
+// TestLogDocListsEverything keeps docs/log-attributes.md complete: every attribute
 // name and error type defined here is explained there.
 func TestLogDocListsEverything(t *testing.T) {
-	doc, err := os.ReadFile(filepath.Join("..", "..", "docs", "logging.md"))
+	doc, err := os.ReadFile(filepath.Join("..", "..", "docs", "log-attributes.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestLogDocListsEverything(t *testing.T) {
 			v, _ := strconv.Unquote(lit.Value)
 			n++
 			if !strings.Contains(string(doc), "| `"+v+"` |") {
-				t.Errorf("docs/logging.md does not explain %s (%q) in a table", name.Name, v)
+				t.Errorf("docs/log-attributes.md does not explain %s (%q) in a table", name.Name, v)
 			}
 		}
 		return true

@@ -82,7 +82,7 @@ Measured on the reference system (Kubuntu, KDE Plasma, PipeWire) on 2026-10-02:
    `Stopped`), `apptrol.player.matched_by` (`bus_name`, `identity`, `desktop_entry`),
    `apptrol.player.ignored_reason`, `apptrol.player.selection` and
    `apptrol.stream.corked`. New error type: `media_command_failed`. Each gets a constant
-   in `internal/logattr` and a row in `docs/logging.md`; the existing test enforces both.
+   in `internal/logattr` and a row in `docs/log-attributes.md`; the existing test enforces both.
 
    Example, troubleshooting "why does R not pause Chrome?":
 

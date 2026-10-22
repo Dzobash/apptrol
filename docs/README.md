@@ -19,6 +19,8 @@ Getting a task done.
 - [Installing Apptrol](install.md): what your system needs, controller settings,
   permissions, upgrading, building from source, removing
 - [Known issues](known-issues.md): problems with their causes and what to do
+- [Reading the logs](logging.md): where the logs are, how to search them, and how to
+  collect them for a bug report
 - [Testing](testing.md): running the checks, what CI runs, writing tests, the hardware
   checklist
 - [Running the release tests](testing/how-to-run-release-tests.md): the manual test
@@ -30,8 +32,7 @@ Getting a task done.
 Looking something up.
 
 - [Configuration reference](config.md): every setting of `config.toml`
-- [Reading the logs](logging.md): where the logs are, how to search them, and every
-  attribute
+- [Log attributes](log-attributes.md): every attribute and error type
 - [Requirements](requirements.md): every behaviour with its ID
 - [Test cases](testing/cases/README.md): the format of a manual test case, and the cases
   by area

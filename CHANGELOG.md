@@ -76,6 +76,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   package cannot carry a different license text than the repository (NFR-09, #146).
 
 ### Changed
+- Log attributes and error types are listed on their own page,
+  [Log attributes](docs/log-attributes.md). [Reading the logs](docs/logging.md) keeps
+  where the logs are, how to search them, and how to collect them (#88).
 - The service unit's title (`Description=`) is now `Apptrol: control each app's volume
   with a hardware MIDI controller`, the AppStream summary, so `systemctl status` and
   `journalctl` show the same line (SVC-13, #99).

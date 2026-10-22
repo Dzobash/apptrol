@@ -72,7 +72,7 @@ Considered and left out for now:
 - The logging layer flattens and joins lines itself, so the rules hold in every output
   format (text, logfmt, JSON) regardless of how the formatter treats groups or line breaks.
 - New attributes and error types need a constant in `internal/logattr`, a row in the user
-  guide [`docs/logging.md`](../logging.md) (a test checks this), and, if they come from
+  guide [`docs/log-attributes.md`](../log-attributes.md) (a test checks this), and, if they come from
   the OpenTelemetry conventions, an entry in the test's list of OpenTelemetry names.
 - The logs can be collected by log stores (Loki, Elasticsearch) without mapping: timestamps
   have milliseconds, each attribute keeps one type, and no name is the start of another

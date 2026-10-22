@@ -83,8 +83,9 @@ Under systemd, each line carries its severity, so `journalctl --user -u apptrol 
 shows only warnings and errors. Started from a terminal, this output prints coloured text
 to the terminal instead.
 
-How to read the log lines, and every attribute and error type in them, is explained in
+How to read the log lines is explained in
 [Reading Apptrol's logs](logging.md).
+Every attribute and error type is in [Log attributes](log-attributes.md).
 
 ### `[log.file]`
 

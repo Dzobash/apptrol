@@ -84,8 +84,8 @@ message; values as attributes named by constants in `internal/logattr`; the comp
 every record (packages get it from their logger); `logattr.Error(errorType, err)` for
 errors. Records about a control use the mixer's `about` helper, so they name the layout,
 control and app. A new attribute or error type also needs a row in
-[`docs/logging.md`](docs/logging.md). `go test ./internal/logattr` fails on log calls that
-break these rules and on attributes missing from the guide.
+[`docs/log-attributes.md`](docs/log-attributes.md). `go test ./internal/logattr` fails on log calls that
+break these rules and on attributes missing from the reference.
 
 A new feature must be troubleshootable from its logs alone. Plan the logs together with
 the design: log every decision together with its reason (for example, why a media player
