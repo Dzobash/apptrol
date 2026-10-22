@@ -285,7 +285,8 @@ column 7 (ignored: slider6)    S ○  M ○ always       R ○
   again (saved mute). Press M6 → dark, mute reports no
 
 Automated: `TestOUT10_MLitWhileOutputMuted`, `TestOUT10_AppSoloLeavesOutputLEDsOff`,
-`TestOUT10_SavedMuteLitAtStart`, `TestOUT10_ConflictingControlShowsNoMute` in
+`TestOUT10_SavedMuteLitAtStart`, `TestOUT10_ConflictingControlShowsNoMute`,
+`TestOUT10_OutputAddedConflictDarkensM`, `TestOUT10_SnapshotWithConflictShowsNoMute` in
 `internal/mixer/output_mute_test.go`; `TestOUT07_SOnAnOutputColumnDoesNothing` and
 `TestOUT07_AppSoloDoesNotMuteOutputs` in `internal/mixer/output_test.go`.
 

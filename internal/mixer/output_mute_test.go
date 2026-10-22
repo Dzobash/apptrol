@@ -197,3 +197,37 @@ func TestOUT10_ConflictingControlShowsNoMute(t *testing.T) {
 	w.do(OutputRemoved{Name: speakers.Name})
 	w.wantLEDs(7, false, true, false) // nobody owns it: slider7's saved mute shows again
 }
+
+// A device that appears and makes an earlier control its owner darkens the
+// later control's M at once (OUT-10, OUT-04, ADR 0035).
+func TestOUT10_OutputAddedConflictDarkensM(t *testing.T) {
+	s := outputSetup()
+	s.Targets["earlier"] = Target{ID: "earlier", Name: "Earlier", Kind: Output, Match: []string{"built-in"}}
+	s.Assignments[Control{Slider, 1}] = "earlier"
+	w := newWorld(t, s, State{})
+	w.do(ControllerConnected{})
+	w.do(AudioSnapshot{Outputs: []Device{headphones}})
+	w.press(ButtonM, 7) // saved; no device yet
+	w.wantLEDs(7, false, true, false)
+	w.do(OutputAdded{Device: speakers})
+	if w.m.OutputDevice("earlier") != speakers.Name {
+		t.Fatal("slider1 does not own the new device")
+	}
+	w.wantLEDs(7, false, false, false)
+}
+
+// A snapshot at start restores ownership: a saved mute on a control whose
+// device an earlier control owns stays dark (OUT-10, OUT-04, STATE-03, ADR 0035).
+func TestOUT10_SnapshotWithConflictShowsNoMute(t *testing.T) {
+	s := outputSetup()
+	s.Targets["earlier"] = Target{ID: "earlier", Name: "Earlier", Kind: Output, Match: []string{"built-in"}}
+	s.Assignments[Control{Slider, 1}] = "earlier"
+	w := newWorld(t, s, State{Muted: map[Control]bool{{Slider, 7}: true}})
+	w.do(ControllerConnected{})
+	w.do(AudioSnapshot{Outputs: []Device{speakers, headphones}})
+	w.wantLEDs(7, false, false, false)
+	w.wantLEDs(1, false, false, false)
+	if w.outMute[speakers.Name] {
+		t.Fatal("the ignored control's saved mute muted the device")
+	}
+}

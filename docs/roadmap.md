@@ -237,8 +237,8 @@ fader under your fingers.
 
 **In scope**
 
-- Volume, mute and solo of apps, inputs and outputs from a MIDI controller, the Korg
-  nanoKONTROL2 first
+- Volume and mute of apps, inputs and outputs, and solo of apps, from a MIDI
+  controller, the Korg nanoKONTROL2 first (outputs have no solo, ADR 0036)
 - Buttons for media keys and for starting apps
 - Layouts: several sets of assignments, switched from the controller
 - A setup in the terminal and a tray icon
