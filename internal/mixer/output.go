@@ -12,9 +12,9 @@ import (
 // ---- output devices (OUT-*, ADR 0027) ---------------------------------------
 //
 // An output target names one output device by match. Its slider or knob sets
-// that device's volume (OUT-01), and M toggles its saved mute (OUT-06).
-// Talk-over and app solo never affect outputs (OUT-07, OUT-11). Output solo
-// and LEDs follow in PR 2c (#85).
+// that device's volume (OUT-01), and M toggles its saved mute (OUT-06), lit
+// as on an app column (OUT-10). Talk-over and solo never affect outputs, and
+// S does nothing on an output column (OUT-07, OUT-11, ADR 0036).
 //
 //	slider7 at 64 ──► "Speakers" (match "speaker") ──► SetOutputVolume 50 %
 //	                  every stream on it plays at its own volume × 50 %
@@ -82,6 +82,7 @@ func (m *Mixer) outputAdded(a *actions, d Device) {
 	m.chooseOutputs(a, chooseChange)
 	m.answerOutput(a, d, from)
 	m.logIdleOutput(a, d)
+	m.syncLEDs(a, false) // ownership may have moved, and M's LED with it (OUT-10, ADR 0035)
 }
 
 // answerOutput echoes each reported generation without interpreting it. Even
@@ -107,6 +108,7 @@ func (m *Mixer) outputRemoved(a *actions, name string) {
 	delete(m.outputs, name)
 	delete(m.outputMuteSent, name)
 	m.chooseOutputs(a, chooseChange)
+	m.syncLEDs(a, false) // as in outputAdded (OUT-10, ADR 0035)
 }
 
 // logIdleOutput logs an output device that no control acts on, at debug: the

@@ -101,7 +101,8 @@ knob7   ──► "Test output (knob)"        ──► ignored: slider6 owns it
   only `slider6 (Any test output)` under
   CONTROL
 - [ ] Press M7, then S7 → no LED lights up. The journal explains M7 is ignored because
-  an earlier control owns the device; S7 is not built yet. Mute stays unchanged.
+  an earlier control owns the device, and that S has no function on an output column
+  (ADR 0036). Mute stays unchanged.
 - [ ] Wait five seconds after restart (past the new-output guard), run
   `pactl set-sink-volume apptrol-test-mic-sink 30%`, then run
   `pactl get-sink-volume apptrol-test-mic-sink` → still 30 %: Apptrol does not revert a
@@ -161,7 +162,7 @@ Test: in `internal/mixer/output_test.go`: `TestOUT01_SliderSetsOutputVolume`,
 `TestOUT02_MatchIsCaseInsensitiveOnNameOrDescription`,
 `TestOUT02_SeveralMatchesUseFirstByNameAndWarn`, `TestOUT02_ChosenDeviceIsKeptWhileItMatches`,
 `TestOUT05_UnknownPositionLeavesVolumeAlone`, `TestOUT05_OutsideVolumeIsNotReverted`,
-`TestOUT07_SOnAnOutputColumnDoesNothingYet`, `TestOUT07_AppSoloDoesNotMuteOutputs`,
+`TestOUT07_SOnAnOutputColumnDoesNothing`, `TestOUT07_AppSoloDoesNotMuteOutputs`,
 `TestOUT11_TalkOverDoesNotChangeOutputs`, `TestOUT04_FirstMatchingControlOwnsDevice`,
 `TestOUT13_OutputMatchedIsLogged`, `TestOUT13_NoOutputDeviceMatchesAtConnectAndReload`,
 `TestOUT13_OutputDeviceGoneIsLogged`, `TestOUT13_OutputReleasedIsLogged`,
@@ -213,8 +214,8 @@ M7 -> ignored: slider6 owns the same matched device
 - [ ] Apply `output-fixed` with no extra test sink present; move slider6 to the middle
   → `pactl get-sink-volume apptrol-test-mic-sink` reports about 40 %.
 - [ ] Press M6 → `pactl get-sink-mute apptrol-test-mic-sink` reports yes. Press M7
-  → still yes; the journal explains the conflicting control was ignored. Output LEDs
-  remain off until output LED support is implemented.
+  → still yes; the journal explains the conflicting control was ignored. M6 is lit,
+  M7 stays dark (TC-OUT-007 checks the LEDs).
 - [ ] Run `systemctl --user stop apptrol`, then
   `pactl set-sink-mute apptrol-test-mic-sink 0`
   → `pactl get-sink-mute apptrol-test-mic-sink` reports no.
@@ -248,6 +249,45 @@ Automated: `TestOUT06_MuteSavedPerControlAndRestored`,
 and `TestIntegration_OUT06_OutputMuteAndOutsideChange`. Re-plug is exercised with a
 silent server output; guarding against a competing late server mute restore is a
 separate follow-up and is not claimed by this case.
+
+**Result:** Pass / Fail / Blocked
+**Notes:**
+
+### TC-OUT-007 — M's LED on an output column; S does nothing
+
+Covers: OUT-07, OUT-10, OUT-04, LED-02, MUTE-07 · Phase 1.6
+Config: output-fixed
+Type: Manual + Automated
+
+Outputs have no solo ([ADR 0036](../../adr/0036-no-solo-on-outputs.md)). M's LED
+shows the owning control's mute; S and R stay off.
+
+```text
+column 6 (owns the mic sink)   S ○  M ● while muted  R ○
+column 7 (ignored: slider6)    S ○  M ○ always       R ○
+```
+
+**Setup**
+- [ ] Apply `output-fixed` with no extra test sink present; the mic sink is not muted
+  (`pactl get-sink-mute apptrol-test-mic-sink` reports no)
+
+**Steps**
+- [ ] Look at columns 6 and 7 → all six LEDs are off
+- [ ] Press M6 → M6 lights up; `pactl get-sink-mute apptrol-test-mic-sink` reports yes
+- [ ] Press S6 → no LED changes, mute stays yes. Run
+  `journalctl --user -u apptrol --since -1min | grep 'button has no function on an output column'`
+  → a debug line with `apptrol.button=S6` and `apptrol.app.type=output`
+- [ ] Press M7 → M7 stays dark and M6 stays lit: slider6 owns the device
+- [ ] Press M6 → M6 goes dark; mute reports no
+- [ ] Run `pactl set-sink-mute apptrol-test-mic-sink 1` → M6 lights up: the outside
+  mute is taken over. Run `pactl set-sink-mute apptrol-test-mic-sink 0` → M6 goes dark
+- [ ] Press M6, then run `systemctl --user restart apptrol` → after the start M6 is lit
+  again (saved mute). Press M6 → dark, mute reports no
+
+Automated: `TestOUT10_MLitWhileOutputMuted`, `TestOUT10_AppSoloLeavesOutputLEDsOff`,
+`TestOUT10_SavedMuteLitAtStart`, `TestOUT10_ConflictingControlShowsNoMute` in
+`internal/mixer/output_mute_test.go`; `TestOUT07_SOnAnOutputColumnDoesNothing` and
+`TestOUT07_AppSoloDoesNotMuteOutputs` in `internal/mixer/output_test.go`.
 
 **Result:** Pass / Fail / Blocked
 **Notes:**

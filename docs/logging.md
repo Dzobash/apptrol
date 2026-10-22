@@ -262,10 +262,10 @@ DEBU button ignored: output belongs to an earlier control apptrol.component=mixe
 DEBU position saved without changing volume: output belongs to an earlier control apptrol.component=mixer … apptrol.control=slider8 … apptrol.device.name=<output>
 ```
 
-S still waits for output solo in PR 2c. A press says so at debug:
+Outputs have no solo (ADR 0036). A press on S says so at debug:
 
 ```text
-DEBU button has no function: not built yet on an output column apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.button=S7
+DEBU button has no function on an output column apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.button=S7
 ```
 
 For three seconds after an output appears, the audio adapter sets its volume again

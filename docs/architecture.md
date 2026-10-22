@@ -273,14 +273,29 @@ has chosen (`outputFor`):
   change from the adapter; only the owner takes it over, including knobs. The service
   forwards output mute actions through `Audio.Apply`, as it does volume actions.
   Snapshot and re-plug apply the control's saved mute. Releasing the device unmutes it.
-- **Not yet:** S and output LEDs wait for PR 2c; app solo and talk-over never touch
-  outputs (OUT-07, OUT-11).
+- **No solo** (OUT-07, ADR 0036): S on an output column does nothing and says so at
+  debug; `toggleSolo` is never reached for it. App solo and talk-over never touch
+  outputs (OUT-11): `effectiveMute` has no solo or talk-over rule for `Output`, so an
+  output is muted only by its own saved mute. Next to app solo, a solo on outputs made
+  everything too complicated: the two together could silence every app at once.
+- **LEDs** (OUT-10): `ledStates` lights M on an output column while the slider's saved
+  mute is on, from M or taken over from outside, as LED-02 does for apps; S and R stay
+  off. A control whose device an earlier control owns (`blockedOutputs`) shows no mute,
+  since it does not decide it (ADR 0035). `outputAdded` and `outputRemoved` sync the
+  LEDs, because ownership, and with it M's LED, can move when a device comes or goes.
+
+  ```text
+            app column     output column    output column, earlier control owns device
+  S         lit on solo    off              off
+  M         saved mute     saved mute       off (its saved mute is kept for later)
+  R         player state   off              off
+  ```
 - **Conflicting matches** (OUT-04, ADR 0035): each target first chooses a device using
   OUT-02. In control order (sliders then knobs), only the first target can claim that
   device. Later targets have no `outputFor` entry; `blockedOutputs` remembers their
   conflicts, ignores M, and limits warnings to conflict starts and reloads. The saved
   position still follows movement, ready for a later ownership transfer. Labels play
-  no part in this decision. PR 2c must use this ownership for solo and LEDs too.
+  no part in this decision. M's LED follows the same ownership (OUT-10).
 
   ```text
   M7 -> saved mute -> SetOutputMute -> audio adapter -> sink mute

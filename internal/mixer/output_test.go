@@ -347,15 +347,15 @@ func TestOUT05_OutsideVolumeIsNotReverted(t *testing.T) {
 	w.wantOutputVolume(speakers.Name, 1)
 }
 
-// S waits for PR 2c (OUT-07, ADR 0027).
-func TestOUT07_SOnAnOutputColumnDoesNothingYet(t *testing.T) {
+// Outputs have no solo: S does nothing and says so at debug (OUT-07, ADR 0036).
+func TestOUT07_SOnAnOutputColumnDoesNothing(t *testing.T) {
 	w := outputWorld(t, outputSetup())
 	w.move(Slider, 7, 64)
 	for _, b := range []ButtonKind{ButtonS} {
 		w.notices = nil
 		w.press(b, 7)
 		n := notice(t, w.last)
-		if n.Level != slog.LevelDebug || n.Msg != "button has no function: not built yet on an output column" {
+		if n.Level != slog.LevelDebug || n.Msg != "button has no function on an output column" {
 			t.Errorf("%v7: %v", b, n)
 		}
 		if a := attrs(n); a[logattr.KeyButton] != b.String()+"7" || a[logattr.KeyAppType] != "output" {
@@ -374,7 +374,7 @@ func TestOUT07_SOnAnOutputColumnDoesNothingYet(t *testing.T) {
 }
 
 // App solo silences other apps, never an output; ending it does not touch
-// outputs either (OUT-07, SOLO-02).
+// outputs either (OUT-07, SOLO-02, ADR 0036).
 func TestOUT07_AppSoloDoesNotMuteOutputs(t *testing.T) {
 	w := outputWorld(t, outputSetup())
 	w.move(Slider, 7, 100).move(Knob, 7, 100)

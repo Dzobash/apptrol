@@ -340,7 +340,7 @@ func (m *Mixer) controlMoved(a *actions, e ControlMoved) {
 		}
 	case Output:
 		// The device's volume only: streams keep theirs, and talk-over and
-		// solo never change an output (OUT-01, OUT-07, OUT-11, ADR 0027).
+		// solo never change an output (OUT-01, OUT-07, OUT-11, ADR 0027, ADR 0036).
 		if dev := m.blockedOutputs[id]; dev != "" {
 			a.notice(slog.LevelDebug, "position saved without changing volume: output belongs to an earlier control",
 				m.about(e.Control, logattr.KeyDeviceName, dev)...)
@@ -399,9 +399,10 @@ func (m *Mixer) buttonPressed(a *actions, e ButtonPressed) {
 	}
 	button := LED{Button: e.Button, Column: e.Column}.String()
 	if m.isOutputColumn(e.Column) && e.Button == ButtonS {
-		// Output solo comes in PR 2c of #85 (OUT-07). R works as on an
-		// input column (OUT-09, ADR 0027 point 8).
-		a.notice(slog.LevelDebug, "button has no function: not built yet on an output column", m.about(Control{Slider, e.Column}, logattr.KeyButton, button)...)
+		// Outputs have no solo: next to app solo it made everything too
+		// complicated (OUT-07, ADR 0036). R works as on an input column
+		// (OUT-09, ADR 0027 point 8).
+		a.notice(slog.LevelDebug, "button has no function on an output column", m.about(Control{Slider, e.Column}, logattr.KeyButton, button)...)
 		return
 	}
 	if m.isInputColumn(e.Column) {
@@ -881,6 +882,12 @@ func (m *Mixer) ledStates() []SetLED {
 			case Input:
 				s, r = true, true         // LED-04: input columns are lit…
 				mu = !m.effectiveMute(id) // …and M is lit only while the input is live
+			case Output:
+				// M as on an app column; S and R stay off, as outputs have no
+				// solo and R no lit state. A control whose device an earlier
+				// control owns shows no mute: it does not decide it (OUT-10,
+				// OUT-04, ADR 0035, ADR 0036).
+				mu = m.muted[Control{Slider, col}] && m.blockedOutputs[id] == ""
 			}
 		}
 		out = append(out,

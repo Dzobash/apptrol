@@ -77,3 +77,9 @@ Each device has one controlling mute. Later controls may be inactive, with a war
 that explains why. Changing labels cannot change ownership. Tests cover distinct
 match strings resolving to one device, identical labels resolving to distinct devices,
 ownership transfer, outside mute, saved mute, and re-plug.
+
+## Notes
+
+- 2026-10-23: Outputs have no solo ([ADR 0036](0036-no-solo-on-outputs.md)), so PR 2c
+  uses this ownership only for M's LED: a control whose device an earlier control owns
+  shows no mute.

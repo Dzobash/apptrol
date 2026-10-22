@@ -146,7 +146,7 @@ func checkInvariants(t *testing.T, w *world) {
 // checkOutputs checks the output rules after every event: an output device is
 // set only while an output target on a control holds it (apart from releasing
 // mute), and a control on an output changes no stream or input
-// (OUT-01, OUT-06, OUT-07, OUT-11, ADR 0035).
+// (OUT-01, OUT-06, OUT-07, OUT-11, ADR 0035, ADR 0036).
 func checkOutputs(t *testing.T, w *world, ev Event) {
 	t.Helper()
 	var control Control

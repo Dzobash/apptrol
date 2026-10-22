@@ -188,8 +188,17 @@ what you hear:  Spotify 80 % × Speakers 50 %  ≈ 40 %
 - **M toggles the owning slider's output mute**, saved per control. An outside mute
   is taken over on sliders and knobs. Re-plug restores the mute; protection against
   a late server mute restore is still pending a separate follow-up.
-- **S and output LEDs follow with [#85](https://github.com/Dzobash/apptrol/issues/85)**.
-  R can be `off` or a launcher.
+- **M's LED is lit while the output is muted**, with M or from outside, as on an app
+  column. S and R stay off.
+- **Outputs have no solo**: S on an output column does nothing, and app solo never
+  mutes an output. Next to app solo, it made everything too complicated
+  ([ADR 0036](adr/0036-no-solo-on-outputs.md)). To listen on one output only, mute the
+  others with M. R can be `off` or a launcher.
+
+  ```text
+  slider6 Speakers    S ○  M ●  R ○   muted with M
+  slider7 Headphones  S ○  M ○  R ○   playing
+  ```
 - **`device = "default"` does not work yet**: following the default output follows
   with #85. Such an output warns at every load and in `apptrol check`, and its control
   does nothing:
@@ -332,7 +341,7 @@ other layouts are accepted and ignored until Phase 2.
 
 | Key | Value | Description |
 |---|---|---|
-| `slider1` … `slider8` | app, input or output id | Sliders, left to right. The S and M buttons in the same column act on this target (on an output column they do nothing yet, #85). |
+| `slider1` … `slider8` | app, input or output id | Sliders, left to right. The S and M buttons in the same column act on this target (on an output column only M; S does nothing, [ADR 0036](adr/0036-no-solo-on-outputs.md)). |
 | `knob1` … `knob8` | app, input or output id | Knobs, left to right. Volume only. |
 
 Rules checked on load:

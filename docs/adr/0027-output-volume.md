@@ -9,6 +9,11 @@ owns that device. Later conflicting controls cannot set its volume or mute.
 The shared-device info record in point 12 becomes a conflict warning for fixed
 outputs, naming the winning and ignored controls.
 
+**2026-10-23 decision update:** [ADR 0036](0036-no-solo-on-outputs.md) supersedes
+point 7 and the solo part of point 9: outputs have no solo, as next to app solo it
+made everything too complicated. S on an output column does nothing; M's LED works as
+point 9 says.
+
 ## Context
 
 Apptrol sets the volume of apps and of inputs, but not of an output device (#85). To

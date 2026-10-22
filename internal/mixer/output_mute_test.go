@@ -143,3 +143,57 @@ func TestOUT05_UnownedOutputMuteDoesNotAffectControls(t *testing.T) {
 		t.Fatalf("unowned mute affected mixer: %v", w.last)
 	}
 }
+
+// M on an output column is lit while the output is muted, with M or from
+// outside Apptrol; S and R stay off (OUT-10, LED-02, ADR 0036).
+func TestOUT10_MLitWhileOutputMuted(t *testing.T) {
+	w := outputWorld(t, outputSetup())
+	w.wantLEDs(7, false, false, false)
+	w.press(ButtonM, 7)
+	w.wantLEDs(7, false, true, false)
+	w.press(ButtonS, 7)
+	w.wantLEDs(7, false, true, false)
+	w.press(ButtonM, 7)
+	w.wantLEDs(7, false, false, false)
+	w.do(OutputMuteChanged{Name: speakers.Name, Muted: true})
+	w.wantLEDs(7, false, true, false)
+	w.do(OutputMuteChanged{Name: speakers.Name, Muted: false})
+	w.wantLEDs(7, false, false, false)
+}
+
+// App solo lights S on the app's column only, and an output's M stays dark
+// while app solo is on (OUT-10, LED-01, ADR 0036).
+func TestOUT10_AppSoloLeavesOutputLEDsOff(t *testing.T) {
+	w := outputWorld(t, outputSetup())
+	w.press(ButtonS, 1)
+	w.wantLEDs(1, true, false, false)
+	w.wantLEDs(7, false, false, false)
+}
+
+// A saved mute shows at start, even before the device is there: M is the
+// control's state, as on an app column with no streams (OUT-10, STATE-03).
+func TestOUT10_SavedMuteLitAtStart(t *testing.T) {
+	w := newWorld(t, outputSetup(), State{Muted: map[Control]bool{{Slider, 7}: true}})
+	w.do(ControllerConnected{})
+	w.wantLEDs(7, false, true, false)
+}
+
+// A control whose device an earlier control owns does not decide its mute,
+// so its M stays dark; it lights when the control owns the device again
+// (OUT-10, OUT-04, ADR 0035).
+func TestOUT10_ConflictingControlShowsNoMute(t *testing.T) {
+	s := outputSetup()
+	s.Targets["earlier"] = Target{ID: "earlier", Name: "Earlier", Kind: Output, Match: []string{"built-in"}}
+	w := outputWorld(t, s)
+	w.press(ButtonM, 7)
+	w.wantLEDs(7, false, true, false)
+	s.Assignments[Control{Slider, 1}] = "earlier"
+	w.do(ConfigChanged{Setup: s})
+	if w.m.OutputDevice("main") != "" {
+		t.Fatal("slider7 still owns the device")
+	}
+	w.wantLEDs(7, false, false, false)
+	w.wantLEDs(1, false, false, false)
+	w.do(OutputRemoved{Name: speakers.Name})
+	w.wantLEDs(7, false, true, false) // nobody owns it: slider7's saved mute shows again
+}
