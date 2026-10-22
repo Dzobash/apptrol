@@ -317,23 +317,24 @@ in [ADR 0029](adr/0029-controller-follows-the-user-in-front.md).
 
 ### 4.15 Output targets *(Phase 1.6)*
 
-Designed in [ADR 0027](adr/0027-output-volume.md).
+Designed in [ADR 0027](adr/0027-output-volume.md); fixed-output ownership updated
+by [ADR 0035](adr/0035-first-control-owns-matched-output.md).
 
 | ID | Requirement | Level |
 |---|---|---|
 | OUT-01 | A control assigned an output MUST set the output device's volume, mapped as for every target up to its `max_volume` (CTRL-02, CTRL-03). Stream volumes MUST NOT be changed; outputs on no control MUST NOT be touched. | MUST |
 | OUT-02 | An output with `match` MUST be matched by a case-insensitive part of the output device's name or description; monitors MUST NOT be matched. When several devices match, the first by name MUST be used and a warning MUST name all of them; the chosen device MUST be kept while it still matches. | MUST |
 | OUT-03 | An output with `device = "default"` MUST act on the audio server's default output and follow every change of it at once. The new default MUST keep its own volume until the control is moved; the control's mute MUST apply to it at once. The previous default MUST keep its volume and MUST be unmuted if Apptrol muted it and no other control holds it. Without a default output, the control MUST do nothing. | MUST |
-| OUT-04 | Two controls MAY act on the same output device (a `default` output that is also a fixed one, or two fixed outputs that match the same device); this MUST be logged once at info when it begins. Each control MUST set the volume when it is moved; the device MUST be muted while any of its controls mutes it. | MUST |
+| OUT-04 | When fixed output targets choose the same device, the first control (sliders 1–8, then knobs 1–8) MUST own it. Later conflicting controls MUST NOT change its volume, mute or solo; their M presses MUST NOT change saved mute. The conflict MUST be logged at warning when it begins and at reload, identifying the device, winning control and ignored control. Actual matched devices, not target display names or equality of match lists, decide conflicts (ADR 0035). Overlap with `device = "default"` is deferred to PR 3. | MUST |
 | OUT-05 | PRIO-01, PRIO-02 and MUTE-07 MUST apply to outputs as to apps: outside volume changes are not reverted, outside mutes are taken over. A device that appears and matches a fixed output MUST get the control's known position and mute. | MUST |
 | OUT-06 | M on an output column MUST toggle the output's mute (MUTE-01); the mute is saved per control (STATE-01). An output on a knob MUST only be silenced by output solo or an outside mute. | MUST |
-| OUT-07 | S on an output column MUST solo the output: while it is on, every other output on the layout's controls MUST be muted. Only one output is soloed at a time; pressing S on another output column moves it, pressing it again ends it (SOLO-04, SOLO-05). Output solo MUST NOT touch apps or inputs, and app solo MUST NOT touch outputs; one of each MAY be on at the same time. The soloed output's device MUST NOT be muted by its own solo, even when another control holds it. | MUST |
+| OUT-07 | S on an output column MUST solo the output: while it is on, every other output on the layout's controls MUST be muted. Only one output is soloed at a time; pressing S on another output column moves it, pressing it again ends it (SOLO-04, SOLO-05). Output solo MUST NOT touch apps or inputs, and app solo MUST NOT touch outputs; one of each MAY be on at the same time. The soloed output's device MUST NOT be muted by its own solo. Fixed-output ownership follows OUT-04: an ignored conflicting control MUST NOT solo the device. | MUST |
 | OUT-08 | Output solo MUST be saved and restored like app solo (STATE-04), and ended on shutdown, unmuting every output it silenced (SVC-07). | MUST |
 | OUT-09 | R on an output column MUST be `off` (default) or a launcher; `play_pause` MUST be rejected. R MUST NOT change the output or the default output. | MUST |
 | OUT-10 | LEDs of an output column MUST behave as on an app column: S lit while soloed, M lit while muted with M (not when only silenced by solo), R off. | MUST |
 | OUT-11 | Talk-over (INPUT-04) MUST NOT change outputs. | MUST |
 | OUT-12 | `apptrol list` SHOULD print the output devices like the input devices: description, name, the control each is on, and `*` on the default output. Monitors MUST NOT be listed as inputs or outputs. | SHOULD |
-| OUT-13 | Every output decision MUST be logged with its reason (LOG-15): a device matched (info, with `apptrol.device.selected_by` `match` or `default`), several or no devices matching (warning), the default output changing and keeping its volume (info), no default output (info), two controls on one device (info), devices on no control (debug); records as in ADR 0027 (point 12). | MUST |
+| OUT-13 | Every output decision MUST be logged with its reason (LOG-15): a device matched (info, with `apptrol.device.selected_by` `match` or `default`), several or no devices matching (warning), the default output changing and keeping its volume (info), no default output (info), conflicting fixed controls on one device (warning, OUT-04), devices on no control (debug); records as in ADR 0027 (point 12), updated for fixed-output ownership by ADR 0035. | MUST |
 
 ## 5. Non-functional requirements
 

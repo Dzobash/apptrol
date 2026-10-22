@@ -110,14 +110,18 @@ func TestCFG20_OutputRulesAndDiagnostics(t *testing.T) {
 	requireProblem(t, ws, "outputs.spare: not assigned to any control")
 }
 
-func TestCFG20_OutputOverlapDoesNotClaimFirstControlWins(t *testing.T) {
+func TestOUT04_OutputOverlapWarnsFirstControlWins(t *testing.T) {
 	src := strings.Replace(outputsBase, `device = "default"`, `match = ["speaker"]`, 1)
 	_, warnings := mustParseWarnings(t, src)
 	for _, w := range warnings {
 		if strings.Contains(w.Text, "can match the same") {
-			t.Fatalf("outputs may share a device (ADR 0027), warning = %v", w)
+			if !strings.Contains(w.Text, `those go to "main" on slider1`) {
+				t.Fatalf("wrong owner: %v", w)
+			}
+			return
 		}
 	}
+	t.Fatal("missing output overlap warning")
 }
 
 func TestCFG21_MonitorWarningsOnEveryLoad(t *testing.T) {

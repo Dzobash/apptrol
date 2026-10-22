@@ -239,6 +239,11 @@ func (k *conn) setSinkVolume(name string, channels int, v float64) error {
 		ChannelVolumes: channelVolumes(channels, v)}, nil)
 }
 
+// setSinkMute sets the output mute through PulseAudio (OUT-06, ADR 0027).
+func (k *conn) setSinkMute(name string, muted bool) error {
+	return k.request(&proto.SetSinkMute{SinkIndex: proto.Undefined, SinkName: name, Mute: muted}, nil)
+}
+
 // Snapshot converts listed streams, sources and sinks into the mixer's event
 // (SVC-04; sinks: OUT-12, ADR 0027).
 func Snapshot(streams []StreamInfo, sources []SourceInfo, sinks []SinkInfo) mixer.AudioSnapshot {

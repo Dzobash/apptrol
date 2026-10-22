@@ -994,6 +994,10 @@ func TestOUT01_SliderSetsOutputVolumeThroughTheAudioAdapter(t *testing.T) {
 	e.waitLog(`msg="output matched" apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=speakers apptrol.app.name=Speakers apptrol.app.type=output apptrol.device.name=` + out.Name)
 	e.send(slider(7, 127))
 	e.waitApplied(mixer.SetOutputVolume{Device: out.Name, Volume: 1})
+	e.send(mixer.ButtonPressed{Button: mixer.ButtonM, Column: 7})
+	e.waitApplied(mixer.SetOutputMute{Device: out.Name, Muted: true})
+	e.send(mixer.ButtonPressed{Button: mixer.ButtonM, Column: 7})
+	e.waitApplied(mixer.SetOutputMute{Device: out.Name, Muted: false})
 	if strings.Contains(e.out.String(), "is not implemented yet") {
 		t.Errorf("a fixed output is still called inactive:\n%s", e.out.String())
 	}

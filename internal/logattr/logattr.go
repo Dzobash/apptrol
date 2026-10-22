@@ -69,7 +69,7 @@ const (
 	KeyDeviceDescription = "apptrol.device.description" // an input or output device's description
 	KeyDeviceMatches     = "apptrol.device.matches"     // devices that match, comma-separated
 	KeyDeviceSelectedBy  = "apptrol.device.selected_by" // how an output's device was chosen: match or default (OUT-13, ADR 0027)
-	KeyDeviceControls    = "apptrol.device.controls"    // the controls that set one output device, comma-separated (OUT-04)
+	KeyDeviceControls    = "apptrol.device.controls"    // conflicting output controls: owner, then ignored control (OUT-04, ADR 0035)
 
 	// What the audio adapter read from and wrote to an output device, and
 	// what its new-output guard decided (OUT-05, OUT-13, ADR 0027).

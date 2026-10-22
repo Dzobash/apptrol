@@ -20,15 +20,18 @@ func overlaps(cfg *Config) []Warning {
 		a := cfg.Apps[first.AppID]
 		for _, second := range as[i+1:] {
 			b := cfg.Apps[second.AppID]
-			// Outputs may share a device; first-control ownership only applies
-			// to apps and inputs (CFG-12, CFG-20, ADR 0027 point 4).
-			if a.Type != b.Type || a.Type == TypeOutput {
+			// First-control ownership applies within each target kind
+			// (CFG-12, OUT-04, ADR 0035).
+			if a.Type != b.Type {
 				continue
 			}
 			if why := sharedFragment(a.Match, b.Match); why != "" {
 				kind, what := "apps", "streams"
 				if a.Type == TypeInput {
 					kind, what = "inputs", "input devices"
+				}
+				if a.Type == TypeOutput {
+					kind, what = "outputs", "output devices"
 				}
 				warnings = append(warnings, warnf(
 					"%s %q (%s) and %q (%s) can match the same %s (%s); those go to %q on %s",

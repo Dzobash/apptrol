@@ -347,12 +347,11 @@ func TestOUT05_OutsideVolumeIsNotReverted(t *testing.T) {
 	w.wantOutputVolume(speakers.Name, 1)
 }
 
-// M and S on an output column do nothing until output mute and output solo
-// are built (#85; OUT-06, OUT-07 later), and say so at debug.
-func TestOUT06_MAndSOnAnOutputColumnDoNothingYet(t *testing.T) {
+// S waits for PR 2c (OUT-07, ADR 0027).
+func TestOUT07_SOnAnOutputColumnDoesNothingYet(t *testing.T) {
 	w := outputWorld(t, outputSetup())
 	w.move(Slider, 7, 64)
-	for _, b := range []ButtonKind{ButtonM, ButtonS} {
+	for _, b := range []ButtonKind{ButtonS} {
 		w.notices = nil
 		w.press(b, 7)
 		n := notice(t, w.last)
@@ -391,7 +390,7 @@ func TestOUT07_AppSoloDoesNotMuteOutputs(t *testing.T) {
 			t.Errorf("solo changed outputs: %v", got)
 		}
 		for _, a := range w.last {
-			if d, ok := a.(SetDeviceMute); ok && (d.Device == speakers.Name || d.Device == headphones.Name) {
+			if d, ok := a.(SetOutputMute); ok {
 				t.Errorf("solo muted an output: %v", d)
 			}
 		}
@@ -429,33 +428,42 @@ func TestOUT11_TalkOverDoesNotChangeOutputs(t *testing.T) {
 	}
 }
 
-// Two fixed outputs may match the same device: each control sets its volume
-// when moved, and this is logged once at info (OUT-04, ADR 0027 point 4).
-func TestOUT04_TwoFixedOutputsShareADevice(t *testing.T) {
+// Distinct match strings can resolve to the same physical device. Its first
+// control owns both volume and mute (OUT-04, ADR 0035).
+func TestOUT04_FirstMatchingControlOwnsDevice(t *testing.T) {
 	s := outputSetup()
 	s.Targets["also"] = Target{ID: "also", Name: "Speakers too", Kind: Output, Match: []string{"built-in"}}
 	s.Assignments[Control{Slider, 6}] = "also"
 	w := outputWorld(t, s)
-	shared := w.noticesNamed("two controls set the same output")
-	if len(shared) != 1 || shared[0].Level != slog.LevelInfo {
+	const conflict = "output match ignored: an earlier control owns the device"
+	shared := w.noticesNamed(conflict)
+	if len(shared) != 1 || shared[0].Level != slog.LevelWarn {
 		t.Fatalf("records = %v", shared)
 	}
 	if a := attrs(shared[0]); a[logattr.KeyDeviceName] != speakers.Name || a[logattr.KeyDeviceControls] != "slider6, slider7" ||
-		a[logattr.KeyControl] != "slider6" {
+		a[logattr.KeyControl] != "slider7" {
 		t.Errorf("attributes = %v", a)
 	}
 	w.move(Slider, 6, 127)
 	w.wantOutputVolume(speakers.Name, 1)
 	w.move(Slider, 7, 0)
-	w.wantOutputVolume(speakers.Name, 0)
+	w.wantOutputVolume(speakers.Name, 1)
+	w.press(ButtonM, 7)
+	if w.outMute[speakers.Name] || w.m.muted[Control{Slider, 7}] {
+		t.Fatal("ignored control muted the output or changed saved mute")
+	}
+	w.press(ButtonM, 6)
+	if !w.outMute[speakers.Name] {
+		t.Fatal("owner did not mute the output")
+	}
 
-	w.do(OutputAdded{Device: Device{Name: "alsa_output.other", Description: "Other"}}, ConfigChanged{Setup: s})
-	if got := w.noticesNamed("two controls set the same output"); len(got) != 1 {
+	w.do(OutputAdded{Device: Device{Name: "alsa_output.other", Description: "Other"}})
+	if got := w.noticesNamed(conflict); len(got) != 1 {
 		t.Errorf("logged again while it went on: %v", got)
 	}
 	// It ends, and begins again: logged again.
 	w.do(OutputRemoved{Name: speakers.Name}, OutputAdded{Device: speakers})
-	if got := w.noticesNamed("two controls set the same output"); len(got) != 2 {
+	if got := w.noticesNamed(conflict); len(got) != 2 {
 		t.Errorf("a new beginning was not logged: %d records", len(got))
 	}
 }
