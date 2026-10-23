@@ -1,5 +1,5 @@
 #!/bin/sh
-# A recipe must pass the same limit checks before it can do work (QA-16, ADR 0034).
+# Log in-image diagnostics after the authoritative host proof (QA-16, ADR 0037).
 set -eu
 /bin/sh /src/test/container/limits.sh
 cd /work

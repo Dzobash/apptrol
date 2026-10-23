@@ -149,6 +149,31 @@ run_one() (
     mounts=$("${engine[@]}" inspect --format '{{range .Mounts}}{{.Source}}|{{.Destination}}|{{.RW}}{{"\n"}}{{end}}' "$container" | sed '/^$/d' | sort)
     expected=$(printf '%s|/src|false\n%s|/work|true\n' "$repo" "$run" | sort)
     [[ $mounts == "$expected" ]] || { echo 'Unexpected container mounts; refusing to start'; exit 1; }
+    # OCI init waits for start: prove kernel state before trusting any image code
+    # (including its shell). Missing host evidence fails closed (QA-16, ADR 0037).
+    /usr/bin/nice -n 10 "${engine[@]}" init "$container"
+    pid=$("${engine[@]}" inspect --format '{{.State.Pid}}' "$container")
+    [[ $pid =~ ^[1-9][0-9]*$ ]] || { echo 'FAIL: initialized container has no host PID'; exit 1; }
+    group=$(sed -n 's/^0:://p' "/proc/$pid/cgroup")
+    [[ $group == /* && $group != / && $group != *'..'* && $group != *$'\n'* ]] || { echo 'FAIL: invalid container cgroup'; exit 1; }
+    base="/sys/fs/cgroup$group"
+    [[ $(cat "$base/memory.max") == 536870912 && $(cat "$base/memory.swap.max") == 0 && $(cat "$base/pids.max") == 256 ]] || {
+        echo 'FAIL: host-read runtime cgroup limits'; exit 1;
+    }
+    read -r stat < "/proc/$pid/stat"
+    stat=${stat##*) }
+    read -ra fields <<< "$stat"
+    [[ ${fields[16]:-missing} == 10 ]] || { echo 'FAIL: host-read runtime nice priority'; exit 1; }
+    network=$(awk -F: 'NR > 2 {gsub(/[[:space:]]/, "", $1); print $1}' "/proc/$pid/net/dev")
+    [[ $network == lo ]] || { echo 'FAIL: host-read runtime network'; exit 1; }
+    # A recipe must not be able to undo this proof after start (QA-16, ADR 0037).
+    if ((!systemd)); then
+        cgroup_mount=$(awk '$5 == "/sys/fs/cgroup" && / - cgroup2 / {print $6}' "/proc/$pid/mountinfo")
+        [[ ,$cgroup_mount, == *,ro,* && $cgroup_mount != *$'\n'* ]] || {
+            echo 'FAIL: recipe cgroup mount is not proven read-only'; exit 1;
+        }
+    fi
+    echo 'PASS: host-read runtime memory, swap, pids, nice and network limits'
     if ((systemd)); then
         /usr/bin/nice -n 10 "${engine[@]}" start "$container"
         /usr/bin/nice -n 10 "${engine[@]}" exec "$container" /bin/bash /src/test/container/proof.sh

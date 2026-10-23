@@ -43,6 +43,10 @@ func containerFixtureAt(t *testing.T, root string, fakeGit bool) string {
 			data = strings.ReplaceAll(data, "/usr/bin/systemd-run", fakeScope)
 			data = strings.ReplaceAll(data, "group=$(sed -n 's/^0:://p' /proc/self/cgroup)", "group=/apptrol-build-fixture.scope")
 			data = strings.ReplaceAll(data, `base="/sys/fs/cgroup$group"`, `base="$repo/fake-cgroup"`)
+			if name == "runner.sh" {
+				data = strings.ReplaceAll(data, `base="$repo/fake-cgroup"`, `base="$repo/fake-runtime-cgroup"`)
+				data = strings.ReplaceAll(data, `/proc/$pid/`, root+`/fake-proc/`)
+			}
 			data = strings.ReplaceAll(data, "$(id -u)", "1500")
 			data = strings.ReplaceAll(data, `HOME=$(getent passwd "1500" | cut -d: -f6)`, "HOME=/nonexistent")
 			data = strings.ReplaceAll(data, `available=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)`, "available=16777216")
@@ -63,6 +67,13 @@ func containerFixtureAt(t *testing.T, root string, fakeGit bool) string {
 	write("fake-cgroup/pids.max", "256\n")
 	write("fake-cgroup/memory.max", "536870912\n")
 	write("fake-cgroup/memory.swap.max", "0\n")
+	write("fake-runtime-cgroup/pids.max", "256\n")
+	write("fake-runtime-cgroup/memory.max", "536870912\n")
+	write("fake-runtime-cgroup/memory.swap.max", "0\n")
+	write("fake-proc/cgroup", "0::/fixture.scope\n")
+	write("fake-proc/stat", "123 (runtime init) S 0 0 0 0 0 0 0 0 0 0 0 0 0 0 30 10\n")
+	write("fake-proc/net/dev", "Inter-| Receive | Transmit\n face |bytes\n lo: 0\n")
+	write("fake-proc/mountinfo", "1 2 0:3 / /sys/fs/cgroup ro,nosuid - cgroup2 cgroup rw\n")
 	write("fake-systemd-run", `#!/bin/sh
 set -eu
 printf '%s\n' "$*" >> scope-calls
@@ -109,10 +120,12 @@ case "$1" in
         done ;;
     inspect)
         case "$3" in
+            *State.Pid*) echo 123 ;;
             *State.ExitCode*) echo 0 ;;
             *) cat mounts ;;
         esac ;;
     unshare) shift; "$@" ;;
+    init) : ;;
     start|exec|rm) : ;;
     *) exit 1 ;;
 esac
@@ -414,6 +427,48 @@ func TestQA16_UnexpectedMountAndContainerFailureAreRecorded(t *testing.T) {
 			logs, err := filepath.Glob(filepath.Join(root, ".audit", "logs", "*.log"))
 			if err != nil || len(logs) != 1 {
 				t.Fatalf("failed run did not retain its log: %v (%v)", logs, err)
+			}
+		})
+	}
+}
+
+// TestQA16_HostRuntimeProofFailsClosed refuses image execution even when its
+// shell would exit zero without checking limits (QA-16, ADR 0037).
+func TestQA16_HostRuntimeProofFailsClosed(t *testing.T) {
+	for _, tc := range []struct{ name, path, value string }{
+		{"correct", "", ""},
+		{"memory", "fake-runtime-cgroup/memory.max", "max\n"},
+		{"swap", "fake-runtime-cgroup/memory.swap.max", "1\n"},
+		{"pids", "fake-runtime-cgroup/pids.max", "max\n"},
+		{"nice", "fake-proc/stat", "123 (init) S 0 0 0 0 0 0 0 0 0 0 0 0 0 0 30 0\n"},
+		{"network", "fake-proc/net/dev", "header\nheader\n lo: 0\n eth0: 0\n"},
+		{"unreadable", "fake-runtime-cgroup/memory.max", ""},
+		{"fake shell exits zero", "fake-runtime-cgroup/pids.max", "max\n"},
+		{"writable cgroup", "fake-proc/mountinfo", "1 2 0:3 / /sys/fs/cgroup rw - cgroup2 cgroup rw\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := containerFixture(t)
+			if tc.path != "" {
+				path := filepath.Join(root, tc.path)
+				if tc.name == "unreadable" {
+					if err := os.Remove(path); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := os.WriteFile(path, []byte(tc.value), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			out, err := runContainerMake(t, root, "sample")
+			calls, _ := os.ReadFile(filepath.Join(root, "calls"))
+			audit, _ := os.ReadFile(filepath.Join(root, ".audit/runs.log"))
+			if tc.name == "correct" {
+				if err != nil || !strings.Contains(string(out), "PASS: host-read runtime") || !strings.Contains(string(audit), "result=PASS") {
+					t.Fatalf("valid proof rejected: %v\n%s", err, out)
+				}
+				return
+			}
+			if err == nil || strings.Contains(string(calls), "\nstart ") || !strings.Contains(string(audit), "result=FAIL") || !strings.Contains(string(calls), "\nrm --force --ignore ") {
+				t.Fatalf("failed host proof did not stop and clean up: %v\n%s\n%s\n%s", err, out, calls, audit)
 			}
 		})
 	}

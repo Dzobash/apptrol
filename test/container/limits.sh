@@ -1,5 +1,5 @@
 #!/bin/sh
-# Check kernel enforcement, not merely accepted Podman flags (QA-16, ADR 0034).
+# Diagnostic only: the host proves enforcement before start (QA-16, ADR 0037).
 set -eu
 read -r memory < /sys/fs/cgroup/memory.max
 read -r swap < /sys/fs/cgroup/memory.swap.max

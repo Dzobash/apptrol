@@ -1,6 +1,6 @@
 #!/bin/bash
-# Runs only inside the container: prove the assumptions before the Status test
-# relies on them (QA-16, ADR 0034 point 9).
+# In-image diagnostics and service readiness; limits are proven by the host
+# before start, independently of this image's executables (QA-16, ADR 0037).
 set -euo pipefail
 trap 'echo "FAIL: container proof at line $LINENO" >&2' ERR
 deadline=$((SECONDS+60))

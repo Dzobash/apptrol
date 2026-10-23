@@ -36,7 +36,27 @@ and enables the delegated memory and pids controllers. For builds only, it selec
 Podman's `cgroupfs` manager and fixes `--cgroup-parent` to the build leaf inside
 that scope. The scope's limits apply even when the runtime recreates the leaf.
 Podman builds retain memory/swap flags, one build job and `nice -n 10`.
-Runtime containers retain ADR 0034's existing mechanism.
+Runtime containers use a host-side proof before image code can execute:
+
+```text
+create → inspect mounts → init (entrypoint waiting) → host proof → start
+                                                       failure → remove, FAIL
+```
+
+`nice -n 10 podman init` creates the OCI process and cgroup without starting
+the entrypoint. The host reads its PID from Podman inspection, resolves its v2
+cgroup through `/proc/<pid>/cgroup`, and checks `memory.max=536870912`,
+`memory.swap.max=0` and `pids.max=256` under `/sys/fs/cgroup`.
+It checks nice 10 through `/proc/<pid>/stat` and only `lo` through
+`/proc/<pid>/net/dev`. Missing or mismatched evidence fails before `start` and
+the cleanup trap removes the container. Both systemd distros use the same proof.
+Recipe cgroup mounts must be read-only, checked through host-read mount information,
+so recipe code cannot raise the limits after verification.
+
+The image is untrusted: replacing `/bin/sh` with a script whose interpreter is
+`/bin/true` skips the in-image checks and exits zero. Therefore `limits.sh` and
+`proof.sh` provide diagnostic logs, not authoritative limit evidence. A recipe
+still needs exit code zero as well as the host proof to pass.
 
 Before any recipe build, an uncached trusted probe with a digest-pinned Ubuntu
 base image runs two separate `RUN` steps.
@@ -63,6 +83,7 @@ This developer tool follows ADR 0034's audit scheme, not application logging.
 |---|---|---|
 | Scope or probe fails | Failing step and diagnostic; `result=FAIL` | Full local log; committed audit line |
 | Probe passes | `PASS: build scope ancestry, memory, swap, pids and nice limits` per step | Console; full log only if the run later fails |
+| Runtime host proof | `PASS: host-read runtime memory, swap, pids, nice and network limits`, or failing check | Console; full local log on failure, `result=FAIL` audit line |
 | Recipe completes | Existing runtime checks and audit result | One audit line per selected recipe |
 
 ## Consequences

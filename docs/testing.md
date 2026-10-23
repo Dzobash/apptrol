@@ -51,6 +51,9 @@ real Make target against a fake Podman, checking mounts, environment isolation,
 hostile flags and rejected recipe names, and, in a real Git repository, that a
 checkout's own `core.fsmonitor` never runs and another repository is refused. They do
 not require Podman. The real container CI job remains separate work (#171).
+They also substitute private host proc/cgroup fixtures: correct runtime limits pass;
+wrong memory, swap, pids, nice or network, unreadable evidence and writable recipe
+cgroups fail before `start`, even when the image would report exit code zero.
 
 ## Rootless container checks
 
@@ -72,6 +75,12 @@ container share a limited user scope: 512 MiB, no swap and 256 tasks, with build
 at reduced priority. An uncached two-step probe proves ancestry and limits before
 any recipe build ([proposed ADR 0037](adr/0037-builds-in-a-limited-user-scope.md)).
 Only that trusted probe sees the host cgroup namespace; recipes use a private one.
+After creation and mount inspection, `podman init` leaves the entrypoint waiting.
+The host verifies the actual process's cgroup limits, nice value and loopback-only
+network through `/proc/<pid>` and `/sys/fs/cgroup` before starting either recipes
+or systemd containers. Recipe cgroup mounts must be read-only. Missing evidence
+fails and removes the container. In-image limit checks remain diagnostic logs;
+an image-controlled shell and exit code cannot prove kernel enforcement.
 Images are retained and reused until their build inputs change. Systemd image inputs
 are their Dockerfiles; custom recipes include their whole folder. Both also hash the
 build worker, probe and pinned configuration. A new image is built without reusing
