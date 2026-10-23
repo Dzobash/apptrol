@@ -13,10 +13,17 @@ import (
 // (QA-16, ADR 0034). Real rootless/systemd enforcement is checked by test-systemd.
 func containerFixture(t *testing.T) string {
 	t.Helper()
+	return containerFixtureAt(t, t.TempDir(), true)
+}
+
+// containerFixtureAt builds the fixture in root. With fakeGit false the runner's
+// Git lookups stay real, so a test can give the checkout a hostile .git/config
+// (QA-16, ADR 0034).
+func containerFixtureAt(t *testing.T, root string, fakeGit bool) string {
+	t.Helper()
 	if _, err := exec.LookPath("make"); err != nil {
 		t.Fatal("make is required for QA-16")
 	}
-	root := t.TempDir()
 	write := func(name, data string) {
 		t.Helper()
 		path := filepath.Join(root, name)
@@ -34,20 +41,25 @@ func containerFixture(t *testing.T) string {
 			data = strings.ReplaceAll(data, "/usr/bin/podman", fake)
 			fakeScope := "'" + strings.ReplaceAll(filepath.Join(root, "fake-systemd-run"), "'", "'\"'\"'") + "'"
 			data = strings.ReplaceAll(data, "/usr/bin/systemd-run", fakeScope)
-			data = strings.ReplaceAll(data, "$(git rev-parse --path-format=absolute --git-common-dir)", `"$repo/git-common"`)
 			data = strings.ReplaceAll(data, "group=$(sed -n 's/^0:://p' /proc/self/cgroup)", "group=/apptrol-build-fixture.scope")
 			data = strings.ReplaceAll(data, `base="/sys/fs/cgroup$group"`, `base="$repo/fake-cgroup"`)
 			data = strings.ReplaceAll(data, "$(id -u)", "1500")
 			data = strings.ReplaceAll(data, `HOME=$(getent passwd "1500" | cut -d: -f6)`, "HOME=/nonexistent")
 			data = strings.ReplaceAll(data, `available=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)`, "available=16777216")
-			data = strings.ReplaceAll(data, "$(git branch --show-current)", "test-branch")
-			data = strings.ReplaceAll(data, "$(git rev-parse --short HEAD)", "abcdef0")
-			data = strings.ReplaceAll(data, "git status --porcelain --untracked-files=normal -- . ':!.audit/runs.log'", "printf ' M fixture'")
+			if fakeGit {
+				data = strings.ReplaceAll(data, "$(git rev-parse --show-toplevel)", "$repo")
+				data = strings.ReplaceAll(data, "$(git rev-parse --path-format=absolute --git-common-dir)", `"$repo/git-common"`)
+				data = strings.ReplaceAll(data, "$(git branch --show-current)", "test-branch")
+				data = strings.ReplaceAll(data, "$(git rev-parse --short HEAD)", "abcdef0")
+				data = strings.ReplaceAll(data, "git status --porcelain --untracked-files=normal -- . ':!.audit/runs.log'", "printf ' M fixture'")
+			}
 		}
 		write("test/container/"+name, data)
 	}
 	write("Makefile", string(readRepoFile(t, "Makefile")))
-	write("git-common/apptrol-containers.lock", "")
+	if fakeGit {
+		write("git-common/apptrol-containers.lock", "")
+	}
 	write("fake-cgroup/pids.max", "256\n")
 	write("fake-cgroup/memory.max", "536870912\n")
 	write("fake-cgroup/memory.swap.max", "0\n")
@@ -404,6 +416,61 @@ func TestQA16_UnexpectedMountAndContainerFailureAreRecorded(t *testing.T) {
 				t.Fatalf("failed run did not retain its log: %v (%v)", logs, err)
 			}
 		})
+	}
+}
+
+// gitIn runs Git for a test repository with no identity or config from the host.
+func gitIn(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-c", "user.name=test", "-c", "user.email=", "-c", "commit.gpgsign=false"}, args...)...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// TestQA16_RepositoryGitConfigCannotRunHostCode checks that the audit lookups
+// ignore a checkout's own fsmonitor setting, and that the audit line still tells
+// the truth about the source (QA-16, ADR 0034).
+func TestQA16_RepositoryGitConfigCannotRunHostCode(t *testing.T) {
+	root := containerFixtureAt(t, t.TempDir(), false)
+	marker := filepath.Join(t.TempDir(), "fsmonitor-ran")
+	hook := filepath.Join(t.TempDir(), "fsmonitor")
+	if err := os.WriteFile(hook, []byte("#!/bin/sh\nps -o args= -p \"$PPID\" >> '"+marker+"'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, root, "init", "--quiet", "--initial-branch=fixture")
+	gitIn(t, root, "add", "--all")
+	gitIn(t, root, "commit", "--quiet", "--message=fixture")
+	gitIn(t, root, "config", "core.fsmonitor", hook)
+	if out, err := runContainerMake(t, root, "sample"); err != nil {
+		t.Fatalf("make: %v\n%s", err, out)
+	}
+	if caller, err := os.ReadFile(marker); !os.IsNotExist(err) {
+		t.Fatalf("the checkout's core.fsmonitor ran on the host, called by %s", caller)
+	}
+	audit, err := os.ReadFile(filepath.Join(root, ".audit", "runs.log"))
+	if err != nil || !strings.Contains(string(audit), "branch=fixture ") || !strings.Contains(string(audit), "dirty=no ") || !strings.Contains(string(audit), "result=PASS") {
+		t.Fatalf("audit: %s (%v)", audit, err)
+	}
+}
+
+// TestQA16_ForeignRepositoryRefused stops a checkout without its own Git data
+// from recording another repository's commit in the audit line (QA-16, ADR 0034).
+func TestQA16_ForeignRepositoryRefused(t *testing.T) {
+	outer := t.TempDir()
+	gitIn(t, outer, "init", "--quiet")
+	gitIn(t, outer, "commit", "--quiet", "--allow-empty", "--message=outer")
+	root := filepath.Join(outer, "checkout")
+	containerFixtureAt(t, root, false)
+	gitIn(t, outer, "add", "--all")
+	gitIn(t, outer, "commit", "--quiet", "--message=checkout")
+	if out, err := runContainerMake(t, root, "sample"); err == nil {
+		t.Fatalf("accepted another repository: %s", out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "calls")); !os.IsNotExist(err) {
+		t.Fatal("foreign repository reached Podman")
 	}
 }
 

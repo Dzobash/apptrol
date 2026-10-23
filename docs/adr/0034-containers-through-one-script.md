@@ -242,6 +242,13 @@ The owner clarified two details while implementing #170:
 - [Proposed ADR 0037](0037-builds-in-a-limited-user-scope.md) records the build
   limit failure and the investigated user-scope mechanism. It does not relax any
   resource limit.
+- Git lookups for the audit line run with `core.fsmonitor` and `core.hooksPath`
+  overridden and without global or system config, and the runner refuses a run when
+  Git's top level is not the checkout. Parsing the Makefile no longer runs Git
+  (`LDFLAGS` expands only in `build`). This closes the automatic paths, not every
+  one: a `.git/config` filter driver can still run a program during `git status`.
+  Whoever can write `.git/config` can already run code through `git commit` hooks
+  and `make check`, so the checkout's Git data is not a security boundary.
 
 ### Effects
 

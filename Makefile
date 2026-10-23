@@ -5,7 +5,9 @@ PKG     := github.com/Dzobash/apptrol
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse HEAD 2>/dev/null)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-LDFLAGS := -s -w \
+# Expanded only by `build`: parsing the Makefile must not run Git, so the
+# container targets never read the checkout's .git/config here (QA-16, ADR 0034).
+LDFLAGS = -s -w \
 	-X $(PKG)/internal/version.Version=$(VERSION) \
 	-X $(PKG)/internal/version.Commit=$(COMMIT) \
 	-X $(PKG)/internal/version.Date=$(DATE)

@@ -48,8 +48,9 @@ Test job. So does `go test ./internal/repocheck`, which keeps the command lists 
 Claude Code and Codex equal and checks that both ask before pushing or changing GitHub
 (QA-15), including the blocks on typed container commands. QA-16 tests invoke the
 real Make target against a fake Podman, checking mounts, environment isolation,
-hostile flags and rejected recipe names. They do not require Podman. The real
-container CI job remains separate work (#171).
+hostile flags and rejected recipe names, and, in a real Git repository, that a
+checkout's own `core.fsmonitor` never runs and another repository is refused. They do
+not require Podman. The real container CI job remains separate work (#171).
 
 ## Rootless container checks
 

@@ -8,6 +8,13 @@ unset APPTROL_AUDIT_AGENT
 agent=unspecified
 repo=$(cd -- "$(dirname -- "$0")/../.." && pwd -P)
 cd "$repo"
+# Whoever can edit the checkout can edit its .git/config. The audit lookups must
+# not run host programs through it (fsmonitor, hooks) nor describe another
+# repository. GIT_CONFIG_COUNT settings outrank .git/config (QA-16, ADR 0034).
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_OPTIONAL_LOCKS=0 GIT_PAGER=cat \
+    GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false \
+    GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null
+[[ $(git rev-parse --show-toplevel) == "$repo" ]] || { echo 'Refusing: Git describes another repository' >&2; exit 1; }
 export HOME XDG_RUNTIME_DIR CONTAINERS_CONF
 HOME=$(getent passwd "$(id -u)" | cut -d: -f6)
 XDG_RUNTIME_DIR="/run/user/$(id -u)"
