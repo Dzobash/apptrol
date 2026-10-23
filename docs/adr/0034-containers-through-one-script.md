@@ -230,9 +230,15 @@ The owner clarified two details while implementing #170:
   hashes are retained as history, not evidence for the consecutive-pass gate.
 - Worktrees share a host-only lock in Git's common directory before calculating
   available memory. Separate clones and unrelated programs are outside this lock.
-- Make pins `SHELL` and `.SHELLFLAGS`. Using `-f`, `--eval` or another target to
-  bypass the runner remains forbidden by policy; command-prefix rules cannot
-  enforce all Make arguments. Broader argument-aware approval is follow-up work.
+- Make pins `SHELL` and `.SHELLFLAGS`; the systemd target builds through a fixed
+  helper after clearing the caller environment, rather than Make's overridable
+  `build` recipe. `FLAGS` remains ignored. Using `-f`, `MAKEFILES`, `--eval`,
+  Make-language expressions in variable assignments or another target to bypass
+  the runner remains forbidden by policy. Command-prefix rules cannot enforce
+  all Make arguments; broader argument-aware approval is follow-up work.
+- Audit lines capture the invocation's source commit and `dirty=yes|no`, including
+  untracked non-ignored files but excluding the generated `.audit/runs.log` itself.
+  Acceptance evidence must identify committed source with `dirty=no`.
 - [Proposed ADR 0037](0037-builds-in-a-limited-user-scope.md) records the build
   limit failure and the investigated user-scope mechanism. It does not relax any
   resource limit.

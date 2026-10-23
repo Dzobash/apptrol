@@ -14,11 +14,22 @@ mkdir "$base/supervisor"
 echo "$$" > "$base/supervisor/cgroup.procs"
 echo '+memory +pids' > "$base/cgroup.subtree_control"
 engine=(/usr/bin/podman --cgroup-manager=cgroupfs --default-mounts-file=/dev/null --hooks-dir="$repo/test/container/empty-hooks")
-args=(--cgroup-parent="$group/build" --memory=512m --memory-swap=512m --http-proxy=false --jobs=1)
+# Host-side Git sources are unsupported: even anonymous HTTPS Git may consult
+# the owner's .netrc. Disable transports as well as configuration and prompts.
+# Public archive URLs remain available (QA-16, ADR 0037).
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0
+export GIT_ASKPASS=/bin/false GIT_SSH_COMMAND=/bin/false GIT_ALLOW_PROTOCOL=
+mkdir "$4/registry-certs"
+printf '{"auths":{}}\n' > "$4/registry-auth.json"
+args=(--cgroup-parent="$group/build" --memory=512m --memory-swap=512m --http-proxy=false --jobs=1
+    --authfile "$4/registry-auth.json" --cert-dir "$4/registry-certs")
 /usr/bin/nice -n 10 "${engine[@]}" build "${args[@]}" --no-cache \
     --cgroupns=host --build-arg "EXPECTED_SCOPE=$group" \
     --iidfile "$4/probe-image" --file "$repo/test/container/build-probe.Dockerfile" "$repo/test/container"
 "${engine[@]}" image rm "$(cat "$4/probe-image")"
+rm -- "$4/probe-image"
 if ! "${engine[@]}" image exists "$3"; then
     /usr/bin/nice -n 10 "${engine[@]}" build "${args[@]}" --no-cache --cgroupns=private --tag "$3" --file "$1" "$2"
 fi
+rm -- "$4/registry-auth.json"
+rmdir -- "$4/registry-certs"

@@ -38,13 +38,22 @@ that scope. The scope's limits apply even when the runtime recreates the leaf.
 Podman builds retain memory/swap flags, one build job and `nice -n 10`.
 Runtime containers retain ADR 0034's existing mechanism.
 
-Before any recipe build, an uncached trusted probe runs two separate `RUN` steps.
+Before any recipe build, an uncached trusted probe with a digest-pinned Ubuntu
+base image runs two separate `RUN` steps.
 Each checks its exact cgroup ancestry, the scope's three kernel limits and its
 nice priority. Only the probe uses the host cgroup namespace to inspect its
 ancestor's virtual cgroup files; no additional host-directory mount is added.
 Recipe builds explicitly use a private cgroup namespace. The probe's image is
-removed after success. A failed scope setup, probe or build fails the audited run.
+removed after success, together with its image-ID file. A failed scope setup,
+probe or build fails the audited run.
 Changed build enforcement invalidates cached recipe images.
+
+Host-side builds use an explicitly empty registry-auth file and certificate
+directory. Git global/system configuration and credential prompts are disabled;
+all host Git transports are disabled as well, because Git's HTTP implementation
+may otherwise read the owner's `.netrc`. Dockerfiles may use public archive URLs,
+but not host-side Git or SSH sources. The temporary auth and certificate paths are
+removed before mounting the run folder as `/work` (QA-16).
 
 ### Logging
 
@@ -76,8 +85,10 @@ The revised two-step probe passed for both distro runs. Fresh, uncached Ubuntu
 both then passed the runtime limits, ordinary user-manager and three Status checks.
 The sample recipe passed with the scoped probe. `make check` passed, including
 regressions for failed scope creation, failed probes and missing kernel limits.
-These results support this proposal; acceptance and another security review remain
-pending.
+Those exploratory runs used uncommitted source. They establish feasibility, not
+acceptance evidence for the final revision. Acceptance requires both distro runs
+and the sample from a committed revision, recorded with `dirty=no`, plus another
+security review.
 
 ## References
 

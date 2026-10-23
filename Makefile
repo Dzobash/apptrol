@@ -25,7 +25,7 @@ override SHELL := /bin/sh
 override .SHELLFLAGS := -c
 
 .PHONY: test-systemd
-test-systemd: build ## Check the Status line in rootless Ubuntu and Fedora (QA-16)
+test-systemd: ## Build and check the Status line in rootless Ubuntu and Fedora (QA-16)
 	@/bin/sh test/container/run.sh @systemd
 
 # Pass the name as data, never expand Make variables into shell source (QA-16).

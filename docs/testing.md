@@ -76,7 +76,9 @@ are their Dockerfiles; custom recipes include their whole folder. Both also hash
 build worker, probe and pinned configuration. A new image is built without reusing
 old layers. There is no CPU quota and no need for a CPU controller (ADR 0034).
 
-`make test-systemd` runs each distro once. It installs `bin/apptrol` and the shipped
+`make test-systemd` builds `bin/apptrol` through a fixed helper after clearing the
+caller environment; Make's `BINARY`, `LDFLAGS`, version fields and `GOFLAGS` cannot
+change that build. It runs each distro once and installs the binary and the shipped
 unit, checks the version-prefixed Status text, restarts with invalid configuration,
 then fixes the file and waits for recovery. It allows 60 seconds for systemd and
 the user manager to start, and 15 seconds for each Status change. The fixture is
@@ -101,12 +103,22 @@ environment defaults and additional script arguments cannot add container flags;
 `FLAGS=--privileged` is ignored. Container defaults come from the repository's
 `containers.conf`; default `mounts.conf` mounts and host OCI hooks are disabled.
 The runner checks the two mounts before starting.
-Make pins its shell and shell flags. Alternative Makefiles (`-f`), `--eval` and other
-ways to replace the approved targets remain forbidden by the command policy;
-prefix allow rules cannot enforce those argument restrictions on their own.
+Make pins its shell and shell flags. Alternative Makefiles (`-f`, `MAKEFILES`),
+`--eval`, Make-language expressions in variable assignments, and other ways to
+replace or execute code before the approved targets remain forbidden by policy.
+Prefix allow rules cannot enforce those argument restrictions on their own.
+Builds use an empty registry-auth file and certificate directory. Host-side Git
+transports are disabled, including HTTPS, to prevent access to saved logins or
+`.netrc`; use public archive URLs instead of Git sources in Dockerfiles. These
+temporary credential-control files and the probe's image-ID file are removed
+before the runtime container starts, leaving `/work` empty.
 
 Each attempt appends a line to `.audit/runs.log`, including failures and invalid
 recipe names. It records a recipe hash so changed test code is distinguishable.
+`commit=` identifies the source commit captured at invocation start; `dirty=yes|no`
+records source changes, including untracked non-ignored files. Only `.audit/runs.log`
+is excluded, so appending the first distro's result does not taint the second.
+For acceptance evidence, commit source changes first and require `dirty=no`.
 Use `make test-systemd AGENT=gpt-6-astra` (or the model/caller actually starting it)
 to record attribution. `AGENT` is the sole environment exception: a validated,
 audit-only label, never passed to Podman. An omitted label is `unspecified`.

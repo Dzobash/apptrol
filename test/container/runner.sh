@@ -32,6 +32,12 @@ available=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
 jobs=$(( (available - 4194304) / 524288 ))
 ((jobs <= 16)) || jobs=16
 ((jobs >= 0)) || jobs=0
+source_commit=$(git rev-parse --short HEAD)
+source_dirty=no
+source_status=$(git status --porcelain --untracked-files=normal -- . ':!.audit/runs.log')
+if [[ -n $source_status ]]; then
+    source_dirty=yes
+fi
 
 # The trap is installed before validation or Podman: rejected attempts count too.
 # Raw names/errors stay in local logs, never the committed audit line (QA-16).
@@ -63,9 +69,9 @@ run_one() (
         # flock keeps a complete line together even when both distros finish at once.
         (
             flock 8
-            printf '%s run=%s agent=%s branch=%s commit=%s recipe=%s hash=%s image=%s jobs=%s result=%s seconds=%s\n' \
+            printf '%s run=%s agent=%s branch=%s commit=%s dirty=%s recipe=%s hash=%s image=%s jobs=%s result=%s seconds=%s\n' \
                 "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$runid" "$agent" "$(git branch --show-current)" \
-                "$(git rev-parse --short HEAD)" "$recipe" "$digest" "$image" "$jobs" "$result" "$((SECONDS-start))" >&8
+                "$source_commit" "$source_dirty" "$recipe" "$digest" "$image" "$jobs" "$result" "$((SECONDS-start))" >&8
         ) 8>>.audit/runs.log
         cat "$log"
         if ((rc == 0)); then
@@ -120,7 +126,7 @@ run_one() (
     /usr/bin/systemd-run --user --scope --unit="apptrol-build-$runid" \
         -p Delegate=yes -p TasksMax=256 -p MemoryMax=512M -p MemorySwapMax=0 \
         /bin/bash "$repo/test/container/build.sh" "$repo/$dockerfile" "$repo/$context" "$image" "$run"
-    args=(--name "$container" --network=none --memory=512m --memory-swap=512m --pids-limit=256
+    args=(--name "$container" --pull=never --network=none --memory=512m --memory-swap=512m --pids-limit=256
         --http-proxy=false --unsetenv-all --image-volume=ignore --user=0:0
         --env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
         --mount "type=bind,src=$repo,dst=/src,ro=true"
@@ -157,6 +163,7 @@ stop_children() {
 }
 trap stop_children INT TERM
 if [[ ${1:-} == @systemd ]]; then
+    /bin/bash "$repo/test/container/build-apptrol.sh"
     if ((jobs >= 2)); then
         run_one systemd-ubuntu systemd & first=$!
         run_one systemd-fedora systemd & second=$!

@@ -27,7 +27,7 @@ func containerFixture(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
-	for _, name := range []string{"run.sh", "runner.sh", "build.sh", "build-limits.sh", "build-probe.Dockerfile", "limits.sh", "proof.sh", "status.sh", "recipe-entry.sh", "valid.toml", "containers.conf"} {
+	for _, name := range []string{"run.sh", "runner.sh", "build.sh", "build-apptrol.sh", "build-limits.sh", "build-probe.Dockerfile", "limits.sh", "proof.sh", "status.sh", "recipe-entry.sh", "valid.toml", "containers.conf"} {
 		data := string(readRepoFile(t, "test", "container", name))
 		if name == "runner.sh" || name == "build.sh" {
 			fake := "'" + strings.ReplaceAll(filepath.Join(root, "fake-podman"), "'", "'\"'\"'") + "'"
@@ -42,6 +42,7 @@ func containerFixture(t *testing.T) string {
 			data = strings.ReplaceAll(data, `available=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)`, "available=16777216")
 			data = strings.ReplaceAll(data, "$(git branch --show-current)", "test-branch")
 			data = strings.ReplaceAll(data, "$(git rev-parse --short HEAD)", "abcdef0")
+			data = strings.ReplaceAll(data, "git status --porcelain --untracked-files=normal -- . ':!.audit/runs.log'", "printf ' M fixture'")
 		}
 		write("test/container/"+name, data)
 	}
@@ -71,8 +72,11 @@ case "$1" in
     info) echo true ;;
     image) if [ "$2" = exists ]; then exit 1; fi ;;
     build)
+        env > build-environment
         while [ "$#" -gt 0 ]; do
             if [ "$1" = --iidfile ]; then shift; echo probe-image > "$1"; fi
+            if [ "$1" = --authfile ]; then shift; cat "$1" > build-auth; fi
+            if [ "$1" = --cert-dir ]; then shift; test -z "$(ls -A "$1")"; fi
             shift
         done ;;
     create)
@@ -85,7 +89,7 @@ case "$1" in
                 source=${source%%,dst=*}
                 case "$spec" in
                     *,dst=/src,ro=true) printf '%s|/src|false\n' "$source" >> mounts ;;
-                    *,dst=/work,rw=true) printf '%s|/work|true\n' "$source" >> mounts ;;
+                    *,dst=/work,rw=true) test -z "$(ls -A "$source")"; printf '%s|/work|true\n' "$source" >> mounts ;;
                     *) exit 1 ;;
                 esac
             fi
@@ -166,6 +170,59 @@ func TestQA16_RecipeMountsEnvironmentAndFlags(t *testing.T) {
 	}
 	if !strings.Contains(string(audit), "agent=gpt-6-astra ") {
 		t.Error("audit lost the caller's model label")
+	}
+	if !strings.Contains(string(audit), "dirty=yes ") {
+		t.Error("audit lost the uncommitted-source marker")
+	}
+	buildEnv, err := os.ReadFile(filepath.Join(root, "build-environment"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"GIT_CONFIG_GLOBAL=/dev/null\n", "GIT_CONFIG_NOSYSTEM=1\n", "GIT_TERMINAL_PROMPT=0\n", "GIT_ASKPASS=/bin/false\n", "GIT_SSH_COMMAND=/bin/false\n", "GIT_ALLOW_PROTOCOL=\n"} {
+		if !strings.Contains(string(buildEnv), want) {
+			t.Errorf("missing host Git restriction %q", want)
+		}
+	}
+	auth, err := os.ReadFile(filepath.Join(root, "build-auth"))
+	if err != nil || string(auth) != "{\"auths\":{}}\n" {
+		t.Fatalf("build did not use empty registry auth: %s (%v)", auth, err)
+	}
+}
+
+// TestQA16_SystemdBuildIgnoresMakeVariables exercises the real Make entry point
+// and Go helper, stopping at a stand-in compiler before containers (ADR 0034).
+func TestQA16_SystemdBuildIgnoresMakeVariables(t *testing.T) {
+	root := containerFixture(t)
+	helper := filepath.Join(root, "test/container/build-apptrol.sh")
+	data, err := os.ReadFile(helper)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake := filepath.Join(root, "fake-go")
+	quoted := "'" + strings.ReplaceAll(fake, "'", "'\"'\"'") + "'"
+	data = []byte(strings.ReplaceAll(string(data), "go build", quoted+" build"))
+	data = []byte(strings.ReplaceAll(string(data), "$(git rev-parse HEAD)", "abcdef0"))
+	if err := os.WriteFile(helper, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fake, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > go-args\nenv > go-environment\nexit 17\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("make", "test-systemd", "BINARY=x; touch injected", "LDFLAGS=x\"; touch injected; #", "VERSION=x\"; touch injected; #", "COMMIT=x\"; touch injected; #", "DATE=x\"; touch injected; #", "GOFLAGS=-toolexec=/private/untrusted", "FLAGS=--privileged")
+	cmd.Dir = root
+	if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "17") {
+		t.Fatalf("expected stand-in compiler failure: %v\n%s", err, out)
+	}
+	args, err := os.ReadFile(filepath.Join(root, "go-args"))
+	if err != nil || !strings.Contains(string(args), "\n-o\nbin/apptrol\n./cmd/apptrol\n") || strings.Contains(string(args), "injected") {
+		t.Fatalf("unsafe compiler arguments: %s (%v)", args, err)
+	}
+	env, err := os.ReadFile(filepath.Join(root, "go-environment"))
+	if err != nil || strings.Contains(string(env), "GOFLAGS=") || strings.Contains(string(env), "BINARY=") {
+		t.Fatalf("compiler inherited Make overrides: %s (%v)", env, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "injected")); !os.IsNotExist(err) {
+		t.Fatal("Make build variables executed shell code")
 	}
 }
 
