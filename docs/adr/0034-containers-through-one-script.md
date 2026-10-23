@@ -3,6 +3,11 @@
 - **Status:** Accepted
 - **Date:** 2026-10-21
 
+**2026-10-23 decision update:** [ADR 0037](0037-builds-in-a-limited-user-scope.md)
+supersedes the build-limit mechanism in point 4: Podman ignored `pids_limit` during
+builds, so builds run inside a limited, delegated user scope, and the host proves
+runtime limits before image code starts. The limits themselves are unchanged.
+
 ## Context
 
 Coding agents need containers for two things:
@@ -239,7 +244,7 @@ The owner clarified two details while implementing #170:
 - Audit lines capture the invocation's source commit and `dirty=yes|no`, including
   untracked non-ignored files but excluding the generated `.audit/runs.log` itself.
   Acceptance evidence must identify committed source with `dirty=no`.
-- [Proposed ADR 0037](0037-builds-in-a-limited-user-scope.md) records the build
+- [ADR 0037](0037-builds-in-a-limited-user-scope.md) records the build
   limit failure and the investigated user-scope mechanism. It does not relax any
   resource limit.
 - Git lookups for the audit line run with `core.fsmonitor` and `core.hooksPath`

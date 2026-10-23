@@ -1,6 +1,6 @@
 # 0037. Build images inside a limited, delegated user scope
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-23
 - **Supersedes:** The build-limit mechanism in [0034](0034-containers-through-one-script.md), point 4; its limits and other restrictions remain.
 

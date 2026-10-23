@@ -73,7 +73,7 @@ The runtime has no network, 512 MiB memory, no swap, at most 256 processes and n
 priority 10 or lower. Image builds may download packages. The build engine and its
 container share a limited user scope: 512 MiB, no swap and 256 tasks, with builds
 at reduced priority. An uncached two-step probe proves ancestry and limits before
-any recipe build ([proposed ADR 0037](adr/0037-builds-in-a-limited-user-scope.md)).
+any recipe build ([ADR 0037](adr/0037-builds-in-a-limited-user-scope.md)).
 Only that trusted probe sees the host cgroup namespace; recipes use a private one.
 After creation and mount inspection, `podman init` leaves the entrypoint waiting.
 The host verifies the actual process's cgroup limits, nice value and loopback-only

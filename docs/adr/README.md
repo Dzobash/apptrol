@@ -42,7 +42,7 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0031](0031-manual-test-cases-as-docs.md) | Manual test cases as docs, with fixtures and a record of every run | Accepted; how many run for a patch release: see 0032 |
 | [0032](0032-patch-releases-test-what-changed.md) | Patch releases test what changed, plus a smoke set | Accepted |
 | [0033](0033-r-and-play-ignore-short-pauses.md) | R and ▶ ignore pauses shorter than half a second | Accepted |
-| [0034](0034-containers-through-one-script.md) | Containers: rootless Podman through one script, with an audit record of every run | Accepted |
+| [0034](0034-containers-through-one-script.md) | Containers: rootless Podman through one script, with an audit record of every run | Accepted; point 4's build-limit mechanism superseded by [0037](0037-builds-in-a-limited-user-scope.md) |
 | [0035](0035-first-control-owns-matched-output.md) | The first control owns a matched output device | Accepted; supersedes 0027 point 4 for fixed outputs |
 | [0036](0036-no-solo-on-outputs.md) | No solo on outputs | Accepted; supersedes 0027 point 7 |
-| [0037](0037-builds-in-a-limited-user-scope.md) | Build images inside a limited, delegated user scope | Proposed; build-limit mechanism for 0034 |
+| [0037](0037-builds-in-a-limited-user-scope.md) | Build images inside a limited, delegated user scope | Accepted; supersedes 0034 point 4's build-limit mechanism |
