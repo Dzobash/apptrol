@@ -18,7 +18,7 @@ import (
 // must ask about (ask), each as the words it starts with, e.g. "gh pr view". Both
 // tools match how a command starts, whatever arguments follow (QA-15).
 type commandLists struct {
-	allow, ask map[string]bool
+	allow, ask, deny map[string]bool
 }
 
 // claudeCommands reads Claude Code's shared settings. Claude Code matches
@@ -28,7 +28,7 @@ type commandLists struct {
 // (QA-15).
 func claudeCommands(data []byte) (commandLists, []string, error) {
 	var s struct {
-		Permissions struct{ Allow, Ask []string }
+		Permissions struct{ Allow, Ask, Deny []string }
 	}
 	if err := json.Unmarshal(data, &s); err != nil {
 		return commandLists{}, nil, err
@@ -62,7 +62,7 @@ func claudeCommands(data []byte) (commandLists, []string, error) {
 		}
 		return withArgs
 	}
-	lists := commandLists{allow: words("allow", s.Permissions.Allow), ask: words("ask", s.Permissions.Ask)}
+	lists := commandLists{allow: words("allow", s.Permissions.Allow), ask: words("ask", s.Permissions.Ask), deny: words("deny", s.Permissions.Deny)}
 	return lists, problems, nil
 }
 
@@ -76,7 +76,7 @@ var (
 // alternatives, so ["gh", "pr", ["list", "view"]] stands for "gh pr list" and
 // "gh pr view"; "prompt" is Codex's word for ask (QA-15).
 func codexCommands(data []byte) (commandLists, error) {
-	lists := commandLists{allow: map[string]bool{}, ask: map[string]bool{}}
+	lists := commandLists{allow: map[string]bool{}, ask: map[string]bool{}, deny: map[string]bool{}}
 	starts := ruleStart.FindAllIndex(data, -1)
 	for i, s := range starts {
 		end := len(data)
@@ -98,6 +98,8 @@ func codexCommands(data []byte) (commandLists, error) {
 			case "allow":
 			case "prompt":
 				target = lists.ask
+			case "forbidden":
+				target = lists.deny
 			default:
 				return lists, fmt.Errorf("decision %q has no Claude Code twin", m[1])
 			}
@@ -191,6 +193,7 @@ func compareLists(claudeData, codexData []byte) []string {
 	}{
 		{"allowed", claude.allow, codex.allow},
 		{"asked about", claude.ask, codex.ask},
+		{"blocked", claude.deny, codex.deny},
 	} {
 		if missing := difference(d.claude, d.codex); len(missing) > 0 {
 			problems = append(problems, fmt.Sprintf("%s for Claude, not for Codex: %s", d.name, strings.Join(missing, ", ")))
@@ -322,6 +325,50 @@ func TestQA15_ParseCodexPattern(t *testing.T) {
 	for _, bad := range []string{`"git", "push"`, `"git", x]`, `"git`} {
 		if _, err := parseList(bad); err == nil {
 			t.Errorf("parseList(%q) accepted", bad)
+		}
+	}
+}
+
+// TestQA16_ContainerCommandsBlocked keeps the deny inventory independent of both
+// files: deleting a block from both must fail too (QA-15, QA-16, ADR 0034).
+func TestQA16_ContainerCommandsBlocked(t *testing.T) {
+	claude, problems, err := claudeCommands(readRepoFile(t, ".claude", "settings.json"))
+	if err != nil || len(problems) != 0 {
+		t.Fatalf("Claude rules: %v, %v", err, problems)
+	}
+	codex, err := codexCommands(readRepoFile(t, ".codex", "rules", "apptrol.rules"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cmd := range []string{"docker", "podman", "buildah"} {
+		for _, lists := range []commandLists{claude, codex} {
+			if !lists.deny[cmd] || lists.allow[cmd] || lists.ask[cmd] {
+				t.Errorf("%s must be blocked, without an allow or ask rule", cmd)
+			}
+		}
+	}
+	for _, cmd := range []string{"make test-systemd", "make container-run"} {
+		if !claude.allow[cmd] || !codex.allow[cmd] {
+			t.Errorf("%s must be allowed in both tools", cmd)
+		}
+	}
+}
+
+// TestQA15_DenyParity catches a missing argument form and mismatched block rules
+// without relying on the repository's current contents (QA-15, ADR 0034).
+func TestQA15_DenyParity(t *testing.T) {
+	codex := []byte(`prefix_rule(pattern = ["podman"], decision = "forbidden")`)
+	for _, tc := range []struct {
+		claude string
+		match  bool
+	}{
+		{`{"permissions":{"deny":["Bash(podman)","Bash(podman *)"]}}`, true},
+		{`{"permissions":{"deny":["Bash(podman)"]}}`, false},
+		{`{"permissions":{"deny":["Bash(podman *)"]}}`, false},
+		{`{"permissions":{"deny":["Bash(docker)","Bash(docker *)"]}}`, false},
+	} {
+		if got := len(compareLists([]byte(tc.claude), codex)) == 0; got != tc.match {
+			t.Errorf("compareLists(%s) matches=%v, want %v", tc.claude, got, tc.match)
 		}
 	}
 }

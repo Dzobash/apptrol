@@ -1,0 +1,3 @@
+# A valid empty layout needs neither an audio server nor controller hardware
+# (SVC-13, QA-16, ADR 0034).
+[layouts.default]

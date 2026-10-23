@@ -20,6 +20,16 @@ GO_LICENSES := github.com/google/go-licenses/v2@v2.0.1
 
 all: check build ## Run all checks, then build
 
+.PHONY: test-systemd
+test-systemd: build ## Check the Status line in rootless Ubuntu and Fedora (QA-16)
+	@/bin/sh test/container/run.sh @systemd
+
+# Pass the name as data, never expand Make variables into shell source (QA-16).
+export RECIPE
+.PHONY: container-run
+container-run: ## Run .audit/recipes/<RECIPE> with fixed limits (QA-16)
+	@/bin/sh test/container/run.sh "recipe:$$RECIPE"
+
 check: fmt vet lint test appstream check-portable ## Format, vet, lint, tests, AppStream and portable build
 
 # Keep Linux dependencies out of the shared packages (NFR-11, ADR 0013).

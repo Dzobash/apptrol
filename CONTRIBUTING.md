@@ -104,6 +104,8 @@ make cover    # tests with coverage report (coverage.html)
 make test-audio  # integration tests against your running PipeWire
 make test-desktop  # D-Bus integration tests in a private session bus
 make test-launcher # starts harmless test units in your systemd user manager
+make test-systemd # Status line in rootless Ubuntu and Fedora containers
+make container-run RECIPE=sample # audited recipe, fixed mounts and limits
 make build    # bin/apptrol with version information
 make help     # all targets
 ```
@@ -127,7 +129,10 @@ Project layout:
 | `internal/logging/` | Log outputs and formats |
 | `internal/logattr/` | Log attribute names and error types (ADR 0016) |
 | `internal/version/` | Build information (set at link time) |
-| `internal/repocheck/` | No code; tests that keep the agents' command lists in `.claude/` and `.codex/` equal (QA-15) |
+| `internal/repocheck/` | Tests for agent command-list parity and container restrictions (QA-15, QA-16) |
+| `test/container/` | Rootless container runner, distro images, limit and Status checks (QA-16) |
+| `.audit/recipes/`, `.audit/runs.log` | Reviewed container recipes and one record per attempt; committed |
+| `.audit/logs/`, `.tmp/` | Local failure logs and writable container workspaces; ignored |
 | `docs/` | The documentation, grouped in [docs/README.md](docs/README.md); also the website's source |
 | `docs/assets/` | Logo files (`brand/`, MIT) and third-party photos (`photos/`, each with its own license) |
 | `examples/` | Example configuration (built into the binary for the first start) |

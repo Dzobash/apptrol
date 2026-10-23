@@ -92,7 +92,11 @@
       "Bash(make check)",
       "Bash(make check *)",
       "Bash(make test-audio)",
-      "Bash(make test-audio *)"
+      "Bash(make test-audio *)",
+      "Bash(make test-systemd)",
+      "Bash(make test-systemd *)",
+      "Bash(make container-run)",
+      "Bash(make container-run *)"
     ],
     "ask": [
       "Bash(git branch -d)",
@@ -229,6 +233,12 @@
       "Bash(gh workflow disable *)"
     ],
     "deny": [
+      "Bash(docker)",
+      "Bash(docker *)",
+      "Bash(podman)",
+      "Bash(podman *)",
+      "Bash(buildah)",
+      "Bash(buildah *)",
       "Read(~/.ssh/**)",
       "Edit(~/.ssh/**)"
     ]

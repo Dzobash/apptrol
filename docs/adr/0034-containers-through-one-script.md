@@ -207,6 +207,24 @@ command lists (AGENTS.md, QA-15). That did not work well:
 
 ## Consequences
 
+### Implementation clarification — 2026-10-23
+
+The owner clarified two details while implementing #170:
+
+- `JOBS=16` is a concurrency ceiling, not a repetition count. Each invocation runs
+  each selected recipe once; available memory reduces concurrency while reserving
+  4 GiB for the host.
+- `AGENT` is the one allowed caller-supplied environment value, solely for audit
+  attribution, for example `make test-systemd AGENT=gpt-6-astra`. It names the model
+  or caller starting the run, not a model inside the container. The runner accepts
+  only a 1–64 character label beginning with a letter or digit, followed by letters,
+  digits, dots or hyphens. It removes the value before invoking Podman and never
+  uses it to construct commands, flags or paths. An omitted label is `unspecified`;
+  invalid labels fail. All other caller environment values remain ignored. This
+  label is caller-declared attribution, not authenticated identity.
+
+### Effects
+
 - Agents run containers without prompts, and the owner can see afterwards what ran
   (recipe), when, by which agent, on which commit, and whether it passed.
 - With the script's pull request, a typed `docker`, `podman` or `buildah` is refused

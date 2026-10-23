@@ -17,6 +17,8 @@ of [requirements.md](requirements.md#51-quality-assurance).
 | `make test-audio` | Integration tests against your running PipeWire (they add a silent test output and inputs and remove them afterwards) |
 | `make test-desktop` | D-Bus integration tests in a private session bus (`dbus-run-session`): media players, and a fake logind standing in for the system bus; your desktop's buses and media players are not touched |
 | `make test-launcher` | Starts harmless test units (`true`) in your systemd user manager and checks they are removed; CI has no user systemd, so run it before a release |
+| `make test-systemd` | Builds Apptrol and checks its Status line in rootless Ubuntu 26.04 and Fedora 44 containers |
+| `make container-run RECIPE=sample` | Runs a reviewed recipe with the same fixed restrictions and audit record |
 | `make cover` | Tests with coverage; fails below the minimum; writes `coverage.html` to open in a browser |
 | `make vulncheck` | Scans dependencies for known vulnerabilities |
 | `make lint` | `golangci-lint` only ([install it](https://golangci-lint.run/welcome/install/) first) |
@@ -44,7 +46,66 @@ pull request, and a skipped job would count as missing. `go test ./packaging` al
 the MIT text in `packaging/debian/copyright` equal to `LICENSE` (NFR-09); it runs in the
 Test job. So does `go test ./internal/repocheck`, which keeps the command lists for
 Claude Code and Codex equal and checks that both ask before pushing or changing GitHub
-(QA-15).
+(QA-15), including the blocks on typed container commands. QA-16 tests invoke the
+real Make target against a fake Podman, checking mounts, environment isolation,
+hostile flags and rejected recipe names. They do not require Podman. The real
+container CI job remains separate work (#171).
+
+## Rootless container checks
+
+```text
+host checkout/           → /src   read-only
+host checkout/.tmp/run/  → /work  writable
+
+start → controller not found → restart with broken config → waiting for a valid configuration
+                                                        → fix config → controller not found
+```
+
+Install rootless Podman first, with subordinate UID/GID ranges and delegated cgroup
+v2 `memory` and `pids` controllers. The script refuses rootful operation and fails
+if a limit cannot be applied. It needs Bash, GNU coreutils and util-linux on the host.
+The runtime has no network, 512 MiB memory, no swap, at most 256 processes and nice
+priority 10 or lower. Image builds may download packages; they run with memory/swap
+limits and reduced priority. Images are retained and reused until their build inputs
+change. Systemd image inputs are their Dockerfiles; custom recipes include their
+whole folder. There is no CPU quota and no need for a CPU controller (ADR 0034).
+
+`make test-systemd` runs each distro once. It installs `bin/apptrol` and the shipped
+unit, checks the version-prefixed Status text, restarts with invalid configuration,
+then fixes the file and waits for recovery. It allows 60 seconds for systemd and
+the user manager to start, and 15 seconds for each Status change. The fixture is
+`test/container/valid.toml`; no controller or sound server is exposed. Hardware,
+multi-user desktop behavior and the brief stopping state remain in
+[TC-SVC-001](testing/cases/svc.md).
+
+The concurrency ceiling is 16, reduced from available memory to leave 4 GiB free
+before starting. Each container reserves 512 MiB in that calculation. The two
+distros run side by side when possible; separate invocations in one checkout wait
+on a lock so they cannot budget the same memory twice. These targets do not repeat
+recipes automatically. `JOBS` from the caller does not override the ceiling.
+
+For another experiment, add `.audit/recipes/<name>/Dockerfile` and `commands.sh`,
+then run `make container-run RECIPE=<name>`. Names start with a letter or digit and
+contain only letters, digits and hyphens. The recipe folder and its contents must
+not be symlinks. The image must provide `/bin/sh` and the basic commands used by the
+recipe. `commands.sh` runs inside the container, from `/work`, after the limit checks.
+The sample recipe writes `/work/result.txt`. Host environment variables, image
+environment defaults and additional script arguments cannot add container flags;
+`FLAGS=--privileged` is ignored. Container defaults come from the repository's
+`containers.conf`; default `mounts.conf` mounts and host OCI hooks are disabled.
+The runner checks the two mounts before starting.
+
+Each attempt appends a line to `.audit/runs.log`, including failures and invalid
+recipe names. It records a recipe hash so changed test code is distinguishable.
+Use `make test-systemd AGENT=gpt-6-astra` (or the model/caller actually starting it)
+to record attribution. `AGENT` is the sole environment exception: a validated,
+audit-only label, never passed to Podman. An omitted label is `unspecified`.
+Successful workspaces and logs are removed; failed ones remain in `.tmp/` and
+`.audit/logs/`. Those full logs can contain private host data and must not be
+committed. A damaged or symlinked audit directory is refused before writing anything.
+The initial setup-proof records without a hash predate the complete Status test;
+they must not count toward #172's consecutive-pass gate. Package installs and making
+the future CI job required also remain in #172.
 
 ## Writing tests
 

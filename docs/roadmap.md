@@ -124,6 +124,9 @@ on-screen display still needs a trial on GNOME. The on-screen display moved to P
 - [x] Decision record for three screen states: locked, switched away, logged out ([ADR 0030](adr/0030-three-screen-states.md))
 - [x] At the login screen after *Switch user*, the media buttons and R send nothing; each press is logged as a warning (ADR 0030, #60)
 - [x] `systemctl --user status apptrol` shows a Status line: the version, then the state; the unit's title is Apptrol's summary (SVC-13, [ADR 0007](adr/0007-systemd-user-service.md), [TC-SVC-001](testing/cases/svc.md), #99)
+- [x] Rootless container runner and local Status checks on Ubuntu and Fedora (QA-16,
+  [ADR 0034](adr/0034-containers-through-one-script.md), [container cases](testing/cases/qa.md), #170)
+- [ ] Run those container checks in CI (#171); later require the check and test package installs (#172)
 - [ ] Validate the Debian DEP-5 copyright file and record Discover's license display on a release candidate ([TC-NFR-001](testing/cases/nfr.md), NFR-09, #97)
 
 **Done when:** all Phase 1.6 MUST requirements are met, configurations in the old form
