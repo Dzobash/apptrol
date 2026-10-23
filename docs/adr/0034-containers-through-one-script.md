@@ -3,6 +3,11 @@
 - **Status:** Accepted
 - **Date:** 2026-10-21
 
+**2026-10-23 decision update:** [ADR 0037](0037-builds-in-a-limited-user-scope.md)
+supersedes the build-limit mechanism in point 4: Podman ignored `pids_limit` during
+builds, so builds run inside a limited, delegated user scope, and the host proves
+runtime limits before image code starts. The limits themselves are unchanged.
+
 ## Context
 
 Coding agents need containers for two things:
@@ -206,6 +211,51 @@ command lists (AGENTS.md, QA-15). That did not work well:
   runs need the host. Worth a look later for agents doing risky work.
 
 ## Consequences
+
+### Implementation clarification — 2026-10-23
+
+The owner clarified two details while implementing #170:
+
+- `JOBS=16` is a concurrency ceiling, not a repetition count. Each invocation runs
+  each selected recipe once; available memory reduces concurrency while reserving
+  4 GiB for the host.
+- `AGENT` is the one allowed caller-supplied environment value, solely for audit
+  attribution, for example `make test-systemd AGENT=gpt-6-astra`. It names the model
+  or caller starting the run, not a model inside the container. The runner accepts
+  only a 1–64 character label beginning with a letter or digit, followed by letters,
+  digits, dots or hyphens. It removes the value before invoking Podman and never
+  uses it to construct commands, flags or paths. An omitted label is `unspecified`;
+  invalid labels fail. All other caller environment values remain ignored. This
+  label is caller-declared attribution, not authenticated identity.
+
+### Review clarification — 2026-10-23
+
+- Recipe folders use names (`.audit/recipes/<name>/`), as specified by #170.
+  Audit lines use `recipe=<name>` plus a separate `hash=` field. Early lines without
+  hashes are retained as history, not evidence for the consecutive-pass gate.
+- Worktrees share a host-only lock in Git's common directory before calculating
+  available memory. Separate clones and unrelated programs are outside this lock.
+- Make pins `SHELL` and `.SHELLFLAGS`; the systemd target builds through a fixed
+  helper after clearing the caller environment, rather than Make's overridable
+  `build` recipe. `FLAGS` remains ignored. Using `-f`, `MAKEFILES`, `--eval`,
+  Make-language expressions in variable assignments or another target to bypass
+  the runner remains forbidden by policy. Command-prefix rules cannot enforce
+  all Make arguments; broader argument-aware approval is follow-up work.
+- Audit lines capture the invocation's source commit and `dirty=yes|no`, including
+  untracked non-ignored files but excluding the generated `.audit/runs.log` itself.
+  Acceptance evidence must identify committed source with `dirty=no`.
+- [ADR 0037](0037-builds-in-a-limited-user-scope.md) records the build
+  limit failure and the investigated user-scope mechanism. It does not relax any
+  resource limit.
+- Git lookups for the audit line run with `core.fsmonitor` and `core.hooksPath`
+  overridden and without global or system config, and the runner refuses a run when
+  Git's top level is not the checkout. Parsing the Makefile no longer runs Git
+  (`LDFLAGS` expands only in `build`). This closes the automatic paths, not every
+  one: a `.git/config` filter driver can still run a program during `git status`.
+  Whoever can write `.git/config` can already run code through `git commit` hooks
+  and `make check`, so the checkout's Git data is not a security boundary.
+
+### Effects
 
 - Agents run containers without prompts, and the owner can see afterwards what ran
   (recipe), when, by which agent, on which commit, and whether it passed.

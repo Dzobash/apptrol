@@ -5,7 +5,9 @@ PKG     := github.com/Dzobash/apptrol
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse HEAD 2>/dev/null)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-LDFLAGS := -s -w \
+# Expanded only by `build`: parsing the Makefile must not run Git, so the
+# container targets never read the checkout's .git/config here (QA-16, ADR 0034).
+LDFLAGS = -s -w \
 	-X $(PKG)/internal/version.Version=$(VERSION) \
 	-X $(PKG)/internal/version.Commit=$(COMMIT) \
 	-X $(PKG)/internal/version.Date=$(DATE)
@@ -19,6 +21,20 @@ GO_LICENSES := github.com/google/go-licenses/v2@v2.0.1
 .PHONY: all check check-portable appstream build test test-audio test-desktop test-launcher cover vet fmt lint vulncheck third-party-licenses snapshot release-check clean help
 
 all: check build ## Run all checks, then build
+
+# A caller cannot replace the recipe interpreter through Make variables (QA-16).
+override SHELL := /bin/sh
+override .SHELLFLAGS := -c
+
+.PHONY: test-systemd
+test-systemd: ## Build and check the Status line in rootless Ubuntu and Fedora (QA-16)
+	@/bin/sh test/container/run.sh @systemd
+
+# Pass the name as data, never expand Make variables into shell source (QA-16).
+export RECIPE
+.PHONY: container-run
+container-run: ## Run .audit/recipes/<RECIPE> with fixed limits (QA-16)
+	@/bin/sh test/container/run.sh "recipe:$$RECIPE"
 
 check: fmt vet lint test appstream check-portable ## Format, vet, lint, tests, AppStream and portable build
 

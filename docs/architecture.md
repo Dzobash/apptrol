@@ -655,6 +655,12 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   `Type=simple` and `NotifyAccess=main` kept (SVC-13). CI's Packaging job builds the release as a snapshot and runs
   `lintian` on the .deb (NFR-05, NFR-08, NFR-09, #146); it is the only place CI runs
   GoReleaser before a release candidate is tagged.
+- `test/container`: the developer-only runner checks the shipped binary and service
+  unit against real systemd in rootless Ubuntu and Fedora. Its fixed mounts, limits,
+  environment isolation and audit records are separate from the application service
+  loop. `internal/repocheck` tests the runner with a fake Podman and keeps both
+  agents' allow, ask and block lists equal (QA-15, QA-16, ADR 0034). See
+  [rootless container checks](testing.md#rootless-container-checks).
 - `config`, `state`: unit tests and fuzzing on malformed input; the blocked-command check
   is fuzzed too. Inputs are tested in both forms, `[inputs.<id>]` and the old `type`
   (CFG-18, CFG-19). Output tests cover selector presence, values, cross-table rules,

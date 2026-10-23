@@ -226,7 +226,8 @@ The owner wants to keep learning while working, not just receive finished result
   read only     read and search files in this repository and its worktrees; git and
                 GitHub commands that only read (status, log, diff, PR and issue views,
                 CI checks)
-  build, test   make check, make test-audio
+  build, test   make check, make test-audio, make test-systemd,
+                make container-run RECIPE=<name>
   git           list branches, git switch -c, commit (deleting or renaming a branch,
                 and push, only after the owner's OK, see Workflow)
   waiting       any of these in the background, e.g. gh pr checks --watch for CI
@@ -253,6 +254,8 @@ The owner wants to keep learning while working, not just receive finished result
   would run and why, then wait. A sub-agent's task names the commands it may run.
   **Containers** ([ADR 0034](docs/adr/0034-containers-through-one-script.md), QA-16):
   rootless Podman only, never Docker and never `sudo podman`, and every run through
+  the script includes `AGENT=<model-name>` for audit attribution (ADR 0034's dated
+  clarification; this label never reaches Podman). Every run goes through
   the repository's container script (`make test-systemd`, `make container-run
   RECIPE=<name>`), which records it in `.audit/`. The script mounts only the checkout,
   read-only, and `.tmp/<run>/` inside it as the one writable folder (ignored by git):

@@ -1,0 +1,1 @@
+# No OCI hooks: host hooks must not add mounts or alter the container (QA-16).
