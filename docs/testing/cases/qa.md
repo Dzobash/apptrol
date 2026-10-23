@@ -29,6 +29,7 @@ Type: Manual
 **Steps**
 - [ ] Run `make test-systemd` → both distros pass the limits, user-manager and three Status checks
 - [ ] Read `.audit/runs.log` → each distro has its own PASS record and recipe hash
+- [ ] Both uncached build-probe steps report scope ancestry and memory/swap/pids/nice limits
 - [ ] Run `make container-run RECIPE=sample` → the sample recipe passes and adds one record
 - [ ] Read `.tmp/` and `.audit/logs/` → successful runs have no leftover workspace or full log
 

@@ -20,6 +20,10 @@ GO_LICENSES := github.com/google/go-licenses/v2@v2.0.1
 
 all: check build ## Run all checks, then build
 
+# A caller cannot replace the recipe interpreter through Make variables (QA-16).
+override SHELL := /bin/sh
+override .SHELLFLAGS := -c
+
 .PHONY: test-systemd
 test-systemd: build ## Check the Status line in rootless Ubuntu and Fedora (QA-16)
 	@/bin/sh test/container/run.sh @systemd

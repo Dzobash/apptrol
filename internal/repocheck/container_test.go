@@ -27,11 +27,16 @@ func containerFixture(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
-	for _, name := range []string{"run.sh", "runner.sh", "limits.sh", "proof.sh", "status.sh", "recipe-entry.sh", "valid.toml", "containers.conf"} {
+	for _, name := range []string{"run.sh", "runner.sh", "build.sh", "build-limits.sh", "build-probe.Dockerfile", "limits.sh", "proof.sh", "status.sh", "recipe-entry.sh", "valid.toml", "containers.conf"} {
 		data := string(readRepoFile(t, "test", "container", name))
-		if name == "runner.sh" {
+		if name == "runner.sh" || name == "build.sh" {
 			fake := "'" + strings.ReplaceAll(filepath.Join(root, "fake-podman"), "'", "'\"'\"'") + "'"
 			data = strings.ReplaceAll(data, "/usr/bin/podman", fake)
+			fakeScope := "'" + strings.ReplaceAll(filepath.Join(root, "fake-systemd-run"), "'", "'\"'\"'") + "'"
+			data = strings.ReplaceAll(data, "/usr/bin/systemd-run", fakeScope)
+			data = strings.ReplaceAll(data, "$(git rev-parse --path-format=absolute --git-common-dir)", `"$repo/git-common"`)
+			data = strings.ReplaceAll(data, "group=$(sed -n 's/^0:://p' /proc/self/cgroup)", "group=/apptrol-build-fixture.scope")
+			data = strings.ReplaceAll(data, `base="/sys/fs/cgroup$group"`, `base="$repo/fake-cgroup"`)
 			data = strings.ReplaceAll(data, "$(id -u)", "1500")
 			data = strings.ReplaceAll(data, `HOME=$(getent passwd "1500" | cut -d: -f6)`, "HOME=/nonexistent")
 			data = strings.ReplaceAll(data, `available=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)`, "available=16777216")
@@ -41,11 +46,22 @@ func containerFixture(t *testing.T) string {
 		write("test/container/"+name, data)
 	}
 	write("Makefile", string(readRepoFile(t, "Makefile")))
+	write("git-common/apptrol-containers.lock", "")
+	write("fake-cgroup/pids.max", "256\n")
+	write("fake-cgroup/memory.max", "536870912\n")
+	write("fake-cgroup/memory.swap.max", "0\n")
+	write("fake-systemd-run", `#!/bin/sh
+set -eu
+printf '%s\n' "$*" >> scope-calls
+while [ "$1" != /bin/bash ]; do shift; done
+exec "$@"
+`)
 	write("test/container/empty-hooks/.gitkeep", "")
 	write(".audit/recipes/sample/Dockerfile", "FROM scratch\n")
 	write(".audit/recipes/sample/commands.sh", "echo must-not-run-on-host > host-marker\n")
 	write("fake-podman", `#!/bin/sh
 set -eu
+if [ "$1" = --cgroup-manager=cgroupfs ]; then shift; fi
 test "$1" = --default-mounts-file=/dev/null
 shift
 case "$1" in --hooks-dir=*/test/container/empty-hooks) shift ;; *) exit 1 ;; esac
@@ -53,8 +69,12 @@ printf '%s\n' "$*" >> calls
 env >> received-environment
 case "$1" in
     info) echo true ;;
-    image) exit 1 ;;
-    build) : ;;
+    image) if [ "$2" = exists ]; then exit 1; fi ;;
+    build)
+        while [ "$#" -gt 0 ]; do
+            if [ "$1" = --iidfile ]; then shift; echo probe-image > "$1"; fi
+            shift
+        done ;;
     create)
         : > mounts
         while [ "$#" -gt 0 ]; do
@@ -102,7 +122,7 @@ func TestQA16_RecipeMountsEnvironmentAndFlags(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "injected.sh"), []byte("touch env-marker\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out, err := runContainerMake(t, root, "sample", "FLAGS=--privileged", "JOBS=999", "AGENT=gpt-6-astra")
+	out, err := runContainerMake(t, root, "sample", "FLAGS=--privileged", "JOBS=999", "AGENT=gpt-6-astra", "SHELL=/nonexistent", ".SHELLFLAGS=invalid")
 	if err != nil {
 		t.Fatalf("make: %v\n%s", err, out)
 	}
@@ -149,6 +169,65 @@ func TestQA16_RecipeMountsEnvironmentAndFlags(t *testing.T) {
 	}
 }
 
+// TestQA16_BuildScopeAndProbeFailClosed checks the build budget and refuses recipe
+// execution when either the scope or its uncached proof fails (ADR 0037).
+func TestQA16_BuildScopeAndProbeFailClosed(t *testing.T) {
+	for _, failure := range []string{"", "scope", "probe", "kernel limit"} {
+		t.Run(failure, func(t *testing.T) {
+			root := containerFixture(t)
+			switch failure {
+			case "scope":
+				if err := os.WriteFile(filepath.Join(root, "fake-systemd-run"), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			case "probe":
+				path := filepath.Join(root, "fake-podman")
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(strings.ReplaceAll(string(data), "build)\n", "build) exit 1 ;;\n    unused)\n")), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			case "kernel limit":
+				if err := os.WriteFile(filepath.Join(root, "fake-cgroup/pids.max"), []byte("max\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			out, err := runContainerMake(t, root, "sample")
+			if failure != "" {
+				if err == nil {
+					t.Fatalf("accepted failed build proof: %s", out)
+				}
+				calls, _ := os.ReadFile(filepath.Join(root, "calls"))
+				if strings.Contains(string(calls), "\ncreate ") || strings.Contains(string(calls), "--tag ") {
+					t.Fatalf("failed proof reached recipe: %s", calls)
+				}
+				audit, _ := os.ReadFile(filepath.Join(root, ".audit/runs.log"))
+				if !strings.Contains(string(audit), "result=FAIL") {
+					t.Fatal("missing build failure audit")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("make: %v\n%s", err, out)
+			}
+			scope, _ := os.ReadFile(filepath.Join(root, "scope-calls"))
+			for _, want := range []string{"--user --scope", "Delegate=yes", "TasksMax=256", "MemoryMax=512M", "MemorySwapMax=0"} {
+				if !strings.Contains(string(scope), want) {
+					t.Errorf("missing scope restriction %s", want)
+				}
+			}
+			calls, _ := os.ReadFile(filepath.Join(root, "calls"))
+			if strings.Count(string(calls), "--cgroup-parent=/apptrol-build-fixture.scope/build") != 2 ||
+				!strings.Contains(string(calls), "--no-cache --cgroupns=host") ||
+				!strings.Contains(string(calls), "--no-cache --cgroupns=private --tag") {
+				t.Fatalf("probe/recipe build restrictions: %s", calls)
+			}
+		})
+	}
+}
+
 // TestQA16_BadRecipesRefused covers path traversal, shell syntax, option syntax,
 // missing folders and the private systemd selector (QA-16, ADR 0034).
 func TestQA16_BadRecipesRefused(t *testing.T) {
@@ -167,6 +246,33 @@ func TestQA16_BadRecipesRefused(t *testing.T) {
 				t.Fatalf("missing failure record: %s (%v)", audit, err)
 			}
 		})
+	}
+}
+
+// TestQA16_SharedLockRefusesSymlinks protects the host-only common Git directory
+// lock used by every worktree (QA-16, ADR 0034).
+func TestQA16_SharedLockRefusesSymlinks(t *testing.T) {
+	root := containerFixture(t)
+	lock := filepath.Join(root, "git-common/apptrol-containers.lock")
+	if err := os.Remove(lock); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(root, "lock-target")
+	if err := os.WriteFile(target, []byte("untouched"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, lock); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := runContainerMake(t, root, "sample"); err == nil {
+		t.Fatalf("accepted unsafe shared lock: %s", out)
+	}
+	data, err := os.ReadFile(target)
+	if err != nil || string(data) != "untouched" {
+		t.Fatalf("lock followed symlink: %q (%v)", data, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "calls")); !os.IsNotExist(err) {
+		t.Fatal("unsafe lock reached Podman")
 	}
 }
 

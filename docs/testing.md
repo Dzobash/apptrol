@@ -63,12 +63,18 @@ start → controller not found → restart with broken config → waiting for a 
 
 Install rootless Podman first, with subordinate UID/GID ranges and delegated cgroup
 v2 `memory` and `pids` controllers. The script refuses rootful operation and fails
-if a limit cannot be applied. It needs Bash, GNU coreutils and util-linux on the host.
+if a limit cannot be applied. It needs Bash, GNU coreutils, util-linux and a working
+systemd user manager on the host.
 The runtime has no network, 512 MiB memory, no swap, at most 256 processes and nice
-priority 10 or lower. Image builds may download packages; they run with memory/swap
-limits and reduced priority. Images are retained and reused until their build inputs
-change. Systemd image inputs are their Dockerfiles; custom recipes include their
-whole folder. There is no CPU quota and no need for a CPU controller (ADR 0034).
+priority 10 or lower. Image builds may download packages. The build engine and its
+container share a limited user scope: 512 MiB, no swap and 256 tasks, with builds
+at reduced priority. An uncached two-step probe proves ancestry and limits before
+any recipe build ([proposed ADR 0037](adr/0037-builds-in-a-limited-user-scope.md)).
+Only that trusted probe sees the host cgroup namespace; recipes use a private one.
+Images are retained and reused until their build inputs change. Systemd image inputs
+are their Dockerfiles; custom recipes include their whole folder. Both also hash the
+build worker, probe and pinned configuration. A new image is built without reusing
+old layers. There is no CPU quota and no need for a CPU controller (ADR 0034).
 
 `make test-systemd` runs each distro once. It installs `bin/apptrol` and the shipped
 unit, checks the version-prefixed Status text, restarts with invalid configuration,
@@ -80,8 +86,9 @@ multi-user desktop behavior and the brief stopping state remain in
 
 The concurrency ceiling is 16, reduced from available memory to leave 4 GiB free
 before starting. Each container reserves 512 MiB in that calculation. The two
-distros run side by side when possible; separate invocations in one checkout wait
-on a lock so they cannot budget the same memory twice. These targets do not repeat
+distros run side by side when possible; invocations across this repository's worktrees
+wait on `apptrol-containers.lock` in Git's common directory. That host-only lock is
+never mounted and prevents budgeting the same memory twice. These targets do not repeat
 recipes automatically. `JOBS` from the caller does not override the ceiling.
 
 For another experiment, add `.audit/recipes/<name>/Dockerfile` and `commands.sh`,
@@ -94,6 +101,9 @@ environment defaults and additional script arguments cannot add container flags;
 `FLAGS=--privileged` is ignored. Container defaults come from the repository's
 `containers.conf`; default `mounts.conf` mounts and host OCI hooks are disabled.
 The runner checks the two mounts before starting.
+Make pins its shell and shell flags. Alternative Makefiles (`-f`), `--eval` and other
+ways to replace the approved targets remain forbidden by the command policy;
+prefix allow rules cannot enforce those argument restrictions on their own.
 
 Each attempt appends a line to `.audit/runs.log`, including failures and invalid
 recipe names. It records a recipe hash so changed test code is distinguishable.

@@ -17,14 +17,16 @@ CONTAINERS_CONF="$repo/test/container/containers.conf"
 engine=(/usr/bin/podman --default-mounts-file=/dev/null --hooks-dir="$repo/test/container/empty-hooks")
 
 # Never follow a workspace/log link into another host directory (QA-16).
-for path in .tmp .audit .audit/logs .audit/runs.log .tmp/runner.lock; do
+for path in .tmp .audit .audit/logs .audit/runs.log; do
     [[ ! -L $path ]] || { echo "Refusing symlink: $path" >&2; exit 1; }
 done
 mkdir -p .tmp .audit/logs
 [[ ! -e .audit/runs.log || -f .audit/runs.log ]]
-# Serialize invocations in this checkout; their distro jobs may run side by side.
-# Otherwise two invocations could each reserve the same available memory.
-exec 9>.tmp/runner.lock
+# Worktrees share the budget lock, but never mount it (QA-16, ADR 0034).
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+lock="$common/apptrol-containers.lock"
+[[ ! -L $lock && ( ! -e $lock || -f $lock ) ]] || { echo 'Refusing unsafe shared lock'; exit 1; }
+exec 9>"$lock"
 flock 9
 available=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
 jobs=$(( (available - 4194304) / 524288 ))
@@ -107,14 +109,17 @@ run_one() (
     else
         buildhash=$(find "$context" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
     fi
+    # Changing build enforcement must invalidate images built before that proof.
+    buildhash=$({ printf '%s\n' "$buildhash"; sha256sum test/container/build.sh test/container/build-limits.sh test/container/build-probe.Dockerfile test/container/containers.conf; } | sha256sum | cut -d' ' -f1)
     digest=$({ printf '%s\n' "$buildhash"; sha256sum test/container/*.sh test/container/valid.toml test/container/containers.conf; } | sha256sum | cut -d' ' -f1)
     image="localhost/apptrol-$recipe:$buildhash"
     echo "recipe=$recipe jobs=$jobs image=$image"
     echo "host $repo -> container /src read-only; host $run -> container /work writable"
-    if ! "${engine[@]}" image exists "$image"; then
-        /usr/bin/nice -n 10 "${engine[@]}" build --memory=512m --memory-swap=512m \
-            --http-proxy=false --jobs=1 --tag "$image" --file "$dockerfile" "$context"
-    fi
+    # Never cache the enforcement proof: delegation can change between runs.
+    # Use the same build arguments for the probe and recipe (QA-16, ADR 0034).
+    /usr/bin/systemd-run --user --scope --unit="apptrol-build-$runid" \
+        -p Delegate=yes -p TasksMax=256 -p MemoryMax=512M -p MemorySwapMax=0 \
+        /bin/bash "$repo/test/container/build.sh" "$repo/$dockerfile" "$repo/$context" "$image" "$run"
     args=(--name "$container" --network=none --memory=512m --memory-swap=512m --pids-limit=256
         --http-proxy=false --unsetenv-all --image-volume=ignore --user=0:0
         --env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

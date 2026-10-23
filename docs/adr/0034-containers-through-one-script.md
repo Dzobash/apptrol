@@ -223,6 +223,20 @@ The owner clarified two details while implementing #170:
   invalid labels fail. All other caller environment values remain ignored. This
   label is caller-declared attribution, not authenticated identity.
 
+### Review clarification — 2026-10-23
+
+- Recipe folders use names (`.audit/recipes/<name>/`), as specified by #170.
+  Audit lines use `recipe=<name>` plus a separate `hash=` field. Early lines without
+  hashes are retained as history, not evidence for the consecutive-pass gate.
+- Worktrees share a host-only lock in Git's common directory before calculating
+  available memory. Separate clones and unrelated programs are outside this lock.
+- Make pins `SHELL` and `.SHELLFLAGS`. Using `-f`, `--eval` or another target to
+  bypass the runner remains forbidden by policy; command-prefix rules cannot
+  enforce all Make arguments. Broader argument-aware approval is follow-up work.
+- [Proposed ADR 0037](0037-builds-in-a-limited-user-scope.md) records the build
+  limit failure and the investigated user-scope mechanism. It does not relax any
+  resource limit.
+
 ### Effects
 
 - Agents run containers without prompts, and the owner can see afterwards what ran

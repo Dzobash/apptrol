@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Rootless container checks through `make test-systemd` (Ubuntu 26.04 and Fedora 44)
   and `make container-run RECIPE=<name>`. The runner fixes mounts and resource limits,
+  proves build limits in a delegated user scope and shares its budget lock across worktrees,
   isolates the runtime network and records each attempt in `.audit/runs.log`.
   Both coding-agent command lists block typed `docker`, `podman` and `buildah`
   commands (QA-15, QA-16, ADR 0034, #170).

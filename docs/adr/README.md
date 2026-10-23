@@ -45,3 +45,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0034](0034-containers-through-one-script.md) | Containers: rootless Podman through one script, with an audit record of every run | Accepted |
 | [0035](0035-first-control-owns-matched-output.md) | The first control owns a matched output device | Accepted; supersedes 0027 point 4 for fixed outputs |
 | [0036](0036-no-solo-on-outputs.md) | No solo on outputs | Accepted; supersedes 0027 point 7 |
+| [0037](0037-builds-in-a-limited-user-scope.md) | Build images inside a limited, delegated user scope | Proposed; build-limit mechanism for 0034 |
