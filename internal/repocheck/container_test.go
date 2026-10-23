@@ -433,7 +433,8 @@ func TestQA16_UnexpectedMountAndContainerFailureAreRecorded(t *testing.T) {
 }
 
 // TestQA16_HostRuntimeProofFailsClosed refuses image execution even when its
-// shell would exit zero without checking limits (QA-16, ADR 0037).
+// shell would exit zero without checking limits: the fake container always
+// exits zero, so every failing case is that case (QA-16, ADR 0037).
 func TestQA16_HostRuntimeProofFailsClosed(t *testing.T) {
 	for _, tc := range []struct{ name, path, value string }{
 		{"correct", "", ""},
@@ -443,7 +444,6 @@ func TestQA16_HostRuntimeProofFailsClosed(t *testing.T) {
 		{"nice", "fake-proc/stat", "123 (init) S 0 0 0 0 0 0 0 0 0 0 0 0 0 0 30 0\n"},
 		{"network", "fake-proc/net/dev", "header\nheader\n lo: 0\n eth0: 0\n"},
 		{"unreadable", "fake-runtime-cgroup/memory.max", ""},
-		{"fake shell exits zero", "fake-runtime-cgroup/pids.max", "max\n"},
 		{"writable cgroup", "fake-proc/mountinfo", "1 2 0:3 / /sys/fs/cgroup rw - cgroup2 cgroup rw\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

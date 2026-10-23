@@ -51,7 +51,9 @@ It checks nice 10 through `/proc/<pid>/stat` and only `lo` through
 `/proc/<pid>/net/dev`. Missing or mismatched evidence fails before `start` and
 the cleanup trap removes the container. Both systemd distros use the same proof.
 Recipe cgroup mounts must be read-only, checked through host-read mount information,
-so recipe code cannot raise the limits after verification.
+so recipe code cannot raise the limits after verification. Systemd containers
+are exempt from that one check: systemd as PID 1 needs a writable cgroup tree,
+and their images come from the repository's own Dockerfiles, not from recipes.
 
 The image is untrusted: replacing `/bin/sh` with a script whose interpreter is
 `/bin/true` skips the in-image checks and exits zero. Therefore `limits.sh` and
