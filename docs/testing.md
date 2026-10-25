@@ -212,8 +212,10 @@ within it (`TestOUT06_MPressWithinTheGuardWins`), release and a stale release
 control with the real mixer (`TestOUT04_OwnershipTransferDefendsTheNewOwnersMute`),
 removal and reappearance (`TestOUT05_ReappearedOutputDefendsOnlyItsNewMute`), a lost
 mute write (`TestOUT05_ReadBackSetsALostMuteAgain`), pending ownership
-(`TestOUT05_PendingOwnershipHoldsTheMuteUntilKept`), and the window ending while the
-guard writes (`TestOUT05_GuardEndingDuringItsWriteStillHoldsTheRead`), and a change
+(`TestOUT05_PendingOwnershipHoldsTheMuteUntilKept`), the window ending while the
+guard writes (`TestOUT05_GuardEndingDuringItsWriteStillHoldsTheRead`) or after it held
+a read but before its defense, through the `afterHold` hook
+(`TestOUT05_GuardEndingBeforeItsDefenseStillSetsTheMute`), and a change
 held while ownership was pending whose answer comes after the window: kept, released,
 a stale answer first, a change by the user after the window, removed
 (`TestOUT05_HeldMuteIsSetWhenTheAnswerComesAfterTheWindow`).

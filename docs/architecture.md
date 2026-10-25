@@ -409,7 +409,15 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   the window is read back after 200 ms, and `KeepOutput` checks the last mute read.
   Whether the guard holds a change is decided when it is read (`heldMute`), before the
   guard writes, so a window ending during that write cannot turn the restore into an
-  outside change.
+  outside change. Every held change is owed (`owedMute`): the guard outlives its
+  window until it has settled it, by the read's own defense or, while ownership is
+  pending, by the mixer's answer (`KeepOutput` sets the mute once); a release, a
+  removal or an outside change after the window cancels it. A guard kept past its
+  window holds no new change and defends no volume.
+
+  ```
+  rename + unmuted (held, window open) ─ window ends ─ KeepOutput ─► muted again, guard dropped
+  ```
 
   ```
   appears ─ write muted ─ echo ─ server: unmuted ─► not reported; muted again
@@ -697,7 +705,8 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   the echo, an outside change after the window, an M press, release and a stale
   release, ownership moving to another control (with the real mixer),
   removal and reappearance, a lost mute write, pending ownership, the window
-  ending during the guard's write, and an ownership answer after the window (#177).
+  ending before the guard's defense or during its write, and an ownership answer
+  after the window (#177).
 - `desktop`: integration tests in a private session bus with fake media players, locally
   (`make test-desktop`) and in CI; a bus restart and a missing bus included.
 - `session`: the same private bus stands in for the system bus, with a fake logind that

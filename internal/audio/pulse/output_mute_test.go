@@ -232,6 +232,43 @@ func TestOUT05_GuardEndingDuringItsWriteStillHoldsTheRead(t *testing.T) {
 	}
 }
 
+// The window ends after the guard decided to hold a read but before it
+// defends it: the change it hides from the mixer must still be set again,
+// or the device keeps the restored mute while the saved mute and M's LED
+// say otherwise (OUT-05, QA-11, #177 review).
+//
+//	read unmuted: held ─ window ends ─ defense ─► muted again, mixer hears nothing
+func TestOUT05_GuardEndingBeforeItsDefenseStillSetsTheMute(t *testing.T) {
+	r := newMuteRig(t, quietLog())
+	r.appear()
+	r.d.Muted = true
+	r.report()
+	r.b.afterHold = func() {
+		r.b.mu.Lock()
+		r.b.outGuard["spk"].until = time.Now().Add(-time.Millisecond)
+		r.b.mu.Unlock()
+	}
+	r.d.Muted = false
+	if got := muteChanges(r.report()); len(got) != 0 {
+		t.Fatalf("held change reported %v", got)
+	}
+	if fmt.Sprint(r.muteWrites) != "[true true]" {
+		t.Fatalf("mute writes = %v, want the held change set again", r.muteWrites)
+	}
+	r.b.afterHold = nil
+	r.d.Muted = true // the echo, after the window
+	if got := muteChanges(r.report()); len(got) != 0 {
+		t.Fatalf("echo reported %v", got)
+	}
+	r.d.Muted = false // the user's change, after the window
+	if got := muteChanges(r.report()); fmt.Sprint(got) != "[false]" {
+		t.Fatalf("change after the window = %v, want it reported", got)
+	}
+	if len(r.muteWrites) != 2 {
+		t.Fatalf("mute writes = %v, want nothing set after the window", r.muteWrites)
+	}
+}
+
 // A change the guard held back while ownership was pending is still set
 // right when the mixer's answer comes after the window: it was read within
 // it, and nothing else would correct it (OUT-05, CTRL-06, QA-11, #177 review).

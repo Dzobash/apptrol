@@ -42,12 +42,14 @@ type guard struct {
 	// readMuted is an output's mute last read or written, for KeepOutput as
 	// read is for its volume (OUT-05, ADR 0027, #177).
 	readMuted *bool
-	// owedMute says the guard held back a mute change it read within its
-	// window while the mixer had not answered the newest identity, so it
-	// could not set the mute again yet. The guard then outlives its window
-	// until that answer: KeepOutput sets the mute, ReleaseOutput lets it go.
-	// Without it, an answer after the window found no guard, and the device
-	// kept the mute the server restored (OUT-05, CTRL-06, #177 review).
+	// owedMute says the guard held a read within its window (heldMute) and
+	// has not settled it yet: the change is hidden from the mixer, so the
+	// guard outlives its window until it sets the mute again or finds it
+	// right. The read's own defense settles it, or, while ownership is
+	// pending, the mixer's answer: KeepOutput sets the mute, ReleaseOutput
+	// lets it go. Without it, a window ending before the defense or the
+	// answer left the device with the mute the server restored (OUT-05,
+	// CTRL-06, #177 review).
 	owedMute bool
 	// Only the newest reported identity's answer can resume output defense.
 	// Volume-only notifications do not answer it (CTRL-06, ADR 0027).
@@ -164,6 +166,9 @@ type Backend struct {
 	// beforeWire, if set, runs in Apply just before it waits for wire, so a
 	// test knows when Apply waits instead of sleeping (QA-11); nil in use.
 	beforeWire func()
+	// afterHold, if set, runs in sinkEvent between heldMute and the guard's
+	// defense, so a test can end the window there (QA-11, #177); nil in use.
+	afterHold func()
 }
 
 // New returns a Backend. server is a PulseAudio server string; "" uses the
@@ -466,10 +471,10 @@ func (b *Backend) sinkEvent(k *conn, t *tracker, index uint32, removed bool, rea
 			// Whether the guard holds this read's mute is decided now, before
 			// it writes: its window may end during the write (#177 review).
 			hold = b.heldMute(d.Name, d.Muted)
-			defendErr = b.sinkRead(k, &d, known && sameOutputIdentity(old, d.Device))
-			if hold.state != "" {
-				b.oweMuteIfPending(d.Name)
+			if b.afterHold != nil {
+				b.afterHold()
 			}
+			defendErr = b.sinkRead(k, &d, known && sameOutputIdentity(old, d.Device))
 		}
 		return d, err
 	})
@@ -740,23 +745,15 @@ type muteHold struct {
 	remaining int64
 }
 
-// oweMuteIfPending notes that the guard held back a mute it read within its
-// window but could not set again, because the mixer has not answered the
-// newest identity; the answer settles it even after the window (owedMute,
-// OUT-05, CTRL-06, #177 review).
-func (b *Backend) oweMuteIfPending(name string) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if g := b.outGuard[name]; g != nil && g.generation != 0 && !g.answered {
-		g.owedMute = true
-	}
-}
-
 // heldMute reports whether the guard holds an output's mute that reads muted
 // now: within its window, once a control set a mute, or while the mixer has
 // not answered the newest identity. A released output holds none (OUT-05,
-// CTRL-06, ADR 0027, ADR 0035, #177). It takes mu and drops nothing, so the
-// guard's own checks still see an expired guard.
+// CTRL-06, ADR 0027, ADR 0035, #177). It takes mu and drops nothing.
+//
+// A read it holds is owed (owedMute): the change is hidden from the mixer, so
+// the guard must settle it, setting the mute again or finding it right, even
+// when its window ends before it gets there. The same read's defense settles
+// it, or, while ownership is pending, the mixer's answer (#177 review).
 func (b *Backend) heldMute(name string, muted bool) muteHold {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -775,6 +772,7 @@ func (b *Backend) heldMute(name string, muted bool) muteHold {
 	default:
 		h.state = guardRestoreMute
 	}
+	g.owedMute = true
 	return h
 }
 
