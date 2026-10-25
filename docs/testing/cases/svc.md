@@ -35,6 +35,24 @@ systemctl --user status apptrol
 **Result:** Pass / Fail / Blocked
 **Notes:**
 
+### TC-SVC-002 — The unit has Apptrol's summary as its title and still starts at once
+
+Covers: SVC-13 · Phase 1.6
+Config: none (package check)
+Type: Manual
+
+**Setup**
+- [ ] The candidate package is installed, and `systemctl --user daemon-reload` has been run
+
+**Steps**
+- [ ] Run `systemctl --user status apptrol` → the first line reads `apptrol.service - Apptrol: control each app's volume with a hardware MIDI controller`
+- [ ] Run `systemctl --user cat apptrol` → `Description=` is that text, `Documentation=` is the repository's address, `Type=simple` and `NotifyAccess=main` are present, and `Type=notify` is not
+- [ ] Run `systemctl --user restart apptrol` → the command returns at once, without a wait of about 90 seconds
+- [ ] Open the package's AppStream data (`/usr/share/metainfo/io.github.dzobash.apptrol.metainfo.xml`) → its `<summary>` is the same text as `Description=` after `Apptrol: `
+
+**Result:** Pass / Fail / Blocked
+**Notes:**
+
 ### TC-SVC-003 — The Status line names an active solo
 
 Covers: SVC-13, SOLO-01, SOLO-04, SOLO-05, STATE-04 · Phase 1.6
@@ -63,24 +81,6 @@ S2 again           controller connected · 2 controls assigned
 - [ ] Press S2 → `controller connected · solo on slider 2 (Test tone B not playing)`
 - [ ] Press S2 again → `controller connected · 2 controls assigned`
 - [ ] Inspect the debug journal's `status line sent` records → `apptrol.status` shows each changed solo text
-
-**Result:** Pass / Fail / Blocked
-**Notes:**
-
-### TC-SVC-002 — The unit has Apptrol's summary as its title and still starts at once
-
-Covers: SVC-13 · Phase 1.6
-Config: none (package check)
-Type: Manual
-
-**Setup**
-- [ ] The candidate package is installed, and `systemctl --user daemon-reload` has been run
-
-**Steps**
-- [ ] Run `systemctl --user status apptrol` → the first line reads `apptrol.service - Apptrol: control each app's volume with a hardware MIDI controller`
-- [ ] Run `systemctl --user cat apptrol` → `Description=` is that text, `Documentation=` is the repository's address, `Type=simple` and `NotifyAccess=main` are present, and `Type=notify` is not
-- [ ] Run `systemctl --user restart apptrol` → the command returns at once, without a wait of about 90 seconds
-- [ ] Open the package's AppStream data (`/usr/share/metainfo/io.github.dzobash.apptrol.metainfo.xml`) → its `<summary>` is the same text as `Description=` after `Apptrol: `
 
 **Result:** Pass / Fail / Blocked
 **Notes:**

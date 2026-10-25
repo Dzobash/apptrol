@@ -130,3 +130,25 @@ func TestSVC13_StatusSoloWaitsForValidConfiguration(t *testing.T) {
 		t.Fatalf("restored status = %q, want %q", got, want)
 	}
 }
+
+func TestSVC13_StatusRestoresSoloWithPlayback(t *testing.T) {
+	setup := mixer.Setup{
+		Targets:     map[string]mixer.Target{"app": {Name: "Example app", Match: []string{"example"}}},
+		Assignments: map[mixer.Control]string{{Kind: mixer.Slider, Column: 5}: "app"},
+	}
+	for _, tc := range []struct {
+		name  string
+		event mixer.Event
+	}{
+		{"stream", mixer.AudioSnapshot{Streams: []mixer.Stream{{ID: 1, AppName: "example"}}}},
+		{"player", mixer.PlayerSnapshot{Players: []mixer.Player{{BusName: "org.mpris.MediaPlayer2.example", Status: mixer.StatusPlaying}}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &service{m: mixer.New(setup, mixer.State{Solo: 5}), connected: true}
+			s.m.Handle(tc.event)
+			if got, want := s.statusText(), "controller connected · solo on slider 5 (Example app)"; got != want {
+				t.Fatalf("restored status = %q, want %q", got, want)
+			}
+		})
+	}
+}
