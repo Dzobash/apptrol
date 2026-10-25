@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- The Status line names an active app solo in place of the control count, e.g.
+  `v0.3.0 · controller connected · solo on slider 5 (VLC not playing)`. It shows the
+  configured app name, with `not playing` when neither an uncorked stream nor a
+  matched media player reports playback. The solo stays visible when the controller
+  is unplugged or released to another user (SVC-13, #168).
 - Rootless container checks through `make test-systemd` (Ubuntu 26.04 and Fedora 44)
   and `make container-run RECIPE=<name>`. The runner fixes mounts and resource limits,
   proves build limits in a delegated user scope and runtime limits from the host before

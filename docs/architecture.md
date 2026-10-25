@@ -29,6 +29,8 @@ How the service is put together. Decisions and their reasons are in
   which media player belongs to which control, what R, the media keys and the launcher
   buttons do (and what they may do in each screen state), and every LED. It receives events and returns actions. It does no I/O and
   has no clock, so it is tested completely with plain unit tests.
+  A read-only solo accessor supplies the column, configured app name and current
+  playing state for the service's Status line (SVC-13).
 - **Adapters** (`controller`, `audio`, `desktop`, `session`, `launcher`, `systemd`,
   `config`, `state`, `logging`) talk to the outside world. The service uses them through
   small interfaces (`service.Controller`, `service.Audio`, `service.Desktop`,
@@ -585,16 +587,24 @@ dialog.
 ## The Status line
 
 `systemctl --user status apptrol` shows a line that Apptrol keeps up to date (SVC-13,
-[ADR 0007](adr/0007-systemd-user-service.md)). The mixer is not involved: the service
-builds the text from what it already sees, and the `systemd` adapter sends it.
+[ADR 0007](adr/0007-systemd-user-service.md)). The service builds the text from its
+controller state and the mixer's read-only `SoloStatus` accessor; the `systemd`
+adapter sends it. The mixer supplies facts and stays free of formatting and I/O
+(ADR 0015).
 
 ```
  controller events ─┐
- release / take ────┼──► service ──► text changed? ──► systemd adapter ─ ─► sender goroutine
- config (re)loaded ─┘      (version first, then the state)  (hands over,         │ newest text wins
- shutdown                                                    never waits)        ▼
-                                                              sd_notify STATUS= ──► systemctl status:
-                                                                                    Status: "v0.3.0 · …"
+ release / take ────┤
+ config (re)loaded ─┼──► service ──► text changed? ──► systemd adapter
+ solo / playback ──┤     version first                  │ hands over, never waits
+ shutdown ─────────┘                                    ▼
+                                                 sender goroutine
+                                                        │ newest text wins
+                                                        ▼
+                                                 sd_notify STATUS=
+                                                        │
+                                                        ▼
+                                      systemctl status: "v0.3.0 · …"
 ```
 
 | State | Text after the version |
@@ -604,6 +614,24 @@ builds the text from what it already sees, and the `systemd` adapter sends it.
 | Another user's session in front | `controller released (another user in front)` |
 | No valid configuration | `waiting for a valid configuration` |
 | Shutdown has begun | `stopping` |
+
+```
+solo off       controller connected · 8 controls assigned
+solo playing   controller connected · solo on slider 5 (VLC)
+solo silent    controller connected · solo on slider 5 (VLC not playing)
+unplugged      controller not found · solo on slider 5 (VLC not playing)
+```
+
+An active app solo replaces the assignment count and is also appended to the
+controller-not-found or controller-released text. The name comes from configuration,
+not a media title or a player's identity. Playing means at least one matched stream
+is uncorked **or** at least one matched MPRIS player reports `Playing`, as planned for
+#101. Otherwise the name is followed by `not playing`; this does not distinguish a
+paused app from a closed one or promise that a playing app is audible. User mute and
+output mute do not change this fact. Raw player status is used, without the LEDs'
+pause delay. Solo, stream, player and configuration events all lead to a fresh text
+after the event batch, including restoration of a saved solo. Waiting for valid
+configuration and stopping keep their short texts.
 
 The first row that applies, from the bottom up, is shown: stopping beats everything,
 then a released controller, then a missing configuration, then the controller.
@@ -640,7 +668,8 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
 - `service`: the whole loop against fake adapters: config reload, state, shutdown, a
   slider on an output reaching the audio adapter as `SetOutputVolume` and M as
   `SetOutputMute`; the Status line
-  through every state, only changes sent, and the flush at shutdown (SVC-13).
+  through every state, active solo and both playback signals, only changes sent,
+  and the flush at shutdown (SVC-13).
   Output mute tests also cover persistence, outside mute on sliders and knobs,
   re-plug, conflicting matches and ownership transfer.
 - `systemd`: the Status line reaches a unix datagram socket given as `NOTIFY_SOCKET`

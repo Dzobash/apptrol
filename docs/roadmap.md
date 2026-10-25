@@ -124,6 +124,7 @@ on-screen display still needs a trial on GNOME. The on-screen display moved to P
 - [x] Decision record for three screen states: locked, switched away, logged out ([ADR 0030](adr/0030-three-screen-states.md))
 - [x] At the login screen after *Switch user*, the media buttons and R send nothing; each press is logged as a warning (ADR 0030, #60)
 - [x] `systemctl --user status apptrol` shows a Status line: the version, then the state; the unit's title is Apptrol's summary (SVC-13, [ADR 0007](adr/0007-systemd-user-service.md), [TC-SVC-001](testing/cases/svc.md), #99)
+- [x] The Status line names an active app solo, also when the app is not playing or the controller is away (SVC-13, [TC-SVC-003](testing/cases/svc.md#tc-svc-003--the-status-line-names-an-active-solo), #168). The blinking S and extra solo logs remain in #101.
 - [x] Rootless container runner and local Status checks on Ubuntu and Fedora (QA-16,
   [ADR 0034](adr/0034-containers-through-one-script.md), [container cases](testing/cases/qa.md), #170)
 - [ ] Run those container checks in CI (#171); later require the check and test package installs (#172)

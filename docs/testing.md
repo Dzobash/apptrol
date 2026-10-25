@@ -163,6 +163,17 @@ installed candidate, including its description in Discover (NFR-10). Record miss
 blocked checks and Discover's license display as an observation, not a guarantee of
 the package format.
 
+## Status line
+
+Status-line tests in `internal/service/status_solo_test.go` use fake adapters to
+exercise solo on, off and moved, stream cork/uncork and removal/addition, MPRIS
+play/pause and removal, and controller disconnect/release (SVC-13). Playing means
+any matched uncorked stream or any matched player reporting `Playing`; unrelated
+apps do not count, and changes that leave the text unchanged send no Status line.
+Saved solo is covered with the same read-only mixer state. Run
+[TC-SVC-003](testing/cases/svc.md#tc-svc-003--the-status-line-names-an-active-solo)
+on an installed candidate for the controller and systemd check.
+
 ## Configuration tables
 
 [TC-CFG-005 to TC-CFG-008](testing/cases/cfg.md) cover `[outputs]` selectors and

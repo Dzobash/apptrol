@@ -493,20 +493,32 @@ func (s *service) trackController(ev mixer.Event) {
 	}
 }
 
-// statusText is the state part of the Status line.
+// statusText builds the state and active solo from the mixer's facts
+// (SVC-13, ADR 0007, ADR 0015).
 func (s *service) statusText() string {
+	var text string
 	switch {
 	case s.stopping:
 		return "stopping"
 	case s.released:
-		return "controller released (another user in front)"
+		text = "controller released (another user in front)"
 	case s.m.Waiting():
 		return "waiting for a valid configuration"
 	case s.connected:
-		return fmt.Sprintf("controller connected · %d controls assigned", s.controls)
+		text = "controller connected"
 	default:
-		return "controller not found"
+		text = "controller not found"
 	}
+	if column, name, playing := s.m.SoloStatus(); column != 0 {
+		if !playing {
+			name += " not playing"
+		}
+		return fmt.Sprintf("%s · solo on slider %d (%s)", text, column, name)
+	}
+	if s.connected && !s.released {
+		text += fmt.Sprintf(" · %d controls assigned", s.controls)
+	}
+	return text
 }
 
 // updateStatus sends the Status line when its text changed. It always starts
