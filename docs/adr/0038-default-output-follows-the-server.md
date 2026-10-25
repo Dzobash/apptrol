@@ -68,15 +68,21 @@ choose, and left the default output's overlap open. Three questions remained:
    default at once (OUT-03); the previous default is released: unmuted if Apptrol muted
    it, its volume left as it is, and its new-output guard cleared (`ReleaseOutput`). A
    fixed control that gets its device back applies its own position and saved mute, as
-   any ownership transfer does (ADR 0035).
+   any ownership transfer does (ADR 0035). A snapshot (a resync or a reconnect) can
+   bring a new default without `DefaultOutputChanged`; the mixer remembers what the
+   controls held before it, so the previous default is released in the same way and
+   does not keep the control's mute (found in #189's review).
 5. **No stale writes on the old device.** The mixer handles one event at a time: a move
    before the change goes to the old default, every move after it to the new one. After
    the release, nothing in the mixer names the old device, and the guard's queued
    read-back finds no guard and writes nothing (ADR 0027 note of 2026-10-21).
 6. **A new device that becomes the default at once** (plugging in headphones) needs the
    new-output guard to defend the control's mute on it although the device first
-   appeared with no owner. That is guard work: a separate pull request, after this one
-   (#85).
+   appeared with no owner. Within the same 3 seconds, the guard can also still defend
+   a volume an earlier owner set: a fixed output sets a new device to 80 %, the default
+   moves onto it and an earlier default control takes it over without a volume, and a
+   restore to 30 % is set back to 80 %. Both are guard work: a separate pull request,
+   after this one (#85).
 
 ### Logging
 

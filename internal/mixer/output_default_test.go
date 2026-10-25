@@ -245,3 +245,26 @@ func TestOUT04_DefaultOverlapFirstControlOwns(t *testing.T) {
 		t.Errorf("outside mute went to %v, want slider7, the owner", w.m.Snapshot().Muted)
 	}
 }
+
+// A snapshot after a reconnect or a resync can bring a new default without a
+// DefaultOutputChanged. The device the control held before is released as on
+// a change: unmuted, not left with the control's mute (OUT-03, ADR 0038).
+func TestOUT03_SnapshotWithAnotherDefaultReleasesThePreviousOne(t *testing.T) {
+	for _, def := range []string{headphones.Name, ""} {
+		w := defaultWorld(t, onlyDefault(), State{}, speakers.Name)
+		w.press(ButtonM, 6)
+		if !w.outMute[speakers.Name] {
+			t.Fatal("M did not mute the default output")
+		}
+		w.do(AudioSnapshot{Outputs: []Device{speakers, headphones}, DefaultOutput: def})
+		if w.outMute[speakers.Name] {
+			t.Errorf("default %q: the previous default stays muted after the snapshot", def)
+		}
+		if len(w.noticesNamed("output released; no control holds the device")) == 0 {
+			t.Errorf("default %q: the release is not logged", def)
+		}
+		if def != "" && !w.outMute[headphones.Name] {
+			t.Errorf("the new default does not get the control's mute")
+		}
+	}
+}

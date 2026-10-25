@@ -62,16 +62,23 @@ func (m *Mixer) outputTargets() []string {
 // (re)connect to the audio server, and chooses every output's device anew:
 // a device that is there again gets its control's known position (OUT-05,
 // SVC-04, ADR 0027).
+//
+// What the controls held before is remembered: a device still there that no
+// control holds now is released, unmuted, as after a change. A snapshot can
+// bring a new default without DefaultOutputChanged (a resync, a reconnect),
+// and the previous one must not keep the control's mute (OUT-03, ADR 0038).
 func (m *Mixer) outputsSnapshot(a *actions, outputs []Device, defaultOutput string) {
 	m.defaultOutput = defaultOutput
 	m.outputs = map[string]Device{}
 	for _, d := range outputs {
 		m.outputs[d.Name] = d
 	}
+	held := m.outputFor
 	m.outputFor = map[string]string{}
 	m.blockedOutputs = map[string]string{}
 	m.outputMuteSent = map[string]bool{}
 	m.chooseOutputs(a, chooseConnect)
+	m.releaseOutputs(a, held, m.outputFor)
 	for _, n := range sortedDeviceNames(m.outputs) {
 		m.answerOutput(a, m.outputs[n], 0)
 		m.logIdleOutput(a, m.outputs[n])
@@ -227,19 +234,19 @@ func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 		}
 		m.applyOutputMute(a, pick, m.effectiveMute(id))
 	}
-	m.releaseOutputs(a, chosen)
+	m.releaseOutputs(a, m.outputFor, chosen)
 	m.outputFor = chosen
 	m.blockedOutputs = blocked
 }
 
-// releaseOutputs releases each device that a target held before and none
-// holds in chosen, by name order; one another control still holds is kept, and
-// one that is gone has nothing left to release (OUT-01, CTRL-06, ADR 0027).
-// Each release is logged at info, once, so the log explains why a volume set
-// elsewhere now stays (OUT-13, ADR 0027 note of 2026-10-20).
-func (m *Mixer) releaseOutputs(a *actions, chosen map[string]string) {
+// releaseOutputs releases each device that a target held before (held) and
+// none holds in chosen, by name order; one another control still holds is
+// kept, and one that is gone has nothing left to release (OUT-01, CTRL-06,
+// ADR 0027). Each release is logged at info, once, so the log explains why a
+// volume set elsewhere now stays (OUT-13, ADR 0027 note of 2026-10-20).
+func (m *Mixer) releaseOutputs(a *actions, held, chosen map[string]string) {
 	var released []string
-	for _, dev := range m.outputFor {
+	for _, dev := range held {
 		if _, there := m.outputs[dev]; there && !contains(chosen, dev) && !slices.Contains(released, dev) {
 			released = append(released, dev)
 		}

@@ -669,6 +669,10 @@ func setDefaultSink(t *testing.T, name string) {
 // previous one keeps its volume and is unmuted (OUT-03, ADR 0038). Checks
 // wait for state, as CI's PipeWire is older (QA-09).
 //
+// The mixer never sees the owner's own outputs: it starts only once a test
+// output is the default, from a snapshot of the two test outputs, so nothing
+// is ever written to a real device (#189 review).
+//
 //	default A ─ slider 30 %, M ─► A 30 % muted ─ switch to B ─► A 30 % unmuted, B own volume, muted ─ slider 100 % ─► B 100 %
 func TestIntegration_OUT03_DefaultOutputFollowsASwitch(t *testing.T) {
 	needServer(t)
@@ -687,6 +691,40 @@ func TestIntegration_OUT03_DefaultOutputFollowsASwitch(t *testing.T) {
 			t.Errorf("Run = %v", err)
 		}
 	})
+	next(t, events, func(mixer.AudioSnapshot) bool { return true }) // the owner's outputs: not for the mixer
+
+	outA, outB := unique("apptrol_test_default_a"), unique("apptrol_test_default_b")
+	addSink(t, outA, "Apptrol-Test-Default-A")
+	addSink(t, outB, "Apptrol-Test-Default-B")
+	// Registered after the outputs, so it runs before they are removed, and
+	// before the default is changed, so a failing step still restores it.
+	t.Cleanup(func() {
+		if before.DefaultSink == "" {
+			return
+		}
+		if out, err := exec.Command("pactl", "set-default-sink", before.DefaultSink).CombinedOutput(); err != nil {
+			t.Errorf("restoring the default output: %v %s", err, out)
+			return
+		}
+		if l, err := List(""); err != nil || l.DefaultSink != before.DefaultSink {
+			t.Errorf("the default output was not restored (err %v)", err)
+		}
+	})
+	devA := next(t, events, func(e mixer.OutputAdded) bool { return e.Device.Name == outA }).Device
+	devB := next(t, events, func(e mixer.OutputAdded) bool { return e.Device.Name == outB }).Device
+	// A device that is new and becomes the default at once is the guard's
+	// case (#85, PR 3b); this test switches between settled outputs.
+	b.mu.Lock()
+	until := time.Now()
+	if g := b.outGuard[outB]; g != nil { // B came last, so its guard ends last
+		until = g.until
+	}
+	b.mu.Unlock()
+	time.Sleep(time.Until(until))
+	setSinkVolume(t, outB, "55%")
+
+	setDefaultSink(t, outA)
+	next(t, events, func(e mixer.DefaultOutputChanged) bool { return e.Name == outA })
 	c := mixer.Control{Kind: mixer.Slider, Column: 1}
 	m := mixer.New(mixer.Setup{
 		Targets:     map[string]mixer.Target{"main": {ID: "main", Kind: mixer.Output, FollowsDefault: true}},
@@ -700,32 +738,7 @@ func TestIntegration_OUT03_DefaultOutputFollowsASwitch(t *testing.T) {
 			}
 		}
 	}
-	apply(next(t, events, func(mixer.AudioSnapshot) bool { return true }))
-
-	outA, outB := unique("apptrol_test_default_a"), unique("apptrol_test_default_b")
-	addSink(t, outA, "Apptrol-Test-Default-A")
-	addSink(t, outB, "Apptrol-Test-Default-B")
-	// Registered after the outputs, so it runs before they are removed.
-	t.Cleanup(func() {
-		if before.DefaultSink != "" {
-			_ = exec.Command("pactl", "set-default-sink", before.DefaultSink).Run()
-		}
-	})
-	apply(next(t, events, func(e mixer.OutputAdded) bool { return e.Device.Name == outA }))
-	apply(next(t, events, func(e mixer.OutputAdded) bool { return e.Device.Name == outB }))
-	// A device that is new and becomes the default at once is the guard's
-	// case (#85, PR 3b); this test switches between settled outputs.
-	b.mu.Lock()
-	until := time.Now()
-	if g := b.outGuard[outB]; g != nil { // B came last, so its guard ends last
-		until = g.until
-	}
-	b.mu.Unlock()
-	time.Sleep(time.Until(until))
-	setSinkVolume(t, outB, "55%")
-
-	setDefaultSink(t, outA)
-	apply(next(t, events, func(e mixer.DefaultOutputChanged) bool { return e.Name == outA }))
+	apply(mixer.AudioSnapshot{Outputs: []mixer.Device{devA, devB}, DefaultOutput: outA})
 	if got := m.OutputDevice("main"); got != outA {
 		t.Fatalf("follows %q, want %q", got, outA)
 	}
