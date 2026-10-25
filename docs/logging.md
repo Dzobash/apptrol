@@ -258,16 +258,16 @@ new description waits for the mixer: `output kept by a control; …` then checks
 volume it read (OUT-05, OUT-13). A request that succeeded was passed on to the
 device, not necessarily applied: within the three seconds, the adapter reads the
 output again 200 ms after each write and sets a volume the server lost again
-(`output read again after a volume write`, #166). If 64 read-backs are already
+(`output read again after a write`, #166). If 64 read-backs are already
 waiting, which only happens when the adapter is stuck, the read is dropped and logged
 as `output read again skipped; too many waiting`:
 
 ```text
 DEBU output volume request completed apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.audio.channels=2 apptrol.wanted_percent=40 apptrol.audio.result=success
-DEBU output read again after a volume write apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo
+DEBU output read again after a write apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo
 DEBU output device read apptrol.component=audio apptrol.device.index=<index> apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.description="USB Headset" apptrol.audio.channels=2 apptrol.volume_percent=100 apptrol.audio.guard.state=restore_volume apptrol.audio.guard.remaining_ms=2972 apptrol.wanted_percent=40
 DEBU output device read apptrol.component=audio apptrol.device.index=<index> apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.description="USB Headset Pro" apptrol.audio.channels=2 apptrol.volume_percent=100 apptrol.audio.guard.state=identity_changed apptrol.audio.guard.remaining_ms=2540 apptrol.wanted_percent=40
-DEBU output kept by a control; checking the volume last read apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.volume_percent=100 apptrol.audio.guard.state=restore_volume
+DEBU output kept by a control; checking the volume and mute last read apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.volume_percent=100 apptrol.muted=false apptrol.audio.guard.state=restore_volume
 ```
 
 While the newest reported identity has no ownership answer, later volume notifications
@@ -296,6 +296,28 @@ stays, even within the guard's three seconds (CTRL-06):
 ```text
 INFO output released; no control holds the device apptrol.component=mixer apptrol.device.name=alsa_output.usb-<headset>.analog-stereo
 ```
+
+The guard defends the mute the owning control set in the same way (#177). Within its
+three seconds a mute change is never taken over: WirePlumber restoring a remembered
+mute looks just like an outside change, so the guard sets the control's mute again.
+After them, an outside change is taken over (`muted outside Apptrol`). If M's LED and
+the device disagree after a plug-in, look for these lines:
+
+```text
+appears ─ write muted ─ echo ─ server: unmuted ─► not taken over; muted again
+```
+
+```text
+DEBU output mute request completed apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.muted=true apptrol.audio.result=success
+DEBU output mute echo ignored: matches Apptrol's write apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.muted=true
+DEBU audio server changed the mute of a new output; setting it again apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.muted=false apptrol.wanted_muted=true
+DEBU output mute change not taken over: the new-output guard holds the mute apptrol.component=audio apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.muted=false apptrol.audio.guard.state=restore_mute apptrol.audio.guard.remaining_ms=2890
+```
+
+`apptrol.audio.guard.state=ownership_pending` on the last line means the device was
+just renamed and the mixer has not decided yet who owns it; `KeepOutput` then sets the
+owner's mute again. A released output's guard holds no mute, so its changes go to the
+mixer at once.
 
 To follow everything about outputs:
 

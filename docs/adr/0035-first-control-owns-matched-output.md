@@ -83,3 +83,8 @@ ownership transfer, outside mute, saved mute, and re-plug.
 - 2026-10-23: Outputs have no solo ([ADR 0036](0036-no-solo-on-outputs.md)), so PR 2c
   uses this ownership only for M's LED: a control whose device an earlier control owns
   shows no mute.
+- 2026-10-25: The follow-up named above is done (#177): the new-output guard defends
+  the owning control's mute as well, so a late server mute restore is set again
+  instead of being taken over. Ownership decides what it defends: `SetOutputMute`
+  from the owner replaces the defended mute, `ReleaseOutput` for the newest identity
+  clears it. Details and logging are in ADR 0027's note of the same date.
