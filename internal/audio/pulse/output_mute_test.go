@@ -232,6 +232,80 @@ func TestOUT05_GuardEndingDuringItsWriteStillHoldsTheRead(t *testing.T) {
 	}
 }
 
+// A change the guard held back while ownership was pending is still set
+// right when the mixer's answer comes after the window: it was read within
+// it, and nothing else would correct it (OUT-05, CTRL-06, QA-11, #177 review).
+//
+//	rename + unmuted (window open, held) ─ window ends ─ KeepOutput ─► muted again
+func TestOUT05_HeldMuteIsSetWhenTheAnswerComesAfterTheWindow(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		answer func(r *muteRig, renamed mixer.Device)
+		want   string
+	}{
+		{"kept", func(r *muteRig, d mixer.Device) {
+			r.apply(mixer.KeepOutput{Device: "spk", Generation: d.Generation})
+		}, "[true true]"},
+		{"released", func(r *muteRig, d mixer.Device) {
+			r.apply(mixer.SetOutputMute{Device: "spk", Muted: false})
+			r.apply(mixer.ReleaseOutput{Device: "spk", Generation: d.Generation})
+		}, "[true false]"},
+		{"stale answer, then the newest", func(r *muteRig, d mixer.Device) {
+			r.apply(mixer.KeepOutput{Device: "spk", Generation: d.Generation - 1})
+			if len(r.muteWrites) != 1 {
+				t.Fatalf("stale answer settled the owed mute: %v", r.muteWrites)
+			}
+			r.apply(mixer.KeepOutput{Device: "spk", Generation: d.Generation})
+		}, "[true true]"},
+		{"muted elsewhere after the window, then kept", func(r *muteRig, d mixer.Device) {
+			r.d.Muted = true // the user's change, after the window
+			if got := muteChanges(r.report()); fmt.Sprint(got) != "[true]" {
+				t.Fatalf("change after the window = %v, want it reported", got)
+			}
+			r.d.Muted = false // and unmuted again, before the answer
+			if got := muteChanges(r.report()); fmt.Sprint(got) != "[false]" {
+				t.Fatalf("change after the window = %v, want it reported", got)
+			}
+			r.apply(mixer.KeepOutput{Device: "spk", Generation: d.Generation})
+		}, "[true]"},
+		{"removed before the answer", func(r *muteRig, d mixer.Device) {
+			r.remove()
+			r.apply(mixer.KeepOutput{Device: "spk", Generation: d.Generation})
+		}, "[true]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newMuteRig(t, quietLog())
+			r.appear()
+			r.d.Muted = true
+			r.report()
+			r.d.Description, r.d.Muted = "Speakers Pro", false // in one notification
+			var renamed mixer.Device
+			for _, e := range r.report() {
+				switch e := e.(type) {
+				case mixer.OutputMuteChanged:
+					t.Fatalf("held change reported: %v", e)
+				case mixer.OutputAdded:
+					renamed = e.Device
+				}
+			}
+			r.b.mu.Lock()
+			r.b.outGuard["spk"].until = time.Now().Add(-time.Millisecond)
+			r.b.mu.Unlock()
+			tc.answer(r, renamed)
+			if fmt.Sprint(r.muteWrites) != tc.want {
+				t.Fatalf("mute writes = %v, want %s", r.muteWrites, tc.want)
+			}
+			// Once answered, an outside change is the user's again.
+			r.b.wire.Lock()
+			hold := r.b.heldMute("spk", true)
+			r.b.wire.Unlock()
+			if hold.state != "" {
+				t.Errorf("guard still holds after the answer: %+v", hold)
+			}
+		})
+	}
+}
+
 // After the guard's window, an outside mute change is the user's: the mixer
 // takes it over and nothing is set again (MUTE-07, OUT-05, ADR 0027).
 func TestMUTE07_OutputMuteChangeAfterTheGuardIsTakenOver(t *testing.T) {

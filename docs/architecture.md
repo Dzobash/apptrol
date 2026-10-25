@@ -667,8 +667,8 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   `sinkEvent`, fed the reads a notification would give: a late server restore after
   the echo, an outside change after the window, an M press, release and a stale
   release, ownership moving to another control (with the real mixer),
-  removal and reappearance, a lost mute write, pending ownership, and the window
-  ending during the guard's write (#177).
+  removal and reappearance, a lost mute write, pending ownership, the window
+  ending during the guard's write, and an ownership answer after the window (#177).
 - `desktop`: integration tests in a private session bus with fake media players, locally
   (`make test-desktop`) and in CI; a bus restart and a missing bus included.
 - `session`: the same private bus stands in for the system bus, with a fake logind that

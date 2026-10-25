@@ -202,7 +202,10 @@ control with the real mixer (`TestOUT04_OwnershipTransferDefendsTheNewOwnersMute
 removal and reappearance (`TestOUT05_ReappearedOutputDefendsOnlyItsNewMute`), a lost
 mute write (`TestOUT05_ReadBackSetsALostMuteAgain`), pending ownership
 (`TestOUT05_PendingOwnershipHoldsTheMuteUntilKept`), and the window ending while the
-guard writes (`TestOUT05_GuardEndingDuringItsWriteStillHoldsTheRead`).
+guard writes (`TestOUT05_GuardEndingDuringItsWriteStillHoldsTheRead`), and a change
+held while ownership was pending whose answer comes after the window: kept, released,
+a stale answer first, a change by the user after the window, removed
+(`TestOUT05_HeldMuteIsSetWhenTheAnswerComesAfterTheWindow`).
 `TestOUT05_DescriptionAndMuteChangePreserveOwnersState` feeds a combined adapter
 notification into the mixer: newly matched, still matched and no longer matched
 devices keep physical and saved mute consistent. The fuzz test generates outside

@@ -277,8 +277,15 @@ PipeWire or PulseAudio.
   the window is read back after 200 ms like a volume write, since accepted is not
   applied (#166). Whether the guard holds a change is decided when it is read, before
   the guard writes: a window that ends during that write must not turn the restore
-  it answered into an outside change (found in the PR's review). The mixer is
-  unchanged (ADR 0015).
+  it answered into an outside change (found in the PR's review). A change held back
+  while ownership was pending (a rename and a mute change in one notification) is
+  owed: the guard outlives its window until the mixer's answer, so `KeepOutput` still
+  sets the mute once and `ReleaseOutput` lets it go; a mute change taken over after
+  the window, or removal, cancels what is owed. The mixer is unchanged (ADR 0015).
+
+  ```text
+  rename + unmuted (held, window open) ─ window ends ─ KeepOutput ─► muted again, guard dropped
+  ```
 
   Records added to or changed in the logging table (point 12), with no new attribute:
 

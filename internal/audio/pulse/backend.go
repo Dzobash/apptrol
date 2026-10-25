@@ -42,6 +42,13 @@ type guard struct {
 	// readMuted is an output's mute last read or written, for KeepOutput as
 	// read is for its volume (OUT-05, ADR 0027, #177).
 	readMuted *bool
+	// owedMute says the guard held back a mute change it read within its
+	// window while the mixer had not answered the newest identity, so it
+	// could not set the mute again yet. The guard then outlives its window
+	// until that answer: KeepOutput sets the mute, ReleaseOutput lets it go.
+	// Without it, an answer after the window found no guard, and the device
+	// kept the mute the server restored (OUT-05, CTRL-06, #177 review).
+	owedMute bool
 	// Only the newest reported identity's answer can resume output defense.
 	// Volume-only notifications do not answer it (CTRL-06, ADR 0027).
 	generation uint64
@@ -460,6 +467,9 @@ func (b *Backend) sinkEvent(k *conn, t *tracker, index uint32, removed bool, rea
 			// it writes: its window may end during the write (#177 review).
 			hold = b.heldMute(d.Name, d.Muted)
 			defendErr = b.sinkRead(k, &d, known && sameOutputIdentity(old, d.Device))
+			if hold.state != "" {
+				b.oweMuteIfPending(d.Name)
+			}
 		}
 		return d, err
 	})
@@ -688,20 +698,37 @@ const (
 // muted; it is called with mu held. Like the volume, a mute is only defended
 // once the mixer answered the newest identity (OUT-05, CTRL-06, ADR 0027,
 // #177).
+//
+// After the window it sets nothing, except a mute the guard still owes: a
+// change it held back while ownership was pending is settled by the answer,
+// once, and the guard is dropped then.
+//
+//	rename + unmuted (held) ─ window ends ─ KeepOutput ─► muted again ─► guard dropped
 func (b *Backend) checkOutputMute(name string, muted bool) *bool {
 	g := b.outGuard[name]
 	if g == nil {
 		return nil
 	}
+	pending := g.generation != 0 && !g.answered
 	_, want, expired := g.check(0, muted)
 	switch {
+	case expired && g.owedMute && pending:
+		return nil // still waiting for the answer
+	case expired && g.owedMute:
+		g.owedMute = false
+		delete(b.outGuard, name)
+		if g.muted != nil && *g.muted != muted {
+			return g.muted
+		}
+		return nil
 	case expired:
 		delete(b.outGuard, name)
 		return nil
-	case g.generation != 0 && !g.answered:
+	case pending:
 		return nil
 	}
-	return want // nil without a mute set, or when it reads that mute
+	g.owedMute = false // answered within the window: set now, or nothing to set
+	return want        // nil without a mute set, or when it reads that mute
 }
 
 // muteHold is whether the new-output guard held an output's mute when it was
@@ -711,6 +738,18 @@ func (b *Backend) checkOutputMute(name string, muted bool) *bool {
 type muteHold struct {
 	state     string
 	remaining int64
+}
+
+// oweMuteIfPending notes that the guard held back a mute it read within its
+// window but could not set again, because the mixer has not answered the
+// newest identity; the answer settles it even after the window (owedMute,
+// OUT-05, CTRL-06, #177 review).
+func (b *Backend) oweMuteIfPending(name string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if g := b.outGuard[name]; g != nil && g.generation != 0 && !g.answered {
+		g.owedMute = true
+	}
 }
 
 // heldMute reports whether the guard holds an output's mute that reads muted
@@ -749,7 +788,9 @@ func (b *Backend) checkOutputGuard(name string, volume float64) (*float64, strin
 	vol, _, expired := g.check(volume, false)
 	switch {
 	case expired:
-		delete(b.outGuard, name)
+		if !g.owedMute { // kept for checkOutputMute until the answer (#177)
+			delete(b.outGuard, name)
+		}
 		return nil, guardExpired
 	case g.generation != 0 && !g.answered:
 		return nil, guardOwnershipPending
@@ -981,6 +1022,10 @@ func (b *Backend) outsideOutputMute(name string, muted bool, hold muteHold) bool
 	if !outside {
 		b.log.Debug("output mute echo ignored: matches Apptrol's write",
 			logattr.KeyDeviceName, name, logattr.KeyMuted, muted)
+	} else if g := b.outGuard[name]; g != nil {
+		// A change after the window is the user's and newer than one the
+		// guard still owes: the answer must not undo it (MUTE-07, #177).
+		g.owedMute = false
 	}
 	return outside
 }
@@ -1061,7 +1106,7 @@ func (b *Backend) Apply(a mixer.Action) error {
 		if g := b.outGuard[a.Device]; g != nil {
 			if g.generation == a.Generation {
 				g.answered = true
-				g.volume, g.muted = nil, nil
+				g.volume, g.muted, g.owedMute = nil, nil, false
 			} else {
 				current := g.generation
 				staleRelease = &current
