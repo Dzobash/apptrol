@@ -281,6 +281,28 @@ The selected Go toolchain is exposed at `/usr/local/go` for the runner's fixed,
 cleared environment. User-manager delegation is described in
 [ADR 0037](0037-builds-in-a-limited-user-scope.md#ci-user-manager--2026-10-25).
 
+### CI policy clarification — 2026-10-26
+
+The first CI runs passed Ubuntu and both distros' build and runtime limit proofs,
+but Fedora's ordinary user manager failed during PAM account lookup. The host
+kernel reported `profile="unix-chkpwd"` denying `capname="dac_override"` for the
+container's PAM helper. This matches an
+[upstream AppArmor profile report](https://github.com/roddhjav/apparmor.d/issues/958).
+
+The owner approved adding `capability dac_override,` to the disposable runner's
+`/etc/apparmor.d/local/unix-chkpwd` and reloading only the `unix-chkpwd` profile.
+Setup first checks that the packaged profile includes that local file and then
+verifies the reloaded profile remains enforcing. An incompatible profile layout
+fails setup rather than silently skipping the rule.
+
+This permits the helper to use a capability it already holds in its user
+namespace to read container account data. It applies to all processes using that
+profile on this VM for the rest of the job, including host invocations, not only
+the Fedora container. The profile's other restrictions and AppArmor enforcement
+remain active. The owner's host is untouched; the container script gains no
+flags, privileges or mounts, and all resource proofs still run. Disabling the
+profile or changing Fedora's account-file permissions was not selected.
+
 ### Effects
 
 - Agents run containers without prompts, and the owner can see afterwards what ran

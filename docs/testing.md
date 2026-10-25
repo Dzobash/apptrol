@@ -59,6 +59,9 @@ exit code zero.
 The separate Systemd in containers job prepares Podman, user
 namespace mappings and a systemd user manager with delegated memory and pids
 controllers on its disposable runner before invoking the same local command.
+The host's enforcing `unix-chkpwd` AppArmor profile receives a local
+`dac_override` allowance so Fedora's PAM helper can read container account data
+([ADR 0034](adr/0034-containers-through-one-script.md#ci-policy-clarification--2026-10-26)).
 Its `ci` audit label is removed before Podman runs. Artifacts retain `.audit/`,
 including hidden files and failed-run logs, for 14 days; CI never commits them.
 

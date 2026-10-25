@@ -72,6 +72,15 @@ jobs:
           if test "$(sysctl -n user.max_user_namespaces)" = 0; then
             sudo sysctl -w user.max_user_namespaces=28633
           fi
+          # The host profile also confines Fedora's PAM helper. Permit its
+          # existing namespace capability to read container account data
+          # (QA-16, ADR 0034 CI policy clarification). Keep the profile enforcing.
+          grep -Eq '^[[:space:]]*(#include|include)[[:space:]]+(if[[:space:]]+exists[[:space:]]+)?<local/unix-chkpwd>' \
+            /etc/apparmor.d/unix-chkpwd
+          printf 'capability dac_override,\n' | \
+            sudo tee -a /etc/apparmor.d/local/unix-chkpwd >/dev/null
+          sudo apparmor_parser -r /etc/apparmor.d/unix-chkpwd
+          sudo grep -Fx 'unix-chkpwd (enforce)' /sys/kernel/security/apparmor/profiles
           test -e /sys/fs/cgroup/cgroup.controllers
           sudo mkdir -p "/etc/systemd/system/user@$runner_uid.service.d"
           printf '[Service]\nDelegate=memory pids\n' | \
