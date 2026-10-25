@@ -95,7 +95,7 @@ jobs:
         if: failure()
         # Host policy can attach to helpers inside a rootless container. Keep
         # evidence in this disposable runner's log; never change policy silently.
-        run: sudo journalctl --kernel --no-pager --grep='apparmor|DENIED' -n 100
+        run: sudo journalctl -k --no-pager --grep='apparmor|DENIED' -n 100
       - name: Upload container audit, including failed-run logs
         if: always()
         uses: actions/upload-artifact@v7
