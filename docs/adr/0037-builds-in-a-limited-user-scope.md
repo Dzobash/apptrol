@@ -113,6 +113,27 @@ acceptance evidence for the final revision. Acceptance requires both distro runs
 and the sample from a committed revision, recorded with `dirty=no`, plus another
 security review.
 
+## CI user manager — 2026-10-25
+
+For #171 the disposable runner installs `dbus-user-session`, enables lingering for
+its ordinary user, and starts `user@<uid>.service`. A unit drop-in specifies
+`Delegate=memory pids`; `systemctl set-property --runtime` applies the same setting
+when the manager was already running, without restarting it. Setup exports the
+user runtime directory and bus address for a readiness check. The container script
+continues to derive its own runtime directory after clearing the environment.
+
+```text
+sudo: prepare user manager, delegate memory and pids
+  ordinary user: make test-systemd AGENT=ci
+    limited build scope → uncached probe → host runtime proof → Status checks
+```
+
+No cgroup files are made globally writable and no proof is skipped. Missing v2
+controllers, delegation or mismatched limits still fail the job. This setup is
+specific to the disposable GitHub runner; it grants no permission to change the
+owner's host settings. The job's real build and host-side runtime proofs remain
+the acceptance evidence; configuring delegation alone does not prove the limits.
+
 ## References
 
 - [systemd scope execution](https://www.freedesktop.org/software/systemd/man/latest/systemd-run.html)

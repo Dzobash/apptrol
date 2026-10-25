@@ -255,6 +255,32 @@ The owner clarified two details while implementing #170:
   Whoever can write `.git/config` can already run code through `git commit` hooks
   and `make check`, so the checkout's Git data is not a security boundary.
 
+### CI clarification — 2026-10-25
+
+Issue #171 runs `make test-systemd AGENT=ci` on each pull request, using the
+unchanged runner for Ubuntu 26.04 and Fedora 44. `ci` identifies the caller in
+audit records, not a model, and is removed before Podman runs. The job uploads
+`.audit/`, including hidden files and failed-run logs, for 14 days even on failure;
+it cannot commit evidence. It remains outside the required checks until #172's
+per-distro evidence gate is met. Package installation tests remain #172 as well.
+
+On the disposable GitHub-hosted VM only, privileged setup installs Podman and its
+rootless dependencies, preserves usable subordinate UID/GID ranges or allocates
+non-overlapping ranges, and enables unprivileged user namespaces. Where present,
+`kernel.apparmor_restrict_unprivileged_userns=0` permits those namespaces for this
+boot; AppArmor itself remains enabled. This VM-wide setting trades the namespace
+restriction for simple, reproducible CI preparation. A dedicated AppArmor profile
+was considered but would add policy maintenance for the build/runtime helpers.
+`kernel.unprivileged_userns_clone=1` is set where available, and a zero
+`user.max_user_namespaces` is raised to 28633. These are runner settings, never
+changes to the owner's host or relaxations of the script's limits and mounts.
+Only setup uses `sudo`; every engine invocation remains in the repository script
+as the ordinary runner user. Checkout credentials are not persisted.
+
+The selected Go toolchain is exposed at `/usr/local/go` for the runner's fixed,
+cleared environment. User-manager delegation is described in
+[ADR 0037](0037-builds-in-a-limited-user-scope.md#ci-user-manager--2026-10-25).
+
 ### Effects
 
 - Agents run containers without prompts, and the owner can see afterwards what ran

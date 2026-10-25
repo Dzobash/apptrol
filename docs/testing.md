@@ -16,7 +16,7 @@ of [requirements.md](requirements.md#51-quality-assurance).
 | `make test` | Tests with the race detector |
 | `make test-audio` | Integration tests against your running PipeWire (they add a silent test output and inputs and remove them afterwards) |
 | `make test-desktop` | D-Bus integration tests in a private session bus (`dbus-run-session`): media players, and a fake logind standing in for the system bus; your desktop's buses and media players are not touched |
-| `make test-launcher` | Starts harmless test units (`true`) in your systemd user manager and checks they are removed; CI has no user systemd, so run it before a release |
+| `make test-launcher` | Starts harmless test units (`true`) in your systemd user manager and checks they are removed; CI's container job checks only the Status line, so run this before a release |
 | `make test-systemd` | Builds Apptrol and checks its Status line in rootless Ubuntu 26.04 and Fedora 44 containers |
 | `make container-run RECIPE=sample` | Runs a reviewed recipe with the same fixed restrictions and audit record |
 | `make cover` | Tests with coverage; fails below the minimum; writes `coverage.html` to open in a browser |
@@ -37,6 +37,7 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
 | **Lint** | `golangci-lint` with the rules in [`.golangci.yml`](https://github.com/Dzobash/apptrol/blob/main/.golangci.yml) (includes `gofmt` and `goimports`) |
 | **Test** | Starts a headless PipeWire (PipeWire, then WirePlumber and pipewire-pulse, waiting until each is ready; their logs are printed when a step fails), then `go vet` and all tests including the audio integration tests, with the race detector, on the minimum Go version and the latest stable; coverage report in the job summary; fails below the minimum |
 | **Fuzz** | Runs every fuzz test (config, saved state, MIDI decoding, mixer) for 20 seconds |
+| **Systemd in containers** | `make test-systemd AGENT=ci`: the shipped binary and service unit's Status line in rootless Ubuntu 26.04 and Fedora 44, with build and runtime limit proofs; `.audit/` is uploaded even on failure (SVC-13, QA-16). Advisory, not a required check (#172). |
 | **Vulnerability check** | `govulncheck` |
 | **Build** | Builds the Linux binary, runs `apptrol --version`, cross-compiles the portable packages for Windows without cgo (`make check-portable`, NFR-11), and checks third-party licenses |
 | **Packaging** | `goreleaser check`, then the whole release as a snapshot (`make snapshot`: binaries, archives, .deb, .rpm; nothing is published, no secrets), then `lintian` on the .deb. Lintian errors fail the job; warnings and informational tags are only printed. Suppressed tags, each with its reason, are in the job's comments (NFR-05, NFR-08, NFR-09, #146) |
@@ -50,10 +51,16 @@ Claude Code and Codex equal and checks that both ask before pushing or changing 
 real Make target against a fake Podman, checking mounts, environment isolation,
 hostile flags and rejected recipe names, and, in a real Git repository, that a
 checkout's own `core.fsmonitor` never runs and another repository is refused. They do
-not require Podman. The real container CI job remains separate work (#171).
-They also substitute private host proc/cgroup fixtures: correct runtime limits pass;
-wrong memory, swap, pids, nice or network, unreadable evidence and writable recipe
-cgroups fail before `start`, even when the image would report exit code zero.
+not require Podman. They also substitute private host proc/cgroup fixtures: correct
+runtime limits pass; wrong memory, swap, pids, nice or network, unreadable evidence
+and writable recipe cgroups fail before `start`, even when the image would report
+exit code zero.
+
+The separate Systemd in containers job prepares Podman, user
+namespace mappings and a systemd user manager with delegated memory and pids
+controllers on its disposable runner before invoking the same local command.
+Its `ci` audit label is removed before Podman runs. Artifacts retain `.audit/`,
+including hidden files and failed-run logs, for 14 days; CI never commits them.
 
 ## Rootless container checks
 
