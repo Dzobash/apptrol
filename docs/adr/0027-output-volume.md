@@ -278,8 +278,10 @@ PipeWire or PulseAudio.
   applied (#166). Whether the guard holds a change is decided when it is read, before
   the guard writes: a window that ends during that write must not turn the restore
   it answered into an outside change (found in the PR's review). Every change it
-  holds is owed: it is hidden from the mixer, so the guard outlives its window until
-  it has set the mute again or found it right. The read's own defense settles it; while
+  holds that differs from the control's mute is owed: it is hidden from the mixer, so
+  the guard outlives its window until it has set the mute again or found it right; a
+  held read that matches settles it. A guard kept past its window is never read back,
+  so a change made after the window always goes through the outside check first. The read's own defense settles it; while
   ownership is pending (a rename and a mute change in one notification), the mixer's
   answer does: `KeepOutput` sets the mute once, `ReleaseOutput` lets it go. A mute
   change taken over after the window, or removal, cancels what is owed. Without this,

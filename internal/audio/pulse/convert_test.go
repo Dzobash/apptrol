@@ -702,8 +702,9 @@ func TestCTRL06_OutputOwnershipRejectsOlderGenerations(t *testing.T) {
 
 // The guard's read-back after a write sets a lost volume again, and only
 // that: an output without a guard is not read, one that is gone or has a new
-// description is left to its notification, and pending ownership, a release
-// or an expired guard set nothing (OUT-05, CTRL-06, QA-11, ADR 0027, #166).
+// description is left to its notification, pending ownership and a release
+// set nothing, and after the window nothing is read (OUT-05, CTRL-06, QA-11,
+// ADR 0027, #166, #177).
 //
 //	read-back: 100 %, guard wants 30 % ──► 30 % again    (every other case: no write)
 func TestOUT05_ReadBackSetsOnlyALostWriteAgain(t *testing.T) {
@@ -725,7 +726,8 @@ func TestOUT05_ReadBackSetsOnlyALostWriteAgain(t *testing.T) {
 			read: SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers Pro"}, Volume: 1, Channels: 2}},
 		{name: "ownership pending", guard: func(g *guard) { g.generation, g.answered = 2, false }, wantRead: true},
 		{name: "released", guard: func(g *guard) { g.volume = nil }, wantRead: true},
-		{name: "expired", guard: func(g *guard) { g.until = time.Now().Add(-time.Second) }, wantRead: true},
+		// After the window nothing is read: a read-back belongs to it (#177).
+		{name: "expired", guard: func(g *guard) { g.until = time.Now().Add(-time.Second) }, wantRead: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b := New(quietLog(), "")

@@ -218,7 +218,10 @@ a read but before its defense, through the `afterHold` hook
 (`TestOUT05_GuardEndingBeforeItsDefenseStillSetsTheMute`), and a change
 held while ownership was pending whose answer comes after the window: kept, released,
 a stale answer first, a change by the user after the window, removed
-(`TestOUT05_HeldMuteIsSetWhenTheAnswerComesAfterTheWindow`).
+(`TestOUT05_HeldMuteIsSetWhenTheAnswerComesAfterTheWindow`). A guard kept past its
+window never undoes a newer change: a rename without a mute change owes nothing, a
+read-back after the window does not read, a newer M press wins, and a matching read
+settles a debt (`TestMUTE07_GuardPastItsWindowNeverRevertsANewerChange`).
 `TestOUT05_DescriptionAndMuteChangePreserveOwnersState` feeds a combined adapter
 notification into the mixer: newly matched, still matched and no longer matched
 devices keep physical and saved mute consistent. The fuzz test generates outside

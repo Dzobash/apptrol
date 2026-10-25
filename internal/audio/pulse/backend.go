@@ -338,10 +338,15 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 // has a new name or description is left to its change notification, so the
 // mixer still decides first (CTRL-06).
 func (b *Backend) recheckOutput(k *conn, t *tracker, name string) error {
+	// A read-back belongs to the window. A guard kept past it for a debt
+	// (owedMute) is not read: a change seen here after the window would skip
+	// the outside check, and the debt's settlement could then undo it
+	// (MUTE-07, #177 review).
 	b.mu.Lock()
-	_, guarded := b.outGuard[name]
+	g := b.outGuard[name]
+	open := g != nil && time.Now().Before(g.until)
 	b.mu.Unlock()
-	if !guarded {
+	if !open {
 		return nil
 	}
 	read := k.sinkByName
@@ -772,7 +777,11 @@ func (b *Backend) heldMute(name string, muted bool) muteHold {
 	default:
 		h.state = guardRestoreMute
 	}
-	g.owedMute = true
+	// Only a read that differs from the control's mute owes anything; one
+	// that matches it settles what an earlier read owed. A debt for a read
+	// that was already right could later undo a change made after the window
+	// (#177 review).
+	g.owedMute = g.muted != nil && *g.muted != muted
 	return h
 }
 

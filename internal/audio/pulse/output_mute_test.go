@@ -269,6 +269,103 @@ func TestOUT05_GuardEndingBeforeItsDefenseStillSetsTheMute(t *testing.T) {
 	}
 }
 
+// A guard kept past its window never undoes a change made after it: a read
+// that matched the control's mute owes nothing, a read-back after the window
+// does not read, and a newer M press is what a late answer settles to
+// (MUTE-07, OUT-05, CTRL-06, QA-11, #177 review).
+//
+//	rename, still muted ─ window ends ─ user unmutes ─ (read-back) ─ KeepOutput ─► stays unmuted
+func TestMUTE07_GuardPastItsWindowNeverRevertsANewerChange(t *testing.T) {
+	expire := func(r *muteRig) {
+		r.b.mu.Lock()
+		r.b.outGuard["spk"].until = time.Now().Add(-time.Millisecond)
+		r.b.mu.Unlock()
+	}
+	recheck := func(r *muteRig) {
+		r.t.Helper()
+		r.b.wire.Lock()
+		err := r.b.recheckOutput(r.b.cur, r.tr, "spk")
+		r.b.wire.Unlock()
+		if err != nil {
+			r.t.Fatal(err)
+		}
+	}
+	rename := func(r *muteRig, muted bool) mixer.Device {
+		r.t.Helper()
+		r.d.Description, r.d.Muted = "Speakers Pro", muted
+		for _, e := range r.report() {
+			if added, ok := e.(mixer.OutputAdded); ok {
+				return added.Device
+			}
+		}
+		r.t.Fatal("rename not reported")
+		return mixer.Device{}
+	}
+	t.Run("rename without a mute change, read back after the window", func(t *testing.T) {
+		r := newMuteRig(t, quietLog())
+		r.appear()
+		r.d.Muted = true
+		r.report() // echo
+		renamed := rename(r, true)
+		expire(r)
+		r.d.Muted = false // the user unmutes after the window
+		r.b.outputRead = func(string) (SinkInfo, error) { return r.d, nil }
+		recheck(r) // a read-back still queued reads it before its notification
+		r.apply(mixer.KeepOutput{Device: "spk", Generation: renamed.Generation})
+		if len(r.muteWrites) != 1 {
+			t.Fatalf("mute writes = %v, want the user's unmute left alone", r.muteWrites)
+		}
+		if got := muteChanges(r.report()); fmt.Sprint(got) != "[false]" {
+			t.Fatalf("user's unmute = %v, want it reported", got)
+		}
+	})
+	t.Run("held change, read back after the window", func(t *testing.T) {
+		r := newMuteRig(t, quietLog())
+		r.appear()
+		r.d.Muted = true
+		r.report()
+		renamed := rename(r, false) // held while pending: owed
+		expire(r)
+		r.b.outputRead = func(string) (SinkInfo, error) { t.Fatal("read back after the window"); return r.d, nil }
+		recheck(r)
+		r.apply(mixer.KeepOutput{Device: "spk", Generation: renamed.Generation})
+		if fmt.Sprint(r.muteWrites) != "[true true]" {
+			t.Fatalf("mute writes = %v, want the owed mute set once", r.muteWrites)
+		}
+	})
+	t.Run("newer M press before the late answer", func(t *testing.T) {
+		r := newMuteRig(t, quietLog())
+		r.appear()
+		r.d.Muted = true
+		r.report()
+		renamed := rename(r, false) // owed: muted
+		expire(r)
+		r.apply(mixer.SetOutputMute{Device: "spk", Muted: false}) // M pressed
+		r.apply(mixer.KeepOutput{Device: "spk", Generation: renamed.Generation})
+		if fmt.Sprint(r.muteWrites) != "[true false]" {
+			t.Fatalf("mute writes = %v, want the press to win", r.muteWrites)
+		}
+	})
+	t.Run("held change settled by a matching read", func(t *testing.T) {
+		r := newMuteRig(t, quietLog())
+		r.appear()
+		r.d.Muted = true
+		r.report()
+		renamed := rename(r, false) // owed: muted
+		r.d.Muted = true            // the device reads muted again within the window
+		r.report()
+		expire(r)
+		r.d.Muted = false // the user unmutes after the window
+		if got := muteChanges(r.report()); fmt.Sprint(got) != "[false]" {
+			t.Fatalf("user's unmute = %v, want it reported", got)
+		}
+		r.apply(mixer.KeepOutput{Device: "spk", Generation: renamed.Generation})
+		if len(r.muteWrites) != 1 {
+			t.Fatalf("mute writes = %v, want nothing owed", r.muteWrites)
+		}
+	})
+}
+
 // A change the guard held back while ownership was pending is still set
 // right when the mixer's answer comes after the window: it was read within
 // it, and nothing else would correct it (OUT-05, CTRL-06, QA-11, #177 review).

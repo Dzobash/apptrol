@@ -409,11 +409,13 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   the window is read back after 200 ms, and `KeepOutput` checks the last mute read.
   Whether the guard holds a change is decided when it is read (`heldMute`), before the
   guard writes, so a window ending during that write cannot turn the restore into an
-  outside change. Every held change is owed (`owedMute`): the guard outlives its
-  window until it has settled it, by the read's own defense or, while ownership is
-  pending, by the mixer's answer (`KeepOutput` sets the mute once); a release, a
-  removal or an outside change after the window cancels it. A guard kept past its
-  window holds no new change and defends no volume.
+  outside change. A held change that differs from the control's mute is owed
+  (`owedMute`): the guard outlives its window until it has settled it, by the read's
+  own defense or, while ownership is pending, by the mixer's answer (`KeepOutput` sets
+  the mute once); a matching read, a release, a removal or an outside change after the
+  window cancels it. A guard kept past its window holds no new change, defends no
+  volume and is not read back, so every change after the window is checked as an
+  outside one first.
 
   ```
   rename + unmuted (held, window open) ─ window ends ─ KeepOutput ─► muted again, guard dropped
