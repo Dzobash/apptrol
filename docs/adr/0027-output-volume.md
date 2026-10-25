@@ -275,7 +275,10 @@ PipeWire or PulseAudio.
   mixer at once. Defense waits for the ownership answer as for the volume; `KeepOutput`
   checks the last mute read. Removal drops the guard. Each accepted mute write within
   the window is read back after 200 ms like a volume write, since accepted is not
-  applied (#166). The mixer is unchanged (ADR 0015).
+  applied (#166). Whether the guard holds a change is decided when it is read, before
+  the guard writes: a window that ends during that write must not turn the restore
+  it answered into an outside change (found in the PR's review). The mixer is
+  unchanged (ADR 0015).
 
   Records added to or changed in the logging table (point 12), with no new attribute:
 

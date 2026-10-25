@@ -452,9 +452,13 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) ([]mixer.E
 func (b *Backend) sinkEvent(k *conn, t *tracker, index uint32, removed bool, read func(uint32) (SinkInfo, error)) ([]mixer.Event, error) {
 	old, known := t.outputs[index]
 	var defendErr error
+	var hold muteHold
 	evs, err := outputChange(t, index, removed, func(index uint32) (SinkInfo, error) {
 		d, err := read(index)
 		if err == nil {
+			// Whether the guard holds this read's mute is decided now, before
+			// it writes: its window may end during the write (#177 review).
+			hold = b.heldMute(d.Name, d.Muted)
 			defendErr = b.sinkRead(k, &d, known && sameOutputIdentity(old, d.Device))
 		}
 		return d, err
@@ -464,7 +468,7 @@ func (b *Backend) sinkEvent(k *conn, t *tracker, index uint32, removed bool, rea
 	}
 	filtered := evs[:0]
 	for _, ev := range evs {
-		if change, ok := ev.(mixer.OutputMuteChanged); ok && !b.outsideOutputMute(change.Name, change.Muted) {
+		if change, ok := ev.(mixer.OutputMuteChanged); ok && !b.outsideOutputMute(change.Name, change.Muted, hold) {
 			continue
 		}
 		if r, ok := ev.(mixer.OutputRemoved); ok {
@@ -654,7 +658,7 @@ func (b *Backend) defendDevice(k *conn, d SourceInfo) error {
 func (b *Backend) defendOutput(k *conn, d SinkInfo) error {
 	b.mu.Lock()
 	vol, state := b.checkOutputGuard(d.Name, d.Volume)
-	muted, _ := b.checkOutputMute(d.Name, d.Muted)
+	muted := b.checkOutputMute(d.Name, d.Muted)
 	b.mu.Unlock()
 	b.logOutputRead(d, state)
 	if err := b.restoreOutput(k, d.Name, d.Channels, d.Volume, vol); err != nil {
@@ -675,34 +679,64 @@ const (
 	guardIdentityChanged  = "identity_changed"  // new, or a new name or description: the mixer decides first
 	guardOwnershipPending = "ownership_pending" // no answer for the newest reported identity yet
 
-	// What it decided about a mute it read (#177).
-	guardNoMute       = "no_mute_set"    // no control set it, or it was released
+	// Why the guard held a mute change it read, besides ownership_pending (#177).
 	guardAtWantedMute = "at_wanted_mute" // it reads what Apptrol set
 	guardRestoreMute  = "restore_mute"   // it reads the other one: set again
 )
 
 // checkOutputMute returns the mute to set again on an output that reads
-// muted, and why; it is called with mu held. Like the volume, a mute is only
-// defended once the mixer answered the newest identity (OUT-05, CTRL-06,
-// ADR 0027, #177).
-func (b *Backend) checkOutputMute(name string, muted bool) (*bool, string) {
+// muted; it is called with mu held. Like the volume, a mute is only defended
+// once the mixer answered the newest identity (OUT-05, CTRL-06, ADR 0027,
+// #177).
+func (b *Backend) checkOutputMute(name string, muted bool) *bool {
 	g := b.outGuard[name]
 	if g == nil {
-		return nil, guardNone
+		return nil
 	}
 	_, want, expired := g.check(0, muted)
 	switch {
 	case expired:
 		delete(b.outGuard, name)
-		return nil, guardExpired
+		return nil
 	case g.generation != 0 && !g.answered:
-		return nil, guardOwnershipPending
-	case g.muted == nil:
-		return nil, guardNoMute
-	case want == nil:
-		return nil, guardAtWantedMute
+		return nil
 	}
-	return want, guardRestoreMute
+	return want // nil without a mute set, or when it reads that mute
+}
+
+// muteHold is whether the new-output guard held an output's mute when it was
+// read: state says why (restore_mute, at_wanted_mute or ownership_pending),
+// "" when it did not; remaining is how much of its window was left, in ms
+// (OUT-05, OUT-13, #177).
+type muteHold struct {
+	state     string
+	remaining int64
+}
+
+// heldMute reports whether the guard holds an output's mute that reads muted
+// now: within its window, once a control set a mute, or while the mixer has
+// not answered the newest identity. A released output holds none (OUT-05,
+// CTRL-06, ADR 0027, ADR 0035, #177). It takes mu and drops nothing, so the
+// guard's own checks still see an expired guard.
+func (b *Backend) heldMute(name string, muted bool) muteHold {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	g := b.outGuard[name]
+	if g == nil || !time.Now().Before(g.until) {
+		return muteHold{}
+	}
+	h := muteHold{remaining: time.Until(g.until).Milliseconds()}
+	switch {
+	case g.generation != 0 && !g.answered:
+		h.state = guardOwnershipPending
+	case g.muted == nil:
+		return muteHold{}
+	case *g.muted == muted:
+		h.state = guardAtWantedMute
+	default:
+		h.state = guardRestoreMute
+	}
+	return h
 }
 
 // checkOutputGuard returns the volume to set again on an output that reads
@@ -760,7 +794,7 @@ func (b *Backend) keepOutput(name string, generation uint64) error {
 	// dropped an expired guard, which then defends nothing.
 	if g := b.outGuard[name]; g != nil && g.readMuted != nil {
 		readMuted = *g.readMuted
-		muted, _ = b.checkOutputMute(name, readMuted)
+		muted = b.checkOutputMute(name, readMuted)
 		attrs = append(attrs, logattr.KeyMuted, readMuted)
 	}
 	b.mu.Unlock()
@@ -922,25 +956,26 @@ func (b *Backend) outsideDeviceMute(name string, muted bool) bool {
 //
 //	appears ─ write muted ─ echo ─ server: unmuted ─► not outside; muted again
 //	                                ┤ 3 s ├─ applet: unmuted ─► outside; taken over
-func (b *Backend) outsideOutputMute(name string, muted bool) bool {
+//
+// hold is what heldMute said when the change was read, before the guard
+// wrote anything: a window that ends during that write must not turn the
+// restore it answered into an outside change (#177 review).
+func (b *Backend) outsideOutputMute(name string, muted bool, hold muteHold) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if g := b.outGuard[name]; g != nil && time.Now().Before(g.until) {
-		if (g.generation != 0 && !g.answered) || g.muted != nil {
-			// An echo uses up what was expected; the other value leaves it
-			// for the echo of the write that sets the mute again.
-			if w, ok := b.outMuteWant[name]; ok && w.muted == muted {
-				delete(b.outMuteWant, name)
-				b.log.Debug("output mute echo ignored: matches Apptrol's write",
-					logattr.KeyDeviceName, name, logattr.KeyMuted, muted)
-				return false
-			}
-			_, state := b.checkOutputMute(name, muted)
-			b.log.Debug("output mute change not taken over: the new-output guard holds the mute",
-				logattr.KeyDeviceName, name, logattr.KeyMuted, muted, logattr.KeyGuardState, state,
-				logattr.KeyGuardRemaining, max(0, time.Until(g.until).Milliseconds()))
+	if hold.state != "" {
+		// An echo uses up what was expected; the other value leaves it for
+		// the echo of the write that sets the mute again.
+		if w, ok := b.outMuteWant[name]; ok && w.muted == muted {
+			delete(b.outMuteWant, name)
+			b.log.Debug("output mute echo ignored: matches Apptrol's write",
+				logattr.KeyDeviceName, name, logattr.KeyMuted, muted)
 			return false
 		}
+		b.log.Debug("output mute change not taken over: the new-output guard holds the mute",
+			logattr.KeyDeviceName, name, logattr.KeyMuted, muted, logattr.KeyGuardState, hold.state,
+			logattr.KeyGuardRemaining, hold.remaining)
+		return false
 	}
 	outside := outsideMute(b.outMuteWant, name, muted)
 	if !outside {

@@ -19,14 +19,14 @@ import (
 func TestOUT05_OutputMuteAttribution(t *testing.T) {
 	b := New(testLog(t), "")
 	b.outMuteWant = map[string]muteWant{"test": {muted: true, until: time.Now().Add(ownMute)}}
-	if b.outsideOutputMute("test", true) {
+	if b.outsideOutputMute("test", true, muteHold{}) {
 		t.Fatal("own echo reported as outside")
 	}
-	if !b.outsideOutputMute("test", false) {
+	if !b.outsideOutputMute("test", false, muteHold{}) {
 		t.Fatal("outside unmute suppressed")
 	}
 	b.outMuteWant["test"] = muteWant{muted: true, until: time.Now().Add(ownMute)}
-	if !b.outsideOutputMute("test", false) {
+	if !b.outsideOutputMute("test", false, muteHold{}) {
 		t.Fatal("outside unmute before own echo suppressed")
 	}
 	if err := b.Apply(mixer.SetOutputMute{Device: "test", Muted: true}); !errors.Is(err, ErrNotConnected) {
@@ -198,6 +198,37 @@ func TestOUT05_LateServerMuteRestoreIsSetAgain(t *testing.T) {
 		if !strings.Contains(logs.String(), want) {
 			t.Errorf("log lacks %q:\n%s", want, logs.String())
 		}
+	}
+}
+
+// The guard's window ends while it sets the mute again. The read it answered
+// was within the window, so it stays the server's restore: the mixer hears
+// nothing, and the echo of that write is still Apptrol's own (OUT-05,
+// MUTE-07, QA-11, #177 review).
+//
+//	read unmuted (window open) ─ write muted ─ window ends ─► not outside; echo muted ─► own
+func TestOUT05_GuardEndingDuringItsWriteStillHoldsTheRead(t *testing.T) {
+	r := newMuteRig(t, quietLog())
+	r.appear()
+	r.d.Muted = true
+	r.report()
+	r.b.outputMuteWrite = func(_ string, m bool) error {
+		r.muteWrites = append(r.muteWrites, m)
+		r.b.mu.Lock()
+		r.b.outGuard["spk"].until = time.Now().Add(-time.Millisecond)
+		r.b.mu.Unlock()
+		return nil
+	}
+	r.d.Muted = false
+	if got := muteChanges(r.report()); len(got) != 0 {
+		t.Fatalf("restore read within the window reported %v after the window ended", got)
+	}
+	r.d.Muted = true
+	if got := muteChanges(r.report()); len(got) != 0 {
+		t.Fatalf("echo of the guard's write reported %v", got)
+	}
+	if fmt.Sprint(r.muteWrites) != "[true true]" {
+		t.Fatalf("mute writes = %v, want one write again", r.muteWrites)
 	}
 }
 

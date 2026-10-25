@@ -238,14 +238,20 @@ plug in -> unmute within 3 s -> muted again; unmute after 3 s -> taken over
 - [ ] Run `pactl unload-module <module>`, then
   `pactl load-module module-null-sink sink_name=apptrol-test-extra-sink`
   → note `<new-module>`; the new sink reports muted and about 40 % without a control move.
-- [ ] Late restore, imitated (#177): run `pactl unload-module <new-module>`, then, in
-  one line so the unmute lands within the guard's 3 seconds,
-  `pactl load-module module-null-sink sink_name=apptrol-test-extra-sink; pactl set-sink-mute apptrol-test-extra-sink 0`
+- [ ] Late restore, imitated (#177): run `pactl unload-module <new-module>`, then this
+  one line. It plugs the sink in, gives Apptrol half a second to write its mute (it
+  takes milliseconds; the sink may even come back muted on its own, so waiting for
+  "muted" would not show Apptrol's write), and only then unmutes it, as a late restore
+  would, with about 2.5 of the guard's 3 seconds left:
+  `pactl load-module module-null-sink sink_name=apptrol-test-extra-sink; sleep 0.5; pactl set-sink-mute apptrol-test-extra-sink 0`
   → note `<new-module>` again. A second later `pactl get-sink-mute apptrol-test-extra-sink`
   reports yes and M6 is still lit. The journal has `output mute change not taken over:
   the new-output guard holds the mute` with `apptrol.audio.guard.state=restore_mute` (or
   `ownership_pending`) and `audio server changed the mute of a new output; setting it
-  again`, and no `unmuted outside Apptrol`.
+  again`, and no `unmuted outside Apptrol`. Before the unmute, the journal must have
+  `output mute request completed` with `apptrol.muted=true` for the sink; without it,
+  Apptrol had not written yet, so unload the module and run the line again. If it is
+  there and the journal has `unmuted outside Apptrol` instead, the case fails.
 - [ ] Wait 5 seconds, then run `pactl set-sink-mute apptrol-test-extra-sink 0`
   → the journal records `unmuted outside Apptrol` on slider6 and M6 goes dark: after
   the window an outside change is taken over.
