@@ -35,6 +35,38 @@ systemctl --user status apptrol
 **Result:** Pass / Fail / Blocked
 **Notes:**
 
+### TC-SVC-003 — The Status line names an active solo
+
+Covers: SVC-13, SOLO-01, SOLO-04, SOLO-05, STATE-04 · Phase 1.6
+Config: two-apps
+Type: Manual
+
+```
+S1, tone A closed   controller connected · solo on slider 1 (Test tone A not playing)
+start tone A       controller connected · solo on slider 1 (Test tone A)
+S2                 controller connected · solo on slider 2 (Test tone B not playing)
+S2 again           controller connected · 2 controls assigned
+```
+
+**Setup**
+- [ ] Install the candidate, apply `two-apps`, and start Apptrol with the controller plugged in
+- [ ] Close both test tones; use the quiet test tones described in [how to run release tests](../how-to-run-release-tests.md) when a step asks to start one
+- [ ] Read `systemctl --user status apptrol` after each step below; every text starts with the installed version and ` · `
+
+**Steps**
+- [ ] Press S1 → `controller connected · solo on slider 1 (Test tone A not playing)`
+- [ ] Start tone A → the suffix becomes `(Test tone A)`; the assignment count is absent
+- [ ] Close tone A → the suffix becomes `(Test tone A not playing)`
+- [ ] Restart Apptrol → the saved solo returns with the same Status text
+- [ ] Unplug the controller → `controller not found · solo on slider 1 (Test tone A not playing)`
+- [ ] Plug it back in → the solo stays visible after `controller connected`
+- [ ] Press S2 → `controller connected · solo on slider 2 (Test tone B not playing)`
+- [ ] Press S2 again → `controller connected · 2 controls assigned`
+- [ ] Inspect the debug journal's `status line sent` records → `apptrol.status` shows each changed solo text
+
+**Result:** Pass / Fail / Blocked
+**Notes:**
+
 ### TC-SVC-002 — The unit has Apptrol's summary as its title and still starts at once
 
 Covers: SVC-13 · Phase 1.6

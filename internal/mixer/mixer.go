@@ -101,6 +101,29 @@ func NewWithoutConfig(saved State) *Mixer {
 // and keeps the saved state for it (STATE-08, ADR 0025).
 func (m *Mixer) Waiting() bool { return m.waiting != nil }
 
+// SoloStatus reports the soloed column, its configured app name and whether
+// any matched stream is uncorked or any matched player reports Playing.
+// Column zero means no solo. It exposes facts for the service's Status text
+// without formatting or I/O (SVC-13, ADR 0007, ADR 0015).
+func (m *Mixer) SoloStatus() (column int, name string, playing bool) {
+	if m.solo == 0 {
+		return 0, "", false
+	}
+	id := m.setup.Assignments[Control{Slider, m.solo}]
+	name = m.setup.Targets[id].Name
+	for _, s := range m.streams {
+		if s.target == id && !s.Corked {
+			return m.solo, name, true
+		}
+	}
+	for _, p := range m.players {
+		if p.target == id && p.Status == StatusPlaying {
+			return m.solo, name, true
+		}
+	}
+	return m.solo, name, false
+}
+
 // restore applies a saved state to the current setup: positions and user mutes
 // of assigned controls (STATE-03, STATE-07) and the soloed column (STATE-04).
 // A position already known, because the control was moved since the start,

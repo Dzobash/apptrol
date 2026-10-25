@@ -258,6 +258,16 @@ in [ADR 0029](adr/0029-controller-follows-the-user-in-front.md).
 | SVC-12 | *0.2.1.* Without a system bus, or while the seat cannot be read, Apptrol MUST hold the controller whenever it is free, as before, and log a warning once (`seat_unreadable`). Every release and take-back MUST be logged at info with its reason (`apptrol.seat.front`), as in ADR 0029 (point 9). | MUST |
 | SVC-13 | *0.3.0.* While running under systemd, Apptrol MUST keep the unit's Status line (`STATUS=` over sd_notify, shown by `systemctl --user status apptrol`) up to date: always the version first, then the state: `controller not found`, `controller connected · N controls assigned`, `controller released (another user in front)`, `waiting for a valid configuration` or `stopping`. A text MUST be sent only when it changed, and sending MUST NOT hold up the event loop or the shutdown: systemd's socket can block, so a sender goroutine writes and shutdown waits at most 200 ms for the last text. Without `NOTIFY_SOCKET` (started in a terminal) nothing MUST be sent, and a failure to send MUST NOT stop Apptrol. The unit MUST NOT wait for a ready message (`Type=simple` with `NotifyAccess=main`, ADR 0007), and its `Description=` is Apptrol's one-line summary, the same as the AppStream summary (#99). | MUST |
 
+SVC-13 also requires an active app solo to replace `N controls assigned` with
+`solo on slider N (<configured app name>)`. It MUST remain visible with the controller
+connected, missing or released. The name MUST be followed by `not playing` when
+neither a matched uncorked stream nor a matched MPRIS player reporting `Playing`
+exists (the definition shared with #101). The text MUST follow solo on/off/move,
+saved-solo restoration, configuration changes, and stream/player playback changes;
+the LED pause delay MUST NOT delay it. `waiting for a valid configuration` and
+`stopping` MUST retain their short texts. The mixer MUST expose only read-only facts;
+the service builds the text (ADR 0015, ADR 0007 note of 2026-10-25, #168).
+
 ### 4.11 Desktop connection *(Phase 1.5)*
 
 | ID | Requirement | Level |
