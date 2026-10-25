@@ -78,9 +78,9 @@ jobs:
             sudo tee "/etc/systemd/system/user@$runner_uid.service.d/apptrol-ci.conf" >/dev/null
           sudo systemctl daemon-reload
           sudo loginctl enable-linger "$runner_user"
-          sudo systemctl start "user@$runner_uid.service"
-          # Apply delegation to an already-running manager without restarting it.
-          sudo systemctl set-property --runtime "user@$runner_uid.service" Delegate="memory pids"
+          # Ubuntu's systemd cannot change DelegateControllers through set-property.
+          # Restart this disposable runner's user manager to apply the drop-in.
+          sudo systemctl restart "user@$runner_uid.service"
           export XDG_RUNTIME_DIR="/run/user/$runner_uid"
           export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
           systemctl --user show-environment >/dev/null

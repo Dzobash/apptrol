@@ -116,9 +116,11 @@ security review.
 ## CI user manager — 2026-10-25
 
 For #171 the disposable runner installs `dbus-user-session`, enables lingering for
-its ordinary user, and starts `user@<uid>.service`. A unit drop-in specifies
-`Delegate=memory pids`; `systemctl set-property --runtime` applies the same setting
-when the manager was already running, without restarting it. Setup exports the
+its ordinary user, and restarts `user@<uid>.service`. A unit drop-in specifies
+`Delegate=memory pids`; restarting applies it even when the manager was already
+running. The first CI attempt showed that Ubuntu's systemd rejects changing
+`DelegateControllers` with `systemctl set-property --runtime`, so the job uses the
+unit drop-in and restart instead. Setup exports the
 user runtime directory and bus address for a readiness check. The container script
 continues to derive its own runtime directory after clearing the environment.
 
