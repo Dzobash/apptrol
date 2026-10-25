@@ -136,6 +136,13 @@ specific to the disposable GitHub runner; it grants no permission to change the
 owner's host settings. The job's real build and host-side runtime proofs remain
 the acceptance evidence; configuring delegation alone does not prove the limits.
 
+The first fresh CI pull also exposed an unavailable probe base manifest that local
+image storage had concealed. The probe's Ubuntu 24.04 digest was refreshed from
+[Docker Official Images metadata](https://github.com/docker-library/repo-info/blob/master/repos/ubuntu/remote/24.04.md).
+The probe remains digest-pinned and uncached; no resource check or isolation flag
+changes. Future missing manifests must fail and receive a reviewed pin update,
+never silently fall back to a mutable tag.
+
 ## References
 
 - [systemd scope execution](https://www.freedesktop.org/software/systemd/man/latest/systemd-run.html)

@@ -127,7 +127,8 @@ on-screen display still needs a trial on GNOME. The on-screen display moved to P
 - [x] The Status line names an active app solo, also when the app is not playing or the controller is away (SVC-13, [TC-SVC-003](testing/cases/svc.md#tc-svc-003--the-status-line-names-an-active-solo), #168). The blinking S and extra solo logs remain in #101.
 - [x] Rootless container runner and local Status checks on Ubuntu and Fedora (QA-16,
   [ADR 0034](adr/0034-containers-through-one-script.md), [container cases](testing/cases/qa.md), #170)
-- [ ] Run those container checks in CI (#171); later require the check and test package installs (#172)
+- [x] Run those container checks in CI (#171)
+- [ ] Require the container check and test package installs (#172)
 - [ ] Validate the Debian DEP-5 copyright file and record Discover's license display on a release candidate ([TC-NFR-001](testing/cases/nfr.md), NFR-09, #97)
 
 **Done when:** all Phase 1.6 MUST requirements are met, configurations in the old form
