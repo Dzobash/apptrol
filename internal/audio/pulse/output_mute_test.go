@@ -284,7 +284,7 @@ func TestMUTE07_GuardPastItsWindowNeverRevertsANewerChange(t *testing.T) {
 	recheck := func(r *muteRig) {
 		r.t.Helper()
 		r.b.wire.Lock()
-		err := r.b.recheckOutput(r.b.cur, r.tr, "spk")
+		_, err := r.b.recheckOutput(r.b.cur, r.tr, "spk")
 		r.b.wire.Unlock()
 		if err != nil {
 			r.t.Fatal(err)
@@ -344,6 +344,30 @@ func TestMUTE07_GuardPastItsWindowNeverRevertsANewerChange(t *testing.T) {
 		r.apply(mixer.KeepOutput{Device: "spk", Generation: renamed.Generation})
 		if fmt.Sprint(r.muteWrites) != "[true false]" {
 			t.Fatalf("mute writes = %v, want the press to win", r.muteWrites)
+		}
+	})
+	t.Run("held change settled by a matching read-back", func(t *testing.T) {
+		r := newMuteRig(t, quietLog())
+		r.appear()
+		r.d.Muted = true
+		r.report()
+		renamed := rename(r, false) // owed: muted; ownership pending
+		r.d.Muted = true            // a read-back within the window sees it muted again
+		r.b.outputRead = func(string) (SinkInfo, error) { return r.d, nil }
+		r.b.wire.Lock()
+		evs, err := r.b.recheckOutput(r.b.cur, r.tr, "spk")
+		r.b.wire.Unlock()
+		if err != nil || len(muteChanges(evs)) != 0 {
+			t.Fatalf("read-back within the window = %v, %v; want nothing reported", evs, err)
+		}
+		expire(r)
+		r.d.Muted = false // the user unmutes after the window
+		if got := muteChanges(r.report()); fmt.Sprint(got) != "[false]" {
+			t.Fatalf("user's unmute = %v, want it reported", got)
+		}
+		r.apply(mixer.KeepOutput{Device: "spk", Generation: renamed.Generation})
+		if len(r.muteWrites) != 1 {
+			t.Fatalf("mute writes = %v, want the user's unmute left alone", r.muteWrites)
 		}
 	})
 	t.Run("held change settled by a matching read", func(t *testing.T) {
@@ -579,7 +603,7 @@ func TestOUT05_ReappearedOutputDefendsOnlyItsNewMute(t *testing.T) {
 	// A read-back still queued for the removed device finds no guard.
 	r.b.outputRead = func(string) (SinkInfo, error) { t.Fatal("read a removed output"); return SinkInfo{}, nil }
 	r.b.wire.Lock()
-	err := r.b.recheckOutput(r.b.cur, r.tr, "spk")
+	_, err := r.b.recheckOutput(r.b.cur, r.tr, "spk")
 	r.b.wire.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -615,7 +639,7 @@ func TestOUT05_ReadBackSetsALostMuteAgain(t *testing.T) {
 	recheck := func() {
 		t.Helper()
 		r.b.wire.Lock()
-		err := r.b.recheckOutput(r.b.cur, r.tr, "spk")
+		_, err := r.b.recheckOutput(r.b.cur, r.tr, "spk")
 		r.b.wire.Unlock()
 		if err != nil {
 			t.Fatal(err)

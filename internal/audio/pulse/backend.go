@@ -322,32 +322,40 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 			}
 		case name := <-b.recheck:
 			b.wire.Lock()
-			err := b.recheckOutput(k, &t, name)
+			evs, err := b.recheckOutput(k, &t, name)
 			b.wire.Unlock()
 			if err != nil {
 				return err
+			}
+			for _, ev := range evs {
+				if err := send(ev); err != nil {
+					return err
+				}
 			}
 		}
 	}
 }
 
 // recheckOutput reads an output again after a volume or mute write within the
-// new-output guard's window and defends it as a reported change would be, so
-// a write the server lost is set again (OUT-05, ADR 0027, #166, #177). It is called
-// with wire held. An output without a guard is left alone; one that is gone or
-// has a new name or description is left to its change notification, so the
-// mixer still decides first (CTRL-06).
-func (b *Backend) recheckOutput(k *conn, t *tracker, name string) error {
-	// A read-back belongs to the window. A guard kept past it for a debt
-	// (owedMute) is not read: a change seen here after the window would skip
-	// the outside check, and the debt's settlement could then undo it
-	// (MUTE-07, #177 review).
+// new-output guard's window, so a write the server lost is set again (OUT-05,
+// ADR 0027, #166, #177). It is called with wire held. An output without a
+// guard is left alone; one that is gone or has a new name or description is
+// left to its change notification, so the mixer still decides first (CTRL-06).
+//
+// The read goes through sinkEvent, as a change notification would: the
+// tracker, the guard's hold and debt, and the outside check all see it, and
+// its events go to the mixer. A private read path that updated only the
+// guard left them disagreeing, and a late answer could then undo a newer
+// change (MUTE-07, #177 review).
+func (b *Backend) recheckOutput(k *conn, t *tracker, name string) ([]mixer.Event, error) {
+	// A read-back belongs to the window: a guard kept past it for a debt
+	// (owedMute) is not read again; its notifications still are (#177).
 	b.mu.Lock()
 	g := b.outGuard[name]
 	open := g != nil && time.Now().Before(g.until)
 	b.mu.Unlock()
 	if !open {
-		return nil
+		return nil, nil
 	}
 	read := k.sinkByName
 	if b.outputRead != nil {
@@ -356,15 +364,15 @@ func (b *Backend) recheckOutput(k *conn, t *tracker, name string) error {
 	d, err := read(name)
 	if err != nil {
 		if IsGone(err) {
-			return nil
+			return nil, nil
 		}
-		return err
+		return nil, err
 	}
 	if old, known := t.outputs[d.Index]; !known || !sameOutputIdentity(old, d.Device) {
-		return nil
+		return nil, nil
 	}
 	b.log.Debug("output read again after a write", logattr.KeyDeviceName, name)
-	return b.sinkRead(k, &d, true)
+	return b.sinkEvent(k, t, d.Index, false, func(uint32) (SinkInfo, error) { return d, nil })
 }
 
 // handle turns one change notification into mixer events, possibly none. One

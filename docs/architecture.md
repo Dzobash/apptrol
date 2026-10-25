@@ -415,7 +415,9 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   the mute once); a matching read, a release, a removal or an outside change after the
   window cancels it. A guard kept past its window holds no new change, defends no
   volume and is not read back, so every change after the window is checked as an
-  outside one first.
+  outside one first. Within the window, a read-back goes through `sinkEvent` like a
+  change notification, so the tracker, the guard's hold and debt and the outside
+  check all see it, and `session` sends its events to the mixer.
 
   ```
   rename + unmuted (held, window open) ─ window ends ─ KeepOutput ─► muted again, guard dropped

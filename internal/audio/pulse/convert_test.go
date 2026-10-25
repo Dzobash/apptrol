@@ -751,7 +751,7 @@ func TestOUT05_ReadBackSetsOnlyALostWriteAgain(t *testing.T) {
 			tr := &tracker{outputs: map[uint32]mixer.Device{0: spk}}
 
 			b.wire.Lock()
-			err := b.recheckOutput(b.cur, tr, "spk")
+			_, err := b.recheckOutput(b.cur, tr, "spk")
 			b.wire.Unlock()
 			if err != nil {
 				t.Fatal(err)
