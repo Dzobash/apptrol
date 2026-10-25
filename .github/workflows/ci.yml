@@ -91,6 +91,11 @@ jobs:
           echo 'Rootless prerequisites ready; the script will prove build and runtime limits.'
       - name: Check Status line on Ubuntu 26.04 and Fedora 44 (SVC-13)
         run: make test-systemd AGENT=ci
+      - name: Host confinement diagnostics on failure (QA-16)
+        if: failure()
+        # Host policy can attach to helpers inside a rootless container. Keep
+        # evidence in this disposable runner's log; never change policy silently.
+        run: sudo journalctl --kernel --no-pager --grep='apparmor|DENIED' -n 100
       - name: Upload container audit, including failed-run logs
         if: always()
         uses: actions/upload-artifact@v7
