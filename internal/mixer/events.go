@@ -86,6 +86,9 @@ type AudioSnapshot struct {
 	Streams []Stream
 	Devices []Device
 	Outputs []Device // output devices, PulseAudio "sinks" (OUT-12, ADR 0027)
+	// DefaultOutput is the name of the server's default output, "" if none
+	// (OUT-03, ADR 0038). It may name a device not reported yet.
+	DefaultOutput string
 }
 
 // StreamAdded reports a playback stream that appeared or changed its properties.
@@ -106,6 +109,11 @@ type OutputAdded struct{ Device Device }
 
 // OutputRemoved reports that an output device is gone (OUT-12, ADR 0027).
 type OutputRemoved struct{ Name string }
+
+// DefaultOutputChanged reports that the audio server's default output is now
+// Name, "" if there is none, e.g. after another output was chosen in the
+// desktop's sound settings (OUT-03, ADR 0038).
+type DefaultOutputChanged struct{ Name string }
 
 // OutputMuteChanged reports an outside output mute (OUT-05, MUTE-07, ADR 0027).
 type OutputMuteChanged struct {
@@ -180,6 +188,7 @@ func (DeviceRemoved) isEvent()          {}
 func (OutputAdded) isEvent()            {}
 func (OutputRemoved) isEvent()          {}
 func (OutputMuteChanged) isEvent()      {}
+func (DefaultOutputChanged) isEvent()   {}
 func (StreamMuteChanged) isEvent()      {}
 func (StreamCorkChanged) isEvent()      {}
 func (DeviceMuteChanged) isEvent()      {}

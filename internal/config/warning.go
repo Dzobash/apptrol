@@ -44,19 +44,3 @@ func monitorWarning(at, id, fragment string) Warning {
 		},
 	}
 }
-
-// inactiveDefaultOutputWarning explains why a valid output with device =
-// "default" has no audio effect yet: Setup leaves it out until following the
-// default output is built (CFG-20, OUT-03, ADR 0026 implementation note,
-// ADR 0027). Fixed outputs (match) work and get no warning. #85 removes it.
-func inactiveDefaultOutputWarning(id string) Warning {
-	const message = "following the default output is not implemented yet; this target is inactive"
-	return Warning{
-		Text:    fmt.Sprintf("outputs.%s: %s", id, message),
-		Message: message,
-		Attrs: []slog.Attr{
-			slog.String(logattr.KeyAppID, id),
-			slog.String(logattr.KeyAppType, TypeOutput),
-		},
-	}
-}

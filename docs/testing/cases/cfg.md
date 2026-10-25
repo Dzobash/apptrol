@@ -88,11 +88,10 @@ Test: `TestCFG20_OutputsLoadWithEitherSelector`, `TestCFG20_RejectsInvalidSelect
 `TestCFG20_DeviceRejectedOutsideOutputs`, `TestCFG20_OutputRulesAndDiagnostics`,
 `TestCFG20_OutputOverlapDoesNotClaimFirstControlWins` in `internal/config/outputs_test.go`,
 `TestCFG20_CheckShowsOutputSelectors` in `cmd/apptrol/main_test.go`, and
-`TestCFG20_InvalidOutputReloadKeepsConfiguration` and
-`TestCFG20_DefaultOutputWarningOnStartAndReload` in `internal/service/service_test.go`.
-`TestCFG20_SetupPassesFixedOutputsButNotDefault` in `internal/config/setup_test.go`
-checks the narrower guard: a fixed output reaches the mixer as an output, one with
-`device = "default"` stays out until #85 builds it. `TestOUT01_OutputNeverControlsAPlaybackStream`
+`TestCFG20_InvalidOutputReloadKeepsConfiguration` in `internal/service/service_test.go`.
+`TestCFG20_SetupPassesFixedAndDefaultOutputs` in `internal/config/setup_test.go`
+checks that both reach the mixer as outputs, one with `device = "default"` marked to
+follow the default (ADR 0038). `TestOUT01_OutputNeverControlsAPlaybackStream`
 checks that a fixed output matching `"speaker"` never controls a playback stream named
 `"speaker"`, including after reload.
 
@@ -151,12 +150,12 @@ Type: Manual
 - [ ] A candidate with the outputs table is installed
 
 **Steps**
-- [ ] Run `apptrol check` → no error; slider 7 shows `output: device = "default"`, knob 7 shows `output: apptrol-test-mic-sink`, both with `max 80 %`; one warning, for `outputs.main` only, says `following the default output is not implemented yet; this target is inactive` (the fixed output on knob 7 works)
-- [ ] Save the configuration again (`touch ~/.config/apptrol/config.toml`) → the journal reports `configuration reloaded` without an invalid-configuration error and repeats the inactive-output warning for `apptrol.app.id=main`
+- [ ] Run `apptrol check` → no error; slider 7 shows `output: device = "default"`, knob 7 shows `output: apptrol-test-mic-sink`, both with `max 80 %`; no warning about either output (both work, ADR 0038)
+- [ ] Save the configuration again (`touch ~/.config/apptrol/config.toml`) → the journal reports `configuration reloaded` without an invalid-configuration error, and no line says `not implemented yet`
 
 This case checks parsing and reload only, without moving output controls. Output
-volume is covered by [TC-OUT-003](out.md); following the default output by #85's later
-cases.
+volume is covered by [TC-OUT-003](out.md); following the default output by
+[TC-OUT-008](out.md).
 
 **Result:** Pass / Fail / Blocked
 **Notes:**

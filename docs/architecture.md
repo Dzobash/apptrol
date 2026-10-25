@@ -15,7 +15,8 @@ How the service is put together. Decisions and their reasons are in
                    watch)      │     actions    └───────┘ ├──► launcher ───► systemd
  PipeWire ──────► audio ───────┤                          │    (start an app in its own unit)
   (streams, inputs and         │                          └──► state ──────► state.json
-   outputs appear / go)        │
+   outputs appear / go,        │
+   the default output changes) │
  session bus ───► desktop ─────┤
   (media players appear / go,  │
    playing or paused)          │
@@ -25,7 +26,9 @@ How the service is put together. Decisions and their reasons are in
 ```
 
 - **`mixer`** holds all behaviour: assignments, mute, solo, the held microphone buttons,
-  which output device each output control sets (and that nothing else touches it),
+  which output device each output control sets (a matched one, or the system's default
+  output, which it follows), who owns a device two controls choose, and that nothing
+  else touches it,
   which media player belongs to which control, what R, the media keys and the launcher
   buttons do (and what they may do in each screen state), and every LED. It receives events and returns actions. It does no I/O and
   has no clock, so it is tested completely with plain unit tests.
@@ -48,10 +51,10 @@ How the service is put together. Decisions and their reasons are in
 |---|---|
 | `cmd/apptrol` | Command line: `run`, `list`, `check`, `test`, `version`; wires everything together |
 | `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop`, `Power`, `Launcher` and `Status` interfaces; turns mixer actions into adapter calls; keeps the Status line up to date; the Record LED's flash (the mixer has no clock); config reload and its warnings, each logged by its text or with its own message and attributes; shutdown |
-| `internal/mixer` | Core logic (pure): matching streams, inputs, output devices and media players to controls, output volume, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
+| `internal/mixer` | Core logic (pure): matching streams, inputs, output devices and media players to controls, following the default output, output ownership, output volume, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write; lets go of the controller and takes it back (ADR 0029) |
-| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`): playback streams, capture devices and output devices, their volume and mute; the new-device guard; reconnects; `apptrol list` data |
+| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`): playback streams, capture devices and output devices, their volume and mute; the default output and its changes; the new-device guard; reconnects; `apptrol list` data |
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
 | `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, whether the user's graphical session is unlocked, locked, behind another session or unknown, and whose session is in front at the seat (ADR 0029); reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
@@ -78,7 +81,7 @@ is part of this guard. Windows adapters and path changes remain in #92.
 
 1. An adapter produces an event: *slider 3 moved to 90*, *M pressed on column 2*,
    *S released on column 8*, *stream 57 (Spotify) appeared*, *output "USB Headset"
-   appeared*, *media player Spotify now playing*, *config reloaded*, *controller connected*, *controller disconnected*,
+   appeared*, *the default output is now "USB Headset"*, *media player Spotify now playing*, *config reloaded*, *controller connected*, *controller disconnected*,
    *the computer woke up*, *the screen is locked*.
    Releases and disconnects only matter for buttons that act while held (INPUT-*,
    ADR 0020).
@@ -156,17 +159,16 @@ or `device = "default"`. The first-control-wins overlap warning covers apps, inp
 and fixed outputs. Runtime output matching also catches overlaps between different
 fragments that resolve to the same device ([ADR 0035](adr/0035-first-control-owns-matched-output.md)).
 
-`Config.Setup()` passes a fixed output (`match`) as `mixer.Output`, never as an app, so
-its match list is compared with output devices only, never with playback streams
-(OUT-01). An output with `device = "default"` is still left out, with its assignment,
-until following the default is built (#85, OUT-03); it gets the fixed warning
-`following the default output is not implemented yet; this target is inactive`, with
-`apptrol.app.id` and `apptrol.app.type=output`, at every load and in `apptrol check`
-(ADR 0026 implementation note and its 2026-10-20 note). The parsed config stays intact.
+`Config.Setup()` passes every output as `mixer.Output`, never as an app, so its match
+list is compared with output devices only, never with playback streams (OUT-01). An
+output with `device = "default"` becomes a `mixer.Output` with `FollowsDefault` set and
+no match list: the mixer gives it the server's default output (OUT-03,
+[ADR 0038](adr/0038-default-output-follows-the-server.md)). The parsed config stays
+intact.
 
 ```
-[outputs.speakers] match = [...]   ──► mixer.Output     (sets the device's volume)
-[outputs.main] device = "default"  ──► left out + warning, until #85 builds it
+[outputs.speakers] match = [...]   ──► mixer.Output                  (the device that matches)
+[outputs.main] device = "default"  ──► mixer.Output, FollowsDefault  (the server's default output)
 ```
 
 The old form (`[apps.<id>]` with `type`) is read until 1.0 (CFG-19). Each such entry adds
@@ -199,23 +201,41 @@ log             ERRO the changed configuration is invalid; keeping the current s
 
 ## Output volume
 
-An output target names one output device ([ADR 0027](adr/0027-output-volume.md)). The
-mixer keeps the output devices the audio adapter reports (`AudioSnapshot.Outputs`,
-`OutputAdded`, `OutputRemoved`) and, for each output target on a control, the device it
-has chosen (`outputFor`):
+An output target names one output device by `match`, or follows the server's default
+output ([ADR 0027](adr/0027-output-volume.md), [ADR 0038](adr/0038-default-output-follows-the-server.md)).
+The mixer keeps the output devices the audio adapter reports (`AudioSnapshot.Outputs`,
+`OutputAdded`, `OutputRemoved`), the name of the default output
+(`AudioSnapshot.DefaultOutput`, `DefaultOutputChanged`, kept in `defaultOutput`) and,
+for each output target on a control, the device it has chosen (`outputFor`):
 
 - **Choosing** (`chooseOutputs`, OUT-02): the current device while it still matches,
   otherwise the first match by name, case-insensitive on name or description. It shares
   `pickDevice` with inputs (CFG-05); nothing else of the input code is shared, so solo,
   talk-over and held buttons, which only look at apps and inputs, can never reach an
-  output. Choosing runs after a snapshot, a device that appears, changes or goes, and a
-  reload.
+  output. A target with `FollowsDefault` takes `defaultOutput` instead, while that
+  device is there (OUT-03). Choosing runs after a snapshot, a device that appears,
+  changes or goes, a change of the default output, and a reload.
 - **Volume** (`SetOutputVolume`, its own action, not `SetDeviceVolume`): when the
   control moves, and when a device is newly chosen while the control's position is
   known (OUT-05). An unknown position leaves the device alone (PRIO-04); an output
   moved to another control or given another `max_volume` gets its volume again on a
   reload, as inputs do. Outside changes are not reverted (PRIO-02): the adapter does not
-  even report an output's volume.
+  even report an output's volume. The default output is the exception: only a move
+  sets its volume, never choosing or a reload, since the known position may belong to
+  the previous default (ADR 0027 point 3, ADR 0038).
+- **Following the default** (`defaultOutputChanged`, OUT-03): a new default name is
+  logged (`default output changed`, with `apptrol.device.previous_name`) and choosing
+  runs again. The default target moves to the new device and applies its mute there
+  (`output matched` with `apptrol.device.selected_by=default`, then `default output keeps
+  its volume until the control is moved`); the previous device is released as below
+  unless another control holds it. The same name again changes nothing; a name with no
+  device yet leaves the control without one until `OutputAdded` brings it.
+
+  ```
+  DefaultOutputChanged "headphones"
+    ├─► slider6 (default) ─► headphones: SetOutputMute(slider6's mute); volume left alone
+    └─► speakers: no control left ─► SetOutputMute(false), ReleaseOutput ─► nothing more is written there
+  ```
 - **Releasing** (`ReleaseOutput`, CTRL-06): a device that no output target holds any
   more after choosing (a reload took its control away or changed its match) is released;
   one another control still holds is kept, one that is gone has nothing to release. The
@@ -305,7 +325,11 @@ has chosen (`outputFor`):
   device. Later targets have no `outputFor` entry; `blockedOutputs` remembers their
   conflicts, ignores M, and limits warnings to conflict starts and reloads. The saved
   position still follows movement, ready for a later ownership transfer. Labels play
-  no part in this decision. M's LED follows the same ownership (OUT-10).
+  no part in this decision. M's LED follows the same ownership (OUT-10). The same rule
+  covers the default output on a device a fixed output holds (ADR 0038); that overlap
+  is allowed, so it is logged at info (`default output is the same device as another
+  output; the earlier control owns it`), not as a conflict. When the default moves
+  away, the control that yielded gets the device back with its own position and mute.
 
   ```text
   M7 -> saved mute -> SetOutputMute -> audio adapter -> sink mute
@@ -319,7 +343,9 @@ ControlMoved knob7 = 51   ──► SetOutputVolume { "alsa_output.usb-…", 0.4
 ```
 
 `apptrol list` asks the mixer for each output target's device (`OutputDevice`) and
-shows the control in the output devices' CONTROL column (OUT-12).
+shows the control in the output devices' CONTROL column (OUT-12). It passes the
+server's default output into the snapshot, so a `device = "default"` control shows on
+the `*` device, and of two controls on one device only the owner is shown.
 
 ## Controller access
 
@@ -352,7 +378,7 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   changes:
 
   ```
-  connect ──► AudioSnapshot { Streams, Devices (inputs), Outputs }
+  connect ──► AudioSnapshot { Streams, Devices (inputs), Outputs, DefaultOutput }
   later   ──► StreamAdded / StreamRemoved    a playback stream
               DeviceAdded / DeviceRemoved    an input
               OutputAdded / OutputRemoved    an output (also when its description changes)
@@ -367,6 +393,17 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   (`output device not on a control`), so the log shows the exact name for a match list.
   `apptrol list` reads the default output from the server information and marks it
   with `*`.
+- The default output (OUT-03, [ADR 0038](adr/0038-default-output-follows-the-server.md)):
+  the adapter also subscribes to the server's own changes. Each (re)connect reads the
+  server information into the snapshot's `DefaultOutput`; a server change notice reads
+  it again (`serverChange`) and reports `DefaultOutputChanged` only when the default
+  output is another one, as the same notice also comes for a new default input. It may
+  name a sink not reported yet; the mixer waits for that device.
+
+  ```
+  server: change ─► serverInfo ─► same default? ── yes ─► nothing
+                                        └─ no ─► DefaultOutputChanged{Name}
+  ```
 - An app matches a stream when a configured fragment is found in `application.name` or
   `application.process.binary`; some apps (Spotify) only report the name.
 - Mute changes made by others (e.g. the desktop's volume applet) are reported to the mixer,
@@ -676,10 +713,14 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   knob 7 and checks that an output is set only while a target holds it, and
   that an output control changes no stream or input; a kept output is held by a target,
   a released one by none. Ownership tests check that reported generations are echoed
-  unchanged in snapshot, change and reload answers.
+  unchanged in snapshot, change and reload answers. The fuzz test also puts a
+  default-following output before or after the fixed ones, changes the default, and
+  checks that only a move sets the default output's volume. Default-output tests cover
+  following a change, no default or one not reported yet, an outside mute on it, and
+  the overlap with a fixed output in both control orders (OUT-03, OUT-04).
 - `service`: the whole loop against fake adapters: config reload, state, shutdown, a
   slider on an output reaching the audio adapter as `SetOutputVolume` and M as
-  `SetOutputMute`; the Status line
+  `SetOutputMute`, a `device = "default"` slider following a default change; the Status line
   through every state, active solo and both playback signals, only changes sent,
   and the flush at shutdown (SVC-13).
   Output mute tests also cover persistence, outside mute on sliders and knobs,
@@ -696,7 +737,10 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   30 % and read back, the new-output guard setting it back within its 3 seconds and
   leaving it after them, a first write the server accepts but loses being set again
   by the guard's read-back (#166), an outside unmute set back within the window and
-  taken over after it (#177), `apptrol list`'s data, and a reconnect. The
+  taken over after it (#177), the real default output switched between two silent test
+  outputs and restored afterwards, with a default-following control moving along
+  (OUT-03), `apptrol list`'s data, and a reconnect. `serverChange` is unit-tested on its
+  own: only another default output is reported. The
   read-back's cases that must not write (no guard, gone, new description, pending
   ownership, released, expired) are unit-tested through the `outputRead` hook. Turning sink
   notifications into events, and the new-output guard (a slider move during a guard

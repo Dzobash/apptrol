@@ -48,8 +48,9 @@ Apptrol's own:
 | `apptrol.device.name` | An input or output device's unique name (what `match` compares, with the description) |
 | `apptrol.device.description` | An input or output device's readable name |
 | `apptrol.device.matches` | All input or output devices that match |
-| `apptrol.device.selected_by` | How an output's device was chosen: `match` (a fixed output); `default` later, with `device = "default"` |
-| `apptrol.device.controls` | Conflicting output controls: owner first, then ignored control, e.g. `slider7, knob7` (OUT-04, ADR 0035) |
+| `apptrol.device.selected_by` | How an output's device was chosen: `match` (a fixed output) or `default` (`device = "default"`, the system's default output) |
+| `apptrol.device.controls` | Output controls on one device: owner first, then the control that yields, e.g. `slider7, knob7` (OUT-04, ADR 0035, ADR 0038) |
+| `apptrol.device.previous_name` | The default output before it changed; empty if there was none (OUT-03, ADR 0038) |
 | `apptrol.device.index` | The audio server's number for an output device (changes when it is added again) |
 | `apptrol.audio.channels` | How many channels a device has, as read or written |
 | `apptrol.audio.result` | The audio server's answer to a request: `success` or `failed` |

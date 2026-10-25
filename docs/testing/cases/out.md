@@ -1,7 +1,8 @@
 # Output test cases
 
 Output devices: speakers, headphones, each output of an audio interface
-([ADR 0027](../../adr/0027-output-volume.md)). Every fixture has one test output: the
+([ADR 0027](../../adr/0027-output-volume.md)), fixed or the system's default
+([ADR 0038](../../adr/0038-default-output-follows-the-server.md)). Every fixture has one test output: the
 virtual microphone is made from a silent output called `apptrol-test-mic-sink`.
 
 ### TC-OUT-001 — `apptrol list` shows the output devices and marks the default
@@ -171,7 +172,7 @@ Test: in `internal/mixer/output_test.go`: `TestOUT01_SliderSetsOutputVolume`,
 `TestCTRL06_OutputOwnershipEchoesReportedGeneration`, and `FuzzMixer` with outputs on
 slider 7 and knob 7;
 `TestOUT01_OutputNeverControlsAPlaybackStream` and
-`TestCFG20_SetupPassesFixedOutputsButNotDefault` in `internal/config/setup_test.go`;
+`TestCFG20_SetupPassesFixedAndDefaultOutputs` in `internal/config/setup_test.go`;
 `TestOUT01_SliderSetsOutputVolumeThroughTheAudioAdapter` in
 `internal/service/service_test.go`; `TestOUT05_GuardKeepsTheVolumeSetOnANewOutput`,
 `TestOUT01_LatestSliderPositionWinsOverAGuardWrite`,
@@ -313,6 +314,80 @@ Automated: `TestOUT10_MLitWhileOutputMuted`, `TestOUT10_AppSoloLeavesOutputLEDsO
 `TestOUT10_OutputAddedConflictDarkensM`, `TestOUT10_SnapshotWithConflictShowsNoMute` in
 `internal/mixer/output_mute_test.go`; `TestOUT07_SOnAnOutputColumnDoesNothing` and
 `TestOUT07_AppSoloDoesNotMuteOutputs` in `internal/mixer/output_test.go`.
+
+**Result:** Pass / Fail / Blocked
+**Notes:**
+
+### TC-OUT-008 — The default output is followed; an overlap goes to the first control
+
+Covers: OUT-03, OUT-04, OUT-05, OUT-10, OUT-12, OUT-13, MUTE-07 · Phase 1.6
+Config: output-default
+Type: Manual + Automated
+
+Slider 6 follows the system's default output ([ADR 0038](../../adr/0038-default-output-follows-the-server.md));
+slider 7 holds the silent test output. While the test output is the default, both
+choose it, and slider 6, the earlier control, owns it. Slider 6 is moved only while
+the test output is the default, so your own output's volume is never set.
+
+```text
+your output default ─────────┤ test output default ├─────────┤ your output default
+slider6 → your output          slider6 → test output           slider6 → your output (volume kept)
+slider7 → test output          slider7 does nothing            slider7 → test output (its position)
+```
+
+**Setup**
+- [ ] Nothing loud is playing; slider 6 and slider 7 have not been moved since the
+  fixture was applied
+- [ ] Run `pactl get-default-sink` → note the name (`<your default>` below); it is not
+  `apptrol-test-mic-sink`
+- [ ] Run `pactl get-sink-volume <your default>` → note the percentage (`<your volume>`)
+
+**Steps**
+- [ ] Run `date +%T; systemctl --user restart apptrol` → it prints the time (`<time>`
+  below)
+- [ ] Run `journalctl --user -u apptrol --since <time> | grep -E 'output matched|keeps its volume'`
+  → `output matched` for `apptrol.control=slider6` with
+  `apptrol.device.selected_by=default` and `apptrol.device.name=<your default>`, one for
+  slider 7 with `selected_by=match`, and `default output keeps its volume until the
+  control is moved` for slider 6. No line says `not implemented yet`
+- [ ] Run `pactl get-sink-volume apptrol-test-mic-sink` → note the percentage
+  (`<test volume>`)
+- [ ] Run `pactl set-default-sink apptrol-test-mic-sink` (or choose the test output in
+  the desktop's sound settings) → `apptrol list` puts `*` on `apptrol-test-mic-sink`
+  and shows only `slider6 (Main volume)` under CONTROL
+- [ ] Run `journalctl --user -u apptrol --since -1min | grep -E 'default output|output released'`
+  → `default output changed` with `apptrol.device.name=apptrol-test-mic-sink` and
+  `apptrol.device.previous_name=<your default>`; `output released; no control holds
+  the device` for `<your default>`; and at info, `default output is the same device as
+  another output; the earlier control owns it` with `apptrol.control=slider7` and
+  `apptrol.device.controls="slider6, slider7"`. No `output match ignored` warning
+- [ ] Run `pactl get-sink-volume apptrol-test-mic-sink` → still `<test volume>`: the
+  new default keeps its volume until slider 6 moves
+- [ ] Move slider 6 to the top → the same command shows 50 % (slider 6's `max_volume`)
+- [ ] Move slider 7 to the top → still 50 %: slider 7 yields while slider 6 owns it
+- [ ] Press M6 → M6 lights up; `pactl get-sink-mute apptrol-test-mic-sink` reports yes.
+  Press M7 → M7 stays dark, mute stays yes
+- [ ] Run `pactl set-sink-mute apptrol-test-mic-sink 0` (as a mute key would, on the
+  default output) → M6 goes dark: slider 6 takes the outside unmute over
+- [ ] Press M6 twice → lit, then dark again; mute reports no. Leave it unmuted, so
+  switching back does not mute your own output
+- [ ] Run `pactl set-default-sink <your default>` → the journal has `default output
+  changed` with `apptrol.device.previous_name=apptrol-test-mic-sink` and
+  `output matched` for slider 7 on `apptrol-test-mic-sink`
+- [ ] Run `pactl get-sink-volume apptrol-test-mic-sink` → 80 %: slider 7 took the test
+  output back with its own position (top, `max_volume = 80`)
+- [ ] Run `pactl get-sink-volume <your default>` → still `<your volume>`: Apptrol did not
+  put slider 6's position on it. Do not move slider 6 now
+- [ ] Run `pactl get-default-sink` → `<your default>` again
+
+Automated: in `internal/mixer/output_default_test.go`:
+`TestOUT03_DefaultOutputFollowsEveryChange`, `TestOUT03_DefaultOutputVolumeIsSetOnlyByAMove`,
+`TestOUT03_NoDefaultOutputDoesNothing`, `TestOUT05_OutsideMuteOnTheDefaultOutputIsTakenOver`,
+`TestOUT04_DefaultOverlapFirstControlOwns`; `TestOUT03_ServerChangeReportsANewDefaultOutput`
+in `internal/audio/pulse/convert_test.go`; `TestIntegration_OUT03_DefaultOutputFollowsASwitch`
+in `internal/audio/pulse/integration_test.go` (the real default switched and restored);
+`TestOUT03_DefaultOutputFollowedThroughTheService` in `internal/service/service_test.go`;
+`TestOUT12_ListShowsOutputControl` in `cmd/apptrol/list_test.go`.
 
 **Result:** Pass / Fail / Blocked
 **Notes:**

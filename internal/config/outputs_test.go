@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
 // outputsBase exercises both selectors on different kinds of control (CFG-20,
@@ -24,16 +26,16 @@ knob2 = "speakers"
 
 func TestCFG20_OutputsLoadWithEitherSelector(t *testing.T) {
 	cfg, warnings := mustParseWarnings(t, outputsBase)
-	// Only the default output is inactive; the fixed one works (OUT-01, OUT-03).
-	if len(warnings) != 1 {
-		t.Fatalf("warnings = %v, want one inactive warning for the default output", warnings)
+	// Both work: no output is inactive any more (OUT-01, OUT-03, ADR 0038).
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
 	}
-	w := warnings[0]
-	if w.Message != "following the default output is not implemented yet; this target is inactive" || w.Text != "outputs.main: "+w.Message {
-		t.Errorf("warning = %+v", w)
+	s := cfg.Setup()
+	if got := s.Targets["main"]; !got.FollowsDefault || got.Kind != mixer.Output || len(got.Match) != 0 || s.Assignments[mixer.Control{Kind: mixer.Slider, Column: 1}] != "main" {
+		t.Errorf("default output in the mixer's setup = %+v, slider1 = %q", got, s.Assignments[mixer.Control{Kind: mixer.Slider, Column: 1}])
 	}
-	if attrs := attrsOf(w); len(attrs) != 2 || attrs["apptrol.app.id"] != "main" || attrs["apptrol.app.type"] != TypeOutput {
-		t.Errorf("warning attributes = %v", attrs)
+	if s.Targets["speakers"].FollowsDefault {
+		t.Error("a fixed output follows the default")
 	}
 	main, fixed := cfg.Apps["main"], cfg.Apps["speakers"]
 	if main.Device != DeviceDefault || main.Type != TypeOutput || main.Name != "Main volume" || main.MaxVolume != 100 || len(main.Match) != 0 {

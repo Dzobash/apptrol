@@ -65,11 +65,12 @@ const (
 	KeyStreamID   = "apptrol.stream.id"       // the audio server's stream index
 	KeyStreamName = "apptrol.stream.app_name" // the stream's application.name
 
-	KeyDeviceName        = "apptrol.device.name"        // an input or output device's unique name (ADR 0027)
-	KeyDeviceDescription = "apptrol.device.description" // an input or output device's description
-	KeyDeviceMatches     = "apptrol.device.matches"     // devices that match, comma-separated
-	KeyDeviceSelectedBy  = "apptrol.device.selected_by" // how an output's device was chosen: match or default (OUT-13, ADR 0027)
-	KeyDeviceControls    = "apptrol.device.controls"    // conflicting output controls: owner, then ignored control (OUT-04, ADR 0035)
+	KeyDeviceName         = "apptrol.device.name"          // an input or output device's unique name (ADR 0027)
+	KeyDeviceDescription  = "apptrol.device.description"   // an input or output device's description
+	KeyDeviceMatches      = "apptrol.device.matches"       // devices that match, comma-separated
+	KeyDeviceSelectedBy   = "apptrol.device.selected_by"   // how an output's device was chosen: match or default (OUT-13, ADR 0027)
+	KeyDeviceControls     = "apptrol.device.controls"      // output controls on one device: owner, then the control that yields (OUT-04, ADR 0035, ADR 0038)
+	KeyDevicePreviousName = "apptrol.device.previous_name" // the default output before a change, "" if none (OUT-03, ADR 0038)
 
 	// What the audio adapter read from and wrote to an output device, and
 	// what its new-output guard decided (OUT-05, OUT-13, ADR 0027).

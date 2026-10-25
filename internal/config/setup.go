@@ -30,20 +30,16 @@ func launcherLED(name string) (mixer.LED, bool) {
 	return mixer.LED{}, false
 }
 
-// Setup returns apps, inputs, fixed outputs, active assignments and buttons for
-// the mixer. A fixed output (match) becomes a mixer.Output, which acts on an
-// output device and never on a playback stream (OUT-01, ADR 0027). An output
-// with device = "default" stays in Config but is omitted here, with its
-// assignment, until #85 builds following the default (OUT-03); it gets the
-// inactive warning instead (CFG-20, ADR 0026 implementation note).
+// Setup returns apps, inputs, outputs, active assignments and buttons for the
+// mixer. An output becomes a mixer.Output, which acts on an output device and
+// never on a playback stream (OUT-01, ADR 0027): the device its match chooses,
+// or with device = "default" the audio server's default output (OUT-03,
+// ADR 0038).
 func (c *Config) Setup() mixer.Setup {
 	s := mixer.Setup{Layout: DefaultLayout, Targets: map[string]mixer.Target{}, Assignments: map[mixer.Control]string{},
 		Buttons: map[mixer.LED]mixer.Button{}, MediaPlayer: c.Media.Player, Launchers: map[mixer.LED]mixer.Launch{},
 		ReleaseAtLoginScreen: c.Controller.AtLoginScreen == AtLoginScreenRelease}
 	for id, app := range c.Apps {
-		if app.followsDefault() {
-			continue
-		}
 		kind := mixer.App
 		switch app.Type {
 		case TypeInput:
@@ -52,12 +48,10 @@ func (c *Config) Setup() mixer.Setup {
 			kind = mixer.Output
 		}
 		s.Targets[id] = mixer.Target{ID: id, Name: app.Name, Kind: kind, Match: append([]string(nil), app.Match...),
-			MaxVolume: float64(app.MaxVolume) / 100, TalkOverVolume: app.TalkOverVolume}
+			FollowsDefault: app.Type == TypeOutput && app.Device == DeviceDefault,
+			MaxVolume:      float64(app.MaxVolume) / 100, TalkOverVolume: app.TalkOverVolume}
 	}
 	for _, a := range c.Layout().Assignments {
-		if app := c.Apps[a.AppID]; app.followsDefault() {
-			continue
-		}
 		kind := mixer.Slider
 		if a.Control.Kind == Knob {
 			kind = mixer.Knob
@@ -84,7 +78,3 @@ func (c *Config) Setup() mixer.Setup {
 	}
 	return s
 }
-
-// followsDefault reports whether the target is an output with device =
-// "default", which the mixer cannot follow yet (OUT-03, CFG-20, ADR 0027).
-func (a App) followsDefault() bool { return a.Type == TypeOutput && a.Device == DeviceDefault }

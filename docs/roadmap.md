@@ -115,12 +115,15 @@ Output volume added on 2026-10-07 (#85, #86). Split from the on-screen display o
 on-screen display still needs a trial on GNOME. The on-screen display moved to Phase 1.7.
 
 - [x] Decision records for separate configuration tables and output volume ([ADR 0026](adr/0026-separate-tables-for-apps-inputs-outputs.md), [ADR 0027](adr/0027-output-volume.md))
-- [x] Separate tables `[apps]`, `[inputs]`, `[outputs]`; the old `type = "input"` still read with a warning until 1.0 (CFG-18 to CFG-22, #86). Fixed outputs (`match`) reach the mixer since #85's first step; outputs with `device = "default"` are still omitted with a warning until following the default is built, before 0.3.0 RC1.
+- [x] Separate tables `[apps]`, `[inputs]`, `[outputs]`; the old `type = "input"` still read with a warning until 1.0 (CFG-18 to CFG-22, #86). Fixed outputs (`match`) reach the mixer since #85's first step, outputs with `device = "default"` since its last ([ADR 0038](adr/0038-default-output-follows-the-server.md)).
 - [ ] Output volume on a slider or knob: a fixed device, or the system's default output; M and R on output columns, no solo ([ADR 0036](adr/0036-no-solo-on-outputs.md)); outputs in `apptrol list` (OUT-01 to OUT-13, #85)
   Fixed output volume and M are implemented; overlapping matches use the first
   control (ADR 0035). A mute the server restores on a device that just appeared is
   set back (#177). M's LED is lit while an output is muted; outputs have no solo (ADR 0036,
-  PR 2c). Following the default is PR 3.
+  PR 2c). `device = "default"` follows the system's default output; when it is a
+  fixed output's device too, the first control owns it ([ADR 0038](adr/0038-default-output-follows-the-server.md),
+  PR 3a). Left: the new-output guard for a device that becomes the default as it
+  appears (PR 3b).
 - [x] Decision record for three screen states: locked, switched away, logged out ([ADR 0030](adr/0030-three-screen-states.md))
 - [x] At the login screen after *Switch user*, the media buttons and R send nothing; each press is logged as a warning (ADR 0030, #60)
 - [x] `systemctl --user status apptrol` shows a Status line: the version, then the state; the unit's title is Apptrol's summary (SVC-13, [ADR 0007](adr/0007-systemd-user-service.md), [TC-SVC-001](testing/cases/svc.md), #99)

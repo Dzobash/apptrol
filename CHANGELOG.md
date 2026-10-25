@@ -43,8 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   volume back after setting it and sets it again if the audio server lost it, as
   PipeWire 1.0 can (#166); with `level = "debug"`, the log shows each read of
   an output, the volume Apptrol set on it, and each ownership answer it ignored because
-  the output changed again. `device = "default"` is still inactive,
-  with a warning (OUT-01, OUT-02, OUT-04, OUT-05, OUT-13,
+  the output changed again (OUT-01, OUT-02, OUT-04, OUT-05, OUT-13,
   [ADR 0027](docs/adr/0027-output-volume.md), Refs #85).
 - M toggles a fixed output's mute, saved per control. Outside mutes are taken over
   on sliders and knobs; re-plug applies the saved mute and known position. When two
@@ -62,6 +61,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mute. Outputs have no solo: S on an output column does nothing, as next to app solo
   it made everything too complicated; app solo never mutes an output (OUT-07, OUT-10,
   [ADR 0036](docs/adr/0036-no-solo-on-outputs.md), Refs #85).
+- An output with `device = "default"` follows the output your system uses right now:
+  pick headphones in the desktop's sound settings, and the control moves to them at
+  once. The new default keeps its own volume until you move the control, also after a
+  restart, so Apptrol never puts the speakers' level on your headphones by itself; the
+  control's mute moves with it, and the previous default keeps its volume and is
+  unmuted. The keyboard's mute key mutes the default output and lights M. When the
+  default is also a fixed output's device, the earlier control owns it (sliders 1–8,
+  then knobs 1–8) and the other does nothing meanwhile, logged at info; it gets the
+  device back when the default moves away. The log names every change of the default
+  output, with the previous one in `apptrol.device.previous_name`. The warning that
+  such an output is inactive is gone (OUT-03, OUT-04, OUT-13,
+  [ADR 0038](docs/adr/0038-default-output-follows-the-server.md), Refs #85).
 - `make check` and CI cross-compile the shared packages for Windows without cgo,
   catching accidental Linux dependencies early. The configuration watcher keeps its
   inode check on Linux and uses modification time and size elsewhere. This guards
@@ -76,8 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `device = "default"`, with `name` and `max_volume`. Ids stay unique across all three
   target tables. `apptrol check` shows the selector and rejects misplaced or invalid
   settings (CFG-20, ADR 0026, ADR 0027, #86). A fixed output never controls a playback
-  stream, even one named like its match (OUT-01). Following the default output follows
-  in #85; until then, an output with `device = "default"` warns that it is inactive.
+  stream, even one named like its match (OUT-01).
 - Input and output match fragments ending in `.monitor` warn at every load and in
   `apptrol check`, with the target id and fragment in the log; the file stays valid.
   The reference and example explain device names, matching and monitors (CFG-21, CFG-22).

@@ -224,6 +224,8 @@ type tracker struct {
 	devMute map[uint32]bool         // last seen mute, by source index
 	outputs map[uint32]mixer.Device // by sink index (OUT-12, ADR 0027)
 	outMute map[uint32]bool         // last observed output mute (OUT-05, ADR 0027)
+	// defaultSink is the default output last reported, "" if none (OUT-03, ADR 0038).
+	defaultSink string
 }
 
 // session runs one connection until it breaks or ctx ends.
@@ -262,8 +264,13 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 		if err != nil {
 			return err
 		}
+		info, err := k.serverInfo() // the default output may have changed since the last read (OUT-03)
+		if err != nil {
+			return err
+		}
 		t = tracker{streams: map[uint32]mixer.Stream{}, devices: map[uint32]mixer.Device{},
-			muted: map[uint32]bool{}, devMute: map[uint32]bool{}, outputs: map[uint32]mixer.Device{}, outMute: map[uint32]bool{}}
+			muted: map[uint32]bool{}, devMute: map[uint32]bool{}, outputs: map[uint32]mixer.Device{}, outMute: map[uint32]bool{},
+			defaultSink: info.DefaultSinkName}
 		chans, devChans, outChans := map[uint32]int{}, map[string]int{}, map[string]int{}
 		for _, s := range streams {
 			t.streams[s.ID] = s.Stream
@@ -289,7 +296,7 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 		b.muteWant, b.devMuteWant = map[uint32]muteWant{}, map[string]muteWant{}
 		b.outMuteWant = map[string]muteWant{}
 		b.mu.Unlock()
-		return send(Snapshot(streams, sources, sinks))
+		return send(Snapshot(streams, sources, sinks, t.defaultSink))
 	}
 	if err := resync(); err != nil {
 		return err
@@ -464,8 +471,34 @@ func (b *Backend) handle(k *conn, t *tracker, e proto.SubscribeEvent) ([]mixer.E
 
 	case proto.EventSink:
 		return b.sinkEvent(k, t, e.Index, kind == proto.EventRemove, k.sink)
+
+	case proto.EventServer:
+		return serverChange(t, func() (string, error) {
+			info, err := k.serverInfo()
+			if err != nil {
+				return "", err
+			}
+			return info.DefaultSinkName, nil
+		})
 	}
 	return nil, nil
+}
+
+// serverChange reads the default output again after the server reported a
+// change of its own, and reports it to the mixer when it is another one
+// (OUT-03, ADR 0038). The server sends the same notice for other changes,
+// e.g. a new default input, so most of them report nothing. read returns the
+// default sink's name; tests replace it (QA-11).
+func serverChange(t *tracker, read func() (string, error)) ([]mixer.Event, error) {
+	name, err := read()
+	if err != nil {
+		return nil, err
+	}
+	if name == t.defaultSink {
+		return nil, nil
+	}
+	t.defaultSink = name // the mixer logs the change (ADR 0038)
+	return []mixer.Event{mixer.DefaultOutputChanged{Name: name}}, nil
 }
 
 // sinkEvent turns a change notification about the output device with index

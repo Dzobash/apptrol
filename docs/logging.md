@@ -194,13 +194,26 @@ Use the output's name without `.monitor` in `[outputs.<id>]`. Invalid output sel
 (such as both `match` and `device`) use the usual `config_invalid` error records, with
 the reason in `exception.message` and `apptrol.component=config`.
 
-Until following the default output (#85) is built, each output with
-`device = "default"` gets this warning at startup and every reload, and in
-`apptrol check` (CFG-20, ADR 0026 implementation note). The target and its assignment
-are left out of the mixer. A fixed output (`match`) works and gets no warning:
+An output with `device = "default"` on slider 6, while you pick the headphones in the
+desktop's sound settings (OUT-03, [ADR 0038](adr/0038-default-output-follows-the-server.md)).
+The change is logged once, then what the control does: the speakers are released and
+keep their volume, the headphones keep theirs until slider 6 moves. Without a default
+output, the control says it does nothing:
 
 ```text
-WARN following the default output is not implemented yet; this target is inactive apptrol.component=config file.path=/home/you/.config/apptrol/config.toml apptrol.app.id=main apptrol.app.type=output
+INFO default output changed apptrol.component=mixer apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.previous_name=alsa_output.pci-<card>.analog-stereo
+INFO output released; no control holds the device apptrol.component=mixer apptrol.device.name=alsa_output.pci-<card>.analog-stereo
+INFO output matched apptrol.component=mixer apptrol.layout=default apptrol.control=slider6 apptrol.app.id=main apptrol.app.name="Main volume" apptrol.app.type=output apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.description="USB Headset" apptrol.device.selected_by=default
+INFO default output keeps its volume until the control is moved apptrol.component=mixer … apptrol.control=slider6 … apptrol.device.name=alsa_output.usb-<headset>.analog-stereo
+INFO no default output; the control does nothing until there is one apptrol.component=mixer … apptrol.control=slider6 …
+```
+
+When the default is a device a fixed output holds too, the earlier control owns it;
+the record is about the control that yields, and `apptrol.device.controls` names the
+owner first. It is allowed, so it is info, not a warning:
+
+```text
+INFO default output is the same device as another output; the earlier control owns it apptrol.component=mixer … apptrol.control=knob7 … apptrol.device.name=alsa_output.usb-<headset>.analog-stereo apptrol.device.controls="slider6, knob7"
 ```
 
 A fixed output on slider 7 at connect, then moved; a second control on the same

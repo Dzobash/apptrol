@@ -15,6 +15,7 @@ func FuzzMixer(f *testing.F) {
 	screens := []ScreenState{ScreenUnlocked, ScreenLocked, ScreenInactive, ScreenUnknown}
 	f.Add([]byte{16, 0, 0, 7, 1, 7, 17, 0, 8, 1, 16, 0, 2, 7, 3, 7})
 	f.Add([]byte{16, 0, 8, 7, 2, 7, 0, 7, 18, 0, 18, 2})
+	f.Add([]byte{8, 1, 9, 1, 0, 5, 19, 2, 2, 5, 19, 1, 8, 2, 19, 2, 1, 8, 19, 0})
 	f.Fuzz(func(t *testing.T, data []byte) {
 		setup := outputSetup() // with outputs on slider7 and knob7 (OUT-01)
 		setup.Launchers = map[LED]Launch{
@@ -24,7 +25,7 @@ func FuzzMixer(f *testing.F) {
 		w := newWorld(t, setup, State{})
 		w.do(ControllerConnected{})
 		for i := 0; i+1 < len(data); i += 2 {
-			op, arg := data[i]%19, int(data[i+1])
+			op, arg := data[i]%20, int(data[i+1])
 			var ev Event
 			switch op {
 			case 0:
@@ -58,9 +59,14 @@ func FuzzMixer(f *testing.F) {
 					s.Targets["earlier"] = Target{ID: "earlier", Kind: Output, Match: []string{"built-in"}}
 					s.Assignments[Control{Slider, 6}] = "earlier"
 				}
+				if arg%11 != 0 { // the default output, before or after the fixed ones (OUT-03, ADR 0038)
+					s.Targets["follow"] = Target{ID: "follow", Kind: Output, FollowsDefault: true}
+					s.Assignments[[]Control{{Slider, 5}, {Knob, 8}}[arg%2]] = "follow"
+				}
 				ev = ConfigChanged{s}
 			case 9:
-				ev = AudioSnapshot{Streams: pool[:arg%len(pool)], Devices: devices[:arg%3], Outputs: outs[:arg%3]}
+				ev = AudioSnapshot{Streams: pool[:arg%len(pool)], Devices: devices[:arg%3], Outputs: outs[:arg%3],
+					DefaultOutput: []string{"", speakers.Name, headphones.Name}[arg%3]}
 			case 10:
 				ev = ButtonPressed{ButtonR, arg % 10}
 			case 11:
@@ -87,6 +93,8 @@ func FuzzMixer(f *testing.F) {
 				ev = OutputRemoved{outs[arg%2].Name}
 			case 18:
 				ev = OutputMuteChanged{Name: outs[arg%2].Name, Muted: arg%3 == 0}
+			case 19:
+				ev = DefaultOutputChanged{Name: []string{"", speakers.Name, headphones.Name}[arg%3]}
 			}
 			launched := len(w.launched)
 			w.do(ev)
@@ -143,6 +151,16 @@ func checkInvariants(t *testing.T, w *world) {
 	}
 }
 
+// outputOwner returns the target that holds output device dev, "" if none.
+func (m *Mixer) outputOwner(dev string) string {
+	for id, d := range m.outputFor {
+		if d == dev {
+			return id
+		}
+	}
+	return ""
+}
+
 // checkOutputs checks the output rules after every event: an output device is
 // set only while an output target on a control holds it (apart from releasing
 // mute), and a control on an output changes no stream or input
@@ -165,6 +183,10 @@ func checkOutputs(t *testing.T, w *world, ev Event) {
 			}
 			if !contains(w.m.outputFor, a.Device) {
 				t.Fatalf("%T: output %s set but held by no target (%v)", ev, a.Device, w.m.outputFor)
+			}
+			// Only a move sets the default output's volume (OUT-03, ADR 0038).
+			if _, moved := ev.(ControlMoved); !moved && w.m.setup.Targets[w.m.outputOwner(a.Device)].FollowsDefault {
+				t.Fatalf("%T set the default output's volume: %v", ev, a)
 			}
 		case SetOutputMute:
 			if blocked {
