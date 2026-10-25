@@ -14,6 +14,12 @@ point 7 and the solo part of point 9: outputs have no solo, as next to app solo 
 made everything too complicated. S on an output column does nothing; M's LED works as
 point 9 says.
 
+**2026-10-25 decision update:** [ADR 0038](0038-default-output-follows-the-server.md)
+supersedes point 4 for the default output: the first control owns a device that the
+default output and a fixed output share, as ADR 0035 says for fixed outputs; the
+overlap is logged at info. The default output's volume is set only by a move (point 3).
+`device = "default"` works; the inactive warning of the note of 2026-10-20 is gone.
+
 ## Context
 
 Apptrol sets the volume of apps and of inputs, but not of an output device (#85). To

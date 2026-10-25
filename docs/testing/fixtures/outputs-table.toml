@@ -1,7 +1,8 @@
 # Configuration-only fixture: both output selectors (CFG-20, ADR 0026, ADR 0027).
 # The fixed name is the silent sink created by apply-fixture.sh for its microphone.
-# The fixed output on knob 7 works (OUT-01); following the default (slider 7) is not
-# built yet and warns at every load (#85). No output moves in these cases.
+# Both work: the fixed output on knob 7 (OUT-01) and slider 7 following the default
+# (OUT-03, ADR 0038). No output moves in these cases: slider 7 would set your own
+# default output.
 [log]
 level = "debug"
 outputs = ["journald"]

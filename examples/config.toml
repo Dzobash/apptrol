@@ -73,10 +73,14 @@ match = ["GoXLR"]                  # part of the input device's name
 
 # An output's control sets the whole device's volume (speakers, headphones);
 # the apps keep their own volumes. Until the control is moved, Apptrol leaves
-# the output's volume alone. M and S do nothing on an output column yet (#85).
+# the output's volume alone. M mutes the output; outputs have no solo, so S
+# does nothing on an output column.
 # Choose exactly one: match = ["Speaker"] for a fixed output, or
-# device = "default" for the audio server's current default (the only device value;
-# not working yet: it warns that it is inactive until #85 builds it).
+# device = "default" for the output your system uses right now (the only device
+# value). It moves with the system's default at once; the new default keeps its
+# own volume until you move the control, and the control's mute goes with it.
+# If the default is also a fixed output's device, the earlier control owns it
+# (sliders 1–8, then knobs 1–8); the other does nothing meanwhile.
 # `device` is only for outputs; `type` and `talk_over_volume` are not allowed here.
 # [outputs.speakers]
 # name = "Speakers"
@@ -100,6 +104,7 @@ slider1 = "spotify"
 slider2 = "browser"
 slider3 = "discord"
 slider4 = "games"
+# slider6 = "main"                # after enabling [outputs.main]
 # slider7 = "speakers"            # after enabling [outputs.speakers]
 slider8 = "mic"
 

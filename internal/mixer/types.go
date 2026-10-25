@@ -153,6 +153,9 @@ type Target struct {
 	Name  string
 	Kind  TargetKind
 	Match []string // case-insensitive fragments
+	// FollowsDefault marks an output with device = "default": it acts on the
+	// audio server's default output instead of a match (OUT-03, ADR 0038).
+	FollowsDefault bool
 	// MaxVolume is the volume at the top of the control: 1 = 100 %, up to
 	// MaxBoost. 0 means 1.
 	MaxVolume float64

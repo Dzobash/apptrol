@@ -49,10 +49,10 @@ knob8   = "mic"
 	}
 }
 
-// A fixed output reaches the mixer as an Output with its control; one that
-// follows the default stays out, with its assignment, until it is built
-// (CFG-20, OUT-01, OUT-03, ADR 0026 implementation note, ADR 0027).
-func TestCFG20_SetupPassesFixedOutputsButNotDefault(t *testing.T) {
+// Both kinds of output reach the mixer as an Output with its control: a fixed
+// one with its match, one with device = "default" marked FollowsDefault
+// (CFG-20, OUT-01, OUT-03, ADR 0027, ADR 0038).
+func TestCFG20_SetupPassesFixedAndDefaultOutputs(t *testing.T) {
 	cfg, _ := mustParse(t, outputsBase+`
 [apps.music]
 match = ["Test speaker"]
@@ -60,18 +60,19 @@ match = ["Test speaker"]
 match = ["Test microphone"]
 `)
 	setup := cfg.Setup()
-	if target, ok := setup.Targets["main"]; ok {
-		t.Errorf("the default output reached the mixer as %+v", target)
+	wantDefault := mixer.Target{ID: "main", Name: "Main volume", Kind: mixer.Output, FollowsDefault: true, MaxVolume: 1}
+	if got := setup.Targets["main"]; !reflect.DeepEqual(got, wantDefault) {
+		t.Errorf("default output = %+v, want %+v", got, wantDefault)
 	}
 	want := mixer.Target{ID: "speakers", Name: "speakers", Kind: mixer.Output, Match: []string{"Test speaker"}, MaxVolume: 0.8}
 	if got := setup.Targets["speakers"]; !reflect.DeepEqual(got, want) {
 		t.Errorf("fixed output = %+v, want %+v", got, want)
 	}
-	wantAssignments := map[mixer.Control]string{{Kind: mixer.Knob, Column: 2}: "speakers"}
+	wantAssignments := map[mixer.Control]string{{Kind: mixer.Slider, Column: 1}: "main", {Kind: mixer.Knob, Column: 2}: "speakers"}
 	if !reflect.DeepEqual(setup.Assignments, wantAssignments) {
 		t.Errorf("assignments = %v, want %v", setup.Assignments, wantAssignments)
 	}
-	if len(setup.Targets) != 3 || setup.Targets["music"].Kind != mixer.App || setup.Targets["mic"].Kind != mixer.Input {
+	if len(setup.Targets) != 4 || setup.Targets["music"].Kind != mixer.App || setup.Targets["mic"].Kind != mixer.Input {
 		t.Errorf("app and input must remain in setup: %v", setup.Targets)
 	}
 	if len(cfg.Layout().Assignments) != 2 || len(cfg.Apps) != 4 {

@@ -1,0 +1,25 @@
+# Test fixture "output-default": slider6 follows the system's default output,
+# slider7 holds the silent test output (OUT-03, OUT-04, ADR 0038).
+# apply-fixture.sh creates apptrol-test-mic-sink for its virtual microphone; it
+# plays nothing. While your own output is the default, slider6 acts on it: the
+# case moves slider6 only while the test output is the default, and max_volume
+# keeps it at half in any case.
+# For: TC-OUT-008. TestFixturesAreValid in internal/config checks that it loads.
+
+[log]
+level   = "debug"                  # the case reads the log
+outputs = ["journald"]
+
+[outputs.main]
+name       = "Main volume"
+device     = "default"
+max_volume = 50
+
+[outputs.test-out]
+name       = "Test output"
+match      = ["apptrol-test-mic-sink"]
+max_volume = 80
+
+[layouts.default]
+slider6 = "main"                   # earlier than slider7: owns a device they share
+slider7 = "test-out"

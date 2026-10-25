@@ -31,6 +31,7 @@ type Mixer struct {
 	// control, to ignore their buttons and log conflicts once (OUT-04, ADR 0035).
 	blockedOutputs map[string]string
 	outputMuteSent map[string]bool // last output mute sent (OUT-06, ADR 0027)
+	defaultOutput  string          // the server's default output, "" = none (OUT-03, ADR 0038)
 
 	players        map[string]*playerInfo // media players by bus name (MEDIA-01, MEDIA-03)
 	playSeq        int                    // counts players starting to play (lastPlaying)
@@ -316,6 +317,8 @@ func (m *Mixer) Handle(ev Event) []Action {
 		m.outputRemoved(&a, e.Name)
 	case OutputMuteChanged:
 		m.outputMuteChanged(&a, e)
+	case DefaultOutputChanged:
+		m.defaultOutputChanged(&a, e.Name)
 	case ConfigChanged:
 		m.configChanged(&a, e.Setup)
 	case PlayerSnapshot, PlayerAdded, PlayerRemoved, PlayerStatusChanged, PlayerPauseSettled:
@@ -1018,7 +1021,7 @@ func (m *Mixer) audioSnapshot(a *actions, e AudioSnapshot) {
 	for _, d := range e.Devices {
 		m.devices[d.Name] = d
 	}
-	m.outputsSnapshot(a, e.Outputs)
+	m.outputsSnapshot(a, e.Outputs, e.DefaultOutput)
 	m.chooseDevices(a)
 	for _, id := range m.inputTargets() {
 		if _, ok := m.deviceFor[id]; !ok {

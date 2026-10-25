@@ -50,7 +50,7 @@ func printListing(w io.Writer, l *pulse.Listing, setup *mixer.Setup, note string
 	outputControl := map[string]string{} // an output device on two controls lists both (OUT-04)
 	if setup != nil {
 		m := mixer.New(*setup, mixer.State{})
-		m.Handle(pulse.Snapshot(l.Streams, l.Sources, l.Sinks))
+		m.Handle(pulse.Snapshot(l.Streams, l.Sources, l.Sinks, l.DefaultSink))
 		label := func(id string) string {
 			c, _ := m.ControlOf(id)
 			return fmt.Sprintf("%s (%s)", c, setup.Targets[id].Name)

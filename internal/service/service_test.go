@@ -1003,19 +1003,28 @@ func TestOUT01_SliderSetsOutputVolumeThroughTheAudioAdapter(t *testing.T) {
 	}
 }
 
-// An output that follows the default stays inactive, with its warning at
-// every load, until #85 builds it (CFG-20, ADR 0027, ADR 0016).
-func TestCFG20_DefaultOutputWarningOnStartAndReload(t *testing.T) {
-	src := testConfig + "\n[outputs.main]\ndevice = \"default\"\n[outputs.speakers]\nmatch = [\"test-speaker\"]\n"
-	e := newEnv(t, src).start()
-	const message = `msg="following the default output is not implemented yet; this target is inactive" apptrol.component=config file.path=`
-	e.waitLog(message + e.cfg + " apptrol.app.id=main apptrol.app.type=output")
-	if n := strings.Count(e.out.String(), message); n != 1 {
-		t.Fatalf("startup warnings=%d, want 1 (the fixed output has none)", n)
+// An output with device = "default" acts on the default output the audio
+// adapter reports, and follows a change of it; it is no longer called
+// inactive (OUT-03, CFG-20, ADR 0038).
+func TestOUT03_DefaultOutputFollowedThroughTheService(t *testing.T) {
+	src := testConfig + "\n[outputs.main]\nname = \"Main volume\"\ndevice = \"default\"\n"
+	src = strings.Replace(src, `slider8 = "mic"`, "slider8 = \"mic\"\nslider7 = \"main\"", 1)
+	e := newEnv(t, src)
+	speakers := mixer.Device{Name: "alsa_output.test-speaker.analog-stereo", Description: "Test Speaker"}
+	phones := mixer.Device{Name: "alsa_output.test-headset.analog-stereo", Description: "Test Headset"}
+	e.audio.snapshot.Outputs = []mixer.Device{speakers, phones}
+	e.audio.snapshot.DefaultOutput = speakers.Name
+	e.start()
+	e.waitLog(`msg="output matched" apptrol.component=mixer apptrol.layout=default apptrol.control=slider7 apptrol.app.id=main apptrol.app.name="Main volume" apptrol.app.type=output apptrol.device.name=` + speakers.Name)
+	e.send(slider(7, 127))
+	e.waitApplied(mixer.SetOutputVolume{Device: speakers.Name, Volume: 1})
+	e.send(mixer.DefaultOutputChanged{Name: phones.Name})
+	e.waitLog(`msg="default output changed" apptrol.component=mixer apptrol.device.name=` + phones.Name + " apptrol.device.previous_name=" + speakers.Name)
+	e.send(slider(7, 0))
+	e.waitApplied(mixer.SetOutputVolume{Device: phones.Name, Volume: 0})
+	if strings.Contains(e.out.String(), "is not implemented yet") {
+		t.Errorf("the default output is still called inactive:\n%s", e.out.String())
 	}
-	e.write(src + "\n# reload\n")
-	e.waitLog("configuration reloaded")
-	e.eventually("inactive output warning repeated on reload", func() bool { return strings.Count(e.out.String(), message) == 2 })
 }
 
 // A browser pauses for a moment while you seek with the mouse; R must not

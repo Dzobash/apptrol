@@ -205,13 +205,67 @@ what you hear:  Spotify 80 % × Speakers 50 %  ≈ 40 %
   slider6 Speakers    S ○  M ●  R ○   muted with M
   slider7 Headphones  S ○  M ○  R ○   playing
   ```
-- **`device = "default"` does not work yet**: following the default output follows
-  with #85. Such an output warns at every load and in `apptrol check`, and its control
-  does nothing:
+
+### The default output (`device = "default"`)
+
+An output with `device = "default"` acts on the output your system uses right now, as
+the audio server reports it, and moves with it at once when you pick another output in
+the desktop's sound settings or plug in headphones that become the default. It works
+on any desktop with PipeWire or PulseAudio. `apptrol list` marks that output with `*`.
+
+```toml
+[outputs.main]
+name   = "Main volume"
+device = "default"
+
+[layouts.default]
+slider1 = "main"
+```
 
 ```text
-warning: outputs.main: following the default output is not implemented yet; this target is inactive
+speakers default ────────┤ you pick headphones ├──────── headphones default
+slider1 sets the speakers  speakers: keep their volume,   headphones: keep their own volume
+                           unmuted if slider1 muted them   until slider1 moves; slider1's
+                                                           mute applies at once
 ```
+
+- **The new default keeps its own volume until you move the control.** Apptrol never
+  puts the speakers' level on your headphones by itself. Moving the control sets its
+  position at once, though: a slider left at the top for the speakers sets the
+  headphones to the top the moment you touch it, so turn it down first.
+- **For the same reason, the default output gets the control's saved position only
+  from a move**, never at startup: after a restart it keeps its volume until you move
+  the control.
+- **M, mute and the mute key move with the control.** The control's mute applies to
+  each new default; the keyboard's mute key mutes the default output, and M's LED
+  follows.
+- **Without a default output** (none reported), the control does nothing until there
+  is one, and the log says so.
+- **R never changes the default output**, and nothing in Apptrol does.
+
+**The default can be the same device as a fixed output.** That is allowed. The first
+control owns the device, as for two fixed outputs: sliders 1–8, then knobs 1–8. The
+other one does nothing while they share it (M does not change its saved mute, a move
+only saves its position, M's LED is off), and the log says so at info. It gets the
+device back, with its own position and mute, when the default moves away.
+
+```toml
+[outputs.main]
+device = "default"        # slider1
+
+[outputs.headphones]
+match = ["Headphones"]    # knob1
+```
+
+```text
+speakers default ────────┤ headphones default ├────────┤ speakers default
+slider1 → speakers         slider1 → headphones          slider1 → speakers
+knob1   → headphones       knob1 does nothing            knob1 → headphones (its position)
+```
+
+Put the main volume on an earlier control than your fixed outputs if it should always
+work; on a later one, it does nothing while the default is a device an earlier control
+holds.
 
 Read [Hearing safety](#hearing-safety) before you put your speakers or headphones on a
 control: the first move sets their volume at once.
@@ -251,6 +305,9 @@ Apptrol sets volumes the moment a control moves. Keep this in mind before you ra
 - **The first move of a control sets its volume at once** (the controller has priority).
   If a slider sits at the top while the volume was turned down elsewhere, touching it
   jumps straight to its full level.
+- **With `device = "default"`, one control serves every output.** After switching from
+  speakers to headphones, the headphones keep their own volume, but the slider still
+  sits where the speakers needed it; touching it sets that level on the headphones.
 - **We recommend `max_volume` of 100 or less.** Use values above 100 only for a quiet
   source, and keep the slider low until you have heard the result.
 

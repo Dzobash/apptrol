@@ -11,13 +11,18 @@ import (
 
 // ---- output devices (OUT-*, ADR 0027) ---------------------------------------
 //
-// An output target names one output device by match. Its slider or knob sets
-// that device's volume (OUT-01), and M toggles its saved mute (OUT-06), lit
-// as on an app column (OUT-10). Talk-over and solo never affect outputs, and
-// S does nothing on an output column (OUT-07, OUT-11, ADR 0036).
+// An output target names one output device by match, or follows the audio
+// server's default output (device = "default", OUT-03, ADR 0038). Its slider
+// or knob sets that device's volume (OUT-01), and M toggles its saved mute
+// (OUT-06), lit as on an app column (OUT-10). Talk-over and solo never affect
+// outputs, and S does nothing on an output column (OUT-07, OUT-11, ADR 0036).
 //
 //	slider7 at 64 ──► "Speakers" (match "speaker") ──► SetOutputVolume 50 %
 //	                  every stream on it plays at its own volume × 50 %
+//
+//	slider6 = default:  speakers ──┤ headphones chosen in the desktop ├── headphones
+//	                    (released, volume kept)    (own volume until slider6 moves;
+//	                                                slider6's mute at once)
 
 // chooseReason says why outputs are chosen again, for what is logged when a
 // target is left without a device: a warning at a connect or reload, info when
@@ -57,7 +62,8 @@ func (m *Mixer) outputTargets() []string {
 // (re)connect to the audio server, and chooses every output's device anew:
 // a device that is there again gets its control's known position (OUT-05,
 // SVC-04, ADR 0027).
-func (m *Mixer) outputsSnapshot(a *actions, outputs []Device) {
+func (m *Mixer) outputsSnapshot(a *actions, outputs []Device, defaultOutput string) {
+	m.defaultOutput = defaultOutput
 	m.outputs = map[string]Device{}
 	for _, d := range outputs {
 		m.outputs[d.Name] = d
@@ -111,6 +117,20 @@ func (m *Mixer) outputRemoved(a *actions, name string) {
 	m.syncLEDs(a, false) // as in outputAdded (OUT-10, ADR 0035)
 }
 
+// defaultOutputChanged follows a new default output at once: the control
+// moves to it, and the previous default is released, keeping its volume
+// (OUT-03, ADR 0027 point 3, ADR 0038). The same name again changes nothing.
+func (m *Mixer) defaultOutputChanged(a *actions, name string) {
+	if name == m.defaultOutput {
+		return
+	}
+	a.notice(slog.LevelInfo, "default output changed",
+		logattr.KeyDeviceName, name, logattr.KeyDevicePreviousName, m.defaultOutput)
+	m.defaultOutput = name
+	m.chooseOutputs(a, chooseChange)
+	m.syncLEDs(a, false) // ownership may have moved with the default (OUT-10, ADR 0038)
+}
+
 // logIdleOutput logs an output device that no control acts on, at debug: the
 // log then shows that Apptrol sees the device, and its exact name for a
 // match list, even before any output is configured (OUT-13, LOG-15,
@@ -131,15 +151,36 @@ func (m *Mixer) logIdleOutput(a *actions, d Device) {
 // that no target holds any more is released (ReleaseOutput, OUT-01, CTRL-06):
 // its mute is released too. The first control owns a device when matches
 // overlap; later controls cannot write it (OUT-04, ADR 0035).
+//
+// An output with device = "default" takes the server's default output while
+// it is there (OUT-03). It never gets the control's position here, only from
+// a move, as the saved position may belong to another device (ADR 0027
+// point 3, ADR 0038). When it and a fixed output choose the same device, the
+// same first-control rule decides; that overlap is allowed, so it is logged
+// at info and not as a conflict (ADR 0038).
 func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 	names := sortedDeviceNames(m.outputs)
 	chosen := map[string]string{}
 	owners := map[string]string{}
 	blocked := map[string]string{}
 	for _, id := range m.outputTargets() {
+		follows := m.setup.Targets[id].FollowsDefault
 		cur, had := m.outputFor[id]
-		pick, matches := m.pickDevice(id, names, m.outputs, cur)
+		var pick string
+		var matches []string
+		if follows {
+			if _, there := m.outputs[m.defaultOutput]; there {
+				pick = m.defaultOutput
+			}
+		} else {
+			pick, matches = m.pickDevice(id, names, m.outputs, cur)
+		}
 		switch {
+		case pick == "" && follows:
+			if had || m.blockedOutputs[id] != "" || why == chooseConnect || why == chooseReload {
+				a.notice(slog.LevelInfo, "no default output; the control does nothing until there is one", m.aboutTarget(id)...)
+			}
+			continue
 		case pick == "" && (why == chooseConnect || why == chooseReload):
 			a.notice(slog.LevelWarn, "no output device matches", m.aboutTarget(id,
 				logattr.KeyMatch, strings.Join(m.setup.Targets[id].Match, ", "))...)
@@ -154,9 +195,12 @@ func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 		if owner, exists := owners[pick]; exists {
 			blocked[id] = pick
 			if m.blockedOutputs[id] != pick || m.outputFor[owner] != pick || why == chooseReload {
-				a.notice(slog.LevelWarn, "output match ignored: an earlier control owns the device",
-					m.aboutTarget(id, logattr.KeyDeviceName, pick,
-						logattr.KeyDeviceControls, m.controlOf[owner].String()+", "+m.controlOf[id].String())...)
+				level, msg := slog.LevelWarn, "output match ignored: an earlier control owns the device"
+				if follows || m.setup.Targets[owner].FollowsDefault {
+					level, msg = slog.LevelInfo, "default output is the same device as another output; the earlier control owns it"
+				}
+				a.notice(level, msg, m.aboutTarget(id, logattr.KeyDeviceName, pick,
+					logattr.KeyDeviceControls, m.controlOf[owner].String()+", "+m.controlOf[id].String())...)
 			}
 			continue
 		}
@@ -165,13 +209,22 @@ func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 		if pick == cur {
 			continue
 		}
+		selectedBy := "match"
+		if follows {
+			selectedBy = "default"
+		}
 		a.notice(slog.LevelInfo, "output matched", m.aboutTarget(id, logattr.KeyDeviceName, pick,
-			logattr.KeyDeviceDescription, m.outputs[pick].Description, logattr.KeyDeviceSelectedBy, "match")...)
+			logattr.KeyDeviceDescription, m.outputs[pick].Description, logattr.KeyDeviceSelectedBy, selectedBy)...)
 		if len(matches) > 1 {
 			a.notice(slog.LevelWarn, "several output devices match; using the first (make the match more specific: apptrol list shows each device's unique name)",
 				m.aboutTarget(id, logattr.KeyDeviceName, pick, logattr.KeyDeviceMatches, strings.Join(matches, ", "))...)
 		}
-		m.applyOutputVolume(a, id, pick)
+		if follows {
+			a.notice(slog.LevelInfo, "default output keeps its volume until the control is moved",
+				m.aboutTarget(id, logattr.KeyDeviceName, pick)...)
+		} else {
+			m.applyOutputVolume(a, id, pick)
+		}
 		m.applyOutputMute(a, pick, m.effectiveMute(id))
 	}
 	m.releaseOutputs(a, chosen)
@@ -239,8 +292,13 @@ func (m *Mixer) outputMuteChanged(a *actions, e OutputMuteChanged) {
 // reapplyOutputs sets the volume again of every output that kept its device
 // across a reload but moved to another control or got another max_volume, as
 // for inputs (OUT-01, CFG-06, ADR 0027). before holds the devices chosen before.
+// The default output is left alone: only a move sets its volume (OUT-03,
+// ADR 0038).
 func (m *Mixer) reapplyOutputs(a *actions, before map[string]string, oldControlOf map[string]Control, maxChanged func(string) bool) {
 	for _, id := range m.outputTargets() {
+		if m.setup.Targets[id].FollowsDefault {
+			continue
+		}
 		dev, ok := m.outputFor[id]
 		if ok && before[id] == dev && (oldControlOf[id] != m.controlOf[id] || maxChanged(id)) {
 			m.applyOutputVolume(a, id, dev)

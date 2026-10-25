@@ -121,15 +121,17 @@ slider5 = "main"
 	}
 	got := out.String()
 	for _, want := range []string{
-		"  * Built-in Speakers  alsa_output.speakers     45%         slider7 (Speakers)\n",
+		// The default output is also slider7's speakers; slider5 comes
+		// first, so it owns them (OUT-03, OUT-04, ADR 0038).
+		"  * Built-in Speakers  alsa_output.speakers     45%         slider5 (main)\n",
 		"    GoXLR Music        alsa_output.goxlr-music  100% muted  slider6 (Music)\n",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output lacks %q:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, "slider5") { // following the default is not built yet (OUT-03)
-		t.Errorf("the default output is shown on a control:\n%s", got)
+	if strings.Contains(got, "slider7") {
+		t.Errorf("the control that yields is shown as holding the device:\n%s", got)
 	}
 }
 

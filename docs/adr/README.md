@@ -35,7 +35,7 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0024](0024-launchers-only-when-unlocked.md) | Launchers start apps only while the screen is unlocked, unless opted in | Accepted; another user in front: see 0029; switched away: see 0030 |
 | [0025](0025-state-kept-while-config-invalid.md) | The saved state is kept while the configuration is invalid | Accepted |
 | [0026](0026-separate-tables-for-apps-inputs-outputs.md) | Separate configuration tables for apps, inputs and outputs | Accepted |
-| [0027](0027-output-volume.md) | Output volume: a control for a whole output device | Accepted; point 4 superseded for fixed outputs by [0035](0035-first-control-owns-matched-output.md), point 7 by [0036](0036-no-solo-on-outputs.md) |
+| [0027](0027-output-volume.md) | Output volume: a control for a whole output device | Accepted; point 4 superseded for fixed outputs by [0035](0035-first-control-owns-matched-output.md) and for the default output by [0038](0038-default-output-follows-the-server.md), point 7 by [0036](0036-no-solo-on-outputs.md) |
 | [0028](0028-docs-as-code-for-the-website.md) | Docs as code for the website; the roadmap as its single source | Accepted |
 | [0029](0029-controller-follows-the-user-in-front.md) | The controller follows the user in front of the computer | Accepted |
 | [0030](0030-three-screen-states.md) | Three screen states: locked, switched away, logged out | Accepted |
@@ -46,3 +46,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0035](0035-first-control-owns-matched-output.md) | The first control owns a matched output device | Accepted; supersedes 0027 point 4 for fixed outputs |
 | [0036](0036-no-solo-on-outputs.md) | No solo on outputs | Accepted; supersedes 0027 point 7 |
 | [0037](0037-builds-in-a-limited-user-scope.md) | Build images inside a limited, delegated user scope | Accepted; supersedes 0034 point 4's build-limit mechanism |
+| [0038](0038-default-output-follows-the-server.md) | The default output follows the server; the first control owns an overlap | Accepted; supersedes 0027 point 4 for the default output |

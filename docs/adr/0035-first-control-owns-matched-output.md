@@ -88,3 +88,7 @@ ownership transfer, outside mute, saved mute, and re-plug.
   instead of being taken over. Ownership decides what it defends: `SetOutputMute`
   from the owner replaces the defended mute, `ReleaseOutput` for the newest identity
   clears it. Details and logging are in ADR 0027's note of the same date.
+- 2026-10-25: The default-output overlap left open above is decided in
+  [ADR 0038](0038-default-output-follows-the-server.md): the same rule, the first
+  control owns the device, also when one of the two controls follows the default. That
+  overlap is allowed, so it is logged at info instead of this ADR's warning.

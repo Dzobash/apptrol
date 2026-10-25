@@ -126,3 +126,6 @@ provide the output behaviour in ADR 0027. The mixer itself is unchanged by #86.
   `device = "default"` is still left out, with its assignment, and only it gets the
   warning, now `following the default output is not implemented yet; this target is
   inactive` (same attributes). It goes when following the default is built (OUT-03).
+- 2026-10-25: The guard is gone (#85, ADR 0038). `Config.Setup()` passes every output
+  to the mixer; one with `device = "default"` follows the audio server's default
+  output (OUT-03), and the inactive warning is no longer given.

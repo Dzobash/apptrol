@@ -187,8 +187,20 @@ the new table and warnings. A regression test checks that a fixed output matchin
 ## Output volume
 
 A fixed output (`match`) on a slider or knob sets its device's volume (OUT-01, OUT-02,
-[ADR 0027](adr/0027-output-volume.md)); `device = "default"` stays inactive, with a
-warning at every load, until #85's later step. The mixer's tests in
+[ADR 0027](adr/0027-output-volume.md)); one with `device = "default"` acts on the
+system's default output and follows it (OUT-03, [ADR 0038](adr/0038-default-output-follows-the-server.md)).
+`internal/mixer/output_default_test.go` covers following each change (the new default
+keeps its volume, the mute moves, the previous one is released and gets no more
+writes), the volume set only by a move (not at connect, reload or a change), no
+default or one not reported yet, an outside mute on the default, and the overlap with
+a fixed output in both control orders, logged at info (OUT-04). The fuzz test changes
+the default too and checks that nothing but a move sets its volume.
+`TestOUT03_ServerChangeReportsANewDefaultOutput` covers the adapter's `serverChange`,
+`TestOUT03_DefaultOutputFollowedThroughTheService` the whole loop, and
+`TestIntegration_OUT03_DefaultOutputFollowsASwitch` switches the real default between
+two silent test outputs with `pactl set-default-sink` and restores the one it found
+(the owner chose this, 2026-10-19). It waits out the new-output guard first: a device
+that becomes the default as it appears is #85's guard step. The mixer's tests in
 `internal/mixer/output_test.go` cover choosing the device (case-insensitive, first by
 name with a warning, kept while it matches), the volume up to `max_volume`, an unknown
 position (left alone, PRIO-04), outside changes (not reverted), first-control ownership
@@ -361,3 +373,4 @@ talk-over), VLC or Elisa on slider 1 instead of Spotify.
 |---|---|---|---|
 | H-52 | **Hearing safety: turn the speakers' own knob or amplifier low first, keep headphones off, and put slider 7 at the bottom before saving.** Put your real speakers on slider 7 (`[outputs.speakers]` with `match` = part of their name from `apptrol list`, `max_volume = 100`), save; play music; move slider 7 slowly from the bottom up to the middle, then down; move it to the middle and change the volume with the volume keys | The desktop's volume settings show the speakers' volume following slider 7 (about 50 % in the middle), and the music gets louder and quieter with it; the apps' own volumes do not move. The log has `output matched` with `apptrol.device.selected_by=match`. The volume keys' change stays until slider 7 is moved again. Left/right balance is reset to the middle (known issue) | OUT-01, OUT-02, OUT-05 |
 | H-53 | With the speakers on slider 7 and music playing: press M7, press S7, press M7 again; then solo an app on another column with its S | M7 lights and the music stops; S7 does nothing and stays dark; the second M7 brings the music back and M7 goes dark. The app solo silences the other apps but not the speakers, and S7 and M7 stay dark | OUT-06, OUT-07, OUT-10, SOLO-03 |
+| H-54 | **Hearing safety: put the headphones' volume low in the desktop's sound settings and keep them off your ears until the step says so; put slider 6 at the bottom before saving.** Add `[outputs.main]` with `device = "default"` on slider 6, save; play music on the speakers; move slider 6 to the middle. Choose the headphones in the desktop's sound settings; put them on and listen before touching slider 6; then move slider 6 a little. Press M6, choose the speakers again, press M6 | The music moves to the headphones at their own low volume: slider 6's middle is not put on them until slider 6 moves, and then it is. M6 mutes the headphones; after switching back, M6 stays lit and the speakers are muted (the mute moves with the control), and the headphones are unmuted again; the second M6 brings the music back on the speakers at the volume they had before. The log has `default output changed` with `apptrol.device.previous_name` for each switch, and `default output keeps its volume until the control is moved` | OUT-03, OUT-06, OUT-13 |

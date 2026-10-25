@@ -62,9 +62,10 @@ what you're doing.
 
 The [roadmap](docs/roadmap.md) has the details. The development version already accepts
 the separate `[apps]`, `[inputs]` and `[outputs]` configuration tables, and a slider or
-knob sets a fixed output's volume. M toggles its saved mute; outside mutes are taken
-over, and M's LED shows it. When matches overlap, the first control owns the device.
-Outputs have no solo. Following the default output is still being built. See the [configuration reference](docs/config.md).
+knob sets an output's volume: a fixed one, or the output your system uses right now
+(`device = "default"`), which it follows when you switch. M toggles its saved mute;
+outside mutes are taken over, and M's LED shows it. When two controls choose one
+device, the first control owns it. Outputs have no solo. See the [configuration reference](docs/config.md).
 
 ## Before you install
 
