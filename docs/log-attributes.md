@@ -53,7 +53,7 @@ Apptrol's own:
 | `apptrol.device.index` | The audio server's number for an output device (changes when it is added again) |
 | `apptrol.audio.channels` | How many channels a device has, as read or written |
 | `apptrol.audio.result` | The audio server's answer to a request: `success` or `failed` |
-| `apptrol.audio.guard.state` | What the new-output guard made of a read: `restore_volume` (set again), `at_wanted_volume`, `no_volume_set` (no control set it, or it was released), `expired`, `no_guard` (not new), `identity_changed` (new, or a new name or description: the mixer decides first), `ownership_pending` (no answer for the newest reported identity yet; no guard write) |
+| `apptrol.audio.guard.state` | What the new-output guard made of a read: `restore_volume` (set again), `at_wanted_volume`, `no_volume_set` (no control set it, or it was released), `expired`, `no_guard` (not new), `identity_changed` (new, or a new name or description: the mixer decides first), `ownership_pending` (no answer for the newest reported identity yet; no guard write); for a mute change not taken over within the guard's window (#177): `restore_mute` (the other value: set again), `at_wanted_mute` (the value Apptrol set) or `ownership_pending` |
 | `apptrol.audio.guard.remaining_ms` | Milliseconds left in the new-output guard's 3 seconds |
 | `apptrol.audio.ownership.answer_generation` | The output identity an ignored `KeepOutput` or `ReleaseOutput` answered for |
 | `apptrol.audio.ownership.generation` | The newest output identity the audio adapter reported, which the answer lost to |

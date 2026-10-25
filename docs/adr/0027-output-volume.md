@@ -252,3 +252,40 @@ PipeWire or PulseAudio.
   ```text
   write 30 % ─► success ─► (lost) ─► 200 ms: read 100 % ─► 30 % again ─► 200 ms: read 30 %
   ```
+- 2026-10-25: The new-output guard defends the mute too (#177, OUT-05). Until now it
+  defended only the volume: after a re-plug, Apptrol wrote the control's saved mute,
+  saw its echo, and then WirePlumber restored the mute it remembered, which the adapter
+  reported as an outside change, so the saved mute flipped. The owner chose option A:
+  within the guard's 3 seconds, a mute change other than the echo of Apptrol's write is
+  not reported to the mixer; the guard sets the mute it holds again, as the new-stream
+  and new-input guards do (PRIO-03, MUTE-07). The protocol does not say who changed a
+  mute, so a real outside mute in those 3 seconds is set back too; after them it is
+  taken over. A shorter window just for mute (option B) was rejected as a guess about
+  WirePlumber's timing.
+
+  ```text
+  appears ─ write muted ─ echo ─ server: unmuted ─► not reported; muted again
+                                  ┤ 3 s ├─ applet: unmuted ─► OutputMuteChanged ─► taken over
+  ```
+
+  The guard holds a mute once the owning control set one (`SetOutputMute`), or while
+  the mixer has not answered the newest identity; a newer `SetOutputMute` (an M press,
+  ownership moving to another control) replaces it, and `ReleaseOutput` for the newest
+  generation clears it with the volume, so a released output's mute changes reach the
+  mixer at once. Defense waits for the ownership answer as for the volume; `KeepOutput`
+  checks the last mute read. Removal drops the guard. Each accepted mute write within
+  the window is read back after 200 ms like a volume write, since accepted is not
+  applied (#166). The mixer is unchanged (ADR 0015).
+
+  Records added to or changed in the logging table (point 12), with no new attribute:
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | debug | `audio server changed the mute of a new output; setting it again` (audio adapter) | `apptrol.device.name`, `apptrol.muted`, `apptrol.wanted_muted` |
+  | debug | `output mute change not taken over: the new-output guard holds the mute` (audio adapter) | `apptrol.device.name`, `apptrol.muted`, `apptrol.audio.guard.state` (`restore_mute`, `at_wanted_mute` or `ownership_pending`), `apptrol.audio.guard.remaining_ms` |
+  | debug | `output read again after a write` (audio adapter; was `… after a volume write`) | `apptrol.device.name` |
+  | debug | `output kept by a control; checking the volume and mute last read` (audio adapter; was `… the volume last read`) | adds `apptrol.muted` |
+  | debug | `output device read` (audio adapter) | adds `apptrol.wanted_muted` while the guard holds a mute |
+
+  The two renamed records were never in a release. `apptrol.audio.guard.state` gets
+  the values `restore_mute` and `at_wanted_mute`.

@@ -47,8 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with a warning identifying the conflict. Labels do not decide ownership.
   When a device's description and mute change together, the outside mute is handled
   before rematching, so a newly matching control keeps its saved mute consistent
-  with the device. Guarding
-  mute against late server restores on re-plug remains a separate follow-up
+  with the device. For 3 seconds after a device appears, a mute the audio server
+  restores on it is set back to the control's saved mute instead of being taken over,
+  as for apps and inputs; a mute change made elsewhere in those 3 seconds is set back
+  too, and one made after them is taken over (#177)
   (OUT-04, OUT-05, OUT-06, [ADR 0035](docs/adr/0035-first-control-owns-matched-output.md), Refs #85).
 - M's LED on an output column is lit while the output is muted, with M or from outside
   Apptrol; S and R stay off. A control whose device an earlier control owns shows no

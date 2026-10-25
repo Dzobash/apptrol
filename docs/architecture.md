@@ -87,6 +87,11 @@ is part of this guard. Windows adapters and path changes remain in #92.
 4. The service executes them. Failures are logged; they never stop the loop. Player
    commands and app starts are only handed over: their adapters log the outcome later.
 
+One loop runs inside the audio adapter without the mixer: for 3 seconds after a
+stream, input or output appears, the new-device guard sets the volume and mute Apptrol
+chose again when the server restores others, and reports no event for it (PRIO-03,
+OUT-05, [Audio access](#audio-access)). The mixer only hears outside changes.
+
 Bursts of slider events are coalesced before step 2 (CTRL-07): the loop reads every event
 already waiting, and of several positions of one control only the last is handled.
 
@@ -273,6 +278,9 @@ has chosen (`outputFor`):
   change from the adapter; only the owner takes it over, including knobs. The service
   forwards output mute actions through `Audio.Apply`, as it does volume actions.
   Snapshot and re-plug apply the control's saved mute. Releasing the device unmutes it.
+  The mixer needs nothing more for a late restore by the server: the adapter's
+  new-output guard defends the mute as it does the volume, so such a restore never
+  arrives as `OutputMuteChanged` (OUT-05, #177; see [Audio access](#audio-access)).
 - **No solo** (OUT-07, ADR 0036): S on an output column does nothing and says so at
   debug; `toggleSolo` is never reached for it. App solo and talk-over never touch
   outputs (OUT-11): `effectiveMute` has no solo or talk-over rule for `Output`, so an
@@ -387,10 +395,22 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
 - WirePlumber restores an app's remembered volume shortly after the app starts, and an
   output's when it appears. When that lands after Apptrol has set the control's position,
   Apptrol sets it again: for 3 seconds after a stream, input or output appears, changes
-  to what Apptrol set are undone (PRIO-03, OUT-05). For an output only the volume is
-  defended. Mute uses the existing own-write attribution (`outMuteWant`) but no new
-  guard: a late server mute restore can still be taken as an outside change. Extending
-  that guard is a separate follow-up; full OUT-05 under that race remains pending.
+  to what Apptrol set are undone (PRIO-03, OUT-05). For an output, the guard defends
+  the volume and the mute the owning control set (#177). Within its window, a mute
+  change other than the echo of Apptrol's write is never reported to the mixer: the
+  server's restore and an outside change look the same, so the guard sets the mute
+  again, as for streams and inputs. It holds the mute only once a control set one (or
+  while the mixer has not answered a new identity yet); `SetOutputMute` replaces it, so
+  an M press within the window wins, and `ReleaseOutput` clears it. Removal drops the
+  guard; a device plugged in again gets a new one. After the window, outside mute
+  changes are taken over (MUTE-07). As for the volume, each accepted mute write within
+  the window is read back after 200 ms, and `KeepOutput` checks the last mute read.
+
+  ```
+  appears ─ write muted ─ echo ─ server: unmuted ─► not reported; muted again
+                                  ┤ 3 s ├─ applet: unmuted ─► OutputMuteChanged ─► taken over
+  ```
+
   Output identity changes pause defense across notifications until the mixer answers
   the newest reported generation; see [Output volume](#output-volume).
   Volume writes and the guard take turns (`wire`, as mute writes do), so the guard never
@@ -631,7 +651,8 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   input and a silent test output that appear and go, the test output's volume set to
   30 % and read back, the new-output guard setting it back within its 3 seconds and
   leaving it after them, a first write the server accepts but loses being set again
-  by the guard's read-back (#166), `apptrol list`'s data, and a reconnect. The
+  by the guard's read-back (#166), an outside unmute set back within the window and
+  taken over after it (#177), `apptrol list`'s data, and a reconnect. The
   read-back's cases that must not write (no guard, gone, new description, pending
   ownership, released, expired) are unit-tested through the `outputRead` hook. Turning sink
   notifications into events, and the new-output guard (a slider move during a guard
@@ -639,6 +660,11 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   is a slider move during a new-stream or new-input guard's write (#158). Tests
   also force a second notification before a pending release, and stale ownership
   answers across renames and removal/reappearance, without sleeps (CTRL-06, QA-11).
+  The guard's mute defense is unit-tested through the `outputMuteWrite` hook and
+  `sinkEvent`, fed the reads a notification would give: a late server restore after
+  the echo, an outside change after the window, an M press, release and a stale
+  release, ownership moving to another control (with the real mixer),
+  removal and reappearance, a lost mute write, and pending ownership (#177).
 - `desktop`: integration tests in a private session bus with fake media players, locally
   (`make test-desktop`) and in CI; a bus restart and a missing bus included.
 - `session`: the same private bus stands in for the system bus, with a fake logind that

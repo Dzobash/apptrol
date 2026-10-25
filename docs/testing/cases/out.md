@@ -208,6 +208,7 @@ Type: Manual + Automated
 ```text
 M6 -> saved mute -> stop -> outside unmute -> start -> muted again
 M7 -> ignored: slider6 owns the same matched device
+plug in -> unmute within 3 s -> muted again; unmute after 3 s -> taken over
 ```
 
 **Steps**
@@ -237,6 +238,21 @@ M7 -> ignored: slider6 owns the same matched device
 - [ ] Run `pactl unload-module <module>`, then
   `pactl load-module module-null-sink sink_name=apptrol-test-extra-sink`
   → note `<new-module>`; the new sink reports muted and about 40 % without a control move.
+- [ ] Late restore, imitated (#177): run `pactl unload-module <new-module>`, then, in
+  one line so the unmute lands within the guard's 3 seconds,
+  `pactl load-module module-null-sink sink_name=apptrol-test-extra-sink; pactl set-sink-mute apptrol-test-extra-sink 0`
+  → note `<new-module>` again. A second later `pactl get-sink-mute apptrol-test-extra-sink`
+  reports yes and M6 is still lit. The journal has `output mute change not taken over:
+  the new-output guard holds the mute` with `apptrol.audio.guard.state=restore_mute` (or
+  `ownership_pending`) and `audio server changed the mute of a new output; setting it
+  again`, and no `unmuted outside Apptrol`.
+- [ ] Wait 5 seconds, then run `pactl set-sink-mute apptrol-test-extra-sink 0`
+  → the journal records `unmuted outside Apptrol` on slider6 and M6 goes dark: after
+  the window an outside change is taken over.
+
+  ```text
+  plug in ─ muted ─ unmute ─► muted again ─┤ 3 s ├─ unmute ─► taken over, M6 dark
+  ```
 - [ ] Run `pactl unload-module <new-module>` and restore the fixture with
   `docs/testing/apply-fixture.sh --restore` → the extra sink is gone and the original
   configuration is restored.
@@ -246,9 +262,11 @@ Automated: `TestOUT06_MuteSavedPerControlAndRestored`,
 `TestOUT04_ChangingOwnerAppliesNewOwnersState`,
 `TestOUT04_SameLabelsOnDifferentDevicesDoNotConflict`, `TestOUT05_OutputMuteAttribution`,
 `TestOUT05_DescriptionAndMuteChangePreserveOwnersState`,
-and `TestIntegration_OUT06_OutputMuteAndOutsideChange`. Re-plug is exercised with a
-silent server output; guarding against a competing late server mute restore is a
-separate follow-up and is not claimed by this case.
+`TestOUT05_LateServerMuteRestoreIsSetAgain` and the other guard mute tests in
+`output_mute_test.go` (docs/testing.md lists them), and
+`TestIntegration_OUT06_OutputMuteAndOutsideChange`. Re-plug is exercised with a
+silent server output. A real late restore by WirePlumber cannot be forced by hand;
+the unmute in the same command line as the plug-in imitates it.
 
 **Result:** Pass / Fail / Blocked
 **Notes:**

@@ -187,8 +187,13 @@ what you hear:  Spotify 80 % × Speakers 50 %  ≈ 40 %
   control wins: sliders 1–8, then knobs 1–8. Later conflicting controls do nothing to
   that device and the log warns. Display names do not decide this.
 - **M toggles the owning slider's output mute**, saved per control. An outside mute
-  is taken over on sliders and knobs. Re-plug restores the mute; protection against
-  a late server mute restore is still pending a separate follow-up.
+  is taken over on sliders and knobs. Re-plug restores the mute. For 3 seconds after
+  a device appears, a mute change on it is set back to the control's, so a mute the
+  audio server restores late does not undo it; a change made after that is taken over.
+
+  ```text
+  plug in ─ muted ─ unmuted elsewhere ─► muted again ─┤ 3 s ├─ unmuted elsewhere ─► taken over
+  ```
 - **M's LED is lit while the output is muted**, with M or from outside, as on an app
   column. S and R stay off.
 - **Outputs have no solo**: S on an output column does nothing, and app solo never

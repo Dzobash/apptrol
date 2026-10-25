@@ -188,8 +188,20 @@ muted with M or from outside, also from saved state, dark on a control whose dev
 earlier control owns (OUT-10). App solo, talk-over and S never change an output
 (OUT-07, OUT-11, ADR 0036).
 `TestIntegration_OUT06_OutputMuteAndOutsideChange` exercises output mute writes and
-outside events on a silent output through the real server. Late server mute restoration
-after re-plug is not defended yet: extending the guard belongs in a follow-up PR.
+outside events on a silent output through the real server: an outside unmute within
+the new-output guard's 3 seconds is set back, one after them is taken over (#177).
+The guard's mute defense is unit-tested in `output_mute_test.go` by feeding
+`sinkEvent` the reads a notification would give, with writes through the
+`outputMuteWrite` hook: `TestOUT05_LateServerMuteRestoreIsSetAgain` is the
+regression (write muted → echo → server unmutes → the mixer hears nothing and muted
+is set again; it fails without the fix, QA-11), and the others cover an outside change
+after the window (`TestMUTE07_OutputMuteChangeAfterTheGuardIsTakenOver`), an M press
+within it (`TestOUT06_MPressWithinTheGuardWins`), release and a stale release
+(`TestCTRL06_ReleasedOutputMuteIsNoLongerDefended`), ownership moving to another
+control with the real mixer (`TestOUT04_OwnershipTransferDefendsTheNewOwnersMute`),
+removal and reappearance (`TestOUT05_ReappearedOutputDefendsOnlyItsNewMute`), a lost
+mute write (`TestOUT05_ReadBackSetsALostMuteAgain`) and pending ownership
+(`TestOUT05_PendingOwnershipHoldsTheMuteUntilKept`).
 `TestOUT05_DescriptionAndMuteChangePreserveOwnersState` feeds a combined adapter
 notification into the mixer: newly matched, still matched and no longer matched
 devices keep physical and saved mute consistent. The fuzz test generates outside
