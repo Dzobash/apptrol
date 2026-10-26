@@ -312,6 +312,46 @@ the tested merge commit and `branch=` is empty for the detached checkout; the
 associated workflow run identifies the PR and its head. The #172 evidence gate
 must use that run association rather than interpreting the merge SHA as a PR head.
 
+### Package installs — 2026-10-26
+
+Point 8 planned installing the `.deb` and `.rpm` in the same containers; `make
+test-install` (QA-17, #172) does it. This note records what it decides, and what it
+leaves as it was.
+
+```text
+make snapshot (you)  →  dist/*.deb, dist/*.rpm        read through the read-only checkout
+make test-install    →  Ubuntu: apt-get install      Fedora: dnf install
+                        then the Status checks, run on the installed /usr/bin/apptrol
+```
+
+- **No change to any guarantee.** The runner adds a third mode next to the Status check
+  and the recipes. The Podman arguments, mounts (checkout read-only, `.tmp/<run>/`
+  writable), limits, host-side proofs, `--network none` and the audit record are the
+  same code path. It adds no flag, mount or environment value. The image is the Status
+  check's own, so nothing new is built.
+- **The runner never builds packages.** GoReleaser downloads and runs code of its own;
+  run by the script it would run unsandboxed on the host, and in a container it would
+  need a writable `dist/` and the network, which are loosened guarantees. The owner or
+  CI runs `make snapshot`; the script only reads `dist/` and refuses to start without
+  the packages. Building the packages in a container would be a new ADR.
+- **Root in the container is acceptable.** `apt` and `dnf` run the package's maintainer
+  script as root, but root in a rootless container is the user's own unprivileged ID on
+  the host. The network is off, the checkout is read-only and the limits are proven from
+  the host before the image starts. The script is the repository's own
+  `packaging/scripts/postinstall.sh`.
+- **A stale package fails.** The container picks the package for its architecture whose
+  file name has `snapshot.<commit>` of the checked-out commit, exactly one; the host
+  passes the commit as data, validated as hexadecimal. A snapshot left in `dist/` by an
+  earlier commit cannot pass for the current one.
+- **No network means no dependency resolution.** Distribution repositories are not
+  reachable, so required dependencies are not resolved and Recommends are not installed.
+  The packages declare no required dependencies. If one is added the check fails, and
+  the install belongs in #116's VM tests, which also keep upgrade, removal and `zypper`.
+- **Own evidence.** The audit names are `install-ubuntu` and `install-fedora`, apart
+  from `systemd-*`. Point 6 says a check added later runs outside the required job
+  until it has its own 300 local and 10 CI green runs per distro; this one does, and the
+  Status check's evidence is not reset by it.
+
 ### Effects
 
 - Agents run containers without prompts, and the owner can see afterwards what ran

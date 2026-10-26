@@ -807,10 +807,15 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   environment isolation and audit records are separate from the application service
   loop. CI's advisory Systemd in containers job runs the same `make test-systemd`
   command with `AGENT=ci` after preparing rootless Podman and a delegated user
-  manager, and uploads `.audit/` even on failure (#171). `internal/repocheck`
+  manager, and uploads `.audit/` even on failure (#171). `make test-install` runs
+  the same containers a second way: `status.sh` installs the `.deb` with apt or the
+  `.rpm` with dnf from `dist/` (read through the read-only checkout; the runner never
+  builds packages) and checks the Status line of the installed files, under its own
+  audit names `install-ubuntu` and `install-fedora` (QA-17). `internal/repocheck`
   tests the runner with a fake Podman and keeps both
-  agents' allow, ask and block lists equal (QA-15, QA-16, ADR 0034). See
-  [rootless container checks](testing.md#rootless-container-checks).
+  agents' allow, ask and block lists equal (QA-15, QA-16, QA-17, ADR 0034). See
+  [rootless container checks](testing.md#rootless-container-checks) and
+  [package installs](testing.md#package-installs).
 - `config`, `state`: unit tests and fuzzing on malformed input; the blocked-command check
   is fuzzed too. Inputs are tested in both forms, `[inputs.<id>]` and the old `type`
   (CFG-18, CFG-19). Output tests cover selector presence, values, cross-table rules,
