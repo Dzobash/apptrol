@@ -64,6 +64,10 @@ The host's enforcing `unix-chkpwd` AppArmor profile receives a local
 ([ADR 0034](adr/0034-containers-through-one-script.md#ci-policy-clarification--2026-10-26)).
 Its `ci` audit label is removed before Podman runs. Artifacts retain `.audit/`,
 including hidden files and failed-run logs, for 14 days; CI never commits them.
+The artifact is named `systemd-container-audit-<attempt>` to distinguish workflow
+attempts without requesting overwrite. PR runs test a detached merge commit;
+their audit records use that commit with an empty branch, linked to the PR by the
+workflow run.
 
 ## Rootless container checks
 

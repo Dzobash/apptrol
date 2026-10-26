@@ -109,7 +109,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: systemd-container-audit
+          name: systemd-container-audit-${{ github.run_attempt }}
           path: .audit/
           include-hidden-files: true
           retention-days: 14

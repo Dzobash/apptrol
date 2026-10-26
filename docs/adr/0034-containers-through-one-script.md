@@ -274,8 +274,9 @@ was considered but would add policy maintenance for the build/runtime helpers.
 `kernel.unprivileged_userns_clone=1` is set where available, and a zero
 `user.max_user_namespaces` is raised to 28633. These are runner settings, never
 changes to the owner's host or relaxations of the script's limits and mounts.
-Only setup uses `sudo`; every engine invocation remains in the repository script
-as the ordinary runner user. Checkout credentials are not persisted.
+Setup and read-only failure diagnostics use `sudo`; every engine invocation remains
+in the repository script as the ordinary runner user. Checkout credentials are not
+persisted.
 
 The selected Go toolchain is exposed at `/usr/local/go` for the runner's fixed,
 cleared environment. User-manager delegation is described in
@@ -302,6 +303,14 @@ the Fedora container. The profile's other restrictions and AppArmor enforcement
 remain active. The owner's host is untouched; the container script gains no
 flags, privileges or mounts, and all resource proofs still run. Disabling the
 profile or changing Fedora's account-file permissions was not selected.
+
+Audit artifact names include the workflow attempt number, so reruns do not reuse
+an earlier upload's name; the upload does not request overwriting old evidence.
+GitHub controls artifact retention and accessibility across reruns, so naming
+alone is not a preservation guarantee. On pull requests, the audit's commit is
+the tested merge commit and `branch=` is empty for the detached checkout; the
+associated workflow run identifies the PR and its head. The #172 evidence gate
+must use that run association rather than interpreting the merge SHA as a PR head.
 
 ### Effects
 
