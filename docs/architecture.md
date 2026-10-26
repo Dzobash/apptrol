@@ -796,16 +796,19 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   starts in a state that does not allow it.
 - `launcher`: desktop files and `Exec` parsing against temporary folders, with fuzzing;
   starting apps against a fake systemd, and against the real user manager with harmless
-  units (`make test-launcher`, not in CI, which has no user systemd).
+  units (`make test-launcher`, not exercised by CI's Status-line container check).
 - `packaging`: a test keeps the MIT text of the .deb's DEP-5 copyright file equal to
   `LICENSE` (NFR-09), and the unit's `Description=` equal to the AppStream summary, with
   `Type=simple` and `NotifyAccess=main` kept (SVC-13). CI's Packaging job builds the release as a snapshot and runs
   `lintian` on the .deb (NFR-05, NFR-08, NFR-09, #146); it is the only place CI runs
   GoReleaser before a release candidate is tagged.
-- `test/container`: the developer-only runner checks the shipped binary and service
+- `test/container`: the developer-tool runner checks the shipped binary and service
   unit against real systemd in rootless Ubuntu and Fedora. Its fixed mounts, limits,
   environment isolation and audit records are separate from the application service
-  loop. `internal/repocheck` tests the runner with a fake Podman and keeps both
+  loop. CI's advisory Systemd in containers job runs the same `make test-systemd`
+  command with `AGENT=ci` after preparing rootless Podman and a delegated user
+  manager, and uploads `.audit/` even on failure (#171). `internal/repocheck`
+  tests the runner with a fake Podman and keeps both
   agents' allow, ask and block lists equal (QA-15, QA-16, ADR 0034). See
   [rootless container checks](testing.md#rootless-container-checks).
 - `config`, `state`: unit tests and fuzzing on malformed input; the blocked-command check

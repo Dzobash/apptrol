@@ -113,6 +113,36 @@ acceptance evidence for the final revision. Acceptance requires both distro runs
 and the sample from a committed revision, recorded with `dirty=no`, plus another
 security review.
 
+## CI user manager — 2026-10-25
+
+For #171 the disposable runner installs `dbus-user-session`, enables lingering for
+its ordinary user, and restarts `user@<uid>.service`. A unit drop-in specifies
+`Delegate=memory pids`; restarting applies it even when the manager was already
+running. The first CI attempt showed that Ubuntu's systemd rejects changing
+`DelegateControllers` with `systemctl set-property --runtime`, so the job uses the
+unit drop-in and restart instead. Setup exports the
+user runtime directory and bus address for a readiness check. The container script
+continues to derive its own runtime directory after clearing the environment.
+
+```text
+sudo: prepare user manager, delegate memory and pids
+  ordinary user: make test-systemd AGENT=ci
+    limited build scope → uncached probe → host runtime proof → Status checks
+```
+
+No cgroup files are made globally writable and no proof is skipped. Missing v2
+controllers, delegation or mismatched limits still fail the job. This setup is
+specific to the disposable GitHub runner; it grants no permission to change the
+owner's host settings. The job's real build and host-side runtime proofs remain
+the acceptance evidence; configuring delegation alone does not prove the limits.
+
+The first fresh CI pull also exposed an unavailable probe base manifest that local
+image storage had concealed. The probe's Ubuntu 24.04 digest was refreshed from
+[Docker Official Images metadata](https://github.com/docker-library/repo-info/blob/master/repos/ubuntu/remote/24.04.md).
+The probe remains digest-pinned and uncached; no resource check or isolation flag
+changes. Future missing manifests must fail and receive a reviewed pin update,
+never silently fall back to a mutable tag.
+
 ## References
 
 - [systemd scope execution](https://www.freedesktop.org/software/systemd/man/latest/systemd-run.html)

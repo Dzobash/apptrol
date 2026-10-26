@@ -20,6 +20,100 @@ env:
   COVERAGE_MIN: "75"
 
 jobs:
+  # Advisory until the per-distro evidence gate in #172 is met (QA-16, ADR 0034).
+  systemd:
+    name: Systemd in containers
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Prepare rootless Podman and delegated user manager (QA-16, ADR 0037)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            podman uidmap slirp4netns fuse-overlayfs crun dbus-user-session
+          # The runner clears PATH before building. Expose setup-go's toolchain
+          # through that fixed PATH, without accepting caller environment values.
+          go_root=$(go env GOROOT)
+          if test "$(readlink -f /usr/local/go)" != "$go_root"; then
+            if test -d /usr/local/go && ! test -L /usr/local/go; then
+              sudo mv /usr/local/go /usr/local/go.pre-apptrol-ci
+            fi
+            sudo ln -sfn "$go_root" /usr/local/go
+          fi
+          runner_user=$(id -un)
+          runner_uid=$(id -u)
+          # Preserve usable mappings; allocate above all existing ranges otherwise.
+          next_id=$(awk -F: 'BEGIN {end=1000000} $2+$3>end {end=$2+$3} END {print end}' /etc/subuid /etc/subgid)
+          if ! awk -F: -v name="$runner_user" -v uid="$runner_uid" \
+            '($1==name || $1==uid) && $3>=65536 {ok=1} END {exit !ok}' /etc/subuid; then
+            sudo usermod --add-subuids "$next_id-$((next_id+65535))" "$runner_user"
+          fi
+          if ! awk -F: -v name="$runner_user" -v uid="$runner_uid" \
+            '($1==name || $1==uid) && $3>=65536 {ok=1} END {exit !ok}' /etc/subgid; then
+            sudo usermod --add-subgids "$next_id-$((next_id+65535))" "$runner_user"
+          fi
+          # Only this disposable VM: permit unprivileged user namespaces without
+          # disabling AppArmor itself. No container engine runs through sudo.
+          if test -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          if test -e /proc/sys/kernel/unprivileged_userns_clone; then
+            sudo sysctl -w kernel.unprivileged_userns_clone=1
+          fi
+          if test "$(sysctl -n user.max_user_namespaces)" = 0; then
+            sudo sysctl -w user.max_user_namespaces=28633
+          fi
+          # The host profile also confines Fedora's PAM helper. Permit its
+          # existing namespace capability to read container account data
+          # (QA-16, ADR 0034 CI policy clarification). Keep the profile enforcing.
+          grep -Eq '^[[:space:]]*(#include|include)[[:space:]]+(if[[:space:]]+exists[[:space:]]+)?<local/unix-chkpwd>' \
+            /etc/apparmor.d/unix-chkpwd
+          printf 'capability dac_override,\n' | \
+            sudo tee -a /etc/apparmor.d/local/unix-chkpwd >/dev/null
+          sudo apparmor_parser -r /etc/apparmor.d/unix-chkpwd
+          sudo grep -Fx 'unix-chkpwd (enforce)' /sys/kernel/security/apparmor/profiles
+          test -e /sys/fs/cgroup/cgroup.controllers
+          sudo mkdir -p "/etc/systemd/system/user@$runner_uid.service.d"
+          printf '[Service]\nDelegate=memory pids\n' | \
+            sudo tee "/etc/systemd/system/user@$runner_uid.service.d/apptrol-ci.conf" >/dev/null
+          sudo systemctl daemon-reload
+          sudo loginctl enable-linger "$runner_user"
+          # Ubuntu's systemd cannot change DelegateControllers through set-property.
+          # Restart this disposable runner's user manager to apply the drop-in.
+          sudo systemctl restart "user@$runner_uid.service"
+          export XDG_RUNTIME_DIR="/run/user/$runner_uid"
+          export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+          systemctl --user show-environment >/dev/null
+          {
+            echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR"
+            echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS"
+          } >> "$GITHUB_ENV"
+          echo 'Rootless prerequisites ready; the script will prove build and runtime limits.'
+      - name: Check Status line on Ubuntu 26.04 and Fedora 44 (SVC-13)
+        run: make test-systemd AGENT=ci
+      - name: Host confinement diagnostics on failure (QA-16)
+        if: failure()
+        # Host policy can attach to helpers inside a rootless container. Keep
+        # evidence in this disposable runner's log; never change policy silently.
+        run: sudo journalctl -k --no-pager --grep='apparmor|DENIED' -n 100
+      - name: Upload container audit, including failed-run logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: systemd-container-audit-${{ github.run_attempt }}
+          path: .audit/
+          include-hidden-files: true
+          retention-days: 14
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

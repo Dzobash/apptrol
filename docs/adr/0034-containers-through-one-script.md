@@ -255,6 +255,63 @@ The owner clarified two details while implementing #170:
   Whoever can write `.git/config` can already run code through `git commit` hooks
   and `make check`, so the checkout's Git data is not a security boundary.
 
+### CI clarification — 2026-10-25
+
+Issue #171 runs `make test-systemd AGENT=ci` on each pull request, using the
+unchanged runner for Ubuntu 26.04 and Fedora 44. `ci` identifies the caller in
+audit records, not a model, and is removed before Podman runs. The job uploads
+`.audit/`, including hidden files and failed-run logs, for 14 days even on failure;
+it cannot commit evidence. It remains outside the required checks until #172's
+per-distro evidence gate is met. Package installation tests remain #172 as well.
+
+On the disposable GitHub-hosted VM only, privileged setup installs Podman and its
+rootless dependencies, preserves usable subordinate UID/GID ranges or allocates
+non-overlapping ranges, and enables unprivileged user namespaces. Where present,
+`kernel.apparmor_restrict_unprivileged_userns=0` permits those namespaces for this
+boot; AppArmor itself remains enabled. This VM-wide setting trades the namespace
+restriction for simple, reproducible CI preparation. A dedicated AppArmor profile
+was considered but would add policy maintenance for the build/runtime helpers.
+`kernel.unprivileged_userns_clone=1` is set where available, and a zero
+`user.max_user_namespaces` is raised to 28633. These are runner settings, never
+changes to the owner's host or relaxations of the script's limits and mounts.
+Setup and read-only failure diagnostics use `sudo`; every engine invocation remains
+in the repository script as the ordinary runner user. Checkout credentials are not
+persisted.
+
+The selected Go toolchain is exposed at `/usr/local/go` for the runner's fixed,
+cleared environment. User-manager delegation is described in
+[ADR 0037](0037-builds-in-a-limited-user-scope.md#ci-user-manager--2026-10-25).
+
+### CI policy clarification — 2026-10-26
+
+The first CI runs passed Ubuntu and both distros' build and runtime limit proofs,
+but Fedora's ordinary user manager failed during PAM account lookup. The host
+kernel reported `profile="unix-chkpwd"` denying `capname="dac_override"` for the
+container's PAM helper. This matches an
+[upstream AppArmor profile report](https://github.com/roddhjav/apparmor.d/issues/958).
+
+The owner approved adding `capability dac_override,` to the disposable runner's
+`/etc/apparmor.d/local/unix-chkpwd` and reloading only the `unix-chkpwd` profile.
+Setup first checks that the packaged profile includes that local file and then
+verifies the reloaded profile remains enforcing. An incompatible profile layout
+fails setup rather than silently skipping the rule.
+
+This permits the helper to use a capability it already holds in its user
+namespace to read container account data. It applies to all processes using that
+profile on this VM for the rest of the job, including host invocations, not only
+the Fedora container. The profile's other restrictions and AppArmor enforcement
+remain active. The owner's host is untouched; the container script gains no
+flags, privileges or mounts, and all resource proofs still run. Disabling the
+profile or changing Fedora's account-file permissions was not selected.
+
+Audit artifact names include the workflow attempt number, so reruns do not reuse
+an earlier upload's name; the upload does not request overwriting old evidence.
+GitHub controls artifact retention and accessibility across reruns, so naming
+alone is not a preservation guarantee. On pull requests, the audit's commit is
+the tested merge commit and `branch=` is empty for the detached checkout; the
+associated workflow run identifies the PR and its head. The #172 evidence gate
+must use that run association rather than interpreting the merge SHA as a PR head.
+
 ### Effects
 
 - Agents run containers without prompts, and the owner can see afterwards what ran

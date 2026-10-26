@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- An advisory `Systemd in containers` CI job runs the Status line check on every
+  pull request in rootless Ubuntu 26.04 and Fedora 44, with container audit artifacts
+  (SVC-13, QA-16, #171). Making it required remains #172.
 - The Status line names an active app solo in place of the control count, e.g.
   `v0.3.0 · controller connected · solo on slider 5 (VLC not playing)`. It shows the
   configured app name, with `not playing` when neither an uncorked stream nor a
