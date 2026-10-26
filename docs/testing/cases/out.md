@@ -511,6 +511,26 @@ outside 40/80 → next move to top    → 25/50
   as 50/37.5, using the server's balance on reconnect.
 - [ ] Move slider6 to the bottom, restart Apptrol, then move to the top → 50/50:
   no nonzero balance was available at restart. This limitation is intentional.
+- [ ] With slider6 still at the top, unload the test output:
+  `pactl unload-module <module balance>`. Then run this single line to re-plug it
+  and imitate a late restore within the guard window:
+  `pactl load-module module-null-sink sink_name=apptrol-test-balance channels=2 channel_map=front-left,front-right; sleep 0.5; pactl set-sink-volume apptrol-test-balance 80% 60%`
+  → note the new `<module balance>` for cleanup. A second later, run
+  `pactl get-sink-volume apptrol-test-balance` → 50/37.5, even if the first read
+  on re-plug was equal channels. The level follows slider6; the restored balance stays.
+- [ ] Check the journal for that re-plug → an `output volume request completed`
+  at the requested 50% precedes the read of 80/60, followed by
+  `output balance selected` with reason `guard_read` and
+  `audio server changed the volume of a new output; setting it again` showing
+  50/37.5. If the first write did not precede the restore, or the read was outside
+  the three-second window, repeat the re-plug step; that run did not exercise
+  the intended order. With the order confirmed, 50/50 or 80/60 is a failure.
+- [ ] Wait 5 seconds, then set 40/80 with
+  `pactl set-sink-volume apptrol-test-balance 40% 80%` → it stays. Move slider6
+  down slightly and back to the top → 25/50. This contrasts the guard's correction
+  with the outside-window rule. Lost writes without notifications and the 200 ms
+  read-back are covered by automated tests below; this manual imitation tests
+  the notification path and does not prove read-back by itself.
 - [ ] Read the debug journal → balance records explain server selection, retention
   through zero, and equal-channel fallback. Write records show the per-channel
   request, its source and result. Only synthetic test-device values belong in
@@ -528,11 +548,14 @@ timing. They are planned coverage, not claims that these tests exist already.
 - OUT-15: zero and repeated moves without drift, own echoes, outside edits,
   nonzero/zero snapshots, removal/reappearance, reconnect, channel-layout changes,
   mute independence, cache-miss reads and read/write failure.
-- OUT-16: a restore with unchanged maximum but wrong quieter channels, accepted
-  writes lost without notifications, read-back and notifications using the same
-  comparison, deliberate balance changes inside/outside the window, a newer move
-  during a guard correction, pending/stale ownership answers, release and default
-  takeover forgetting the intended vector. Use deterministic hooks for event order.
+- OUT-16: `TestOUT16_LateRestoreSuppliesBalanceOnANewOutput` must force initial
+  100/100, an Apptrol write of 50/50, then a restore to 80/60, and expect 50/37.5.
+  Also cover an unchanged maximum with a changed quieter channel (kept), accepted
+  writes lost without notifications, read-back and notifications taking the same
+  path, deliberate balance changes inside/outside the window, an all-zero read,
+  own rounded echoes, a newer move during a guard correction, pending/stale
+  ownership answers, release and default takeover forgetting the requested level.
+  Use deterministic hooks for event order.
 - Real-server integration: silent stereo and multichannel outputs with active
   silent streams, actual per-channel reads, guard correction and zero recovery.
 

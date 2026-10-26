@@ -374,14 +374,14 @@ controller → pure mixer → SetOutputVolume 50% → audio adapter → channels
                                                    ↑
 server → snapshot / notification → channels 80/60 → balance 1/0.75
                                                    ↓
-                              guard → same intended vector → read-back
+                              guard → requested level × latest ratios → read-back
 ```
 
 The mixer's ownership, scalar volume actions, default-following rules and the
 service's `Audio` interface stay unchanged. The adapter keeps per-device channel
-positions, last read values and usable ratios, distinct from the guard's intended
-vector. Subscription reads update balance outside active volume defense; own
-echoes and rejected restores must not replace it. Every output write scales the
+positions, last read values and usable ratios, distinct from the guard's requested
+level. Subscription reads update balance even during active volume defense; own
+rounded echoes retain the ratios to avoid drift. Every output write scales the
 retained ratios so the maximum follows the scalar action. Apps and inputs retain
 their existing conversion.
 
@@ -391,8 +391,9 @@ balance. Nothing is added to the saved state. A default change uses the new
 device's balance and still writes no volume until a move. `apptrol list` reports
 an output's maximum channel percentage instead of its average.
 
-Guard notifications and delayed reads compare each channel. A correction uses
-the intended vector, never ratios from the rejected restore. Generation answers,
+Guard notifications and delayed reads accept usable server balance, then compare
+the maximum channel level with the requested level. A correction scales the latest
+ratios, including a late restore's balance; balance-only changes stay. Generation answers,
 pending ownership, `ReleaseOutput`, `ForgetOutputVolume`, mute defense and the
 `wire` then `mu` lock order retain their existing roles. Tests will exercise the
 conversion and these lifecycle boundaries, including lost writes and a move while

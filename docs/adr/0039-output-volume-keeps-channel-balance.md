@@ -95,32 +95,41 @@ observed. Restarting or reconnecting at zero therefore loses the former balance.
 Mute is independent: neither M nor an outside mute changes channel ratios.
 Mono and surround use the same maximum-channel rule, without a stereo special case.
 
-### The guard defends balanced channel values
+### The guard defends the level and accepts the server's balance
 
 ```text
-write 50/37.5 → server restores 80/60 → guard writes 50/37.5 again
+appears 100/100 → write 50/50 → server restores 80/60 → guard writes 50/37.5
 write 50/37.5 → lost, no notification → 200 ms read-back → same defense
+within 3 s: applet sets 50/25 → balance accepted, no level correction needed
 after 3 s: applet sets 40/80 → stays → control sets 50 → 25/50
 ```
 
-Once a volume has been requested, the new-output guard defends the intended
-channel vector throughout its existing three-second window. Notifications and
-the 200 ms read-back compare every channel, not just their average or maximum;
-each channel may differ by at most the existing 0.5 percentage-point tolerance.
-Retries reuse the intended balance. A rejected server restore must not become
-the balance used for the next retry or move. A new move replaces the requested
-volume using the retained balance; the latest move still wins.
+Once a volume has been requested, the new-output guard defends its scalar level
+throughout the existing three-second window, while accepting usable balance from
+server reads. Notifications and the 200 ms read-back take the same path: distinguish
+own rounded write echoes from new server values, update usable balance, then compare
+the maximum channel percentage with the requested level using the existing 0.5
+percentage-point tolerance. A correction scales the latest balance to that level.
+A balance-only change at the requested maximum needs no correction; it still updates
+the ratios for the next move. All-zero reads keep the last usable ratios (OUT-15).
+A new move replaces the requested level; the latest move still wins.
 
-The protocol cannot distinguish a deliberate applet change from a server restore.
-Therefore an applet balance change inside the window is reverted too, following
-OUT-05. Accepting such balance changes during the window was rejected because it
-would accept server-restored balance as well. Before any volume is defended, and
-after defense ends, usable server channel values supply the balance. An outside
-change after the window is left alone until the next move (PRIO-02).
+The owner chose this on 2026-10-26 after PR #192's first review. The earlier draft
+defended the full vector, rejecting restored balance as well. A new output can
+first read equal channels before the server restores its remembered balance;
+defending the first ratio would erase the very balance this feature should keep.
+This is a design correction before implementation, not a change to shipped behaviour.
+
+The protocol cannot distinguish a deliberate applet change from a server restore,
+so both may change the balance during the window. Their overall level is corrected
+while the guard owns a requested volume. A partially applied or lost write can
+likewise supply a new balance; preserving the server's latest usable ratio takes
+priority over enforcing an older vector. After the window, the entire outside
+change is left alone until the next move (PRIO-02). Mute defense is unchanged.
 
 The existing ownership protocol remains in force: a pending generation cannot
 trigger defense; only the newest Keep/Release answer counts; release clears the
-intended vector. `ForgetOutputVolume` also clears it without clearing mute defense
+requested level. `ForgetOutputVolume` also clears it without clearing mute defense
 (ADR 0038). A default takeover still sets no volume until a move. If the channel
 layout changes, discard the obsolete vector and use the new layout's balance for
 any volume that is still authorized to be defended. No old channel positions may
@@ -136,11 +145,11 @@ The implementation adds the new attributes to `internal/logattr` and
 
 | Level | Message | Attributes and reason |
 |---|---|---|
-| debug | `output balance selected` | `apptrol.audio.channel_positions`, `apptrol.audio.balance.ratios`, `apptrol.audio.balance.source` (`server`, `remembered`, `equal`), `apptrol.audio.balance.reason` (`snapshot`, `new_device`, `outside_change`, `zero`, `layout_changed`, `missing_cache`); explains selection or fallback |
-| debug | `output balance retained` | Same positions, ratios and source; reason `own_write` or `guard_holds_volume`; explains why a read did not replace the balance |
+| debug | `output balance selected` | `apptrol.audio.channel_positions`, `apptrol.audio.balance.ratios`, `apptrol.audio.balance.source` (`server`, `remembered`, `equal`), `apptrol.audio.balance.reason` (`snapshot`, `new_device`, `outside_change`, `guard_read`, `zero`, `layout_changed`, `missing_cache`); explains selection or fallback; `guard_read` does not claim who made the change |
+| debug | `output balance retained` | Same positions, ratios and source; reason `own_write` or `zero`; explains why a read did not replace the balance |
 | debug | `output device read` | Existing attributes plus `apptrol.audio.channel_positions` and `apptrol.audio.channel_volumes_percent`; `apptrol.volume_percent` is the maximum; existing guard state explains skipped defense |
 | debug | `output volume request completed` | Existing result, requested percentage and channel count, plus positions, ratios, source and `apptrol.audio.channel_volumes_percent` for the requested vector; failure includes `error.type=audio_change_failed` |
-| debug | `audio server changed the volume of a new output; setting it again` | Existing attributes plus read channel percentages and `apptrol.audio.wanted_channel_volumes_percent`; explains the complete vector comparison |
+| debug | `audio server changed the volume of a new output; setting it again` | Existing attributes plus read channel percentages and `apptrol.audio.wanted_channel_volumes_percent`; shows the corrected level with the accepted balance |
 
 Use a fixed message per record. Ratios and levels are ordered by the accompanying
 channel positions. Examples, fixtures, tests and published evidence use synthetic
@@ -150,8 +159,9 @@ device names and levels, never the owner's system values.
 
 - Centred outputs behave as before; inputs and application streams are unchanged.
 - Balance at zero is remembered only for the current live device and layout.
-- A deliberate balance adjustment during active new-output volume defense is
-  reverted. Set it after the three-second window instead.
+- A server-restored or deliberate applet balance adjustment during active
+  new-output volume defense is kept; only its overall level is corrected. An own
+  rounded echo must not gradually alter the retained ratio.
 - Implementation and guard support ship together: a separate flat guard would
   undo the feature. Requirements, this ADR and the planned test case land first.
 - Tests cover mono, stereo, surround, silent channels, zero, boost, rounding drift,
