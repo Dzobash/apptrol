@@ -363,6 +363,42 @@ shows the control in the output devices' CONTROL column (OUT-12). It passes the
 server's default output into the snapshot, so a `device = "default"` control shows on
 the `*` device, and of two controls on one device only the owner is shown.
 
+### Planned: preserving output balance
+
+[ADR 0039](adr/0039-output-volume-keeps-channel-balance.md), OUT-14 to OUT-16,
+is accepted for 0.3.0; implementation is pending (#156). The current audio adapter
+still flattens channels as described below. The planned boundary is:
+
+```text
+controller → pure mixer → SetOutputVolume 50% → audio adapter → channels 50/37.5
+                                                   ↑
+server → snapshot / notification → channels 80/60 → balance 1/0.75
+                                                   ↓
+                              guard → same intended vector → read-back
+```
+
+The mixer's ownership, scalar volume actions, default-following rules and the
+service's `Audio` interface stay unchanged. The adapter keeps per-device channel
+positions, last read values and usable ratios, distinct from the guard's intended
+vector. Subscription reads update balance outside active volume defense; own
+echoes and rejected restores must not replace it. Every output write scales the
+retained ratios so the maximum follows the scalar action. Apps and inputs retain
+their existing conversion.
+
+Zero retains usable ratios for the live device; without them it falls back to
+equal channels. Reconnect, removal and changed channel positions invalidate old
+balance. Nothing is added to the saved state. A default change uses the new
+device's balance and still writes no volume until a move. `apptrol list` reports
+an output's maximum channel percentage instead of its average.
+
+Guard notifications and delayed reads compare each channel. A correction uses
+the intended vector, never ratios from the rejected restore. Generation answers,
+pending ownership, `ReleaseOutput`, `ForgetOutputVolume`, mute defense and the
+`wire` then `mu` lock order retain their existing roles. Tests will exercise the
+conversion and these lifecycle boundaries, including lost writes and a move while
+a correction is in progress; [TC-OUT-010](testing/cases/out.md#tc-out-010--output-volume-keeps-channel-balance)
+records the planned controller and real-server checks.
+
 ## Controller access
 
 Raw MIDI (`/dev/snd/midiC<card>D<device>`), in pure Go:

@@ -125,6 +125,11 @@ on-screen display still needs a trial on GNOME. The on-screen display moved to P
   PR 3a). A device that becomes the default as it appears (headphones plugged in)
   gets the control's mute defended, and an earlier owner's volume is no longer
   defended on it (ADR 0038 note of 2026-10-26, PR 3b, [TC-OUT-009](testing/cases/out.md)).
+- [x] Decide output channel balance: always preserve it, loudest channel follows the
+  control, inputs and apps unchanged (OUT-14 to OUT-16,
+  [ADR 0039](adr/0039-output-volume-keeps-channel-balance.md), #156).
+- [ ] Implement and test output balance before v0.3.0-rc1, including zero volume,
+  surround and balanced guard retries ([TC-OUT-010](testing/cases/out.md#tc-out-010--output-volume-keeps-channel-balance), #156).
 - [x] Decision record for three screen states: locked, switched away, logged out ([ADR 0030](adr/0030-three-screen-states.md))
 - [x] At the login screen after *Switch user*, the media buttons and R send nothing; each press is logged as a warning (ADR 0030, #60)
 - [x] `systemctl --user status apptrol` shows a Status line: the version, then the state; the unit's title is Apptrol's summary (SVC-13, [ADR 0007](adr/0007-systemd-user-service.md), [TC-SVC-001](testing/cases/svc.md), #99)
