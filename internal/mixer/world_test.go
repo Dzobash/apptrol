@@ -21,6 +21,7 @@ type world struct {
 	outMute    map[string]bool    // output devices' mute (OUT-06)
 	released   []string           // output devices released (ReleaseOutput), in order
 	kept       []string           // output devices kept (KeepOutput), in order
+	forgot     []string           // output volumes no longer defended (ForgetOutputVolume), in order
 	leds       map[LED]bool
 	saves      int
 	notices    []Notice
@@ -132,6 +133,8 @@ func (w *world) apply(acts []Action) {
 			w.released = append(w.released, a.Device)
 		case KeepOutput:
 			w.kept = append(w.kept, a.Device)
+		case ForgetOutputVolume:
+			w.forgot = append(w.forgot, a.Device)
 		case SetLED:
 			w.leds[a.LED] = a.On
 		case StateChanged:

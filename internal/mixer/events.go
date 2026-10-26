@@ -288,6 +288,16 @@ type KeepOutput struct {
 	Generation uint64 // the reported read being answered (CTRL-06, ADR 0027)
 }
 
+// ForgetOutputVolume tells the audio adapter that the control now holding the
+// output device sets no volume until it is moved: a default-output control
+// took over a device an earlier owner had set (OUT-03, ADR 0038 point 6). The
+// adapter's new-output guard stops defending that volume and keeps defending
+// the mute. It never resumes defense, so it needs no generation (CTRL-06);
+// the next SetOutputVolume, from a move, is defended again.
+type ForgetOutputVolume struct {
+	Device string
+}
+
 // SetDeviceMute mutes or unmutes a capture device.
 type SetDeviceMute struct {
 	Device string
@@ -319,19 +329,20 @@ type Notice struct {
 	Attrs []any
 }
 
-func (SetStreamVolume) isAction()   {}
-func (SetStreamMute) isAction()     {}
-func (SetDeviceVolume) isAction()   {}
-func (SetDeviceMute) isAction()     {}
-func (SetOutputVolume) isAction()   {}
-func (SetOutputMute) isAction()     {}
-func (ReleaseOutput) isAction()     {}
-func (KeepOutput) isAction()        {}
-func (SetLED) isAction()            {}
-func (StateChanged) isAction()      {}
-func (Notice) isAction()            {}
-func (PlayerCommand) isAction()     {}
-func (LaunchApp) isAction()         {}
-func (HoldPauseLED) isAction()      {}
-func (ReleaseController) isAction() {}
-func (TakeController) isAction()    {}
+func (SetStreamVolume) isAction()    {}
+func (SetStreamMute) isAction()      {}
+func (SetDeviceVolume) isAction()    {}
+func (SetDeviceMute) isAction()      {}
+func (SetOutputVolume) isAction()    {}
+func (SetOutputMute) isAction()      {}
+func (ReleaseOutput) isAction()      {}
+func (KeepOutput) isAction()         {}
+func (ForgetOutputVolume) isAction() {}
+func (SetLED) isAction()             {}
+func (StateChanged) isAction()       {}
+func (Notice) isAction()             {}
+func (PlayerCommand) isAction()      {}
+func (LaunchApp) isAction()          {}
+func (HoldPauseLED) isAction()       {}
+func (ReleaseController) isAction()  {}
+func (TakeController) isAction()     {}

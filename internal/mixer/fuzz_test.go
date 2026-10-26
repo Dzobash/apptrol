@@ -203,6 +203,11 @@ func checkOutputs(t *testing.T, w *world, ev Event) {
 			if !contains(w.m.outputFor, a.Device) {
 				t.Fatalf("%T: output %s kept but held by no target (%v)", ev, a.Device, w.m.outputFor)
 			}
+		case ForgetOutputVolume:
+			// Only a default control that took the device over (ADR 0038 point 6).
+			if !w.m.setup.Targets[w.m.outputOwner(a.Device)].FollowsDefault {
+				t.Fatalf("%T: output %s volume forgotten, but not held by a default control (%v)", ev, a.Device, w.m.outputFor)
+			}
 		case SetDeviceMute:
 			if a.Device == speakers.Name || a.Device == headphones.Name {
 				t.Fatalf("%T muted an output: %v", ev, a)

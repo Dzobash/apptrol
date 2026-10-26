@@ -508,7 +508,9 @@ func TestOUT06_MPressWithinTheGuardWins(t *testing.T) {
 
 // A released output's mute is no longer defended, and a stale release for an
 // older identity does not end the defense of the newest (CTRL-06, OUT-05,
-// ADR 0035).
+// ADR 0035). Within the window its changes are held, not reported: a default
+// change may hand it to a control before the mixer reads them (ADR 0038
+// point 6).
 func TestCTRL06_ReleasedOutputMuteIsNoLongerDefended(t *testing.T) {
 	t.Run("released", func(t *testing.T) {
 		r := newMuteRig(t, quietLog())
@@ -521,8 +523,16 @@ func TestCTRL06_ReleasedOutputMuteIsNoLongerDefended(t *testing.T) {
 		r.d.Muted = false
 		r.report()
 		r.d.Muted = true // muted elsewhere, or restored: no control holds it
-		if got := muteChanges(r.report()); fmt.Sprint(got) != "[true]" {
-			t.Fatalf("change on a released output = %v, want it reported (the mixer ignores it)", got)
+		if got := muteChanges(r.report()); len(got) != 0 {
+			t.Fatalf("change on a released output within the window = %v, want it held", got)
+		}
+		if fmt.Sprint(r.muteWrites) != "[true false]" {
+			t.Fatalf("mute writes = %v, want nothing set again after the release", r.muteWrites)
+		}
+		r.b.outGuard["spk"].until = time.Now().Add(-time.Millisecond) // the window ends
+		r.d.Muted = false
+		if got := muteChanges(r.report()); fmt.Sprint(got) != "[false]" {
+			t.Fatalf("change on a released output after the window = %v, want it reported (the mixer ignores it)", got)
 		}
 		if fmt.Sprint(r.muteWrites) != "[true false]" {
 			t.Fatalf("mute writes = %v, want nothing set again after the release", r.muteWrites)
@@ -586,6 +596,138 @@ func TestOUT04_OwnershipTransferDefendsTheNewOwnersMute(t *testing.T) {
 	}
 	if m.Snapshot().Muted[s4] {
 		t.Fatal("the restore of slider1's mute was taken over as slider4's")
+	}
+}
+
+// defaultRig is a mute rig with the real mixer: slider1 follows the default
+// output, knob1 matches the rig's device "spk" (OUT-03, OUT-04, ADR 0038).
+type defaultRig struct {
+	*muteRig
+	m      *mixer.Mixer
+	s1, k1 mixer.Control
+}
+
+func newDefaultRig(t *testing.T, log *slog.Logger, state mixer.State) *defaultRig {
+	s1, k1 := mixer.Control{Kind: mixer.Slider, Column: 1}, mixer.Control{Kind: mixer.Knob, Column: 1}
+	m := mixer.New(mixer.Setup{
+		Targets: map[string]mixer.Target{
+			"main":   {ID: "main", Kind: mixer.Output, FollowsDefault: true},
+			"phones": {ID: "phones", Kind: mixer.Output, Match: []string{"spk"}},
+		},
+		Assignments: map[mixer.Control]string{s1: "main", k1: "phones"},
+	}, state)
+	m.Handle(mixer.AudioSnapshot{})
+	return &defaultRig{muteRig: newMuteRig(t, log), m: m, s1: s1, k1: k1}
+}
+
+// handle hands events to the mixer and its actions to the adapter.
+func (r *defaultRig) handle(evs ...mixer.Event) {
+	r.t.Helper()
+	for _, e := range evs {
+		for _, a := range r.m.Handle(e) {
+			r.apply(a)
+		}
+	}
+}
+
+// A device that appears with no owner and becomes the default at once:
+// WirePlumber's restore is read after the mixer released the device, but
+// reaches the mixer after slider1 took it over. Within the window it is the
+// guard's, not an outside change: slider1's saved mute stays, and is set
+// again (OUT-03, OUT-05, MUTE-07, QA-11, ADR 0038 point 6).
+//
+//	appears ─ ReleaseOutput ─ restore: muted (read) ─ default: slider1 ─ restore reaches the mixer
+func TestOUT03_NewDefaultOutputRestoreDuringTakeoverIsNotTakenOver(t *testing.T) {
+	var logs bytes.Buffer
+	r := newDefaultRig(t, slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})), mixer.State{})
+	// knob1 does not match it, and it is not the default yet: released.
+	r.d.Name, r.d.Description = "phones-new", "Headphones"
+	r.handle(r.report()...)
+	r.d.Muted = true
+	restore := r.report() // read before the mixer hears of the new default
+	r.handle(mixer.DefaultOutputChanged{Name: "phones-new"})
+	r.handle(restore...)
+	if r.m.Snapshot().Muted[r.s1] {
+		t.Fatal("the server's restore was taken over as slider1's saved mute")
+	}
+	if fmt.Sprint(r.muteWrites) != "[false]" {
+		t.Fatalf("mute writes = %v, want slider1's unmute", r.muteWrites)
+	}
+	if !strings.Contains(logs.String(), "apptrol.muted=true apptrol.audio.guard.state=released") {
+		t.Errorf("held change did not log its reason:\n%s", logs.String())
+	}
+	// A later restore is set back to slider1's unmute.
+	r.d.Muted = false
+	r.report()
+	r.d.Muted = true
+	r.handle(r.report()...)
+	if fmt.Sprint(r.muteWrites) != "[false false]" || r.m.Snapshot().Muted[r.s1] {
+		t.Fatalf("mute writes = %v, want slider1's unmute set again", r.muteWrites)
+	}
+}
+
+// The other order: the server names the new default before the device is
+// reported. The mixer holds it from its first read, so the guard waits for
+// KeepOutput and then defends slider1's mute (OUT-03, OUT-05, ADR 0038).
+func TestOUT03_DefaultNamedBeforeTheDeviceAppearsDefendsTheMute(t *testing.T) {
+	r := newDefaultRig(t, quietLog(), mixer.State{Muted: map[mixer.Control]bool{{Kind: mixer.Slider, Column: 1}: true}})
+	r.d.Name, r.d.Description = "phones-new", "Headphones"
+	r.handle(mixer.DefaultOutputChanged{Name: "phones-new"})
+	r.handle(r.report()...)
+	r.d.Muted = true // the echo
+	r.handle(r.report()...)
+	r.d.Muted = false // WirePlumber restores unmuted
+	r.handle(r.report()...)
+	if !r.m.Snapshot().Muted[r.s1] {
+		t.Fatal("the server's restore was taken over as slider1's saved mute")
+	}
+	if fmt.Sprint(r.muteWrites) != "[true true]" {
+		t.Fatalf("mute writes = %v, want slider1's mute set again", r.muteWrites)
+	}
+	if len(r.writes) != 0 {
+		t.Fatalf("volume writes = %v, want none: the default keeps its volume", r.writes)
+	}
+}
+
+// knob1 owns a new device and sets 80 %; within the window the default moves
+// onto it and slider1 takes it over without a volume. A restore to 30 % then
+// stays: nobody moved slider1. The new owner's mute is still defended
+// (OUT-03, OUT-04, OUT-05, ADR 0038 point 6, #189 review).
+//
+//	knob1: 80 % ─ default: slider1 owns ─ server: 30 % ─► stays; server: muted ─► unmuted again
+func TestOUT03_DefaultTakeoverStopsDefendingTheEarlierOwnersVolume(t *testing.T) {
+	var logs bytes.Buffer
+	r := newDefaultRig(t, slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		mixer.State{Positions: map[mixer.Control]int{{Kind: mixer.Knob, Column: 1}: 102}})
+	r.handle(r.report()...) // knob1 owns it and sets 80 %
+	if len(r.writes) != 1 {
+		t.Fatalf("volume writes = %v, want knob1's position", r.writes)
+	}
+	r.d.Volume = r.writes[0]
+	r.handle(r.report()...)
+	r.handle(mixer.DefaultOutputChanged{Name: "spk"}) // slider1 owns it now
+	if got := r.m.OutputDevice("main"); got != "spk" {
+		t.Fatalf("slider1 follows %q, want spk", got)
+	}
+	r.d.Volume = 0.3 // the server restores its remembered volume
+	r.handle(r.report()...)
+	if len(r.writes) != 1 {
+		t.Fatalf("volume writes = %v, want knob1's 80 %% no longer defended", r.writes)
+	}
+	r.d.Muted = true
+	r.handle(r.report()...)
+	if fmt.Sprint(r.muteWrites) != "[false false]" || r.m.Snapshot().Muted[r.s1] {
+		t.Fatalf("mute writes = %v, want slider1's unmute still defended", r.muteWrites)
+	}
+	if !strings.Contains(logs.String(), `msg="output volume no longer defended; the new owner sets none until it is moved" apptrol.component=audio apptrol.device.name=spk`) {
+		t.Errorf("log lacks why the volume is no longer defended:\n%s", logs.String())
+	}
+	// Moving slider1 defends its own volume again.
+	r.handle(mixer.ControlMoved{Control: r.s1, Value: 64})
+	r.d.Volume = 0.3
+	r.handle(r.report()...)
+	if len(r.writes) != 3 {
+		t.Fatalf("volume writes = %v, want slider1's move set again", r.writes)
 	}
 }
 

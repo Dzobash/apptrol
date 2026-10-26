@@ -236,6 +236,19 @@ for each output target on a control, the device it has chosen (`outputFor`):
     ├─► slider6 (default) ─► headphones: SetOutputMute(slider6's mute); volume left alone
     └─► speakers: no control left ─► SetOutputMute(false), ReleaseOutput ─► nothing more is written there
   ```
+
+  When the default control takes a device that another control held (`heldByOther`),
+  that control may have set a volume the adapter's new-output guard still defends.
+  The default control sets none, so the mixer also sends `ForgetOutputVolume`: the
+  guard stops defending the volume and keeps defending the mute (ADR 0038 point 6).
+  It needs no generation, as it never resumes defense; the next move's
+  `SetOutputVolume` is defended again.
+
+  ```
+  OutputAdded "headphones" ─► knob7 (match) ─► SetOutputVolume 80 % ─► guard defends 80 %
+  DefaultOutputChanged "headphones" ─► slider6 owns ─► SetOutputMute, ForgetOutputVolume
+  server restores 30 % ─► guard: no volume to defend ─► 30 % stays
+  ```
 - **Releasing** (`ReleaseOutput`, CTRL-06): a device that no output target holds any
   more after choosing (a reload took its control away or changed its match) is released;
   one another control still holds is kept, one that is gone has nothing to release. The
@@ -438,10 +451,17 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   the volume and the mute the owning control set (#177). Within its window, a mute
   change other than the echo of Apptrol's write is never reported to the mixer: the
   server's restore and an outside change look the same, so the guard sets the mute
-  again, as for streams and inputs. It holds the mute only once a control set one (or
-  while the mixer has not answered a new identity yet); `SetOutputMute` replaces it, so
-  an M press within the window wins, and `ReleaseOutput` clears it. Removal drops the
-  guard; a device plugged in again gets a new one. After the window, outside mute
+  again, as for streams and inputs. It holds the mute once a control set one, while
+  the mixer has not answered a new identity yet, and once the mixer released the
+  device; `SetOutputMute` replaces it, so an M press within the window wins.
+  `ReleaseOutput` clears the defended volume and mute but keeps holding changes until
+  the window ends (`released`, defending nothing): a new device that becomes the
+  default appears with no owner, and a server restore read just before the mixer
+  hears of the new default would otherwise reach the mixer after the default control
+  took the device over, and flip that control's saved mute (ADR 0038 point 6). The
+  mixer ignores changes on a device no control holds, so holding them loses nothing.
+  `ForgetOutputVolume` clears only the defended volume. Removal drops the guard; a
+  device plugged in again gets a new one. After the window, outside mute
   changes are taken over (MUTE-07). As for the volume, each accepted mute write within
   the window is read back after 200 ms, and `KeepOutput` checks the last mute read.
   Whether the guard holds a change is decided when it is read (`heldMute`), before the
@@ -463,6 +483,10 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   ```
   appears ─ write muted ─ echo ─ server: unmuted ─► not reported; muted again
                                   ┤ 3 s ├─ applet: unmuted ─► OutputMuteChanged ─► taken over
+  ```
+
+  ```
+  headphones appear ─ ReleaseOutput ─ server: muted (held, released) ─ default: slider1 ─ SetOutputMute ─► defended
   ```
 
   Output identity changes pause defense across notifications until the mixer answers
@@ -715,9 +739,11 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   a released one by none. Ownership tests check that reported generations are echoed
   unchanged in snapshot, change and reload answers. The fuzz test also puts a
   default-following output before or after the fixed ones, changes the default, and
-  checks that only a move sets the default output's volume. Default-output tests cover
-  following a change, no default or one not reported yet, an outside mute on it, and
-  the overlap with a fixed output in both control orders (OUT-03, OUT-04).
+  checks that only a move sets the default output's volume, and that
+  `ForgetOutputVolume` names only a device a default control holds. Default-output
+  tests cover following a change, no default or one not reported yet, an outside mute
+  on it, the overlap with a fixed output in both control orders, and when a takeover
+  sends `ForgetOutputVolume` (OUT-03, OUT-04, ADR 0038 point 6).
 - `service`: the whole loop against fake adapters: config reload, state, shutdown, a
   slider on an output reaching the audio adapter as `SetOutputVolume` and M as
   `SetOutputMute`, a `device = "default"` slider following a default change; the Status line
@@ -739,7 +765,9 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   by the guard's read-back (#166), an outside unmute set back within the window and
   taken over after it (#177), the real default output switched between two silent test
   outputs and restored afterwards, with a default-following control moving along
-  (OUT-03), `apptrol list`'s data, and a reconnect. `serverChange` is unit-tested on its
+  (OUT-03), a new test output that becomes the default inside its guard's window,
+  its mute defended and an earlier owner's volume no longer (ADR 0038 point 6),
+  `apptrol list`'s data, and a reconnect. `serverChange` is unit-tested on its
   own: only another default output is reported. The
   read-back's cases that must not write (no guard, gone, new description, pending
   ownership, released, expired) are unit-tested through the `outputRead` hook. Turning sink

@@ -229,6 +229,11 @@ func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 		if follows {
 			a.notice(slog.LevelInfo, "default output keeps its volume until the control is moved",
 				m.aboutTarget(id, logattr.KeyDeviceName, pick)...)
+			// An earlier owner may have set a volume that the adapter's guard
+			// still defends; this control sets none (ADR 0038 point 6).
+			if m.heldByOther(id, pick) {
+				a.add(ForgetOutputVolume{Device: pick})
+			}
 		} else {
 			m.applyOutputVolume(a, id, pick)
 		}
@@ -237,6 +242,19 @@ func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 	m.releaseOutputs(a, m.outputFor, chosen)
 	m.outputFor = chosen
 	m.blockedOutputs = blocked
+}
+
+// heldByOther reports whether another output target held dev before this
+// choice: a fixed control that set its volume, which the new-output guard may
+// still defend when the default moves onto the device (OUT-03, OUT-04,
+// ADR 0038 point 6).
+func (m *Mixer) heldByOther(id, dev string) bool {
+	for other, d := range m.outputFor {
+		if other != id && d == dev {
+			return true
+		}
+	}
+	return false
 }
 
 // releaseOutputs releases each device that a target held before (held) and

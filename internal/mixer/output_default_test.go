@@ -2,6 +2,7 @@ package mixer
 
 import (
 	"log/slog"
+	"slices"
 	"testing"
 
 	"github.com/Dzobash/apptrol/internal/logattr"
@@ -243,6 +244,31 @@ func TestOUT04_DefaultOverlapFirstControlOwns(t *testing.T) {
 	w.do(OutputMuteChanged{Name: speakers.Name, Muted: true}) // the mute key
 	if !w.m.Snapshot().Muted[Control{Slider, 7}] || w.m.Snapshot().Muted[Control{Knob, 8}] {
 		t.Errorf("outside mute went to %v, want slider7, the owner", w.m.Snapshot().Muted)
+	}
+}
+
+// When the default moves onto a device another control held, that control
+// may have set a volume the adapter's new-output guard still defends; the
+// default control sets none, so the mixer tells the adapter to forget it. A
+// default change onto a device no control held, or a fixed control taking a
+// device back, sends nothing of the kind (OUT-03, OUT-04, ADR 0038 point 6).
+//
+//	knob7 holds the headphones ─ default: headphones ─► slider6 owns them, ForgetOutputVolume
+func TestOUT03_DefaultTakeoverForgetsTheEarlierOwnersVolume(t *testing.T) {
+	w := defaultWorld(t, defaultSetup(), State{}, speakers.Name)
+	w.do(DefaultOutputChanged{Name: headphones.Name}) // knob7 held them; slider7 takes the speakers back
+	if !slices.Equal(w.forgot, []string{headphones.Name}) {
+		t.Fatalf("forgotten volumes = %v, want the headphones only", w.forgot)
+	}
+	w.do(DefaultOutputChanged{Name: speakers.Name}) // slider7 held them
+	if !slices.Equal(w.forgot, []string{headphones.Name, speakers.Name}) {
+		t.Fatalf("forgotten volumes = %v, want the speakers too", w.forgot)
+	}
+
+	w = defaultWorld(t, onlyDefault(), State{}, speakers.Name)
+	w.do(DefaultOutputChanged{Name: headphones.Name})
+	if len(w.forgot) != 0 {
+		t.Fatalf("forgotten volumes = %v, want none: no control held the headphones", w.forgot)
 	}
 }
 
