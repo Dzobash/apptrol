@@ -96,15 +96,21 @@ run_one() (
     agent=$label
     [[ $1 =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]] || { echo 'RECIPE must contain only letters, digits and hyphens'; exit 2; }
     recipe=$1
+    # install runs the released packages in the same image and with the same
+    # flags as systemd; only the check inside differs (QA-17, ADR 0034).
+    install=0
     case ${2:-recipe} in
-        systemd)
+        systemd|install)
             systemd=1
-            distro=${recipe#systemd-}
+            if [[ $2 == install ]]; then install=1; fi
+            distro=${recipe#"$2"-}
             dockerfile="test/container/$distro.Dockerfile"
             context=test/container
+            imagename=systemd-$distro
             ;;
         *)
             systemd=0
+            imagename=$recipe
             context=".audit/recipes/$recipe"
             dockerfile="$context/Dockerfile"
             [[ ! -L .audit/recipes && -d $context && ! -L $context ]] || { echo 'Recipe folder is missing or linked'; exit 2; }
@@ -125,7 +131,7 @@ run_one() (
     # Changing build enforcement must invalidate images built before that proof.
     buildhash=$({ printf '%s\n' "$buildhash"; sha256sum test/container/build.sh test/container/build-limits.sh test/container/build-probe.Dockerfile test/container/containers.conf; } | sha256sum | cut -d' ' -f1)
     digest=$({ printf '%s\n' "$buildhash"; sha256sum test/container/*.sh test/container/valid.toml test/container/containers.conf; } | sha256sum | cut -d' ' -f1)
-    image="localhost/apptrol-$recipe:$buildhash"
+    image="localhost/apptrol-$imagename:$buildhash"
     echo "recipe=$recipe jobs=$jobs image=$image"
     echo "host $repo -> container /src read-only; host $run -> container /work writable"
     # Never cache the enforcement proof: delegation can change between runs.
@@ -177,7 +183,14 @@ run_one() (
     if ((systemd)); then
         /usr/bin/nice -n 10 "${engine[@]}" start "$container"
         /usr/bin/nice -n 10 "${engine[@]}" exec "$container" /bin/bash /src/test/container/proof.sh
-        /usr/bin/nice -n 10 "${engine[@]}" exec "$container" /bin/bash /src/test/container/status.sh
+        if ((install)); then
+            # The commit is data from Git, checked here: the packages must come from
+            # this checkout, not from an older snapshot left in dist/ (QA-17).
+            [[ $source_commit =~ ^[0-9a-f]{7,40}$ ]] || { echo 'FAIL: unexpected source commit'; exit 1; }
+            /usr/bin/nice -n 10 "${engine[@]}" exec "$container" /bin/bash /src/test/container/status.sh package "$source_commit"
+        else
+            /usr/bin/nice -n 10 "${engine[@]}" exec "$container" /bin/bash /src/test/container/status.sh
+        fi
     else
         /usr/bin/nice -n 10 "${engine[@]}" start --attach "$container"
         [[ $("${engine[@]}" inspect --format '{{.State.ExitCode}}' "$container") == 0 ]]
@@ -194,11 +207,12 @@ stop_children() {
     exit 130
 }
 trap stop_children INT TERM
-if [[ ${1:-} == @systemd ]]; then
-    /bin/bash "$repo/test/container/build-apptrol.sh"
+# Both distros of one mode (systemd or install), side by side when memory allows.
+run_distros() {
+    local mode=$1
     if ((jobs >= 2)); then
-        run_one systemd-ubuntu systemd & first=$!
-        run_one systemd-fedora systemd & second=$!
+        run_one "$mode-ubuntu" "$mode" & first=$!
+        run_one "$mode-fedora" "$mode" & second=$!
         children=("$first" "$second")
         failed=0
         wait "$first" || failed=1
@@ -206,14 +220,28 @@ if [[ ${1:-} == @systemd ]]; then
         exit "$failed"
     fi
     # Do not suppress errexit inside run_one by calling it as an if condition.
-    run_one systemd-ubuntu systemd & first=$!
+    run_one "$mode-ubuntu" "$mode" & first=$!
     children=("$first")
     failed=0
     wait "$first" || failed=1
-    run_one systemd-fedora systemd & second=$!
+    run_one "$mode-fedora" "$mode" & second=$!
     children=("$second")
     wait "$second" || failed=1
     exit "$failed"
+}
+if [[ ${1:-} == @systemd ]]; then
+    /bin/bash "$repo/test/container/build-apptrol.sh"
+    run_distros systemd
+fi
+if [[ ${1:-} == @install ]]; then
+    # The packages are built by `make snapshot`, never here: GoReleaser would run
+    # unsandboxed on the host. A missing package is the caller's mistake, so it is
+    # refused before any container starts (QA-17, ADR 0034).
+    if [[ -L dist || ! -d dist ]] || ! compgen -G 'dist/*.deb' >/dev/null || ! compgen -G 'dist/*.rpm' >/dev/null; then
+        echo 'Refusing: dist/ needs the .deb and .rpm of this commit; run make snapshot first' >&2
+        exit 1
+    fi
+    run_distros install
 fi
 name=${1:-}
 run_one "${name#recipe:}" & only=$!

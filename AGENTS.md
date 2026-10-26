@@ -226,7 +226,7 @@ The owner wants to keep learning while working, not just receive finished result
   read only     read and search files in this repository and its worktrees; git and
                 GitHub commands that only read (status, log, diff, PR and issue views,
                 CI checks)
-  build, test   make check, make test-audio, make test-systemd,
+  build, test   make check, make test-audio, make test-systemd, make test-install,
                 make container-run RECIPE=<name>
   git           list branches, git switch -c, commit (deleting or renaming a branch,
                 and push, only after the owner's OK, see Workflow)
@@ -256,8 +256,8 @@ The owner wants to keep learning while working, not just receive finished result
   rootless Podman only, never Docker and never `sudo podman`, and every run through
   the script includes `AGENT=<model-name>` for audit attribution (ADR 0034's dated
   clarification; this label never reaches Podman). Every run goes through
-  the repository's container script (`make test-systemd`, `make container-run
-  RECIPE=<name>`), which records it in `.audit/`. The script mounts only the checkout,
+  the repository's container script (`make test-systemd`, `make test-install`,
+  `make container-run RECIPE=<name>`), which records it in `.audit/`. The script mounts only the checkout,
   read-only, and `.tmp/<run>/` inside it as the one writable folder (ignored by git):
   never `~/.ssh`, the rest of the home folder or `/run/user/…`, and no
   `SSH_AUTH_SOCK`. A flag the script lacks is a pull request to the script. With the

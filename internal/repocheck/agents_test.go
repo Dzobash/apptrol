@@ -347,7 +347,7 @@ func TestQA16_ContainerCommandsBlocked(t *testing.T) {
 			}
 		}
 	}
-	for _, cmd := range []string{"make test-systemd", "make container-run"} {
+	for _, cmd := range []string{"make test-systemd", "make test-install", "make container-run"} {
 		if !claude.allow[cmd] || !codex.allow[cmd] {
 			t.Errorf("%s must be allowed in both tools", cmd)
 		}

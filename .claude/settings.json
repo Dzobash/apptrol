@@ -95,6 +95,8 @@
       "Bash(make test-audio *)",
       "Bash(make test-systemd)",
       "Bash(make test-systemd *)",
+      "Bash(make test-install)",
+      "Bash(make test-install *)",
       "Bash(make container-run)",
       "Bash(make container-run *)"
     ],
