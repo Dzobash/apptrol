@@ -73,6 +73,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   output, with the previous one in `apptrol.device.previous_name`. The warning that
   such an output is inactive is gone (OUT-03, OUT-04, OUT-13,
   [ADR 0038](docs/adr/0038-default-output-follows-the-server.md), Refs #85).
+  Plugging in headphones that become the default at once works like any new output:
+  for 3 seconds, a mute the audio server restores on them is set back to the control's
+  saved mute and never taken over as the control's, and a volume another control set
+  on them first is no longer defended once the default control holds them, so they
+  keep the volume they have until you move it (OUT-03, OUT-05, Fixes #85).
 - `make check` and CI cross-compile the shared packages for Windows without cgo,
   catching accidental Linux dependencies early. The configuration watcher keeps its
   inode check on Linux and uses modification time and size elsewhere. This guards

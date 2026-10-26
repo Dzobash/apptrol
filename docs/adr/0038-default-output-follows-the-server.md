@@ -125,3 +125,64 @@ INFO default output is the same device as another output; the earlier control ow
 - One volume is applied to all channels, as for fixed outputs (#156).
 - `make test-audio` switches the real default output between two test outputs and
   restores the one it found (the owner chose this, 2026-10-19).
+
+## Notes
+
+- 2026-10-26: Point 6 is done (#85, PR 3b). The owner chose options 1A and 2A. Both
+  cases are guard work in the audio adapter; the mixer gains one action and stays
+  pure (ADR 0015).
+
+  **A new device that becomes the default at once.** `SetOutputMute` already gave a
+  released guard a mute to defend again, and the other order (the server names the
+  default before the device is reported) was already right: the mixer holds the
+  device from its first read. One gap was left. The device first appears with no
+  owner, the mixer releases it, and a restore read before the mixer hears of the new
+  default was outside by the guard's rules; it reached the mixer after the default
+  control took the device over, and that control's saved mute flipped (MUTE-07).
+
+  ```text
+  adapter: appears ─ OutputAdded ─ DefaultOutputChanged ─ restore: muted (read) ───────┐
+  mixer:            ReleaseOutput ┤            ├ SetOutputMute(slider1's)               │
+  before:  restore reported ─► reaches the mixer after slider1 owns it ─► saved mute flips
+  now:     restore held (released) ─► not reported; slider1's mute is written and defended
+  ```
+
+  1A: within its window, the guard also holds the mute changes of a released device
+  from the mixer, and defends nothing on it (`released` in `apptrol.audio.guard.state`);
+  after the window they are reported as before. Nothing visible is lost: the mixer
+  ignores mute changes on a device no control holds, and a control that takes it over
+  writes its own mute. 1B, tagging the change as read while released for the mixer to
+  drop, was rejected: guard knowledge in the mixer. ADR 0027's note of this date
+  records the protocol change.
+
+  **A stale defended volume after an ownership move.** A fixed control sets a new
+  device to 80 %; the default moves onto it within the guard's window and an earlier
+  default control takes it over, without a volume (point 3). The guard still defended
+  80 %, so a restore to 30 % was set back. 2A: when a default control takes a device
+  another owner held (a fixed target, the same target that a reload made follow the
+  default, or another default control a reload took away; the last two found in
+  #191's review), the mixer sends `ForgetOutputVolume`, and the guard stops
+  defending the volume and keeps defending the mute. It carries no generation: it only
+  narrows defense, never resumes it, and actions are applied in order, so the next
+  `SetOutputVolume` (a move) is defended again. A field on `KeepOutput` (2B) was
+  rejected: an answer to a read is not an ownership move, and its generation check
+  could drop it as stale and leave 80 % defended.
+
+  ```text
+  knob1: 80 % ─ default: slider1 owns ─ ForgetOutputVolume ─ server: 30 % ─► stays
+                                                             server: muted ─► slider1's mute again
+  ```
+
+  Logging, following ADR 0016 (no new attribute):
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | debug | `output mute change not taken over: the new-output guard holds the mute` (audio adapter) | as before; `apptrol.audio.guard.state` gets the value `released` |
+  | debug | `output volume no longer defended; the new owner sets none until it is moved` (audio adapter) | `apptrol.device.name` |
+
+  ```text
+  INFO default output changed apptrol.device.name=<headphones> apptrol.device.previous_name=<speakers>
+  INFO output matched apptrol.control=slider1 apptrol.device.name=<headphones> apptrol.device.selected_by=default
+  DEBUG output mute change not taken over: the new-output guard holds the mute apptrol.device.name=<headphones> apptrol.muted=true apptrol.audio.guard.state=released
+  DEBUG output volume no longer defended; the new owner sets none until it is moved apptrol.device.name=<headphones>
+  ```

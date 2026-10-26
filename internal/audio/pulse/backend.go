@@ -51,6 +51,14 @@ type guard struct {
 	// answer left the device with the mute the server restored (OUT-05,
 	// CTRL-06, #177 review).
 	owedMute bool
+	// released says the mixer released the output (ReleaseOutput) and no
+	// control has set a mute on it since. Within the window the guard still
+	// holds its mute changes from the mixer, defending nothing: a default
+	// change can give the device a control before the mixer reads such a
+	// change, which would then be taken over as that control's (OUT-03,
+	// MUTE-07, ADR 0038 point 6). The mixer ignores changes on a device no
+	// control holds, and a control that takes it over writes its own mute.
+	released bool
 	// Only the newest reported identity's answer can resume output defense.
 	// Volume-only notifications do not answer it (CTRL-06, ADR 0027).
 	generation uint64
@@ -743,6 +751,7 @@ const (
 	// Why the guard held a mute change it read, besides ownership_pending (#177).
 	guardAtWantedMute = "at_wanted_mute" // it reads what Apptrol set
 	guardRestoreMute  = "restore_mute"   // it reads the other one: set again
+	guardReleased     = "released"       // no control holds it: held, set nothing (ADR 0038 point 6)
 )
 
 // checkOutputMute returns the mute to set again on an output that reads
@@ -792,9 +801,11 @@ type muteHold struct {
 }
 
 // heldMute reports whether the guard holds an output's mute that reads muted
-// now: within its window, once a control set a mute, or while the mixer has
-// not answered the newest identity. A released output holds none (OUT-05,
-// CTRL-06, ADR 0027, ADR 0035, #177). It takes mu and drops nothing.
+// now: within its window, once a control set a mute, while the mixer has not
+// answered the newest identity, or once it released the output. A released
+// output's change is held but owes nothing: a default change may hand the
+// device to a control before the mixer reads it (OUT-03, OUT-05, CTRL-06,
+// ADR 0027, ADR 0035, ADR 0038 point 6, #177). It takes mu and drops nothing.
 //
 // A read it holds is owed (owedMute): the change is hidden from the mixer, so
 // the guard must settle it, setting the mute again or finding it right, even
@@ -811,6 +822,8 @@ func (b *Backend) heldMute(name string, muted bool) muteHold {
 	switch {
 	case g.generation != 0 && !g.answered:
 		h.state = guardOwnershipPending
+	case g.released:
+		h.state = guardReleased
 	case g.muted == nil:
 		return muteHold{}
 	case *g.muted == muted:
@@ -1086,7 +1099,7 @@ func (b *Backend) outsideOutputMute(name string, muted bool, hold muteHold) bool
 func (b *Backend) Apply(a mixer.Action) error {
 	switch a.(type) {
 	case mixer.SetStreamMute, mixer.SetDeviceMute, mixer.SetStreamVolume, mixer.SetDeviceVolume,
-		mixer.SetOutputVolume, mixer.SetOutputMute, mixer.ReleaseOutput, mixer.KeepOutput:
+		mixer.SetOutputVolume, mixer.SetOutputMute, mixer.ReleaseOutput, mixer.KeepOutput, mixer.ForgetOutputVolume:
 		// A volume waits for a guard write in progress, and the guard then
 		// sees the new value: the latest slider position wins (CTRL-04,
 		// CTRL-05, PRIO-03, #158; OUT-01, OUT-05, ADR 0027).
@@ -1103,6 +1116,7 @@ func (b *Backend) Apply(a mixer.Action) error {
 	k := b.cur
 	var chans int
 	var staleRelease *uint64 // the newest generation, if a release came for an older one
+	forgot := false          // ForgetOutputVolume dropped a defended volume
 	switch a := a.(type) {
 	case mixer.SetStreamVolume:
 		chans = b.channels[a.StreamID]
@@ -1136,9 +1150,10 @@ func (b *Backend) Apply(a mixer.Action) error {
 		// The guard defends the newest mute, so an M press within its window
 		// is never undone by a restore of an older one (OUT-05, OUT-06, #177).
 		// setOutputMute notes the echo to expect.
+		// A control holds the output (again): no longer released (ADR 0038).
 		if g := b.outGuard[a.Device]; g != nil {
 			m := a.Muted
-			g.muted = &m
+			g.muted, g.released = &m, false
 		}
 	case mixer.SetOutputVolume:
 		chans = b.outChans[a.Device]
@@ -1153,17 +1168,29 @@ func (b *Backend) Apply(a mixer.Action) error {
 		// ADR 0035, #177).
 		if g := b.outGuard[a.Device]; g != nil {
 			if g.generation == a.Generation {
-				g.answered = true
+				g.answered, g.released = true, true
 				g.volume, g.muted, g.owedMute = nil, nil, false
 			} else {
 				current := g.generation
 				staleRelease = &current
 			}
 		}
+	case mixer.ForgetOutputVolume:
+		// A default control took the output over: it sets no volume until
+		// moved, so an earlier owner's is no longer defended; the mute is
+		// (OUT-03, ADR 0038 point 6).
+		if g := b.outGuard[a.Device]; g != nil && g.volume != nil {
+			g.volume = nil
+			forgot = true
+		}
 	}
 	b.mu.Unlock()
 	if a, ok := a.(mixer.ReleaseOutput); ok && staleRelease != nil {
 		b.logStaleAnswer("ReleaseOutput", a.Device, a.Generation, *staleRelease)
+	}
+	if a, ok := a.(mixer.ForgetOutputVolume); ok && forgot {
+		b.log.Debug("output volume no longer defended; the new owner sets none until it is moved",
+			logattr.KeyDeviceName, a.Device)
 	}
 	if k == nil {
 		switch a.(type) {

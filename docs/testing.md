@@ -199,8 +199,22 @@ the default too and checks that nothing but a move sets its volume.
 `TestOUT03_DefaultOutputFollowedThroughTheService` the whole loop, and
 `TestIntegration_OUT03_DefaultOutputFollowsASwitch` switches the real default between
 two silent test outputs with `pactl set-default-sink` and restores the one it found
-(the owner chose this, 2026-10-19). It waits out the new-output guard first: a device
-that becomes the default as it appears is #85's guard step. The mixer's tests in
+(the owner chose this, 2026-10-19). It waits out the new-output guard first;
+`TestIntegration_OUT03_NewOutputBecomesTheDefault` covers a new device that becomes
+the default inside its window, twice: one no fixed control matches, and one a fixed
+knob set to 80 % first. A `pactl` change inside the window stands in for WirePlumber's
+restore: the mute is set back, the control's saved mute stays, and the earlier owner's
+80 % is not defended. The mixer starts only once a test output is the default, from a
+snapshot of test outputs only. In `output_mute_test.go`, with the real mixer,
+`TestOUT03_NewDefaultOutputRestoreDuringTakeoverIsNotTakenOver` forces the narrow
+order (a restore read after the release, handled after the takeover),
+`TestOUT03_DefaultNamedBeforeTheDeviceAppearsDefendsTheMute` the other order, and
+`TestOUT03_DefaultTakeoverStopsDefendingTheEarlierOwnersVolume` the stale volume
+(ADR 0038 point 6). `TestOUT03_DefaultTakeoverForgetsTheEarlierOwnersVolume` and
+`TestOUT03_ReloadToDefaultForgetsTheFixedVolume` (a reload that makes the same target
+follow the default) and `TestOUT03_DefaultToDefaultHandoverForgetsTheVolume` (one
+default control hands the device to another) check when the mixer sends `ForgetOutputVolume`; the fuzz test checks it only names a device
+a default control holds. The mixer's tests in
 `internal/mixer/output_test.go` cover choosing the device (case-insensitive, first by
 name with a warning, kept while it matches), the volume up to `max_volume`, an unknown
 position (left alone, PRIO-04), outside changes (not reverted), first-control ownership
@@ -220,7 +234,8 @@ regression (write muted → echo → server unmutes → the mixer hears nothing 
 is set again; it fails without the fix, QA-11), and the others cover an outside change
 after the window (`TestMUTE07_OutputMuteChangeAfterTheGuardIsTakenOver`), an M press
 within it (`TestOUT06_MPressWithinTheGuardWins`), release and a stale release
-(`TestCTRL06_ReleasedOutputMuteIsNoLongerDefended`), ownership moving to another
+(`TestCTRL06_ReleasedOutputMuteIsNoLongerDefended`: a released output's change is held
+within the window and reported after it, ADR 0038 point 6), ownership moving to another
 control with the real mixer (`TestOUT04_OwnershipTransferDefendsTheNewOwnersMute`),
 removal and reappearance (`TestOUT05_ReappearedOutputDefendsOnlyItsNewMute`), a lost
 mute write (`TestOUT05_ReadBackSetsALostMuteAgain`), pending ownership

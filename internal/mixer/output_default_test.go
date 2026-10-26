@@ -2,6 +2,7 @@ package mixer
 
 import (
 	"log/slog"
+	"slices"
 	"testing"
 
 	"github.com/Dzobash/apptrol/internal/logattr"
@@ -243,6 +244,79 @@ func TestOUT04_DefaultOverlapFirstControlOwns(t *testing.T) {
 	w.do(OutputMuteChanged{Name: speakers.Name, Muted: true}) // the mute key
 	if !w.m.Snapshot().Muted[Control{Slider, 7}] || w.m.Snapshot().Muted[Control{Knob, 8}] {
 		t.Errorf("outside mute went to %v, want slider7, the owner", w.m.Snapshot().Muted)
+	}
+}
+
+// When the default moves onto a device another control held, that control
+// may have set a volume the adapter's new-output guard still defends; the
+// default control sets none, so the mixer tells the adapter to forget it. A
+// default change onto a device no control held, or a fixed control taking a
+// device back, sends nothing of the kind (OUT-03, OUT-04, ADR 0038 point 6).
+//
+//	knob7 holds the headphones ─ default: headphones ─► slider6 owns them, ForgetOutputVolume
+func TestOUT03_DefaultTakeoverForgetsTheEarlierOwnersVolume(t *testing.T) {
+	w := defaultWorld(t, defaultSetup(), State{}, speakers.Name)
+	w.do(DefaultOutputChanged{Name: headphones.Name}) // knob7 held them; slider7 takes the speakers back
+	if !slices.Equal(w.forgot, []string{headphones.Name}) {
+		t.Fatalf("forgotten volumes = %v, want the headphones only", w.forgot)
+	}
+	w.do(DefaultOutputChanged{Name: speakers.Name}) // slider7 held them
+	if !slices.Equal(w.forgot, []string{headphones.Name, speakers.Name}) {
+		t.Fatalf("forgotten volumes = %v, want the speakers too", w.forgot)
+	}
+
+	w = defaultWorld(t, onlyDefault(), State{}, speakers.Name)
+	w.do(DefaultOutputChanged{Name: headphones.Name})
+	if len(w.forgot) != 0 {
+		t.Fatalf("forgotten volumes = %v, want none: no control held the headphones", w.forgot)
+	}
+}
+
+// A reload turns the target that holds the default device from a fixed match
+// into device = "default": the device and the target stay, but the volume
+// the fixed control set is no longer the owner's to defend (OUT-03,
+// ADR 0038 point 6, #191 review). A reload that keeps a default control on
+// its device sends nothing.
+func TestOUT03_ReloadToDefaultForgetsTheFixedVolume(t *testing.T) {
+	fixed := onlyDefault()
+	fixed.Targets["follow"] = Target{ID: "follow", Name: "Main volume", Kind: Output, Match: []string{"headset"}}
+	w := defaultWorld(t, fixed, State{Positions: map[Control]int{{Slider, 6}: 102}}, headphones.Name)
+	if w.m.OutputDevice("follow") != headphones.Name {
+		t.Fatalf("fixed target holds %q, want the headphones", w.m.OutputDevice("follow"))
+	}
+	w.do(ConfigChanged{Setup: onlyDefault()})
+	if !slices.Equal(w.forgot, []string{headphones.Name}) {
+		t.Fatalf("forgotten volumes = %v, want the headphones", w.forgot)
+	}
+	w.do(ConfigChanged{Setup: onlyDefault()})
+	if len(w.forgot) != 1 {
+		t.Fatalf("forgotten volumes = %v, want nothing more from a reload that changes nothing", w.forgot)
+	}
+}
+
+// Two default-output controls: slider6 owns the default and was moved;
+// slider7 yields. A reload takes slider6 away and slider7 takes the device
+// over without a move, so slider6's volume is no longer defended (OUT-03,
+// ADR 0038 point 6, #191 review round 2).
+func TestOUT03_DefaultToDefaultHandoverForgetsTheVolume(t *testing.T) {
+	two := onlyDefault()
+	two.Targets["follow2"] = Target{ID: "follow2", Name: "Second main", Kind: Output, FollowsDefault: true}
+	two.Assignments[Control{Slider, 7}] = "follow2"
+	w := defaultWorld(t, two, State{}, headphones.Name)
+	w.move(Slider, 6, 102)
+	if len(w.forgot) != 0 {
+		t.Fatalf("forgotten volumes = %v, want none yet", w.forgot)
+	}
+	moved := onlyDefault()
+	delete(moved.Assignments, Control{Slider, 6})
+	moved.Targets["follow2"] = two.Targets["follow2"]
+	moved.Assignments[Control{Slider, 7}] = "follow2"
+	w.do(ConfigChanged{Setup: moved})
+	if w.m.OutputDevice("follow2") != headphones.Name {
+		t.Fatalf("slider7 follows %q, want the headphones", w.m.OutputDevice("follow2"))
+	}
+	if !slices.Equal(w.forgot, []string{headphones.Name}) {
+		t.Fatalf("forgotten volumes = %v, want the headphones", w.forgot)
 	}
 }
 

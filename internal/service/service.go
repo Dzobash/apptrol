@@ -547,7 +547,8 @@ func (s *service) handle(ev mixer.Event) {
 func (s *service) do(a mixer.Action) {
 	switch a := a.(type) {
 	case mixer.SetStreamVolume, mixer.SetStreamMute, mixer.SetDeviceVolume, mixer.SetDeviceMute,
-		mixer.SetOutputVolume, mixer.SetOutputMute, mixer.ReleaseOutput, mixer.KeepOutput: // output volume, mute and ownership (OUT-01, OUT-05, OUT-06, CTRL-06, ADR 0027)
+		mixer.SetOutputVolume, mixer.SetOutputMute, mixer.ReleaseOutput, mixer.KeepOutput, // output volume, mute and ownership (OUT-01, OUT-05, OUT-06, CTRL-06, ADR 0027)
+		mixer.ForgetOutputVolume: // a default control took over (OUT-03, ADR 0038)
 		err := s.o.Audio.Apply(a)
 		switch {
 		case err == nil:

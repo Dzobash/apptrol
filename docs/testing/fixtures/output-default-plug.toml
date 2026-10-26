@@ -1,0 +1,27 @@
+# Test fixture "output-default-plug": slider6 follows the system's default
+# output, knob7 holds a test output the case plugs in later (OUT-03, OUT-05,
+# ADR 0038 point 6). The case adds silent outputs with pactl and makes each the
+# default within its first 3 seconds, as plugged-in headphones would be.
+# Slider6 writes its saved mute to whatever is the default, even unmoved, so
+# the case makes a silent stand-in output the default before this fixture is
+# applied and keeps a test output the default until it is restored; slider6
+# is never moved, and max_volume keeps it at half in any case.
+# For: TC-OUT-009. TestFixturesAreValid in internal/config checks that it loads.
+
+[log]
+level   = "debug"                  # the case reads the guard's debug records
+outputs = ["journald"]
+
+[outputs.main]
+name       = "Main volume"
+device     = "default"
+max_volume = 50
+
+[outputs.plug-b]
+name       = "Plugged-in output B"
+match      = ["apptrol-test-plug-b"]
+max_volume = 80
+
+[layouts.default]
+slider6 = "main"                   # earlier than knob7: owns a device they share
+knob7   = "plug-b"

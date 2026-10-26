@@ -391,3 +391,80 @@ in `internal/audio/pulse/integration_test.go` (the real default switched and res
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
+
+### TC-OUT-009 — A new output that becomes the default at once (headphones plugged in)
+
+Covers: OUT-03, OUT-04, OUT-05, MUTE-07 · Phase 1.6
+Config: output-default-plug
+Type: Manual + Automated
+
+Plugged-in headphones appear and become the default within the new-output guard's
+3 seconds ([ADR 0038](../../adr/0038-default-output-follows-the-server.md) note of
+2026-10-26). A silent test output stands in for them, so real headphones are not
+needed, and a `pactl` change right after stands in for the restore WirePlumber would
+make. Slider 6 follows the default, so a silent stand-in output is made the default
+before the fixture is applied and stays it until the fixture is restored: Apptrol
+writes slider 6's saved mute to whatever the default is, and your own output must
+not be it while this fixture is active.
+
+```text
+A: appears + default ─► slider6 owns it ─ muted (restore) ─► unmuted again, M6 stays dark
+B: appears: knob7 80 % ─ default ─► slider6 owns it ─ 30 % (restore) ─► 30 % stays
+```
+
+**Setup**
+- [ ] Nothing loud is playing. Run `pactl get-default-sink` → note the name
+  (`<your default>` below)
+- [ ] Before applying the fixture, make a silent stand-in the default:
+  `pactl load-module module-null-sink sink_name=apptrol-test-plug-home; pactl set-default-sink apptrol-test-plug-home`
+  → note `<module home>`; `pactl get-default-sink` reports `apptrol-test-plug-home`
+- [ ] Apply `output-default-plug`; do not move slider 6 → the journal has
+  `output matched` for slider 6 on `apptrol-test-plug-home`, not on `<your default>`
+- [ ] Move knob 7 to the top → nothing changes yet (its output is not there); the
+  position is saved for it
+
+**Steps**
+- [ ] Output A, no fixed control: run this one line. It plugs A in, makes it the
+  default, gives Apptrol half a second, then mutes A as a late restore would:
+  `pactl load-module module-null-sink sink_name=apptrol-test-plug-a; pactl set-default-sink apptrol-test-plug-a; sleep 0.5; pactl set-sink-mute apptrol-test-plug-a 1`
+  → note `<module a>`. A second later `pactl get-sink-mute apptrol-test-plug-a` reports
+  no and M6 is dark. The journal has `default output changed` with
+  `apptrol.device.name=apptrol-test-plug-a`, `output matched` for slider 6, and
+  `output mute change not taken over: the new-output guard holds the mute` for A
+  (`apptrol.audio.guard.state` `restore_mute`, or `released` or `ownership_pending`
+  when the restore came before slider 6 took A over); no `muted outside Apptrol`.
+  If the journal has `muted outside Apptrol` for slider 6, the case fails
+- [ ] Wait 5 seconds, run `pactl set-sink-mute apptrol-test-plug-a 1` → M6 lights up
+  and the journal has `muted outside Apptrol` on slider 6: after the window it is
+  taken over. Run `pactl set-sink-mute apptrol-test-plug-a 0` → M6 goes dark
+- [ ] Output B, which knob 7 holds first: run this one line. It plugs B in, gives
+  knob 7 half a second to set 80 %, makes B the default, then puts 30 % on it as a
+  late restore would:
+  `pactl load-module module-null-sink sink_name=apptrol-test-plug-b; sleep 0.5; pactl set-default-sink apptrol-test-plug-b; sleep 0.3; pactl set-sink-volume apptrol-test-plug-b 30%`
+  → note `<module b>`. A second later `pactl get-sink-volume apptrol-test-plug-b`
+  reports 30 %: slider 6 owns B now and does not defend knob 7's 80 %. The journal has
+  `output matched` for knob 7, then `default output is the same device as another
+  output; the earlier control owns it` with `apptrol.control=knob7`, and
+  `output volume no longer defended; the new owner sets none until it is moved` for B.
+  If it reports 80 %, the case fails
+- [ ] Restore the fixture first, while a test output is still the default:
+  `docs/testing/apply-fixture.sh --restore`. Then run
+  `pactl set-default-sink <your default>`, and `pactl unload-module` with
+  `<module b>`, `<module a>` and `<module home>` → `pactl get-default-sink` reports
+  `<your default>` and no `apptrol-test-plug-` output is left in `apptrol list`
+
+Automated: in `internal/audio/pulse/output_mute_test.go`:
+`TestOUT03_NewDefaultOutputRestoreDuringTakeoverIsNotTakenOver`,
+`TestOUT03_DefaultNamedBeforeTheDeviceAppearsDefendsTheMute`,
+`TestOUT03_DefaultTakeoverStopsDefendingTheEarlierOwnersVolume` and
+`TestCTRL06_ReleasedOutputMuteIsNoLongerDefended`;
+`TestOUT03_DefaultTakeoverForgetsTheEarlierOwnersVolume`,
+`TestOUT03_ReloadToDefaultForgetsTheFixedVolume` and
+`TestOUT03_DefaultToDefaultHandoverForgetsTheVolume` in
+`internal/mixer/output_default_test.go`; `TestIntegration_OUT03_NewOutputBecomesTheDefault`
+in `internal/audio/pulse/integration_test.go` (the real default switched and
+restored). The order of events in the narrow gap (a restore read between the release
+and the takeover) cannot be forced by hand; the unit test covers it.
+
+**Result:** Pass / Fail / Blocked
+**Notes:**

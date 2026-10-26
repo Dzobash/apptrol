@@ -313,3 +313,18 @@ PipeWire or PulseAudio.
 
   The two renamed records were never in a release. `apptrol.audio.guard.state` gets
   the values `restore_mute` and `at_wanted_mute`.
+- 2026-10-26: A released output's mute changes no longer reach the mixer at once
+  ([ADR 0038](0038-default-output-follows-the-server.md) note of this date, #85).
+  Within its window, the guard holds them too, defending nothing, and reports them
+  after the window: a default change can hand the device to a control before the
+  mixer reads such a change, which would then be taken over as that control's mute.
+  The mixer ignores changes on a device no control holds, so nothing visible changes.
+  A release still clears the defended volume and mute and cancels what is owed; the
+  next `SetOutputMute` ends the hold for a released device and defends that mute.
+  `apptrol.audio.guard.state` gets the value `released`. The mixer's new
+  `ForgetOutputVolume` clears only the defended volume, when a default control takes
+  a device over; the generation protocol is unchanged.
+
+  ```text
+  release ─ server: muted ─► held, not set (released) ─┤ 3 s ├─ applet: unmuted ─► reported (ignored, no owner)
+  ```
