@@ -272,6 +272,28 @@ func TestOUT03_DefaultTakeoverForgetsTheEarlierOwnersVolume(t *testing.T) {
 	}
 }
 
+// A reload turns the target that holds the default device from a fixed match
+// into device = "default": the device and the target stay, but the volume
+// the fixed control set is no longer the owner's to defend (OUT-03,
+// ADR 0038 point 6, #191 review). A reload that keeps a default control on
+// its device sends nothing.
+func TestOUT03_ReloadToDefaultForgetsTheFixedVolume(t *testing.T) {
+	fixed := onlyDefault()
+	fixed.Targets["follow"] = Target{ID: "follow", Name: "Main volume", Kind: Output, Match: []string{"headset"}}
+	w := defaultWorld(t, fixed, State{Positions: map[Control]int{{Slider, 6}: 102}}, headphones.Name)
+	if w.m.OutputDevice("follow") != headphones.Name {
+		t.Fatalf("fixed target holds %q, want the headphones", w.m.OutputDevice("follow"))
+	}
+	w.do(ConfigChanged{Setup: onlyDefault()})
+	if !slices.Equal(w.forgot, []string{headphones.Name}) {
+		t.Fatalf("forgotten volumes = %v, want the headphones", w.forgot)
+	}
+	w.do(ConfigChanged{Setup: onlyDefault()})
+	if len(w.forgot) != 1 {
+		t.Fatalf("forgotten volumes = %v, want nothing more from a reload that changes nothing", w.forgot)
+	}
+}
+
 // A snapshot after a reconnect or a resync can bring a new default without a
 // DefaultOutputChanged. The device the control held before is released as on
 // a change: unmuted, not left with the control's mute (OUT-03, ADR 0038).

@@ -210,8 +210,9 @@ snapshot of test outputs only. In `output_mute_test.go`, with the real mixer,
 order (a restore read after the release, handled after the takeover),
 `TestOUT03_DefaultNamedBeforeTheDeviceAppearsDefendsTheMute` the other order, and
 `TestOUT03_DefaultTakeoverStopsDefendingTheEarlierOwnersVolume` the stale volume
-(ADR 0038 point 6). `TestOUT03_DefaultTakeoverForgetsTheEarlierOwnersVolume` checks
-when the mixer sends `ForgetOutputVolume`; the fuzz test checks it only names a device
+(ADR 0038 point 6). `TestOUT03_DefaultTakeoverForgetsTheEarlierOwnersVolume` and
+`TestOUT03_ReloadToDefaultForgetsTheFixedVolume` (a reload that makes the same target
+follow the default) check when the mixer sends `ForgetOutputVolume`; the fuzz test checks it only names a device
 a default control holds. The mixer's tests in
 `internal/mixer/output_test.go` cover choosing the device (case-insensitive, first by
 name with a warning, kept while it matches), the volume up to `max_volume`, an unknown

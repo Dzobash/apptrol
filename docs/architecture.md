@@ -237,8 +237,10 @@ for each output target on a control, the device it has chosen (`outputFor`):
     └─► speakers: no control left ─► SetOutputMute(false), ReleaseOutput ─► nothing more is written there
   ```
 
-  When the default control takes a device that another control held (`heldByOther`),
-  that control may have set a volume the adapter's new-output guard still defends.
+  When the default control takes a device that a fixed target held at the last choice
+  (`defaultHeld` remembers which devices a default target held), that target may have
+  set a volume the adapter's new-output guard still defends; this includes a reload
+  that turns the same target from a match into `device = "default"`.
   The default control sets none, so the mixer also sends `ForgetOutputVolume`: the
   guard stops defending the volume and keeps defending the mute (ADR 0038 point 6).
   It needs no generation, as it never resumes defense; the next move's

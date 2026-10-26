@@ -2,8 +2,10 @@
 # output, knob7 holds a test output the case plugs in later (OUT-03, OUT-05,
 # ADR 0038 point 6). The case adds silent outputs with pactl and makes each the
 # default within its first 3 seconds, as plugged-in headphones would be.
-# Slider6 is never moved or pressed, so your own output's volume and mute are
-# never set; max_volume keeps it at half in any case.
+# Slider6 writes its saved mute to whatever is the default, even unmoved, so
+# the case makes a silent stand-in output the default before this fixture is
+# applied and keeps a test output the default until it is restored; slider6
+# is never moved, and max_volume keeps it at half in any case.
 # For: TC-OUT-009. TestFixturesAreValid in internal/config checks that it loads.
 
 [log]

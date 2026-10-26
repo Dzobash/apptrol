@@ -290,7 +290,8 @@ type KeepOutput struct {
 
 // ForgetOutputVolume tells the audio adapter that the control now holding the
 // output device sets no volume until it is moved: a default-output control
-// took over a device an earlier owner had set (OUT-03, ADR 0038 point 6). The
+// took over a device a fixed target held, perhaps the same target before a
+// reload (OUT-03, ADR 0038 point 6). The
 // adapter's new-output guard stops defending that volume and keeps defending
 // the mute. It never resumes defense, so it needs no generation (CTRL-06);
 // the next SetOutputVolume, from a move, is defended again.

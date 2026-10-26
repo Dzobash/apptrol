@@ -32,6 +32,11 @@ type Mixer struct {
 	blockedOutputs map[string]string
 	outputMuteSent map[string]bool // last output mute sent (OUT-06, ADR 0027)
 	defaultOutput  string          // the server's default output, "" = none (OUT-03, ADR 0038)
+	// defaultHeld records the devices a default-output target held at the last
+	// choice: one that a fixed target held instead may still have that target's
+	// volume defended by the adapter, also after a reload made the same target
+	// follow the default (ForgetOutputVolume, ADR 0038 point 6, #191 review).
+	defaultHeld map[string]bool
 
 	players        map[string]*playerInfo // media players by bus name (MEDIA-01, MEDIA-03)
 	playSeq        int                    // counts players starting to play (lastPlaying)
@@ -70,6 +75,7 @@ func New(setup Setup, saved State) *Mixer {
 		outputFor:      map[string]string{},
 		blockedOutputs: map[string]string{},
 		outputMuteSent: map[string]bool{},
+		defaultHeld:    map[string]bool{},
 		players:        map[string]*playerInfo{},
 		deviceMuteSent: map[string]bool{},
 		leds:           map[LED]bool{},
