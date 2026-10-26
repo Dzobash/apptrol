@@ -458,8 +458,9 @@ Automated: in `internal/audio/pulse/output_mute_test.go`:
 `TestOUT03_DefaultNamedBeforeTheDeviceAppearsDefendsTheMute`,
 `TestOUT03_DefaultTakeoverStopsDefendingTheEarlierOwnersVolume` and
 `TestCTRL06_ReleasedOutputMuteIsNoLongerDefended`;
-`TestOUT03_DefaultTakeoverForgetsTheEarlierOwnersVolume` and
-`TestOUT03_ReloadToDefaultForgetsTheFixedVolume` in
+`TestOUT03_DefaultTakeoverForgetsTheEarlierOwnersVolume`,
+`TestOUT03_ReloadToDefaultForgetsTheFixedVolume` and
+`TestOUT03_DefaultToDefaultHandoverForgetsTheVolume` in
 `internal/mixer/output_default_test.go`; `TestIntegration_OUT03_NewOutputBecomesTheDefault`
 in `internal/audio/pulse/integration_test.go` (the real default switched and
 restored). The order of events in the narrow gap (a restore read between the release

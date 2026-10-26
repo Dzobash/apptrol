@@ -159,8 +159,9 @@ INFO default output is the same device as another output; the earlier control ow
   device to 80 %; the default moves onto it within the guard's window and an earlier
   default control takes it over, without a volume (point 3). The guard still defended
   80 %, so a restore to 30 % was set back. 2A: when a default control takes a device
-  a fixed target held, also the same target that a reload made follow the default
-  (found in #191's review), the mixer sends `ForgetOutputVolume`, and the guard stops
+  another owner held (a fixed target, the same target that a reload made follow the
+  default, or another default control a reload took away; the last two found in
+  #191's review), the mixer sends `ForgetOutputVolume`, and the guard stops
   defending the volume and keeps defending the mute. It carries no generation: it only
   narrows defense, never resumes it, and actions are applied in order, so the next
   `SetOutputVolume` (a move) is defended again. A field on `KeepOutput` (2B) was

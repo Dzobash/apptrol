@@ -213,10 +213,11 @@ func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 		}
 		owners[pick] = id
 		chosen[id] = pick
-		// A fixed target held the device before, perhaps this same target
-		// before a reload: the adapter's guard may still defend the volume it
-		// set, and a default control sets none (ADR 0038 point 6).
-		if follows && contains(m.outputFor, pick) && !m.defaultHeld[pick] {
+		// Another owner held the device before: a fixed target (perhaps this
+		// one before a reload) or another default control. The adapter's guard
+		// may still defend the volume it set, and this control sets none until
+		// moved (ADR 0038 point 6).
+		if held, byDefault := m.defaultHeld[pick]; follows && contains(m.outputFor, pick) && (!byDefault || held != m.controlOf[id]) {
 			a.add(ForgetOutputVolume{Device: pick})
 		}
 		if pick == cur {
@@ -243,10 +244,10 @@ func (m *Mixer) chooseOutputs(a *actions, why chooseReason) {
 	m.releaseOutputs(a, m.outputFor, chosen)
 	m.outputFor = chosen
 	m.blockedOutputs = blocked
-	m.defaultHeld = map[string]bool{}
+	m.defaultHeld = map[string]Control{}
 	for id, dev := range chosen {
 		if m.setup.Targets[id].FollowsDefault {
-			m.defaultHeld[dev] = true
+			m.defaultHeld[dev] = m.controlOf[id]
 		}
 	}
 }
