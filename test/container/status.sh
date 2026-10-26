@@ -4,33 +4,24 @@
 #
 #   status.sh                    install the built binary and the unit by hand
 #   status.sh package <commit>   install the released .deb or .rpm from /src/dist
+#                                (<commit> is the full hash; see pick-package.sh)
 #                                with apt or dnf and use what it installed (QA-17)
-set -euo pipefail
+# -E: the ERR trap must also reach the functions below, or a failed install would
+# skip the diagnostics (AGENTS.md: troubleshootable from the logs alone).
+set -Eeuo pipefail
 mode=${1:-binary}
 userctl() {
     runuser -u tester -- env XDG_RUNTIME_DIR=/run/user/1500 systemctl --user "$@"
 }
 diagnose() {
+    # A failure inside $(…) or a function fires the trap twice; print once.
+    mkdir /tmp/apptrol-diagnosed 2>/dev/null || return 0
     # What the package manager put where, then the service's own view.
     dpkg-query -L apptrol 2>/dev/null || rpm -ql apptrol 2>/dev/null || :
     journalctl --no-pager -u user@1500.service || :
     runuser -u tester -- env XDG_RUNTIME_DIR=/run/user/1500 journalctl --user --no-pager -u apptrol || :
 }
 trap diagnose ERR
-# The package for this container's own architecture, from this commit only: a
-# snapshot left in dist/ by an earlier commit must not pass for the current one.
-pick_package() {
-    local ext=$1 arch=$2 commit=$3 found=() file
-    for file in /src/dist/apptrol[_-]*."$ext"; do
-        [[ -f $file && ! -L $file && $file == *"$arch"* && $file == *"snapshot.$commit"* ]] && found+=("$file")
-    done
-    if ((${#found[@]} != 1)); then
-        printf 'FAIL: need exactly one %s for %s from commit %s in dist/; found %d. Run make snapshot.\n' \
-            "$ext" "$arch" "$commit" "${#found[@]}" >&2
-        return 1
-    fi
-    printf '%s\n' "${found[0]}"
-}
 install_package() {
     local commit=$1 pkg name
     # A leftover from an earlier step would make the package look like it worked.
@@ -42,7 +33,7 @@ install_package() {
     . /etc/os-release
     case $ID in
         ubuntu)
-            pkg=$(pick_package deb "$(dpkg --print-architecture)" "$commit")
+            pkg=$(/bin/bash /src/test/container/pick-package.sh deb "$(dpkg --print-architecture)" "$commit")
             # Copied so apt's unprivileged download user can read it. No network
             # and no repository lists exist: nothing but this file is installed.
             install -m 644 "$pkg" /tmp/apptrol.deb
@@ -52,7 +43,7 @@ install_package() {
             packaged_version() { dpkg-query -W -f='${Version}' apptrol; }
             ;;
         fedora)
-            pkg=$(pick_package rpm "$(uname -m)" "$commit")
+            pkg=$(/bin/bash /src/test/container/pick-package.sh rpm "$(uname -m)" "$commit")
             install -m 644 "$pkg" /tmp/apptrol.rpm
             echo "package=${pkg##*/}"
             dnf install -y --disablerepo='*' --setopt=install_weak_deps=False /tmp/apptrol.rpm

@@ -41,7 +41,7 @@ Type: Manual
 Covers: QA-16, QA-17, SVC-13 · Phase 1.6
 Config: `test/container/valid.toml` (container-only fixture)
 Type: Manual
-Test: `TestQA17_InstallNeedsBothPackages`, `TestQA17_InstallUsesTheSameSandboxAsStatus` (runner only; the install itself needs real Podman)
+Test: `TestQA17_InstallNeedsBothPackages`, `TestQA17_InstallUsesTheSameSandboxAsStatus`, `TestQA17_InstallPassesTheFullCommit`, `TestQA17_PickPackage` (runner and package choice only; the install itself needs real Podman)
 
 **Setup**
 - [ ] Rootless Podman is installed, with delegated memory and pids cgroup controllers

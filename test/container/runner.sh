@@ -40,6 +40,9 @@ jobs=$(( (available - 4194304) / 524288 ))
 ((jobs <= 16)) || jobs=16
 ((jobs >= 0)) || jobs=0
 source_commit=$(git rev-parse --short HEAD)
+# The audit line shows the short form; the package check needs the full commit,
+# because the short length depends on this checkout's core.abbrev (QA-17).
+source_full=$(git rev-parse HEAD)
 source_dirty=no
 source_status=$(git status --porcelain --untracked-files=normal -- . ':!.audit/runs.log')
 if [[ -n $source_status ]]; then
@@ -186,8 +189,8 @@ run_one() (
         if ((install)); then
             # The commit is data from Git, checked here: the packages must come from
             # this checkout, not from an older snapshot left in dist/ (QA-17).
-            [[ $source_commit =~ ^[0-9a-f]{7,40}$ ]] || { echo 'FAIL: unexpected source commit'; exit 1; }
-            /usr/bin/nice -n 10 "${engine[@]}" exec "$container" /bin/bash /src/test/container/status.sh package "$source_commit"
+            [[ $source_full =~ ^[0-9a-f]{40,64}$ ]] || { echo 'FAIL: unexpected source commit'; exit 1; }
+            /usr/bin/nice -n 10 "${engine[@]}" exec "$container" /bin/bash /src/test/container/status.sh package "$source_full"
         else
             /usr/bin/nice -n 10 "${engine[@]}" exec "$container" /bin/bash /src/test/container/status.sh
         fi

@@ -339,10 +339,13 @@ make test-install    →  Ubuntu: apt-get install      Fedora: dnf install
   the host. The network is off, the checkout is read-only and the limits are proven from
   the host before the image starts. The script is the repository's own
   `packaging/scripts/postinstall.sh`.
-- **A stale package fails.** The container picks the package for its architecture whose
-  file name has `snapshot.<commit>` of the checked-out commit, exactly one; the host
-  passes the commit as data, validated as hexadecimal. A snapshot left in `dist/` by an
-  earlier commit cannot pass for the current one.
+- **A stale package fails.** `pick-package.sh` picks the one package for the
+  container's architecture whose file name has `snapshot.<hash>`, with a hash of seven
+  or more digits that starts the checked-out commit. The host passes the full commit
+  as data, validated as hexadecimal; it does not compare two abbreviations, because
+  Git's short length depends on the checkout's `core.abbrev` and GoReleaser's on its
+  own rule (found in the first review round). A snapshot left in `dist/` by an earlier
+  commit cannot pass for the current one.
 - **No network means no dependency resolution.** Distribution repositories are not
   reachable, so required dependencies are not resolved and Recommends are not installed.
   The packages declare no required dependencies. If one is added the check fails, and

@@ -173,9 +173,12 @@ so the mounts, limits and proofs are exactly those of `make test-systemd`. Each
 container starts from the same image and has no `apptrol` file yet (a leftover fails
 the run). Inside, the check:
 
-- picks the one package for the container's own architecture whose file name contains
-  `snapshot.<this commit>`; a snapshot left in `dist/` by an earlier commit, a second
-  match or no match fails with "run make snapshot";
+- picks the one package for the container's own architecture whose file name carries
+  `snapshot.<hash>`, where the hash (seven or more digits, whatever length GoReleaser
+  chose) starts this checkout's full commit (`test/container/pick-package.sh`); a
+  snapshot left in `dist/` by an earlier commit, a second match or no match fails with
+  "run make snapshot". The runner passes the full commit, because the length of Git's
+  short form depends on the checkout's own `core.abbrev`;
 - installs it with `apt-get install --no-install-recommends` or
   `dnf install --disablerepo='*'`, which also runs the package's maintainer script;
 - checks that the package manager owns `/usr/bin/apptrol` and the unit
