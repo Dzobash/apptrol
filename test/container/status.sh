@@ -16,6 +16,7 @@ userctl() {
 diagnose() {
     # A failure inside $(…) or a function fires the trap twice; print once.
     mkdir /tmp/apptrol-diagnosed 2>/dev/null || return 0
+    echo '--- diagnostics after a failure ---' >&2
     # What the package manager put where, then the service's own view.
     dpkg-query -L apptrol 2>/dev/null || rpm -ql apptrol 2>/dev/null || :
     journalctl --no-pager -u user@1500.service || :
