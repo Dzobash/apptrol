@@ -66,8 +66,9 @@ read-modify-write transaction with other clients.
 Ratios survive Apptrol's own zero writes and must not gradually drift through
 rounding on successive moves or their echoes. An accepted write is not evidence
 that the server applied it; the existing read-back still checks that (OUT-16).
-Removal and reconnect discard remembered balance and obtain it from the server
-again. A channel-layout change invalidates ratios for the old positions; the
+Removal, reconnect and a full resync after event overflow discard remembered
+balance and obtain it from the server again. A channel-layout change invalidates
+ratios for the old positions; the
 adapter uses the newly read layout and its balance, never old array positions.
 Releasing ownership stops defense, but does not make a live device's balance
 belong to another control. Notifications continue to update it.
@@ -91,9 +92,22 @@ mono 80 → 50                     one channel follows the control
 All-zero levels reveal no ratio, so keep the last usable balance for that live
 device and layout. If none is known, use equal channels when a nonzero volume is
 requested. A balance adjustment that leaves every server channel zero cannot be
-observed. Restarting or reconnecting at zero therefore loses the former balance.
+observed. Restarting, reconnecting or a full overflow resync at zero therefore
+loses the former balance.
 Mute is independent: neither M nor an outside mute changes channel ratios.
 Mono and surround use the same maximum-channel rule, without a stereo special case.
+
+```text
+80/60 → 0/0 → event overflow → full resync at 0/0 → control 50 → 50/50
+             full resync at 80/60               → control 50 → 50/37.5
+```
+
+The owner chose this simple resync rule after PR #192's second review on
+2026-10-26. It follows the adapter's existing full reset. Keeping cached ratios
+when name, server index and channel positions match was rejected: missed removal
+and reappearance can make cached identity uncertain. Nonzero snapshot values
+supply fresh ratios; zero snapshots fall back to equal channels. This does not
+change ownership generations, snapshot volume policy or start a new guard window.
 
 ### The guard defends the level and accepts the server's balance
 
@@ -106,7 +120,8 @@ after 3 s: applet sets 40/80 → stays → control sets 50 → 25/50
 
 Once a volume has been requested, the new-output guard defends its scalar level
 throughout the existing three-second window, while accepting usable balance from
-server reads. Notifications and the 200 ms read-back take the same path: distinguish
+server reads. Notifications, the 200 ms read-back and `KeepOutput`'s check of the
+latest read held while ownership was pending use the same balance and level rules: distinguish
 own rounded write echoes from new server values, update usable balance, then compare
 the maximum channel percentage with the requested level using the existing 0.5
 percentage-point tolerance. A correction scales the latest balance to that level.
@@ -135,6 +150,14 @@ layout changes, discard the obsolete vector and use the new layout's balance for
 any volume that is still authorized to be defended. No old channel positions may
 be written to the new layout. Keep the `wire` then `mu` lock order.
 
+```text
+rename read 80/60 → ownership pending: no correction → KeepOutput → 50/37.5
+```
+
+`KeepOutput` uses the latest held channel read and the latest requested level,
+not a cached channel average or a flat-channel write. Stale answers do nothing;
+if the guard window has ended, a keep answer does not restart volume defense.
+
 ### Logging
 
 All records below are in the audio adapter at debug, with
@@ -145,10 +168,10 @@ The implementation adds the new attributes to `internal/logattr` and
 
 | Level | Message | Attributes and reason |
 |---|---|---|
-| debug | `output balance selected` | `apptrol.audio.channel_positions`, `apptrol.audio.balance.ratios`, `apptrol.audio.balance.source` (`server`, `remembered`, `equal`), `apptrol.audio.balance.reason` (`snapshot`, `new_device`, `outside_change`, `guard_read`, `zero`, `layout_changed`, `missing_cache`); explains selection or fallback; `guard_read` does not claim who made the change |
+| debug | `output balance selected` | `apptrol.audio.channel_positions`, `apptrol.audio.balance.ratios`, `apptrol.audio.balance.source` (`server`, `remembered`, `equal`), `apptrol.audio.balance.reason` (`snapshot`, `resync`, `new_device`, `outside_change`, `guard_read`, `zero`, `layout_changed`, `missing_cache`); explains selection or fallback; `resync` with source `equal` explains zero-history loss; `guard_read` does not claim who made the change |
 | debug | `output balance retained` | Same positions, ratios and source; reason `own_write` or `zero`; explains why a read did not replace the balance |
 | debug | `output device read` | Existing attributes plus `apptrol.audio.channel_positions` and `apptrol.audio.channel_volumes_percent`; `apptrol.volume_percent` is the maximum; existing guard state explains skipped defense |
-| debug | `output volume request completed` | Existing result, requested percentage and channel count, plus positions, ratios, source and `apptrol.audio.channel_volumes_percent` for the requested vector; failure includes `error.type=audio_change_failed` |
+| debug | `output volume request completed` | Existing result, requested percentage and channel count, plus positions, ratios, source and `apptrol.audio.wanted_channel_volumes_percent` for the requested vector; failure includes `error.type=audio_change_failed` |
 | debug | `audio server changed the volume of a new output; setting it again` | Existing attributes plus read channel percentages and `apptrol.audio.wanted_channel_volumes_percent`; shows the corrected level with the accepted balance |
 
 Use a fixed message per record. Ratios and levels are ordered by the accompanying
@@ -158,14 +181,16 @@ device names and levels, never the owner's system values.
 ## Consequences
 
 - Centred outputs behave as before; inputs and application streams are unchanged.
-- Balance at zero is remembered only for the current live device and layout.
+- Balance at zero is remembered only for the current live device and layout,
+  until removal, reconnect or a full overflow resync discards it.
 - A server-restored or deliberate applet balance adjustment during active
   new-output volume defense is kept; only its overall level is corrected. An own
   rounded echo must not gradually alter the retained ratio.
 - Implementation and guard support ship together: a separate flat guard would
   undo the feature. Requirements, this ADR and the planned test case land first.
 - Tests cover mono, stereo, surround, silent channels, zero, boost, rounding drift,
-  snapshots, reconnect, layout changes, outside edits, write failures and loss,
+  snapshots, reconnect, overflow resync at zero and nonzero levels, layout changes,
+  outside edits, write failures and loss,
   ownership generations, release, default takeover and the latest move winning.
   Real-server tests use silent outputs with active silent streams, as existing
   audio integration tests do. Controller movement and listening remain manual.

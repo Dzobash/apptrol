@@ -347,6 +347,17 @@ debug records MUST also explain the selected or retained balance and its source,
 zero/layout fallbacks, per-channel reads and writes, and guard corrections, as in
 ADR 0039's logging table. These extensions are planned with OUT-14 to OUT-16.
 
+OUT-16's same balance and level rules MUST also apply when `KeepOutput` checks
+the latest read held while ownership was pending: use its channels and the latest
+requested level, not a channel average or a flat write. A stale answer MUST do
+nothing, and a keep answer MUST NOT restart an expired volume guard.
+
+For OUT-15, a full resync after event overflow MUST discard cached balance just
+like reconnect, even if the device name, server index and channel positions still
+match. Nonzero snapshot levels supply fresh ratios; an all-zero snapshot MUST use
+equal-channel fallback for the next nonzero write. This is an explicit exception
+to retaining balance through zero for a live device (ADR 0039).
+
 ## 5. Non-functional requirements
 
 | ID | Requirement | Level | Phase |

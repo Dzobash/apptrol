@@ -548,6 +548,11 @@ timing. They are planned coverage, not claims that these tests exist already.
 - OUT-15: zero and repeated moves without drift, own echoes, outside edits,
   nonzero/zero snapshots, removal/reappearance, reconnect, channel-layout changes,
   mute independence, cache-miss reads and read/write failure.
+- OUT-15: `TestOUT15_OverflowResyncDiscardsCachedBalance` must remember 80/60,
+  then resync at 0/0 with the same name, index and positions and expect 50/50 on
+  the next move to 50. A nonzero resync at 80/60 must instead yield 50/37.5.
+  Also simulate a missed removal/reappearance: old ratios must not survive the
+  full resync. Exercise the reset directly rather than relying on a timed overflow.
 - OUT-16: `TestOUT16_LateRestoreSuppliesBalanceOnANewOutput` must force initial
   100/100, an Apptrol write of 50/50, then a restore to 80/60, and expect 50/37.5.
   Also cover an unchanged maximum with a changed quieter channel (kept), accepted
@@ -556,6 +561,10 @@ timing. They are planned coverage, not claims that these tests exist already.
   own rounded echoes, a newer move during a guard correction, pending/stale
   ownership answers, release and default takeover forgetting the requested level.
   Use deterministic hooks for event order.
+- OUT-16: `TestOUT16_KeepOutputUsesHeldBalance` must hold a rename read at 80/60
+  while ownership is pending, then deliver the current `KeepOutput` inside the
+  window with 50 requested and expect 50/37.5. Also check a newer held read,
+  stale answers and an answer after expiry; no flat write or average comparison.
 - Real-server integration: silent stereo and multichannel outputs with active
   silent streams, actual per-channel reads, guard correction and zero recovery.
 

@@ -205,7 +205,7 @@ Output balance is designed but not implemented yet (OUT-14 to OUT-16,
 [TC-OUT-010](testing/cases/out.md#tc-out-010--output-volume-keeps-channel-balance)
 and the `output-balance` fixture specify its acceptance check. Implementation must
 add requirement-named tests for channel scaling, mono/surround, zero, boost,
-rounding drift, snapshots/reconnect, channel-layout changes, outside edits, failures,
+rounding drift, snapshots/reconnect, overflow resync, channel-layout changes, outside edits, failures,
 guard retries/read-back, ownership generations, release and default takeover.
 Run `make check` and `make test-audio` with the implementation; the latter must
 exercise actual per-channel reads on silent outputs with active silent streams.

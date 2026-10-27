@@ -386,12 +386,13 @@ retained ratios so the maximum follows the scalar action. Apps and inputs retain
 their existing conversion.
 
 Zero retains usable ratios for the live device; without them it falls back to
-equal channels. Reconnect, removal and changed channel positions invalidate old
+equal channels. Reconnect, full resync after event overflow, removal and changed channel positions invalidate old
 balance. Nothing is added to the saved state. A default change uses the new
 device's balance and still writes no volume until a move. `apptrol list` reports
 an output's maximum channel percentage instead of its average.
 
-Guard notifications and delayed reads accept usable server balance, then compare
+Guard notifications, delayed reads and `KeepOutput`'s check of the latest held
+read accept usable server balance, then compare
 the maximum channel level with the requested level. A correction scales the latest
 ratios, including a late restore's balance; balance-only changes stay. Generation answers,
 pending ownership, `ReleaseOutput`, `ForgetOutputVolume`, mute defense and the
