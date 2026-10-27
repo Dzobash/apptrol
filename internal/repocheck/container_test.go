@@ -55,6 +55,16 @@ func containerFixtureAt(t *testing.T, root string, fakeGit bool) string {
 				data = strings.ReplaceAll(data, `/proc/$pid/`, root+`/fake-proc/`)
 				// The clean-up reads the host's own mounts (QA-18).
 				data = strings.ReplaceAll(data, `/proc/self/mountinfo`, root+`/fake-self-mountinfo`)
+				// Lets a test wait until the preflight is over and the runner is at the
+				// lock, instead of guessing with a pause (QA-18).
+				// Only with the stand-in Git: in a real repository the marker would be an
+				// untracked file and make the audit line say dirty=yes.
+				if fakeGit {
+					if !strings.Contains(data, "\nflock 9\n") {
+						t.Fatal("runner.sh no longer takes the shared lock on its own line; update this fixture")
+					}
+					data = strings.ReplaceAll(data, "\nflock 9\n", "\n: > \"$repo/reached-lock\"\nflock 9\n")
+				}
 			}
 			data = strings.ReplaceAll(data, "$(id -u)", "1500")
 			data = strings.ReplaceAll(data, `HOME=$(getent passwd "1500" | cut -d: -f6)`, "HOME=/nonexistent")
@@ -1079,6 +1089,22 @@ func cleanBehindTheLock(t *testing.T, root string) func() ([]byte, error) {
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
+	// The runner writes this marker just before it asks for the lock, so everything
+	// the test changes from here on happens after the startup (preflight) checks.
+	for i := 0; ; i++ {
+		if exists(filepath.Join(root, "reached-lock")) {
+			break
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("the cleanup ended before it reached the lock (%v)\n%s", err, out.String())
+		default:
+		}
+		if i > 400 {
+			t.Fatal("the cleanup did not reach the lock")
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
 	select {
 	case err := <-done:
 		t.Fatalf("the cleanup did not wait for the lock (%v)\n%s", err, out.String())
