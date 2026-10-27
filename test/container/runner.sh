@@ -236,11 +236,21 @@ if [[ ${1:-} == @systemd ]]; then
     /bin/bash "$repo/test/container/build-apptrol.sh"
     run_distros systemd
 fi
+# A regular file, not a folder or a link, with the extension $1 in dist/.
+has_package() {
+    local file
+    for file in dist/*."$1"; do
+        if [[ -f $file && ! -L $file ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
 if [[ ${1:-} == @install ]]; then
     # The packages are built by `make snapshot`, never here: GoReleaser would run
     # unsandboxed on the host. A missing package is the caller's mistake, so it is
     # refused before any container starts (QA-17, ADR 0034).
-    if [[ -L dist || ! -d dist ]] || ! compgen -G 'dist/*.deb' >/dev/null || ! compgen -G 'dist/*.rpm' >/dev/null; then
+    if [[ -L dist || ! -d dist ]] || ! has_package deb || ! has_package rpm; then
         echo 'Refusing: dist/ needs the .deb and .rpm of this commit; run make snapshot first' >&2
         exit 1
     fi

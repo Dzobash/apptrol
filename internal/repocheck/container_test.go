@@ -583,13 +583,30 @@ func TestQA17_InstallNeedsBothPackages(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		files []string
+		dirs  []string // folders named like packages
+		links []string // dangling links named like packages
 	}{
-		{"no dist", nil},
-		{"only a deb", []string{"dist/apptrol_1_amd64.deb"}},
-		{"only an rpm", []string{"dist/apptrol-1.x86_64.rpm"}},
+		{"no dist", nil, nil, nil},
+		{"only a deb", []string{"dist/apptrol_1_amd64.deb"}, nil, nil},
+		{"only an rpm", []string{"dist/apptrol-1.x86_64.rpm"}, nil, nil},
+		{"folders named like packages", nil, []string{"dist/missing.deb", "dist/missing.rpm"}, nil},
+		{"dangling links named like packages", nil, nil, []string{"dist/missing.deb", "dist/missing.rpm"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := containerFixture(t)
+			for _, name := range tc.dirs {
+				if err := os.MkdirAll(filepath.Join(root, name), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, name := range tc.links {
+				if err := os.MkdirAll(filepath.Join(root, "dist"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink("nowhere", filepath.Join(root, name)); err != nil {
+					t.Fatal(err)
+				}
+			}
 			for _, name := range tc.files {
 				if err := os.MkdirAll(filepath.Join(root, "dist"), 0o755); err != nil {
 					t.Fatal(err)
