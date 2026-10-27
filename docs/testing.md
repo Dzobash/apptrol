@@ -18,6 +18,7 @@ of [requirements.md](requirements.md#51-quality-assurance).
 | `make test-desktop` | D-Bus integration tests in a private session bus (`dbus-run-session`): media players, and a fake logind standing in for the system bus; your desktop's buses and media players are not touched |
 | `make test-launcher` | Starts harmless test units (`true`) in your systemd user manager and checks they are removed; CI's container job checks only the Status line, so run this before a release |
 | `make test-systemd` | Builds Apptrol and checks its Status line in rootless Ubuntu 26.04 and Fedora 44 containers |
+| `make test-install` | Installs the `.deb` from `make snapshot` with `apt` in an Ubuntu 26.04 container and the `.rpm` with `dnf` in a Fedora 44 container, then runs the same Status checks on the installed program (QA-17) |
 | `make container-run RECIPE=sample` | Runs a reviewed recipe with the same fixed restrictions and audit record |
 | `make cover` | Tests with coverage; fails below the minimum; writes `coverage.html` to open in a browser |
 | `make vulncheck` | Scans dependencies for known vulnerabilities |
@@ -150,8 +151,57 @@ Successful workspaces and logs are removed; failed ones remain in `.tmp/` and
 `.audit/logs/`. Those full logs can contain private host data and must not be
 committed. A damaged or symlinked audit directory is refused before writing anything.
 The initial setup-proof records without a hash predate the complete Status test;
-they must not count toward #172's consecutive-pass gate. Package installs and making
-the future CI job required also remain in #172.
+they must not count toward #172's consecutive-pass gate. Making the CI job required
+remains in #172.
+
+### Package installs
+
+`make test-install` checks the packages people install, not a binary copied in by hand
+(QA-17, QA-16, [ADR 0034](adr/0034-containers-through-one-script.md#package-installs--2026-10-26)).
+
+```text
+make snapshot        you run it: dist/*.deb and dist/*.rpm (GoReleaser, on your machine)
+make test-install    Ubuntu 26.04:  apt-get install /tmp/apptrol.deb
+                     Fedora 44:     dnf install /tmp/apptrol.rpm
+                     then, from the installed files: start → controller not found
+                       → broken config → waiting for a valid configuration → fixed → controller not found
+```
+
+The script never runs GoReleaser: it would run unsandboxed on the host. It reads the
+packages from `dist/`, which the container already sees as part of the read-only checkout,
+so the mounts, limits and proofs are exactly those of `make test-systemd`. Each
+container starts from the same image and has no `apptrol` file yet (a leftover fails
+the run). Inside, the check:
+
+- picks the one package for the container's own architecture whose file name carries
+  `snapshot.<hash>`, where the hash (seven or more digits, whatever length GoReleaser
+  chose) starts this checkout's full commit (`test/container/pick-package.sh`); a
+  snapshot left in `dist/` by an earlier commit, a second match or no match fails with
+  "run make snapshot". The runner passes the full commit, because the length of Git's
+  short form depends on the checkout's own `core.abbrev`;
+- installs it with `apt-get install --no-install-recommends` or
+  `dnf install --disablerepo='*'`, which also runs the package's maintainer script;
+- checks that the package manager owns `/usr/bin/apptrol` and the unit
+  (`dpkg -S`, `rpm -qf`), and that the package's version equals `apptrol --version`;
+- then runs the Status checks of `status.sh`, with the unit from the package.
+
+The maintainer script runs as root, but only inside the container: root there is your
+unprivileged user on the host, with no network, the checkout read-only, `/work` the only
+writable folder, and the memory, process and priority limits proven from the host
+before the container starts. The only code that runs is the repository's own
+`packaging/scripts/postinstall.sh`.
+
+**What it cannot check.** There is no network, so a distribution's repositories are not
+used: dependencies the package might declare are not resolved, and Recommends
+(`pipewire-pulse`) are not installed. The packages declare none that are required, so
+the install works; a new required dependency would make the check fail where a real
+install would succeed, and then belongs in #116's VM tests. Removing and upgrading the
+package, `zypper` and the PipeWire part stay in #116.
+
+Each distro writes its own audit line, `recipe=install-ubuntu` and `recipe=install-fedora`.
+They are counted on their own and are not part of the Status check's 300-run gate: a
+check added later runs outside the required job until it has its own evidence
+(ADR 0034).
 
 ## Writing tests
 

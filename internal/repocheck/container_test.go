@@ -19,6 +19,10 @@ func containerFixture(t *testing.T) string {
 // containerFixtureAt builds the fixture in root. With fakeGit false the runner's
 // Git lookups stay real, so a test can give the checkout a hostile .git/config
 // (QA-16, ADR 0034).
+// fakeFullCommit is what the fixture's stand-in Git answers for HEAD; its first
+// seven digits are the stand-in short commit (QA-17).
+const fakeFullCommit = "abcdef0123456789abcdef0123456789abcdef01"
+
 func containerFixtureAt(t *testing.T, root string, fakeGit bool) string {
 	t.Helper()
 	if _, err := exec.LookPath("make"); err != nil {
@@ -34,7 +38,7 @@ func containerFixtureAt(t *testing.T, root string, fakeGit bool) string {
 			t.Fatal(err)
 		}
 	}
-	for _, name := range []string{"run.sh", "runner.sh", "build.sh", "build-apptrol.sh", "build-limits.sh", "build-probe.Dockerfile", "limits.sh", "proof.sh", "status.sh", "recipe-entry.sh", "valid.toml", "containers.conf"} {
+	for _, name := range []string{"run.sh", "runner.sh", "build.sh", "build-apptrol.sh", "build-limits.sh", "build-probe.Dockerfile", "limits.sh", "proof.sh", "status.sh", "recipe-entry.sh", "valid.toml", "containers.conf", "ubuntu.Dockerfile", "fedora.Dockerfile", "pick-package.sh"} {
 		data := string(readRepoFile(t, "test", "container", name))
 		if name == "runner.sh" || name == "build.sh" {
 			fake := "'" + strings.ReplaceAll(filepath.Join(root, "fake-podman"), "'", "'\"'\"'") + "'"
@@ -55,8 +59,12 @@ func containerFixtureAt(t *testing.T, root string, fakeGit bool) string {
 				data = strings.ReplaceAll(data, "$(git rev-parse --path-format=absolute --git-common-dir)", `"$repo/git-common"`)
 				data = strings.ReplaceAll(data, "$(git branch --show-current)", "test-branch")
 				data = strings.ReplaceAll(data, "$(git rev-parse --short HEAD)", "abcdef0")
+				data = strings.ReplaceAll(data, "$(git rev-parse HEAD)", fakeFullCommit)
 				data = strings.ReplaceAll(data, "git status --porcelain --untracked-files=normal -- . ':!.audit/runs.log'", "printf ' M fixture'")
 			}
+		}
+		if name == "pick-package.sh" {
+			data = strings.ReplaceAll(data, "/src/dist", filepath.Join(root, "dist"))
 		}
 		write("test/container/"+name, data)
 	}
@@ -77,6 +85,8 @@ func containerFixtureAt(t *testing.T, root string, fakeGit bool) string {
 	write("fake-systemd-run", `#!/bin/sh
 set -eu
 printf '%s\n' "$*" >> scope-calls
+# Every real scope is new; a second build in one fixture must not see the first's leaf.
+rm -rf "$(dirname "$0")/fake-cgroup/supervisor"
 while [ "$1" != /bin/bash ]; do shift; done
 exec "$@"
 `)
@@ -313,7 +323,7 @@ func TestQA16_BuildScopeAndProbeFailClosed(t *testing.T) {
 // TestQA16_BadRecipesRefused covers path traversal, shell syntax, option syntax,
 // missing folders and the private systemd selector (QA-16, ADR 0034).
 func TestQA16_BadRecipesRefused(t *testing.T) {
-	for _, recipe := range []string{"", "../sample", "/tmp/sample", "sample/name", "sample name", "$(touch injected)", "--privileged", "@systemd", "missing"} {
+	for _, recipe := range []string{"", "../sample", "/tmp/sample", "sample/name", "sample name", "$(touch injected)", "--privileged", "@systemd", "@install", "install-ubuntu", "systemd-fedora", "missing"} {
 		t.Run(recipe, func(t *testing.T) {
 			root := containerFixture(t)
 			out, err := runContainerMake(t, root, recipe)
@@ -544,5 +554,231 @@ func TestQA16_AuditLabelIsData(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, "calls")); !os.IsNotExist(err) {
 			t.Error("invalid label reached Podman")
 		}
+	}
+}
+
+// runInstallMake runs the real `make test-install` target against a fixture.
+// The fixture's memory reading allows one container at a time, because the fake
+// engine keeps one shared mount list (QA-17, ADR 0034).
+func runInstallMake(t *testing.T, root string, extra ...string) ([]byte, error) {
+	t.Helper()
+	runner := filepath.Join(root, "test/container/runner.sh")
+	data, err := os.ReadFile(runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(runner, []byte(strings.ReplaceAll(string(data), "available=16777216", "available=4980736")), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("make", append([]string{"test-install"}, extra...)...)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "SSH_AUTH_SOCK=/private/test-socket", "CONTAINERS_CONF=/private/untrusted.conf")
+	return cmd.CombinedOutput()
+}
+
+// TestQA17_InstallNeedsBothPackages refuses to start any container when dist/
+// lacks the .deb or the .rpm, because GoReleaser is never run by the runner
+// (QA-17, ADR 0034).
+func TestQA17_InstallNeedsBothPackages(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		files []string
+		dirs  []string // folders named like packages
+		links []string // dangling links named like packages
+	}{
+		{"no dist", nil, nil, nil},
+		{"only a deb", []string{"dist/apptrol_1_amd64.deb"}, nil, nil},
+		{"only an rpm", []string{"dist/apptrol-1.x86_64.rpm"}, nil, nil},
+		{"folders named like packages", nil, []string{"dist/missing.deb", "dist/missing.rpm"}, nil},
+		{"dangling links named like packages", nil, nil, []string{"dist/missing.deb", "dist/missing.rpm"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := containerFixture(t)
+			for _, name := range tc.dirs {
+				if err := os.MkdirAll(filepath.Join(root, name), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, name := range tc.links {
+				if err := os.MkdirAll(filepath.Join(root, "dist"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink("nowhere", filepath.Join(root, name)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, name := range tc.files {
+				if err := os.MkdirAll(filepath.Join(root, "dist"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(root, name), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			out, err := runInstallMake(t, root)
+			if err == nil || !strings.Contains(string(out), "make snapshot") {
+				t.Fatalf("accepted missing packages: %v\n%s", err, out)
+			}
+			if _, err := os.Stat(filepath.Join(root, "calls")); !os.IsNotExist(err) {
+				t.Error("missing packages reached Podman")
+			}
+		})
+	}
+}
+
+// TestQA17_InstallUsesTheSameSandboxAsStatus checks that the install runs keep
+// every flag and mount of the Status runs, check the installed files through
+// status.sh in package mode, and leave their own audit names (QA-17, QA-16).
+func TestQA17_InstallUsesTheSameSandboxAsStatus(t *testing.T) {
+	root := containerFixture(t)
+	if err := os.MkdirAll(filepath.Join(root, "dist"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"dist/apptrol_1_amd64.deb", "dist/apptrol-1.x86_64.rpm"} {
+		if err := os.WriteFile(filepath.Join(root, name), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out, err := runInstallMake(t, root, "FLAGS=--privileged", "AGENT=claude-sonnet-5-5")
+	if err != nil {
+		t.Fatalf("make: %v\n%s", err, out)
+	}
+	calls, err := os.ReadFile(filepath.Join(root, "calls"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(calls), "--privileged") || strings.Count(string(calls), "--mount ") != 4 {
+		t.Errorf("unexpected flags or mount count: %s", calls)
+	}
+	for _, want := range []string{"--memory=512m", "--memory-swap=512m", "--pids-limit=256", "--network=none", "--systemd=always", "--entrypoint /sbin/init", "src=" + root + ",dst=/src,ro=true"} {
+		if !strings.Contains(string(calls), want) {
+			t.Errorf("missing fixed argument %s in %s", want, calls)
+		}
+	}
+	if strings.Count(string(calls), "/test/container/status.sh package "+fakeFullCommit) != 2 {
+		t.Errorf("each distro must run the package check against this commit: %s", calls)
+	}
+	if strings.Contains(string(calls), "status.sh\n") {
+		t.Errorf("a container ran the binary check instead of the package check: %s", calls)
+	}
+	audit, err := os.ReadFile(filepath.Join(root, ".audit", "runs.log"))
+	if err != nil || strings.Count(string(audit), "result=PASS") != 2 || strings.Contains(string(audit), "recipe=systemd-") {
+		t.Fatalf("audit: %s (%v)", audit, err)
+	}
+	for _, want := range []string{"recipe=install-ubuntu ", "recipe=install-fedora "} {
+		if !strings.Contains(string(audit), want) {
+			t.Errorf("audit lacks %s", want)
+		}
+	}
+}
+
+// TestQA17_PickPackage checks which package a container accepts: its own type and
+// architecture, exactly one, from the checked-out commit whatever the length of the
+// abbreviation in the file name, never a link (QA-17, ADR 0034).
+func TestQA17_PickPackage(t *testing.T) {
+	const commit = "f5da4e0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	for _, tc := range []struct {
+		name  string
+		files []string
+		link  string
+		want  string // file name printed, or "" when the pick must fail
+	}{
+		{"seven digits", []string{"apptrol_0.2.3-snapshot.f5da4e0_amd64.deb"}, "", "apptrol_0.2.3-snapshot.f5da4e0_amd64.deb"},
+		{"twelve digits, as with core.abbrev=12", []string{"apptrol_0.2.3-snapshot.f5da4e0aaaaa_amd64.deb"}, "", "apptrol_0.2.3-snapshot.f5da4e0aaaaa_amd64.deb"},
+		{"rpm", []string{"apptrol-0.2.3-snapshot.f5da4e0-1.x86_64.rpm"}, "", "apptrol-0.2.3-snapshot.f5da4e0-1.x86_64.rpm"},
+		{"the other architecture is ignored", []string{"apptrol_0.2.3-snapshot.f5da4e0_arm64.deb", "apptrol_0.2.3-snapshot.f5da4e0_amd64.deb"}, "", "apptrol_0.2.3-snapshot.f5da4e0_amd64.deb"},
+		{"an earlier commit", []string{"apptrol_0.2.3-snapshot.0123456_amd64.deb"}, "", ""},
+		{"a hash that only looks like the commit", []string{"apptrol_0.2.3-snapshot.f5da4e1_amd64.deb"}, "", ""},
+		{"a hash shorter than seven digits", []string{"apptrol_0.2.3-snapshot.f5da4e_amd64.deb"}, "", ""},
+		{"two for one architecture", []string{"apptrol_0.2.3-snapshot.f5da4e0_amd64.deb", "apptrol_0.2.4-snapshot.f5da4e0aaaaa_amd64.deb"}, "", ""},
+		{"none", nil, "", ""},
+		{"a link", nil, "apptrol_0.2.3-snapshot.f5da4e0_amd64.deb", ""},
+		{"a release without a snapshot hash", []string{"apptrol_0.2.3_amd64.deb"}, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := containerFixture(t)
+			if err := os.MkdirAll(filepath.Join(root, "dist"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			for _, name := range tc.files {
+				if err := os.WriteFile(filepath.Join(root, "dist", name), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.link != "" {
+				// The link points at a real file, so only the link check can refuse it.
+				if err := os.WriteFile(filepath.Join(root, "dist", "real-file"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink("real-file", filepath.Join(root, "dist", tc.link)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ext, arch := "deb", "amd64"
+			if strings.HasSuffix(tc.name, "rpm") {
+				ext, arch = "rpm", "x86_64"
+			}
+			cmd := exec.Command("/bin/bash", filepath.Join(root, "test/container/pick-package.sh"), ext, arch, commit)
+			out, err := cmd.Output()
+			got := strings.TrimSpace(string(out))
+			if tc.want == "" {
+				if err == nil {
+					t.Fatalf("accepted %q", got)
+				}
+				return
+			}
+			if err != nil || got != filepath.Join(root, "dist", tc.want) {
+				t.Fatalf("picked %q (%v), want %s", got, err, tc.want)
+			}
+		})
+	}
+}
+
+// TestQA17_StatusScriptTrapsFailuresInFunctions keeps -E on status.sh: without it
+// the ERR trap does not run inside install_package, and a failed apt or dnf install
+// leaves no diagnostics in the log (QA-17, ADR 0034).
+func TestQA17_StatusScriptTrapsFailuresInFunctions(t *testing.T) {
+	data, err := os.ReadFile("../../test/container/status.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "\nset -Eeuo pipefail\n") || !strings.Contains(string(data), "\ntrap diagnose ERR\n") {
+		t.Fatal("status.sh must set -E and trap diagnose on ERR")
+	}
+}
+
+// TestQA17_InstallPassesTheFullCommit reproduces a checkout whose own Git setting
+// shortens commits differently from GoReleaser: the container must be given the
+// full hash, never an abbreviation (QA-17, ADR 0034).
+func TestQA17_InstallPassesTheFullCommit(t *testing.T) {
+	root := containerFixtureAt(t, t.TempDir(), false)
+	for _, name := range []string{"dist/apptrol_1_amd64.deb", "dist/apptrol-1.x86_64.rpm"} {
+		if err := os.MkdirAll(filepath.Join(root, "dist"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, name), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	gitIn(t, root, "init", "--quiet", "--initial-branch=fixture")
+	gitIn(t, root, "config", "core.abbrev", "12")
+	gitIn(t, root, "add", "--all")
+	gitIn(t, root, "commit", "--quiet", "--message=fixture")
+	rev := exec.Command("git", "rev-parse", "HEAD")
+	rev.Dir = root
+	head, err := rev.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := runInstallMake(t, root)
+	if err != nil {
+		t.Fatalf("make: %v\n%s", err, out)
+	}
+	calls, err := os.ReadFile(filepath.Join(root, "calls"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(calls), "/test/container/status.sh package "+strings.TrimSpace(string(head))+"\n") != 2 {
+		t.Errorf("the containers did not get the full commit %s: %s", head, calls)
 	}
 }

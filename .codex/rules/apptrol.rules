@@ -32,7 +32,7 @@ prefix_rule(pattern = ["gh", "workflow", ["list", "view"]], decision = "allow")
 # anywhere, ~/.ssh too. rg (--pre) and git grep (-O) can start other programs.
 
 # Build and test
-prefix_rule(pattern = ["make", ["check", "test-audio", "test-systemd", "container-run"]], decision = "allow")
+prefix_rule(pattern = ["make", ["check", "test-audio", "test-systemd", "test-install", "container-run"]], decision = "allow")
 # Containers run only through the audited script, never by typed engine commands
 # (QA-16, ADR 0034). Wrapping a command is not an allowed workaround.
 prefix_rule(pattern = [["docker", "podman", "buildah"]], decision = "forbidden")

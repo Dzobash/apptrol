@@ -30,6 +30,11 @@ override .SHELLFLAGS := -c
 test-systemd: ## Build and check the Status line in rootless Ubuntu and Fedora (QA-16)
 	@/bin/sh test/container/run.sh @systemd
 
+# The packages come from `make snapshot`; this target only installs and starts them.
+.PHONY: test-install
+test-install: ## Install the snapshot .deb and .rpm with apt and dnf in rootless containers and check the Status line (QA-17)
+	@/bin/sh test/container/run.sh @install
+
 # Pass the name as data, never expand Make variables into shell source (QA-16).
 export RECIPE
 .PHONY: container-run

@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Refs #156).
 
 ### Added
+- `make test-install` installs the `.deb` from `make snapshot` with `apt` in the Ubuntu
+  26.04 container and the `.rpm` with `dnf` in the Fedora 44 one, then runs the Status
+  line checks on the installed program and unit. It uses the same image, mounts and
+  limits as `make test-systemd`, with no network, so dependencies are not resolved. It
+  refuses to run when `dist/` has no package built from the checked-out commit, and
+  records `install-ubuntu` and `install-fedora` in `.audit/runs.log`, counted apart from
+  the Status check (QA-17, [TC-QA-004](docs/testing/cases/qa.md), #172, #116).
 - An advisory `Systemd in containers` CI job runs the Status line check on every
   pull request in rootless Ubuntu 26.04 and Fedora 44, with container audit artifacts
   (SVC-13, QA-16, #171). Making it required remains #172.
