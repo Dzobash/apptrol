@@ -660,7 +660,6 @@ func TestQA17_InstallUsesTheSameSandboxAsStatus(t *testing.T) {
 // abbreviation in the file name, never a link (QA-17, ADR 0034).
 func TestQA17_PickPackage(t *testing.T) {
 	const commit = "f5da4e0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	const otherCommit = "0123456bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	for _, tc := range []struct {
 		name  string
 		files []string
@@ -690,7 +689,11 @@ func TestQA17_PickPackage(t *testing.T) {
 				}
 			}
 			if tc.link != "" {
-				if err := os.Symlink(otherCommit, filepath.Join(root, "dist", tc.link)); err != nil {
+				// The link points at a real file, so only the link check can refuse it.
+				if err := os.WriteFile(filepath.Join(root, "dist", "real-file"), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink("real-file", filepath.Join(root, "dist", tc.link)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -711,6 +714,19 @@ func TestQA17_PickPackage(t *testing.T) {
 				t.Fatalf("picked %q (%v), want %s", got, err, tc.want)
 			}
 		})
+	}
+}
+
+// TestQA17_StatusScriptTrapsFailuresInFunctions keeps -E on status.sh: without it
+// the ERR trap does not run inside install_package, and a failed apt or dnf install
+// leaves no diagnostics in the log (QA-17, ADR 0034).
+func TestQA17_StatusScriptTrapsFailuresInFunctions(t *testing.T) {
+	data, err := os.ReadFile("../../test/container/status.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "\nset -Eeuo pipefail\n") || !strings.Contains(string(data), "\ntrap diagnose ERR\n") {
+		t.Fatal("status.sh must set -E and trap diagnose on ERR")
 	}
 }
 
