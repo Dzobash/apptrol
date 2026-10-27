@@ -474,7 +474,7 @@ and the takeover) cannot be forced by hand; the unit test covers it.
 
 ### TC-OUT-010 — Output volume keeps channel balance
 
-Covers: OUT-14, OUT-15, OUT-16, OUT-01, OUT-03, OUT-05, OUT-12, OUT-13, CTRL-02 · Phase 1.6
+Covers: OUT-14, OUT-15, OUT-16, OUT-01, OUT-05, OUT-12, OUT-13, CTRL-02 · Phase 1.6
 Config: output-balance
 Type: Manual + Automated (planned; implementation pending, #156)
 
