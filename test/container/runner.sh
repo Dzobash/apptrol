@@ -49,6 +49,19 @@ if [[ -n $source_status ]]; then
     source_dirty=yes
 fi
 
+# One function writes every audit line, so a run and a cleanup cannot differ in
+# format (QA-16, QA-18, ADR 0034). Arguments: run id, recipe, hash, image, result,
+# seconds; the rest comes from the invocation (agent, branch, commit, jobs).
+write_audit() {
+    # flock keeps a complete line together even when both distros finish at once.
+    (
+        flock 8
+        printf '%s run=%s agent=%s branch=%s commit=%s dirty=%s recipe=%s hash=%s image=%s jobs=%s result=%s seconds=%s\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$agent" "$(git branch --show-current)" \
+            "$source_commit" "$source_dirty" "$2" "$3" "$4" "$jobs" "$5" "$6" >&8
+    ) 8>>.audit/runs.log
+}
+
 # The trap is installed before validation or Podman: rejected attempts count too.
 # Raw names/errors stay in local logs, never the committed audit line (QA-16).
 run_one() (
@@ -76,13 +89,7 @@ run_one() (
         fi
         result=FAIL
         if ((rc == 0)); then result=PASS; fi
-        # flock keeps a complete line together even when both distros finish at once.
-        (
-            flock 8
-            printf '%s run=%s agent=%s branch=%s commit=%s dirty=%s recipe=%s hash=%s image=%s jobs=%s result=%s seconds=%s\n' \
-                "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$runid" "$agent" "$(git branch --show-current)" \
-                "$source_commit" "$source_dirty" "$recipe" "$digest" "$image" "$jobs" "$result" "$((SECONDS-start))" >&8
-        ) 8>>.audit/runs.log
+        write_audit "$runid" "$recipe" "$digest" "$image" "$result" "$((SECONDS-start))"
         cat "$log"
         if ((rc == 0)); then
             rm -f -- "$log"
