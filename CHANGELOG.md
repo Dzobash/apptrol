@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+- Approved output balance for 0.3.0: the loudest channel follows the control and
+  the others keep their proportions, always on for outputs only. The decision,
+  requirements and planned test case are recorded; implementation is still pending
+  (OUT-14 to OUT-16, [ADR 0039](docs/adr/0039-output-volume-keeps-channel-balance.md),
+  Refs #156).
+
 ### Added
 - An advisory `Systemd in containers` CI job runs the Status line check on every
   pull request in rootless Ubuntu 26.04 and Fedora 44, with container audit artifacts

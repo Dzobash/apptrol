@@ -200,6 +200,18 @@ the new table and warnings. A regression test checks that a fixed output matchin
 
 ## Output volume
 
+Output balance is designed but not implemented yet (OUT-14 to OUT-16,
+[ADR 0039](adr/0039-output-volume-keeps-channel-balance.md), #156).
+[TC-OUT-010](testing/cases/out.md#tc-out-010--output-volume-keeps-channel-balance)
+and the `output-balance` fixture specify its acceptance check. Implementation must
+add requirement-named tests for channel scaling, mono/surround, zero, boost,
+rounding drift, snapshots/reconnect, overflow resync, channel-layout changes, outside edits, failures,
+guard retries/read-back, ownership generations, release and default takeover.
+Run `make check` and `make test-audio` with the implementation; the latter must
+exercise actual per-channel reads on silent outputs with active silent streams.
+Controller movement and listening need the owner. H-52's existing balance-reset
+expectation remains current until the implementation updates it.
+
 A fixed output (`match`) on a slider or knob sets its device's volume (OUT-01, OUT-02,
 [ADR 0027](adr/0027-output-volume.md)); one with `device = "default"` acts on the
 system's default output and follows it (OUT-03, [ADR 0038](adr/0038-default-output-follows-the-server.md)).

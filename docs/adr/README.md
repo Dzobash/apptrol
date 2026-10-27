@@ -47,3 +47,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0036](0036-no-solo-on-outputs.md) | No solo on outputs | Accepted; supersedes 0027 point 7 |
 | [0037](0037-builds-in-a-limited-user-scope.md) | Build images inside a limited, delegated user scope | Accepted; supersedes 0034 point 4's build-limit mechanism |
 | [0038](0038-default-output-follows-the-server.md) | The default output follows the server; the first control owns an overlap | Accepted; supersedes 0027 point 4 for the default output |
+| [0039](0039-output-volume-keeps-channel-balance.md) | Output volume keeps each channel's balance | Accepted; supersedes the flat-channel decision in 0027's note of 2026-10-20 and 0038's flat-channel consequence; implementation pending |

@@ -116,7 +116,7 @@ in [ADR 0029](adr/0029-controller-follows-the-user-in-front.md).
 | ID | Requirement | Level |
 |---|---|---|
 | CTRL-01 | Each slider and each knob MAY be assigned one target in the active layout. Unassigned controls MUST do nothing. | MUST |
-| CTRL-02 | Moving a control MUST set the volume of its target to the control's position, mapped linearly from 0–127 to 0 % – the app's `max_volume` (CTRL-03). | MUST |
+| CTRL-02 | Moving a control MUST set the volume of its target to the control's position, mapped linearly from 0–127 to 0 % – the target's `max_volume` (CTRL-03), in the audio server's displayed percentage scale, not linear amplitude. For outputs this is the loudest channel's percentage, preserving the other channels' proportions (OUT-14, planned for 0.3.0); apps and inputs continue to set every channel equally. | MUST |
 | CTRL-03 | Volume MUST stay between 0 % and the app's `max_volume` (default 100 %). `max_volume` MAY be set per app from 1 to 150 %; the control then spans 0 to that value, so it also works as a cap below 100 %. | MUST |
 | CTRL-04 | For an **app** target, the volume MUST be applied to every playback stream that matches the app, including several streams of the same program (e.g. several browser tabs). | MUST |
 | CTRL-05 | For an **input** target, the volume MUST be applied to the matching capture device. | MUST |
@@ -318,11 +318,13 @@ in [ADR 0029](adr/0029-controller-follows-the-user-in-front.md).
 ### 4.15 Output targets *(Phase 1.6)*
 
 Designed in [ADR 0027](adr/0027-output-volume.md); fixed-output ownership updated
-by [ADR 0035](adr/0035-first-control-owns-matched-output.md).
+by [ADR 0035](adr/0035-first-control-owns-matched-output.md). Output balance
+(OUT-14 to OUT-16), designed in [ADR 0039](adr/0039-output-volume-keeps-channel-balance.md),
+is planned for 0.3.0 before rc1; implementation is pending (#156).
 
 | ID | Requirement | Level |
 |---|---|---|
-| OUT-01 | A control assigned an output MUST set the output device's volume, mapped as for every target up to its `max_volume` (CTRL-02, CTRL-03). Stream volumes MUST NOT be changed; outputs on no control MUST NOT be touched. | MUST |
+| OUT-01 | A control assigned an output MUST set the output device's volume, mapped as for every target up to its `max_volume` (CTRL-02, CTRL-03), preserving its channel balance (OUT-14). Stream volumes MUST NOT be changed; outputs on no control MUST NOT be touched. | MUST |
 | OUT-02 | An output with `match` MUST be matched by a case-insensitive part of the output device's name or description; monitors MUST NOT be matched. When several devices match, the first by name MUST be used and a warning MUST name all of them; the chosen device MUST be kept while it still matches. | MUST |
 | OUT-03 | An output with `device = "default"` MUST act on the audio server's default output and follow every change of it at once. The new default MUST keep its own volume until the control is moved; the control's mute MUST apply to it at once. The previous default MUST keep its volume and MUST be unmuted if Apptrol muted it and no other control holds it. Without a default output, the control MUST do nothing. Only a move of the control MUST set the default output's volume: not a connect, reload or change of the default (ADR 0038). A device that appears and becomes the default within 3 seconds MUST get the control's mute defended as OUT-05 says, also when it first appeared with no owner; a volume an earlier owner set on it MUST NOT be defended once the default control holds it (ADR 0038 point 6). | MUST |
 | OUT-04 | When fixed output targets choose the same device, the first control (sliders 1–8, then knobs 1–8) MUST own it. Later conflicting controls MUST NOT change its volume or mute; their M presses MUST NOT change saved mute. The conflict MUST be logged at warning when it begins and at reload, identifying the device, winning control and ignored control. Actual matched devices, not target display names or equality of match lists, decide conflicts (ADR 0035). The same rule MUST decide when the default output (`device = "default"`) is a device a fixed output holds; that overlap is allowed, so it MUST be logged at info instead, when it begins and at reload (ADR 0038). | MUST |
@@ -335,6 +337,26 @@ by [ADR 0035](adr/0035-first-control-owns-matched-output.md).
 | OUT-11 | Talk-over (INPUT-04) MUST NOT change outputs. | MUST |
 | OUT-12 | `apptrol list` SHOULD print the output devices like the input devices: description, name, the control each is on, and `*` on the default output. Monitors MUST NOT be listed as inputs or outputs. | SHOULD |
 | OUT-13 | Every output decision MUST be logged with its reason (LOG-15): a device matched (info, with `apptrol.device.selected_by` `match` or `default`), several or no devices matching (warning), the default output changing and keeping its volume (info), no default output (info), conflicting fixed controls on one device (warning, OUT-04), the default output on a device another control holds (info, OUT-04), devices on no control (debug); records as in ADR 0027 (point 12), updated for fixed-output ownership by ADR 0035 and for the default output by ADR 0038. | MUST |
+| OUT-14 | Every output volume write, on a slider or knob and on a fixed or default output, MUST preserve the proportions of its channels in the server's displayed percentage scale: `requested × channel / loudest`, rounded to protocol units. The loudest channel MUST follow the control's requested percentage and no channel MUST exceed it. This MUST always apply, without a setting, to mono, stereo and multichannel outputs, including boost and silent channels. The output percentage in `apptrol list` MUST be the maximum channel percentage. Apps and inputs are unchanged (ADR 0039). | MUST |
+| OUT-15 | Output balance MUST come from the server's channels and channel positions on connect, appearance and subsequent reads, subject to OUT-16. The adapter MUST retain the last usable nonzero balance for a live device and layout through zero volume, without drift from its own rounded writes or echoes. If all channels are zero and no balance is known, the next nonzero write MUST use equal channels. Removal and reconnect MUST discard cached balance; a new channel layout MUST NOT reuse old channel positions. Balance MUST NOT be saved to disk or carried between devices by a control, and mute MUST NOT change it. Outside changes after the guard window MUST stay and supply the balance for the next move (PRIO-02). | MUST |
+| OUT-16 | Within OUT-05's three-second window, once a volume is requested, the output guard MUST defend the requested maximum-channel level while accepting the server's usable channel balance, including late restores and deliberate applet changes. Notifications and the 200 ms read-back MUST use the same path: retain ratios for own rounded echoes or all-zero reads (OUT-15), otherwise accept the read's balance, then correct the maximum to the requested level if it differs by more than 0.5 percentage points. Corrections MUST scale the latest balance; a balance-only change at the requested maximum MUST be kept. The latest move MUST replace the requested level. Generation-tagged ownership, release and `ForgetOutputVolume` MUST retain their existing effects; a pending ownership answer MUST NOT permit defense. A changed channel layout MUST discard obsolete channel positions and use the new layout's balance for any still-authorized defense. | MUST |
+
+For OUT-05, the defended output volume is its maximum-channel level; server balance
+changes are accepted even during the guard window (OUT-16). For OUT-13,
+debug records MUST also explain the selected or retained balance and its source,
+zero/layout fallbacks, per-channel reads and writes, and guard corrections, as in
+ADR 0039's logging table. These extensions are planned with OUT-14 to OUT-16.
+
+OUT-16's same balance and level rules MUST also apply when `KeepOutput` checks
+the latest read held while ownership was pending: use its channels and the latest
+requested level, not a channel average or a flat write. A stale answer MUST do
+nothing, and a keep answer MUST NOT restart an expired volume guard.
+
+For OUT-15, a full resync after event overflow MUST discard cached balance just
+like reconnect, even if the device name, server index and channel positions still
+match. Nonzero snapshot levels supply fresh ratios; an all-zero snapshot MUST use
+equal-channel fallback for the next nonzero write. This is an explicit exception
+to retaining balance through zero for a live device (ADR 0039).
 
 ## 5. Non-functional requirements
 

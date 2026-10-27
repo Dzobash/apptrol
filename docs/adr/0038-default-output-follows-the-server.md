@@ -128,6 +128,11 @@ INFO default output is the same device as another output; the earlier control ow
 
 ## Notes
 
+- 2026-10-26: [ADR 0039](0039-output-volume-keeps-channel-balance.md) supersedes the
+  flat-channel consequence above for both fixed and default outputs. Balance stays
+  with the device; a new default still keeps its volume until a move. Implementation
+  is pending for 0.3.0 (#156).
+
 - 2026-10-26: Point 6 is done (#85, PR 3b). The owner chose options 1A and 2A. Both
   cases are guard work in the audio adapter; the mixer gains one action and stays
   pure (ADR 0015).

@@ -20,6 +20,11 @@ default output and a fixed output share, as ADR 0035 says for fixed outputs; the
 overlap is logged at info. The default output's volume is set only by a move (point 3).
 `device = "default"` works; the inactive warning of the note of 2026-10-20 is gone.
 
+**2026-10-26 decision update:** [ADR 0039](0039-output-volume-keeps-channel-balance.md)
+supersedes the flat-channel decision in the first note of 2026-10-20: output volume
+will preserve channel balance, including guard retries. Implementation is pending
+for 0.3.0 (#156); inputs and apps are unchanged.
+
 ## Context
 
 Apptrol sets the volume of apps and of inputs, but not of an output device (#85). To

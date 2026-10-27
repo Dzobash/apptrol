@@ -5,6 +5,9 @@ Output devices: speakers, headphones, each output of an audio interface
 ([ADR 0038](../../adr/0038-default-output-follows-the-server.md)). Every fixture has one test output: the
 virtual microphone is made from a silent output called `apptrol-test-mic-sink`.
 
+TC-OUT-010 uses its own stereo sink so its channel layout is explicit. It is a
+planned acceptance case; output balance is not implemented yet (#156).
+
 ### TC-OUT-001 — `apptrol list` shows the output devices and marks the default
 
 Covers: OUT-12, OUT-13, CFG-10 · Phase 1.6
@@ -465,6 +468,116 @@ Automated: in `internal/audio/pulse/output_mute_test.go`:
 in `internal/audio/pulse/integration_test.go` (the real default switched and
 restored). The order of events in the narrow gap (a restore read between the release
 and the takeover) cannot be forced by hand; the unit test covers it.
+
+**Result:** Pass / Fail / Blocked
+**Notes:**
+
+### TC-OUT-010 — Output volume keeps channel balance
+
+Covers: OUT-14, OUT-15, OUT-16, OUT-01, OUT-05, OUT-12, OUT-13, CTRL-02 · Phase 1.6
+Config: output-balance
+Type: Manual + Automated (planned; implementation pending, #156)
+
+```text
+server 80/60 → slider6 top (cap 50%) → 50/37.5 → bottom → 0/0 → top → 50/37.5
+outside 40/80 → next move to top    → 25/50
+```
+
+**Setup**
+- [ ] Use a build implementing ADR 0039; otherwise record Blocked, implementation
+  pending. Do not treat the existing flat-channel behaviour as a newly found bug.
+- [ ] Create a silent stereo output:
+  `pactl load-module module-null-sink sink_name=apptrol-test-balance channels=2 channel_map=front-left,front-right`
+  → note `<module balance>`. Do not make it the system's default or route apps to it.
+- [ ] Apply `output-balance`; slider6 and the test sink are the only target under
+  test. Wait 5 seconds for the new-output guard to end before changing balance.
+
+**Steps**
+- [ ] Run `pactl set-sink-volume apptrol-test-balance 80% 60%`, then
+  `pactl get-sink-volume apptrol-test-balance` → left 80%, right 60%.
+- [ ] Move slider6 to the top. Read the sink again → left 50%, right about 37.5%
+  (an integer percentage display may round it). `apptrol list` reports 50% for the
+  test output. Its `max_volume` cap applies to the loudest channel.
+- [ ] Move slider6 to the bottom → both channels 0%; return to the top → 50/37.5.
+  Repeat five times → no drift toward equal channels.
+- [ ] Press M6 → muted. Move slider6 down and up → still muted, levels 50/37.5.
+  Press M6 again → unmuted, same levels.
+- [ ] Run `pactl set-sink-volume apptrol-test-balance 40% 80%`. Wait a second and
+  read → still 40/80. Move slider6 down slightly and back to the top → 25/50.
+- [ ] Run `pactl set-sink-volume apptrol-test-balance 80% 0%`. Move down slightly
+  and back to the top → 50/0; the silent channel stays silent.
+- [ ] Run `pactl set-sink-volume apptrol-test-balance 80% 60%`, then
+  `systemctl --user restart apptrol` → the fixed output gets the saved top position
+  as 50/37.5, using the server's balance on reconnect.
+- [ ] Move slider6 to the bottom, restart Apptrol, then move to the top → 50/50:
+  no nonzero balance was available at restart. This limitation is intentional.
+- [ ] With slider6 still at the top, unload the test output:
+  `pactl unload-module <module balance>`. Then run this single line to re-plug it
+  and imitate a late restore within the guard window:
+  `pactl load-module module-null-sink sink_name=apptrol-test-balance channels=2 channel_map=front-left,front-right; sleep 0.5; pactl set-sink-volume apptrol-test-balance 80% 60%`
+  → note the new `<module balance>` for cleanup. A second later, run
+  `pactl get-sink-volume apptrol-test-balance` → 50/37.5, even if the first read
+  on re-plug was equal channels. The level follows slider6; the restored balance stays.
+- [ ] Check the journal for that re-plug → an `output volume request completed`
+  at the requested 50% precedes the read of 80/60, followed by
+  `output balance selected` with reason `guard_read` and
+  `audio server changed the volume of a new output; setting it again` showing
+  50/37.5. If the first write did not precede the restore, or the read was outside
+  the three-second window, repeat the re-plug step; that run did not exercise
+  the intended order. With the order confirmed, 50/50 or 80/60 is a failure.
+- [ ] Wait 5 seconds, then set 40/80 with
+  `pactl set-sink-volume apptrol-test-balance 40% 80%` → it stays. Move slider6
+  down slightly and back to the top → 25/50. This contrasts the guard's correction
+  with the outside-window rule. Lost writes without notifications and the 200 ms
+  read-back are covered by automated tests below; this manual imitation tests
+  the notification path and does not prove read-back by itself.
+- [ ] Read the debug journal → balance records explain server selection, retention
+  through zero, and equal-channel fallback. Write records show the per-channel
+  request, its source and result. Only synthetic test-device values belong in
+  published evidence; keep the owner's other device records out of it.
+- [ ] Restore the fixture with `docs/testing/apply-fixture.sh --restore`, then run
+  `pactl unload-module <module balance>` → the dedicated test sink is gone.
+
+**Automated coverage to add with implementation**
+
+Requirement-named tests must cover the following without depending on hardware
+timing. They are planned coverage, not claims that these tests exist already.
+
+- OUT-14: exact stereo scaling, centred channels, mono, six channels, silent channels,
+  boost/cap, all-zero fallback and maximum-channel listing; apps and inputs unchanged.
+- OUT-15: zero and repeated moves without drift, own echoes, outside edits,
+  nonzero/zero snapshots, removal/reappearance, reconnect, channel-layout changes,
+  mute independence, cache-miss reads and read/write failure.
+- OUT-15: `TestOUT15_OverflowResyncDiscardsCachedBalance` must remember 80/60,
+  then resync at 0/0 with the same name, index and positions and expect 50/50 on
+  the next move to 50. A nonzero resync at 80/60 must instead yield 50/37.5.
+  Also simulate a missed removal/reappearance: old ratios must not survive the
+  full resync. Exercise the reset directly rather than relying on a timed overflow.
+- OUT-16: `TestOUT16_LateRestoreSuppliesBalanceOnANewOutput` must force initial
+  100/100, an Apptrol write of 50/50, then a restore to 80/60, and expect 50/37.5.
+  Also cover an unchanged maximum with a changed quieter channel (kept), accepted
+  writes lost without notifications, read-back and notifications taking the same
+  path, deliberate balance changes inside/outside the window, an all-zero read,
+  own rounded echoes, a newer move during a guard correction, pending/stale
+  ownership answers, release and default takeover forgetting the requested level.
+  Use deterministic hooks for event order.
+- OUT-16: `TestOUT16_KeepOutputUsesHeldBalance` must hold a rename read at 80/60
+  while ownership is pending, then deliver the current `KeepOutput` inside the
+  window with 50 requested and expect 50/37.5. Also check a newer held read,
+  stale answers and an answer after expiry; no flat write or average comparison.
+- Real-server integration: silent stereo and multichannel outputs with active
+  silent streams, actual per-channel reads, guard correction and zero recovery.
+
+**Listening check (owner, after automated checks)**
+
+- [ ] Turn the speakers' own volume low. Use a deliberately left-heavy balance in
+  the desktop sound settings on an assigned real output; wait past the guard window.
+- [ ] Play familiar stereo audio, move its control slowly down and up, including
+  zero → the stereo position stays left-heavy as the level changes; the app's own
+  volume does not move. Changing the balance in the applet after the guard window
+  supplies the next move's balance. The agent reads and explains the logs afterwards.
+- [ ] Restore the original balance and configuration. Record only Pass/Fail and
+  synthetic examples in the test run, not personal device names or audio titles.
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
