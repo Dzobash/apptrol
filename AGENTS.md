@@ -231,15 +231,18 @@ from one to another.
   a small job                      →  Haiku 5.5 or GPT-6-Luna
   plans, code, reviews             →  the models in the table in Review
   ```
-- **One agent at a time owns the live setup.** Worktrees are separate, but the owner's
-  PipeWire, the running Apptrol service and the controller are one. Before
-  `make test-audio`, a test run with `docs/testing/apply-fixture.sh` or anything else
-  that changes the running service, say in the chat that you take the live setup; when done, hand it back restored (after a test
-  run: `docs/testing/apply-fixture.sh --restore`) and say so. Wait while another agent
-  holds it.
+- **One agent at a time owns the live setup, and the owner grants it.** Worktrees are
+  separate, but the owner's PipeWire, the running Apptrol service and the controller
+  are one, and agents in different chats cannot see each other. The owner is the one
+  who sees every chat, so before `make test-audio`, a test run with
+  `docs/testing/apply-fixture.sh`, a controller test or anything else that changes the
+  running service, ask the owner for the live setup and wait for the yes ("I'd like
+  the live setup for `make test-audio` on #NNN"). When done, hand it back restored
+  (after a test run: `docs/testing/apply-fixture.sh --restore`) and say "live setup
+  released". The owner says no while another agent holds it.
   ```
-  agent A: takes it ── make test-audio ── hands it back ┤
-  agent B:                    waits ────────────────────┤ takes it ── apply-fixture …
+  agent A: asks ── owner: yes ── make test-audio ── released ┤
+  agent B:            asks ── owner: wait ───────────────────┤ owner: yes ── apply-fixture …
   ```
 
 ## Build
@@ -332,17 +335,20 @@ from one to another.
 - **One commit per round.** The author tells the reviewer the exact commit, and the
   reviewer names it in its verdict: "Reviewed `<sha>`: no findings". During a round the
   author does not change the branch, or the reviewer works in its own checkout of that
-  commit. A clean verdict counts only for that commit: a new commit needs a new round
-  before it is pushed (complex or important) or marked ready.
+  commit. A clean verdict counts only for that commit: a new commit needs a new round.
   ```
   commit A → round on A → findings → commit B → round on B → clean → B may go on
   ```
-- **Rounds:**
+- **Rounds** come in two phases. Before the first push (complex or important PRs only)
+  every round is local. After the first push the code is public already, so every
+  round, for any PR, runs on the draft, CI included (e.g. a fix for a failing check).
   ```
-  round with findings     →  fix in new commits → next round
-                             (pushed already: push the fix, still draft)
-  round with no findings  →  not pushed yet: ask to push, open the draft
-                             pushed already: Ready
+  before the first push:
+    round with findings     →  fix in new commits → next round, still local
+    round with no findings  →  ask to push, open the draft
+  after the first push:
+    round with findings     →  fix in new commits → push → CI → next round, still draft
+    round with no findings  →  Ready
   ```
   Pushed history is never rewritten. Commits that were never pushed are kept as they
   are too, with one exception: when a local round finds a **security flaw**, the
