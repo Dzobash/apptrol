@@ -7,7 +7,7 @@
 #                                (<commit> is the full hash; see pick-package.sh)
 #                                with apt or dnf and use what it installed (QA-17)
 # -E: the ERR trap must also reach the functions below, or a failed install would
-# skip the diagnostics (AGENTS.md: troubleshootable from the logs alone).
+# skip the diagnostics (CONTRIBUTING.md: troubleshootable from the logs alone).
 set -Eeuo pipefail
 mode=${1:-binary}
 userctl() {
