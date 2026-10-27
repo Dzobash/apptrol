@@ -39,7 +39,7 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
 | **Lint** | `golangci-lint` with the rules in [`.golangci.yml`](https://github.com/Dzobash/apptrol/blob/main/.golangci.yml) (includes `gofmt` and `goimports`) |
 | **Test** | Starts a headless PipeWire (PipeWire, then WirePlumber and pipewire-pulse, waiting until each is ready; their logs are printed when a step fails), then `go vet` and all tests including the audio integration tests, with the race detector, on the minimum Go version and the latest stable; coverage report in the job summary; fails below the minimum |
 | **Fuzz** | Runs every fuzz test (config, saved state, MIDI decoding, mixer) for 20 seconds |
-| **Systemd in containers** | `make test-systemd AGENT=ci`: the shipped binary and service unit's Status line in rootless Ubuntu 26.04 and Fedora 44, with build and runtime limit proofs; `.audit/` is uploaded even on failure (SVC-13, QA-16). Advisory, not a required check (#172). |
+| **Systemd in containers** | `make test-systemd AGENT=ci`: the shipped binary and service unit's Status line in rootless Ubuntu 26.04 and Fedora 44, with build and runtime limit proofs; a per-distro result/time table in the job summary and `.audit/` upload run even on failure (SVC-13, QA-16). Advisory, not a required check (#172). |
 | **Vulnerability check** | `govulncheck` |
 | **Build** | Builds the Linux binary, runs `apptrol --version`, cross-compiles the portable packages for Windows without cgo (`make check-portable`, NFR-11), and checks third-party licenses |
 | **Packaging** | `goreleaser check`, then the whole release as a snapshot (`make snapshot`: binaries, archives, .deb, .rpm; nothing is published, no secrets), then `lintian` on the .deb. Lintian errors fail the job; warnings and informational tags are only printed. Suppressed tags, each with its reason, are in the job's comments (NFR-05, NFR-08, NFR-09, #146) |
@@ -70,6 +70,34 @@ The artifact is named `systemd-container-audit-<attempt>` to distinguish workflo
 attempts without requesting overwrite. PR runs test a detached merge commit;
 their audit records use that commit with an empty branch, linked to the PR by the
 workflow run.
+
+```text
+checkout audit history → remember line count → setup → test appends distro records
+                                                        ↓ even after failure
+                                      summary reads only new records → audit upload
+```
+
+The job summary names the tested commit and lists Ubuntu 26.04 and Fedora 44 in
+that order, with `✅ pass` or `❌ fail` and the audit's elapsed seconds. The workflow
+records the audit line count immediately after checkout, before toolchain and
+rootless setup. The summary reads only records appended after that boundary for
+the tested commit and the two `systemd-*` recipes; package-install records do not
+count. The artifact still contains the full audit history.
+
+The summary step uses `if: always()` and runs immediately after the test, before
+failure diagnostics and artifact upload. Missing files, missing boundary metadata,
+absent or invalid results, and duplicate distro records show `no result` with `—`
+for time. A valid result with an absent or invalid duration keeps its result and
+shows `—` for time. A setup or binary-build failure can leave both distros without
+records; a cancelled run can leave only one. The table never infers a distro's
+result from the overall job status. Runner loss, force cancellation or a job
+timeout can prevent the summary from completing, even with `always()`.
+
+`internal/repocheck` executes `.github/scripts/systemd-summary.sh` with synthetic
+audit files and checks the workflow's boundary, ordering and failure handling,
+without containers. A real PR CI run is still needed to verify the rendered
+summary. This table describes one job attempt; it does not count streaks or
+change #172's per-distro evidence gates.
 
 ## Rootless container checks
 
@@ -226,23 +254,30 @@ nothing is started. What keeps it safe:
   `.tmp/` (and the same with `.log` in `.audit/logs/`). Anything else is left alone and
   printed. Other worktrees and clones have their own folders; the script never looks at
   them.
-- **Links are never followed.** `.tmp/` and `.audit/logs/` themselves must not be links
-  (the script refuses, as for every run). A link *named* like a run is removed as a
-  link; what it points at stays.
+- **Links are never followed.** `.tmp/`, `.audit/` and `.audit/logs/` must not be links
+  (the script refuses before it writes anything, as for every run). A link *named* like
+  a run is removed as a link; what it points at stays. The wait for the lock can be as
+  long as a run, so the folders are looked at again after it and before every removal:
+  a link swapped in meanwhile stops the clean-up (and the audit line is never appended
+  through a linked `.audit/runs.log`).
+- **A mount stops the removal of its folder.** `rm --one-file-system` does not stop at a
+  bind mount of the same file system, so a run folder with a mount at or below it is
+  left alone and reported (`has a mount in it`); the others are still removed.
 - **Not under a running check.** The script's shared lock is held for a whole run, and the
   clean-up takes it first, so it waits for any run in progress.
 - **One failure does not stop the rest.** Each failed removal is printed, the exit status
   is 1 and the audit line says `result=FAIL`.
 - **Recorded like a run:** one line in `.audit/runs.log` with your `AGENT=` label,
   `recipe=@clean` (an `@` cannot be part of a recipe name, so it never mixes with a
-  recipe's evidence) and `image=none`; the names and counts are only printed.
+  recipe's evidence) and `image=none`; the names and counts are only printed. A refusal
+  by the shared preflight (a link, another repository) writes nothing, as for runs.
 
 ```text
 2026-10-27T… run=clean-<id> agent=<model> branch=… commit=… dirty=no recipe=@clean hash=… image=none jobs=16 result=PASS seconds=1
 ```
 
 Run it as `make test-clean AGENT=<model>`. Manual case:
-[TC-QA-005](testing/cases/qa.md#tc-qa-005--make-test-clean-removes-kept-failed-runs-including-files-of-other-user-ids).
+[TC-QA-006](testing/cases/qa.md#tc-qa-006--make-test-clean-removes-kept-failed-runs-including-files-of-other-user-ids).
 
 ## Writing tests
 

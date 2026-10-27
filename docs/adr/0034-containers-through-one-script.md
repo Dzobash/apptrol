@@ -355,6 +355,39 @@ make test-install    →  Ubuntu: apt-get install      Fedora: dnf install
   until it has its own 300 local and 10 CI green runs per distro; this one does, and the
   Status check's evidence is not reset by it.
 
+### CI summary clarification — 2026-10-27
+
+The Systemd in containers job writes one result/time table per workflow attempt
+(QA-16, #196), using a small shell helper outside `test/container/`. Keeping the
+parser outside the container scripts preserves their evidence hashes. Tests run
+the helper with synthetic audit lines, without containers.
+
+```text
+committed audit → capture line count → current run appends → summarize suffix
+       └──────────────── full audit retained in artifact ────────────────┘
+```
+
+Capturing the initial line count immediately after checkout excludes historical
+records even when they name the same commit as a rerun. Filtering only by commit
+would not do that; emptying the log would discard history from the artifact.
+The helper also checks the tested commit (accepting the audit's hexadecimal
+abbreviation) and exact `systemd-ubuntu`/`systemd-fedora` recipe names. The heading
+shows the first seven digits of the tested checkout commit, which is the merge
+commit for a PR, not its head.
+
+Rows show `✅ pass`, `❌ fail` or `no result`; missing time is `—`. Missing or
+invalid results and duplicate distro records cannot claim a pass. The summary
+step runs with `if: always()` immediately after the test, before diagnostics and
+upload. Setup/build failures can leave no records, and cancellation can leave
+partial records. The overall job outcome is not a substitute for a distro audit
+record. Runner loss, force cancellation and job timeouts can prevent even an
+`always()` step from completing. Test failures remain job failures.
+
+The artifact still includes the complete audit history. No streak is computed,
+no required-check gate changes, and package-install summaries remain a follow-up
+once their CI job exists. The container script, flags, mounts, limits and audit
+format are unchanged.
+
 ### Clean-up of kept failed runs — 2026-10-27
 
 Point 3 keeps a failed run's folder, and point 5 its log, to look at. Nothing removed
@@ -377,7 +410,15 @@ make test-clean AGENT=<model>
   logs), directly inside this checkout's `.tmp/` and `.audit/logs/`; each removal helper
   builds its path from a name it checks again. Other names are left alone and printed.
   Links are never followed: `.tmp/`, `.audit/` and `.audit/logs/` as links are refused as
-  for every run, and a link named like a run is removed as a link only.
+  for every run (before anything is written, so such a refusal is not recorded), and a
+  link named like a run is removed as a link only. The lock can be waited for as long as
+  a run lasts, so after it, and again before every removal, the folders are checked to
+  be real (no link on their path); the audit line is appended only through a real
+  `.audit/runs.log`.
+- **Mounts.** `rm --one-file-system` does not stop at a bind mount of the same file
+  system (found in review round 1), so a folder with a mount at or below it, read from
+  the host's own `/proc/self/mountinfo`, is not removed; being unable to read it also
+  refuses. The other folders are still removed, and the run ends with status 1.
 - **All kept runs, no age limit** (owner's decision, 2026-10-27): the message of a failed
   run says it is kept for you; you run the clean-up when you are done looking. A run in
   progress is safe because the script's shared lock is held for a whole run and the

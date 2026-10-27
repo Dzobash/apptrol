@@ -845,7 +845,10 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   environment isolation and audit records are separate from the application service
   loop. CI's advisory Systemd in containers job runs the same `make test-systemd`
   command with `AGENT=ci` after preparing rootless Podman and a delegated user
-  manager, and uploads `.audit/` even on failure (#171). `make test-install` runs
+  manager, and uploads `.audit/` even on failure (#171). A runner-side helper outside
+  `test/container` writes a per-distro result/time table from only the audit records
+  appended during this attempt; missing results remain explicit, and the complete
+  audit artifact is retained (#196). `make test-install` runs
   the same containers a second way: `status.sh` installs the `.deb` with apt or the
   `.rpm` with dnf from `dist/` (read through the read-only checkout; the runner never
   builds packages) and checks the Status line of the installed files, under its own
@@ -853,10 +856,13 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   runner's fourth mode (`@clean`): it starts no container, takes the same shared lock
   (so a run in progress is never cleaned), and removes only exact `run-<8>` names
   directly inside this checkout's `.tmp/` and `.audit/logs/`, with `podman unshare rm`
-  for folders that may hold files of other user IDs. One function, `write_audit`,
+  for folders that may hold files of other user IDs. It looks at the folders again
+  after the lock (a link swapped in while it waited is refused) and leaves a run
+  folder that has a mount in it. One function, `write_audit`,
   writes the `runs.log` line for runs and clean-ups alike; the clean-up's is
   `recipe=@clean` (QA-18). `internal/repocheck`
-  tests the runner with a fake Podman and keeps both
+  tests the runner with a fake Podman, the summary with synthetic audit records,
+  and the workflow's boundary and failure handling, and keeps both
   agents' allow, ask and block lists equal (QA-15, QA-16, QA-17, QA-18, ADR 0034). See
   [rootless container checks](testing.md#rootless-container-checks),
   [package installs](testing.md#package-installs) and
