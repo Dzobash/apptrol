@@ -8,7 +8,8 @@ description: End-of-session check for the Apptrol repository. Use when the owner
 The owner asks this at the end of a session. Check every point below, then give one short
 report: a line per point, `✓` when it is in order, `→` with what is open. Change nothing
 that needs the owner's OK without asking first (AGENTS.md › Publish): pushing, opening
-or merging a PR, deleting a branch that has commits not on GitHub, creating issues.
+or merging a PR, deleting any branch AGENTS.md › Clean up does not cover, creating
+issues.
 
 ## 1. Other agents first
 
@@ -27,10 +28,11 @@ git worktree list                                # .worktrees/, .claude/worktree
 ```
 
 - Uncommitted or unpushed work: say on which branch, and ask what should happen to it.
-- A branch no active agent uses: delete it, and its worktree if it is clean, only when
-  `gh pr list --state merged --head <branch>` shows its PR merged and its content is in
-  `main` (squash merges leave the branch's own commits outside it).
-- The main checkout should end on `main`, equal to `origin/main`.
+- A merged branch of your own task: clean it up as
+  AGENTS.md › Clean up says (its checks, `-D`, and what to
+  do in a worktree). Any other branch: name it in the report and ask.
+- The main checkout should end on `main`, equal to `origin/main`, unless another agent
+  is working in it: then leave it as it is.
 
 ## 3. GitHub
 
@@ -51,7 +53,9 @@ git tag --sort=-creatordate | head -3            # releases and candidates
   agent's own notes: Claude's memory and Codex's memories are not shared in both
   directions. A new rule from today that is not there yet: suggest the PR.
 - **Facts about the owner, their machine and how you work together** go in your own
-  notes (Claude: its memory directory; Codex: its memories). Save what you learned today.
+  notes (Claude: its memory directory; Codex: its memories), the one place outside the
+  repository and its worktrees you may read and write (AGENTS.md › Boundaries). Save what you learned
+  today.
 - Nothing private in the repository (AGENTS.md › Boundaries).
 
 ## 5. Handover

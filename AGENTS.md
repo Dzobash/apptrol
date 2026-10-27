@@ -35,18 +35,21 @@ every step.
 start → plan → set up → build → review ⇄ publish → ready → clean up → hand over, end
          │                           └ rounds ┘
          └ the owner's OK
+
+routine:              build → push → draft PR → review rounds → ready
+complex or important: build → local review rounds → push → draft PR → ready
 ```
 
 1. [Boundaries](#boundaries): privacy, files, commands
 2. [Start](#start): look up the state
-3. [Plan](#plan): issues, decisions, the owner's OK
-4. [Set up](#set-up): branch or worktree, starting other agents
+3. [Plan](#plan): issues, decisions, the builder, the owner's OK
+4. [Set up](#set-up): branch or worktree, starting other agents, the live setup
 5. [Build](#build): code, docs, tests, checks
-6. [Review](#review): the other provider, in rounds
+6. [Review](#review): another model, one commit per round, local first when it matters
 7. [Publish](#publish): the owner's OK, push, draft PR
-8. [Ready](#ready): then the owner merges
-9. [Clean up](#clean-up)
-10. [Hand over and end](#hand-over-and-end)
+8. [Ready](#ready): one definition, then the owner merges
+9. [Clean up](#clean-up): delete the merged branch
+10. [Hand over and end](#hand-over-and-end): one owner per task
 
 ## Boundaries
 
@@ -64,6 +67,9 @@ start → plan → set up → build → review ⇄ publish → ready → clean u
 - Only access files inside this repository and its worktrees in
   `~/.t3/worktrees/apptrol/`, never elsewhere in the home folder (not even the rest of
   `~/.t3/`, nor Go's module cache; look at libraries through the GitHub API).
+  One narrow exception: an agent's own private notes for this project (Claude Code's
+  memory folder for it, Codex's own memories), to read and write those notes, nothing
+  else there.
 - **Commands you may run yourself:**
   ```
   read only     read and search files in this repository and its worktrees; git and
@@ -71,9 +77,10 @@ start → plan → set up → build → review ⇄ publish → ready → clean u
                 CI checks)
   build, test   make check, make test-audio, make test-systemd, make test-install,
                 make test-clean, make container-run RECIPE=<name>
-  git           list branches, git switch (also -c), git pull, git add, commit
-                (deleting or renaming a branch, and push, only after the owner's OK,
-                see Publish)
+  git           list branches, git switch (also -c), git pull, git add, commit;
+                delete your own merged branch as Clean up says (no question in the
+                chat); deleting or renaming any other branch, and push, only after
+                the owner's OK, see Publish
   waiting       any of these in the background, e.g. gh pr checks --watch for CI, or
                 the tool's own way to watch a PR where it has one (T3 Code)
   ```
@@ -142,7 +149,7 @@ git ls-tree --name-only origin/main docs/testing/runs/   # test run records, as 
   `docs/testing/runs/` is missing or not passed; continue with the test run
   ([how-to](docs/testing/how-to-run-release-tests.md)), then
   [docs/releasing.md](docs/releasing.md).
-- Agents' private notes (Claude's memory, Codex's sessions) are not shared between
+- Agents' private notes (Claude's memory, Codex's memories) are not shared between
   agents. Shared rules go in this file; status and handover details go in an issue, a
   PR or the handed-over task.
 
@@ -152,6 +159,11 @@ The owner wants to keep learning while working, not just receive finished result
 
 - **Plan first.** Before any non-trivial change, explain what you would do and why, and
   wait for the owner's OK. Don't edit files until they agree.
+- **The plan names the builder:** the tool, the model and the worktree that will write
+  the code (e.g. "Claude Opus 5.5, a delegated task in its own worktree"). The owner's
+  OK on the plan also starts it, as a delegated task in its own worktree
+  ([Set up](#set-up)). Reasoning above the model's default, pushing and changes on
+  GitHub still need their own OK.
 - **Explain simply, with examples.** Lead with the plain difference in a sentence or
   two, then a concrete example (the log lines, a config snippet), then what needs
   deciding. Few options, short; dense tables confuse more than they help.
@@ -159,8 +171,8 @@ The owner wants to keep learning while working, not just receive finished result
   approaches (behaviour, error handling, data structures), stop and ask in the chat, like
   a small ADR: each option with a concrete example, what it costs, and a recommendation.
   When a rule already prefers one option, put it first and say which rule. Do not put
-  `TODO(human)` in the code for the owner to write. Decisions that matter go in an ADR
-  or a dated note on one.
+  `TODO(human)` in the code for the owner to write. The decision goes in an ADR or a
+  dated note on one.
 - **The owner often dictates.** When a word in an answer looks odd (speech-to-text
   writes "Flatback" for Flatpak), ask what was meant before acting on it.
 - **Check the open issues** (`gh issue list`) when planning a feature or an ADR and
@@ -171,9 +183,10 @@ The owner wants to keep learning while working, not just receive finished result
   one (a bug in a released version, an idea or task left for later, a bug in another
   app); a fix's PR says `Fixes #n`. A security problem is never a public issue or PR
   text first: tell the owner, who reports it as [SECURITY.md](SECURITY.md) says.
-- Every decision gets an ADR ([docs/adr/](docs/adr/), copy `template.md`, next free
-  number, add it to the index). Accepted ADRs are not rewritten, only given dated notes;
-  a changed decision gets a new ADR that supersedes the old one.
+- ADRs follow [CONTRIBUTING.md › Before you start](CONTRIBUTING.md#before-you-start).
+  Several agents may write one at the same time, so the plan **reserves the next ADR
+  number** and says so in the issue or the PR (e.g. "ADR number 0040 is reserved for
+  this PR"); a second agent takes the number after it.
 - **Small PRs.** Split a feature into 2–4 PRs, each one something the owner can see or
   try on its own (e.g. media buttons went in four: discovery, matching, R, media keys).
 - No workarounds for bugs in other apps (e.g. Spotify). Document them in
@@ -185,18 +198,23 @@ The owner wants to keep learning while working, not just receive finished result
 The owner may run more than one agent on this repository at the same time and hand tasks
 from one to another.
 
-- Never work on `main`. Branch (`feat/`, `fix/`, `docs/`, …) → commit (Conventional
-  Commits, with requirement IDs, e.g. `fix: … (MUTE-07)`) → PR → all 7 CI checks green
-  (Lint, Test on two Go versions, Fuzz, Vulnerability check, Build, Packaging) → squash merge.
-  A ruleset on `main` enforces this.
+- Never work on `main`. Branches, commits and the required checks:
+  [CONTRIBUTING.md › Branches and pull requests](CONTRIBUTING.md#branches-and-pull-requests).
+  On top of that, agents review before the owner merges ([Review](#review)), open PRs as
+  drafts and ask before pushing ([Publish](#publish)).
 - **One task, one branch.** Each agent works on its own branch, or in its own worktree,
   never on a branch another agent is using. A worktree stays where its tool makes it:
   T3 Code in `~/.t3/worktrees/apptrol/`, Claude Code in `.claude/worktrees/`; one made
   by hand (`git worktree add`) goes under `.worktrees/`, named after no tool. Git ignores
   both folders inside the repository. Check `git status` and the current branch before
   the first edit; if there are changes you did not make, stop and ask.
-- **Start another agent only when the owner asks** (a child task or a new thread), and
-  say which tool and model it runs on. It runs at its model's default reasoning level or
+- **One owner per task.** Each task and its PR have one named owner, the agent that
+  changes the branch. A read-only reviewer may work on the same branch alongside it
+  ([Review](#review)). Ownership moves only by a handover
+  ([Hand over and end](#hand-over-and-end)).
+- **Start another agent only when the owner asks** (a child task or a new thread; an
+  OK'd plan that names the builder counts, see [Plan](#plan)), and say which tool and
+  model it runs on. It runs at its model's default reasoning level or
   lower; a lower level needs no OK. Anything above the default (high, extra high, max,
   …), another model than the table in [Review](#review) names, or wider permissions
   need the owner's OK first: ask, with the reason and what it costs.
@@ -213,11 +231,24 @@ from one to another.
   a small job                      →  Haiku 5.5 or GPT-6-Luna
   plans, code, reviews             →  the models in the table in Review
   ```
+- **One agent at a time owns the live setup, and the owner grants it.** Worktrees are
+  separate, but the owner's PipeWire, the running Apptrol service and the controller
+  are one, and agents in different chats cannot see each other. The owner is the one
+  who sees every chat, so before `make test-audio`, a test run with
+  `docs/testing/apply-fixture.sh`, a controller test or anything else that changes the
+  running service, ask the owner for the live setup and wait for the yes ("I'd like
+  the live setup for `make test-audio` on #NNN"). When done, hand it back restored
+  (after a test run: `docs/testing/apply-fixture.sh --restore`) and say "live setup
+  released". The owner says no while another agent holds it.
+  ```
+  agent A: asks ── owner: yes ── make test-audio ── released ┤
+  agent B:            asks ── owner: wait ───────────────────┤ owner: yes ── apply-fixture …
+  ```
 
 ## Build
 
 - Every commit names the model that wrote it in a `Co-Authored-By:` line, Codex as well
-  as Claude, e.g. `Co-Authored-By: GPT-6-Astra <noreply@openai.com>` or
+  as Claude, e.g. `Co-Authored-By: GPT-6.1-Sol <noreply@openai.com>` or
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, so it is clear which
   agent did what.
 - Every behaviour has a requirement ID in [docs/requirements.md](docs/requirements.md);
@@ -233,8 +264,10 @@ from one to another.
   only in `internal/controller` profiles, so other controllers stay possible (#64).
 - Logs, and planning them so every feature is troubleshootable from its logs alone:
   [CONTRIBUTING.md › Log messages](CONTRIBUTING.md#log-messages).
-- With every change, update what it affects: [CHANGELOG.md](CHANGELOG.md) (Unreleased),
-  requirements, [docs/testing.md](docs/testing.md), architecture, README.
+- With every change, update what it affects: requirements,
+  [docs/testing.md](docs/testing.md), architecture, README, and
+  [CHANGELOG.md](CHANGELOG.md) (Unreleased) for user-visible changes
+  ([CONTRIBUTING.md › Commits and pull requests](CONTRIBUTING.md#commits-and-pull-requests)).
 - **[docs/architecture.md](docs/architecture.md) grows with every feature.** Re-read it
   and update every part the change touches (overview diagram, service interfaces, the
   mixer's responsibilities, event flow, adapter sections, testing list), not just a
@@ -244,17 +277,20 @@ from one to another.
 - `docs/` is the website's source: follow
   [CONTRIBUTING.md › Documentation](CONTRIBUTING.md#documentation) (plain Markdown, links,
   a place in docs/README.md, phase name + Goal + Done when).
-- **Text diagrams.** Wherever a setting or a behaviour can be shown visually (a
-  timeline, LED picture, small graph), add a plain-text diagram in a code block on top
-  of the written explanation, never instead of it:
-  ```
-  keep:     you keep it ─────┤ released ─────┤ you take it again
-  release:  released ────────────────────────┤ you take it again
-  ```
-- Before a PR: `make check`. For audio changes also `make test-audio` (runs against the
-  owner's PipeWire; it adds a silent test output and inputs and removes them afterwards).
-  CI's PipeWire is older than the owner's and behaves differently, so audio tests act
-  like real apps (send data, wait for state) and CI is the real check.
+- **Text diagrams** wherever a setting or a behaviour can be shown visually:
+  [CONTRIBUTING.md › Documentation](CONTRIBUTING.md#documentation). This holds for
+  agent rules, PRs and issues too.
+- **Before a PR:** fill in the checklist of
+  [.github/pull_request_template.md](.github/pull_request_template.md); it lists what
+  every contributor checks. Agents add only this:
+  - check the diff for private data ([Boundaries](#boundaries));
+  - choose the review order: routine → push first; complex or important → review on
+    the local branch first ([Review](#review)).
+- For audio changes also `make test-audio` (runs against the owner's PipeWire; it adds
+  a silent test output and inputs and removes them afterwards; it needs the live setup,
+  see [Set up](#set-up)). CI's PipeWire is older than the owner's and behaves
+  differently, so audio tests act like real apps (send data, wait for state) and CI is
+  the real check.
 - **Hardware tests** (controller, LEDs, listening) need the owner: tell them exactly what
   to do and what to look for, then read the logs yourself and explain what they show.
 
@@ -262,32 +298,76 @@ from one to another.
 
 - **The other provider reviews.** A PR written by Claude is reviewed by Codex, and one
   written by Codex by Claude, before the owner merges it: a different model finds
-  different bugs. Review against the requirements and this file, not only the diff. If
-  the other provider is not available, tell the owner and leave the review open.
+  different bugs. Review against the requirements and this file, not only the diff.
+- **When only one provider is available,** a fresh agent of the same provider on
+  another model reviews, with an independent brief (see below: no chat history, no
+  earlier findings). The author's provider decides which:
+  ```
+  Claude implements, no Codex:   routine → Claude Sonnet 5.5
+                                 complex or important → a new Claude Opus 5.5 agent
+  Codex implements, no Claude:   ask the owner which GPT model reviews
+  ```
+  The PR says which review route was used (e.g. "Reviewed by Claude Sonnet 5.5, Codex
+  not available").
 - **Split the work by provider.** When the owner hands a release's issues to both
   providers, some go to Codex and some to Claude, and each reviews the other's PRs.
-  Codex writes code with GPT-6-Astra. The reviewer's model depends on the PR (as of
-  2026-10; the owner names newer models when they come):
+  Codex writes code with GPT-6.1-Sol (GPT-6-Astra used up its tokens too fast and ran
+  out in the middle of tasks). The reviewer's model depends on the PR (as of 2026-10;
+  the owner names newer models when they come):
 
   | Implementation | Routine PR review | Complex or important PR review |
   |---|---|---|
   | **GPT / Codex implements** | Claude **Sonnet 5.5** | Claude **Opus 5.5** |
-  | **Claude Code implements** | GPT **6.1-Sol** | GPT **6-Astra** |
+  | **Claude Code implements** | GPT **6.1-Sol** | GPT **6.1-Sol** |
 
-  Astra is the stronger GPT model, like Opus. **Routine:** docs, tests, small fixes.
-  **Complex or important:** a change of behaviour, a release, anything touching audio,
-  the controller, privacy or security. When unsure, ask the owner which one it is.
-- **Rounds.** The other provider reviews the draft PR ([Publish](#publish)) in rounds:
+  **Routine:** docs, tests, small fixes. **Complex or important:** a change of
+  behaviour, a release, anything touching audio, the controller, privacy or security.
+  When unsure, ask the owner which one it is.
+- **Local first when it matters.** The repository is public, so a flaw is published the
+  moment its commit is pushed (#199: PR #198's two script flaws were public until
+  fixed). A **complex or important** PR is reviewed on the local branch **before its
+  first push**; the owner's OK to push ([Publish](#publish)) is asked after the clean
+  local round. A **routine** PR is pushed first, so CI runs alongside the review.
   ```
-  round with findings     →  fix (new commits, not a rewritten history), push,
-                             CI green  →  next round, still draft
-  round with no findings  →  gh pr ready <n> at once
+  routine:              commit → OK, push → draft PR → review rounds → ready
+  complex or important: commit → local review rounds → OK, push → draft PR → ready
   ```
+- **One commit per round.** The author tells the reviewer the exact commit, and the
+  reviewer names it in its verdict: "Reviewed `<sha>`: no findings". During a round the
+  author does not change the branch, or the reviewer works in its own checkout of that
+  commit. A clean verdict counts only for that commit: a new commit needs a new round.
+  ```
+  commit A → round on A → findings → commit B → round on B → clean → B may go on
+  ```
+- **Rounds** come in two phases. Before the first push (complex or important PRs only)
+  every round is local. After the first push the code is public already, so every
+  round, for any PR, runs on the draft, CI included (e.g. a fix for a failing check).
+  ```
+  before the first push:
+    round with findings     →  fix in new commits → next round, still local
+    round with no findings  →  ask to push, open the draft
+  after the first push:
+    round with findings     →  fix in new commits → push → CI → next round, still draft
+    round with no findings  →  Ready
+  ```
+  Pushed history is never rewritten. Commits that were never pushed are kept as they
+  are too, with one exception: when a local round finds a **security flaw**, the
+  unpushed commits may be squashed into one, with the owner's OK, so the flawed version
+  never reaches GitHub. The squashed commit is new, so it gets its own round. Other
+  findings stay their own commits. A flaw found after the
+  first push: tell the owner first, and write nothing about it in public text (commits,
+  PR, issues) until the owner has reported it as [SECURITY.md](SECURITY.md) says.
+- **Independent second opinion.** When a second agent checks the same thing (a review,
+  an audit, a design), its brief gives the task, the files and the facts the files
+  don't show yet, never the first agent's findings. The lead merges both lists and
+  marks each finding as found by both or by one; a finding only one found is checked
+  against the files before it is used (as in #200).
 
 ## Publish
 
-- **Ask before pushing, opening a PR or creating issues.** Once the owner has OK'd a
-  PR, its review fixes and marking it ready need no new question ([Ready](#ready)).
+- **Ask before pushing, opening a PR or creating issues.** For a complex or important PR,
+  ask after the clean local round ([Review](#review)). Once the owner has OK'd a PR,
+  its review fixes and marking it ready need no new question ([Ready](#ready)).
 - **Draft until reviewed.** Open a PR as a draft (`gh pr create --draft`), so it cannot
   be merged halfway; it is reviewed in rounds ([Review](#review)).
 - `gh pr edit` can fail without changing the PR; edit a PR's text with
@@ -299,15 +379,45 @@ from one to another.
 
 ## Ready
 
-- The agent that wrote the PR marks it ready itself, without asking in the chat again:
-  the owner's OK for the PR covers pushing review fixes, the next rounds and marking it
-  ready. The tools' own prompts for `git push` and `gh pr ready` stay (QA-15); the owner
-  answers them with a click, not a new decision.
+- **Ready means, for every PR:**
+  ```
+  ✓ the PR's current commit was reviewed, with a clean round (Review)
+  ✓ the 7 required checks are green (CONTRIBUTING.md › Branches and pull requests)
+  ✓ any other failing check is explained in the PR
+  ✓ no open findings
+  ```
+  A fix pushed after a clean round (e.g. for CI) is a new commit, so it needs its own
+  round on the draft PR first.
+- Then the agent that owns the PR marks it ready itself (`gh pr ready <n>`), without
+  asking in the chat again: the owner's OK for the PR covers pushing review fixes, the
+  next rounds and marking it ready. The tools' own prompts for `git push` and
+  `gh pr ready` stay (QA-15); the owner answers them with a click, not a new decision.
+- **Rules files.** Before a PR that changes AGENTS.md or another rules file (CLAUDE.md,
+  CONTRIBUTING.md, a skill or command, the settings files) is marked ready, re-read the
+  whole resulting file on top of current `main`: two PRs can merge cleanly and still
+  contradict each other.
 - The owner reviews and merges PRs.
 
 ## Clean up
 
-- After a merge: `git switch main`, `git pull`, then delete the local branch.
+The agent that owns the task deletes its branch itself, without asking in the chat,
+once all three hold:
+
+```
+✓ its PR is merged          gh pr list --state merged --head <branch>
+✓ its content is in main    git fetch origin, then compare with origin/main
+✓ no agent uses the branch  (Hand over and end; the wrap-up's point 1)
+```
+
+The tool's own prompt for deleting a branch stays (QA-15), one click.
+
+- **In the main checkout:** `git switch main`, `git pull`, then `git branch -D <branch>`.
+  It needs `-D`: a squash merge puts one new commit on `main`, so git does not see the
+  branch's own commits as merged and `-d` refuses.
+- **In a worktree:** stay there (`main` is checked out elsewhere, so `git switch main`
+  fails). The tool that made the worktree removes it. Git cannot delete a branch that a
+  worktree still has checked out, so the branch is deleted after that, from the main
+  checkout (`git branch -D <branch>`), e.g. during the wrap-up.
 
 ## Hand over and end
 
@@ -315,6 +425,15 @@ from one to another.
   chat: give it the issue number, the requirement IDs, the branch name, what "done"
   means and which rules matter most. It reads this file by itself. Commit first: a new
   worktree starts from the last commit, so changes that are not committed never reach it.
+- **A handover moves ownership** ([Set up](#set-up) › One owner per task). It records:
+  ```
+  commit        the branch's last commit (sha)
+  uncommitted   what is not committed, and why
+  running       jobs still running (CI watch, a review, the live setup)
+  findings      review findings still open
+  OKs           the owner's OKs so far (plan, push, PR)
+  ```
+  The sender stops changing the branch before the receiver starts, and says so.
 - **At the end of a session,** when the owner asks whether everything is done, follow
   [`.agents/skills/wrap-up/SKILL.md`](.agents/skills/wrap-up/SKILL.md): other agents,
   code, GitHub, notes, handover, then a short report (Codex: `$wrap-up`, Claude Code:
