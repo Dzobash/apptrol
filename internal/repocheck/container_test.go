@@ -1,6 +1,7 @@
 package repocheck
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,6 +53,8 @@ func containerFixtureAt(t *testing.T, root string, fakeGit bool) string {
 			if name == "runner.sh" {
 				data = strings.ReplaceAll(data, `base="$repo/fake-cgroup"`, `base="$repo/fake-runtime-cgroup"`)
 				data = strings.ReplaceAll(data, `/proc/$pid/`, root+`/fake-proc/`)
+				// The clean-up reads the host's own mounts (QA-18).
+				data = strings.ReplaceAll(data, `/proc/self/mountinfo`, root+`/fake-self-mountinfo`)
 			}
 			data = strings.ReplaceAll(data, "$(id -u)", "1500")
 			data = strings.ReplaceAll(data, `HOME=$(getent passwd "1500" | cut -d: -f6)`, "HOME=/nonexistent")
@@ -80,6 +83,7 @@ func containerFixtureAt(t *testing.T, root string, fakeGit bool) string {
 	write("fake-runtime-cgroup/pids.max", "256\n")
 	write("fake-runtime-cgroup/memory.max", "536870912\n")
 	write("fake-runtime-cgroup/memory.swap.max", "0\n")
+	write("fake-self-mountinfo", "")
 	write("fake-proc/cgroup", "0::/fixture.scope\n")
 	write("fake-proc/stat", "123 (runtime init) S 0 0 0 0 0 0 0 0 0 0 0 0 0 0 30 10\n")
 	write("fake-proc/net/dev", "Inter-| Receive | Transmit\n face |bytes\n lo: 0\n")
@@ -978,6 +982,10 @@ func TestQA18_CleanRefusesLinkedFolders(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(root, "calls")); !os.IsNotExist(err) {
 				t.Error("a linked folder reached Podman")
 			}
+			// The preflight refuses before the script writes anything, as for runs.
+			if _, err := os.Stat(filepath.Join(root, ".audit/runs.log")); !os.IsNotExist(err) {
+				t.Error("a refused preflight wrote an audit line")
+			}
 		})
 	}
 }
@@ -1034,27 +1042,27 @@ func TestQA18_CleanAuditLabelIsData(t *testing.T) {
 	}
 }
 
-// TestQA18_CleanWaitsForARunInProgress holds the shared lock the way a running
-// container check does: the cleanup must not delete a live run folder before the
-// run lets go (QA-18, ADR 0034).
-func TestQA18_CleanWaitsForARunInProgress(t *testing.T) {
+// cleanBehindTheLock holds the shared lock the way a running container check does,
+// starts `make test-clean` and shows that it is waiting. The returned function lets
+// go of the lock and returns what the clean-up printed and how it ended. The test
+// can change the checkout while the clean-up waits (QA-18, ADR 0034).
+func cleanBehindTheLock(t *testing.T, root string) func() ([]byte, error) {
+	t.Helper()
 	if _, err := exec.LookPath("flock"); err != nil {
 		t.Fatal("flock is required for QA-18")
 	}
-	root := containerFixture(t)
-	live := touch(t, root, ".tmp/run-LiveLive/file")
-	holder := exec.Command("flock", filepath.Join(root, "git-common/apptrol-containers.lock"), "sleep", "60")
+	lock := filepath.Join(root, "git-common/apptrol-containers.lock")
+	holder := exec.Command("flock", lock, "sleep", "60")
 	// flock runs sleep as a child that keeps the lock, so the whole group is killed.
 	holder.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := holder.Start(); err != nil {
 		t.Fatal(err)
 	}
 	release := func() { _ = syscall.Kill(-holder.Process.Pid, syscall.SIGKILL); _ = holder.Wait() }
-	defer release()
+	t.Cleanup(release)
 	// Wait until the holder really has the lock, so the cleanup cannot get in first.
 	for i := 0; ; i++ {
-		probe := exec.Command("flock", "--nonblock", filepath.Join(root, "git-common/apptrol-containers.lock"), "true")
-		if probe.Run() != nil {
+		if exec.Command("flock", "--nonblock", lock, "true").Run() != nil {
 			break
 		}
 		if i > 200 {
@@ -1062,8 +1070,10 @@ func TestQA18_CleanWaitsForARunInProgress(t *testing.T) {
 		}
 		time.Sleep(25 * time.Millisecond)
 	}
-	cmd := exec.Command("make", "test-clean")
+	var out bytes.Buffer
+	cmd := exec.Command("make", "test-clean", "AGENT=claude-sonnet-5-5")
 	cmd.Dir = root
+	cmd.Stdout, cmd.Stderr = &out, &out
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -1071,22 +1081,121 @@ func TestQA18_CleanWaitsForARunInProgress(t *testing.T) {
 	go func() { done <- cmd.Wait() }()
 	select {
 	case err := <-done:
-		t.Fatalf("the cleanup did not wait for the lock (%v)", err)
+		t.Fatalf("the cleanup did not wait for the lock (%v)\n%s", err, out.String())
 	case <-time.After(1500 * time.Millisecond):
 	}
+	return func() ([]byte, error) {
+		release()
+		select {
+		case err := <-done:
+			return out.Bytes(), err
+		case <-time.After(30 * time.Second):
+			t.Fatal("the cleanup did not continue after the lock was released")
+			return nil, nil
+		}
+	}
+}
+
+// TestQA18_CleanWaitsForARunInProgress: the cleanup must not delete a live run
+// folder before the run lets go (QA-18, ADR 0034).
+func TestQA18_CleanWaitsForARunInProgress(t *testing.T) {
+	root := containerFixture(t)
+	live := touch(t, root, ".tmp/run-LiveLive/file")
+	finish := cleanBehindTheLock(t, root)
 	if !exists(live) {
 		t.Fatal("a run in progress lost its folder")
 	}
-	release()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("make: %v", err)
-		}
-	case <-time.After(30 * time.Second):
-		t.Fatal("the cleanup did not continue after the lock was released")
+	if out, err := finish(); err != nil {
+		t.Fatalf("make: %v\n%s", err, out)
 	}
 	if exists(live) {
 		t.Error("the folder stayed after the run let go")
+	}
+}
+
+// TestQA18_CleanLooksAgainAfterTheLock swaps a link in for a folder (or the ledger)
+// while the cleanup waits for the lock, after the preflight has already passed:
+// nothing outside the checkout may be removed or written (QA-18, ADR 0034).
+func TestQA18_CleanLooksAgainAfterTheLock(t *testing.T) {
+	for _, swapped := range []string{".tmp", ".audit/logs", ".audit/runs.log"} {
+		t.Run(swapped, func(t *testing.T) {
+			root := containerFixture(t)
+			outside := t.TempDir()
+			victims := []string{
+				touch(t, outside, "run-AbCd1234", "file"),
+				touch(t, outside, "run-AbCd1234.log"),
+			}
+			ledger := touch(t, outside, "ledger")
+			touch(t, root, ".tmp/run-AbCd1234/file")
+			touch(t, root, ".audit/logs/run-AbCd1234.log")
+			if err := os.WriteFile(filepath.Join(root, ".audit/runs.log"), []byte("an earlier line\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			finish := cleanBehindTheLock(t, root)
+			target := outside
+			if swapped == ".audit/runs.log" {
+				target = ledger
+			}
+			if err := os.RemoveAll(filepath.Join(root, swapped)); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, filepath.Join(root, swapped)); err != nil {
+				t.Fatal(err)
+			}
+			out, err := finish()
+			if err == nil {
+				t.Fatalf("accepted a folder that became a link while waiting:\n%s", out)
+			}
+			for _, victim := range append(victims, ledger) {
+				if !exists(victim) {
+					t.Errorf("%s was removed through a link", victim)
+				}
+			}
+			if data, _ := os.ReadFile(ledger); string(data) != "x" {
+				t.Errorf("the audit line was written through a link: %q", data)
+			}
+			calls, _ := os.ReadFile(filepath.Join(root, "calls"))
+			if strings.Contains(string(calls), "unshare rm") && swapped != ".audit/runs.log" {
+				t.Errorf("Podman was asked to remove after the swap: %s", calls)
+			}
+		})
+	}
+}
+
+// TestQA18_CleanLeavesFoldersWithMounts: `rm --one-file-system` does not stop at a
+// bind mount of the same file system, so a run folder with a mount at or below it
+// is not removed. A folder whose name only starts the same is (QA-18, ADR 0034).
+func TestQA18_CleanLeavesFoldersWithMounts(t *testing.T) {
+	root := containerFixture(t)
+	exact := touch(t, root, ".tmp/run-Mounted1/file")
+	below := touch(t, root, ".tmp/run-Below123/inner/file")
+	other := touch(t, root, ".tmp/run-AbCd1234/file")
+	touch(t, root, ".tmp/run-AbCd12345/file")
+	mountinfo := strings.Join([]string{
+		"36 35 0:30 / " + filepath.Join(root, ".tmp/run-Mounted1") + " rw - tmpfs tmpfs rw",
+		"37 35 0:31 / " + filepath.Join(root, ".tmp/run-Below123/inner") + " rw - tmpfs tmpfs rw",
+		"38 35 0:32 / " + filepath.Join(root, ".tmp/run-AbCd12345") + " rw - tmpfs tmpfs rw",
+		"",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(root, "fake-self-mountinfo"), []byte(mountinfo), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runCleanMake(t, root)
+	if err == nil || !strings.Contains(string(out), "FAILED: .tmp/run-Mounted1 has a mount in it") || !strings.Contains(string(out), "FAILED: .tmp/run-Below123 has a mount in it") {
+		t.Fatalf("a folder with a mount in it was not refused: %v\n%s", err, out)
+	}
+	if !exists(exact) || !exists(below) {
+		t.Error("a folder with a mount in it was removed")
+	}
+	if exists(other) {
+		t.Error("a folder next to a mounted one was left behind")
+	}
+	calls, _ := os.ReadFile(filepath.Join(root, "calls"))
+	if strings.Contains(string(calls), "run-Mounted1") || strings.Contains(string(calls), "run-Below123") {
+		t.Errorf("Podman was asked to remove a mounted folder: %s", calls)
+	}
+	audit, _ := os.ReadFile(filepath.Join(root, ".audit/runs.log"))
+	if !strings.Contains(string(audit), "result=FAIL") {
+		t.Errorf("audit: %s", audit)
 	}
 }

@@ -270,13 +270,37 @@ fi
 # touched; each helper builds the path from a name it checks again, so no caller
 # can hand it another path. The shared lock above is held for a whole run, so a run
 # in progress is never cleaned under its feet.
+#
+# The preflight at the top checked for links before the lock, and the lock can take
+# as long as a run does. So the folders are looked at again here, after the lock
+# and before every removal (QA-18, review round 1).
+# True when $1 (below the checkout) is a real folder with no link on its way.
+real_folder_inside() {
+    local want="$repo/$1" got
+    got=$(cd -- "$want" 2>/dev/null && pwd -P) || return 1
+    [[ $got == "$want" ]]
+}
+# `rm --one-file-system` does not stop at a bind mount of the same file system, so a
+# folder with any mount at or below it is left alone. Status: 0 = a mount is there,
+# 1 = none, 2 = could not tell; only 1 allows the removal. Mount points in
+# mountinfo write a space as \040; $repo has no tab, newline or backslash here.
+has_mount_inside() {
+    P=$1 awk '
+        { p = $5; gsub(/\\040/, " ", p) }
+        p == ENVIRON["P"] || index(p, ENVIRON["P"] "/") == 1 { found = 1 }
+        END { exit !found }
+    ' /proc/self/mountinfo
+}
 remove_kept_folder() {
     [[ $1 =~ ^run-[A-Za-z0-9]{8}$ ]] || return 200
-    local path="$repo/.tmp/$1"
+    local path="$repo/.tmp/$1" mounted=0
+    real_folder_inside .tmp || return 202
     if [[ -L $path ]]; then
         # A link is removed as a link; its target is never touched.
         rm -f -- "$path"
     elif [[ -d $path ]]; then
+        has_mount_inside "$path" || mounted=$?
+        ((mounted == 1)) || return 203
         "${engine[@]}" unshare rm -rf --one-file-system -- "$path"
     else
         return 201
@@ -285,49 +309,57 @@ remove_kept_folder() {
 remove_kept_log() {
     [[ $1 =~ ^run-[A-Za-z0-9]{8}\.log$ ]] || return 200
     local path="$repo/.audit/logs/$1"
+    real_folder_inside .audit/logs || return 202
     [[ -L $path || -f $path ]] || return 201
     rm -f -- "$path"
+}
+# The ledger is appended to only through a real .audit/runs.log: a link that appeared
+# since the preflight must not send the line elsewhere (QA-18).
+record_clean() {
+    if [[ -L .audit || -L .audit/runs.log ]] || ! real_folder_inside .audit; then
+        echo 'Not recorded: .audit or .audit/runs.log is a link' >&2
+        return 1
+    fi
+    write_audit "$runid" @clean "$digest" none "$result" "$((SECONDS-start))"
 }
 clean_kept() (
     runid=$(mktemp -u clean-XXXXXXXX)
     start=$SECONDS
     result=FAIL
     digest=unknown
-    # Installed before any check: a refused cleanup is recorded too, like a run.
-    trap 'write_audit "$runid" @clean "$digest" none "$result" "$((SECONDS-start))"' EXIT
+    # Installed before the checks below, which come after the shared preflight. The
+    # preflight's own refusals (a link, another repository) write nothing, as for runs.
+    trap 'record_clean || exit 1' EXIT
     [[ $label =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]{0,63}$ ]] || { echo 'AGENT must be a short model or caller label' >&2; exit 2; }
     agent=$label
     digest=$(sha256sum test/container/*.sh test/container/valid.toml test/container/containers.conf | sha256sum | cut -d' ' -f1)
+    [[ $repo != *[$'\\\t\n']* ]] || { echo 'Checkout path cannot contain a backslash, tab or newline' >&2; exit 2; }
     [[ $(id -u) != 0 ]] || { echo 'Rootless Podman is required' >&2; exit 1; }
     [[ $("${engine[@]}" info --format '{{.Host.Security.Rootless}}') == true ]] || { echo 'Podman must be rootless' >&2; exit 1; }
+    real_folder_inside .tmp && real_folder_inside .audit/logs || { echo 'Refusing: .tmp or .audit/logs is a link, or has one on its path' >&2; exit 1; }
     echo "cleaning kept failed runs in $repo/.tmp and $repo/.audit/logs (not .audit/runs.log)"
     folders=0 logs=0 left=0 failed=0
     shopt -s nullglob
     for path in "$repo"/.tmp/*; do
         name=${path##*/}
-        if remove_kept_folder "$name"; then
-            echo "removed: .tmp/$name"
-            folders=$((folders + 1))
-        elif (($? == 200 || $? == 201)); then
-            echo "left alone: .tmp/$name"
-            left=$((left + 1))
-        else
-            echo "FAILED: .tmp/$name" >&2
-            failed=$((failed + 1))
-        fi
+        rc=0
+        remove_kept_folder "$name" || rc=$?
+        case $rc in
+            0) echo "removed: .tmp/$name"; folders=$((folders + 1)) ;;
+            200 | 201) echo "left alone: .tmp/$name"; left=$((left + 1)) ;;
+            203) echo "FAILED: .tmp/$name has a mount in it" >&2; failed=$((failed + 1)) ;;
+            *) echo "FAILED: .tmp/$name" >&2; failed=$((failed + 1)) ;;
+        esac
     done
     for path in "$repo"/.audit/logs/*; do
         name=${path##*/}
-        if remove_kept_log "$name"; then
-            echo "removed: .audit/logs/$name"
-            logs=$((logs + 1))
-        elif (($? == 200 || $? == 201)); then
-            echo "left alone: .audit/logs/$name"
-            left=$((left + 1))
-        else
-            echo "FAILED: .audit/logs/$name" >&2
-            failed=$((failed + 1))
-        fi
+        rc=0
+        remove_kept_log "$name" || rc=$?
+        case $rc in
+            0) echo "removed: .audit/logs/$name"; logs=$((logs + 1)) ;;
+            200 | 201) echo "left alone: .audit/logs/$name"; left=$((left + 1)) ;;
+            *) echo "FAILED: .audit/logs/$name" >&2; failed=$((failed + 1)) ;;
+        esac
     done
     echo "removed $folders run folders and $logs logs; left alone $left; failed $failed"
     ((failed == 0)) || exit 1
