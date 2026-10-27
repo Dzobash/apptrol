@@ -355,6 +355,39 @@ make test-install    →  Ubuntu: apt-get install      Fedora: dnf install
   until it has its own 300 local and 10 CI green runs per distro; this one does, and the
   Status check's evidence is not reset by it.
 
+### CI summary clarification — 2026-10-27
+
+The Systemd in containers job writes one result/time table per workflow attempt
+(QA-16, #196), using a small shell helper outside `test/container/`. Keeping the
+parser outside the container scripts preserves their evidence hashes. Tests run
+the helper with synthetic audit lines, without containers.
+
+```text
+committed audit → capture line count → current run appends → summarize suffix
+       └──────────────── full audit retained in artifact ────────────────┘
+```
+
+Capturing the initial line count immediately after checkout excludes historical
+records even when they name the same commit as a rerun. Filtering only by commit
+would not do that; emptying the log would discard history from the artifact.
+The helper also checks the tested commit (accepting the audit's hexadecimal
+abbreviation) and exact `systemd-ubuntu`/`systemd-fedora` recipe names. The heading
+shows the first seven digits of the tested checkout commit, which is the merge
+commit for a PR, not its head.
+
+Rows show `✅ pass`, `❌ fail` or `no result`; missing time is `—`. Missing or
+invalid results and duplicate distro records cannot claim a pass. The summary
+step runs with `if: always()` immediately after the test, before diagnostics and
+upload. Setup/build failures can leave no records, and cancellation can leave
+partial records. The overall job outcome is not a substitute for a distro audit
+record. Runner loss, force cancellation and job timeouts can prevent even an
+`always()` step from completing. Test failures remain job failures.
+
+The artifact still includes the complete audit history. No streak is computed,
+no required-check gate changes, and package-install summaries remain a follow-up
+once their CI job exists. The container script, flags, mounts, limits and audit
+format are unchanged.
+
 ### Effects
 
 - Agents run containers without prompts, and the owner can see afterwards what ran
