@@ -57,3 +57,24 @@ Test: `TestQA17_InstallNeedsBothPackages`, `TestQA17_InstallUsesTheSameSandboxAs
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
+
+### TC-QA-005 — CI summarizes only this attempt's systemd results
+
+Covers: QA-16 · Phase 1.6
+Config: none (CI summary check)
+Type: Manual
+Test: `TestQA16_SystemdSummaryAudit`, `TestQA16_SystemdSummaryWorkflow` (synthetic audits and workflow wiring; the rendered summary needs CI)
+
+**Setup**
+- [ ] Open a PR's CI run and its `Systemd in containers` job
+
+**Steps**
+- [ ] Read the job summary → the tested merge commit is named, with one Ubuntu 26.04 row and one Fedora 44 row
+- [ ] Compare each row with the new `systemd-*` records in the audit artifact → PASS/FAIL and seconds agree; committed history and `install-*` records are excluded
+- [ ] For a failed attempt with a distro FAIL record, check that the summary says `❌ fail` and the job stays failed
+- [ ] For an attempt missing a distro record, check that its row says `no result` and `—`; a setup failure before both records leaves both rows without results
+- [ ] If a cancellation leaves the runner able to finish the summary, check that it reports only recorded results; a force-stopped runner may have no summary
+- [ ] Confirm the artifact still contains the full audit and the summary has no streak counter
+
+**Result:** Pass / Fail / Blocked
+**Notes:** Record which failure/cancellation scenarios were available; do not claim unobserved CI paths passed.
