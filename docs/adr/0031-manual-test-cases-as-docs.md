@@ -116,3 +116,16 @@ per release, and a rule that every feature adds its cases.
   charter written before it starts; time spent off-script while running the cases does
   not count. The v0.2.2-rc1 run counted such time once, by the owner's decision, and
   showed why the rule is needed.
+- 2026-10-27: **When a run has passed** (owner's decision,
+  [#200](https://github.com/Dzobash/apptrol/issues/200)). A case is `Pass`, `Fail` (it
+  gets an issue) or `Blocked` (could not be run, with the reason). A run passes only when
+  every case passed, or every case that did not has the owner's written waiver (Blocked)
+  or acceptance (Fail, with its issue and the version that fixes it). An agent never
+  decides alone that such a case is fine: it drafts the lines, the owner confirms them.
+  The record ends with the owner's decision line; without it the run has not passed.
+  This replaces "problems that are not new, or that are harmless, need no new candidate"
+  in releasing.md. The rule lives in the
+  [how-to](../testing/how-to-run-release-tests.md#what-passed-means).
+- 2026-10-27: Point 6's record is named after the **tested candidate's tag**,
+  `runs/vX.Y.Z-rcN.md`, one record per tested candidate, as the v0.2.2-rc1 record and
+  `/test-run` already did ([#200](https://github.com/Dzobash/apptrol/issues/200)).

@@ -1,6 +1,6 @@
 ---
 description: Walk through the manual release test cases for a version, one at a time
-argument-hint: vX.Y.Z (e.g. v0.2.2-rc1)
+argument-hint: vX.Y.Z-rcN, the candidate's tag (e.g. v0.2.2-rc1)
 ---
 
 We are doing the manual test run for $ARGUMENTS. Follow
@@ -26,9 +26,8 @@ Rules for this run (ADR 0031):
   lines before and after, ready to paste; where saving the file is what the case tests
   (a reload), I make the edit myself.
 - **Scope first** (ADR 0032). Before the first case, say whether $ARGUMENTS is a MINOR
-  or a PATCH release. For a PATCH, list the requirement IDs of the code commits since
-  the last release tag, the cases they select, and the smoke set, as in "Choosing what
-  to run" of the how-to; show me the list and write it into the record's *Scope* row.
+  or a PATCH release. For a PATCH, work out the scope as "Choosing what to run" in the
+  how-to says; show me the list and write it into the record's *Scope* row.
   Run only those, unless I add cases. The scope always includes the exploratory session:
   its own 30 minutes after the cases, with the charter written before it starts, not
   time gathered while running the cases.
@@ -44,4 +43,6 @@ Rules for this run (ADR 0031):
 - **At the end,** in this order: help me write the exploratory charter into the record;
   then I explore for 30 minutes and you read the log with me; write the notes; run
   `apply-fixture.sh --restore`; write the summary and list the failed and blocked cases
-  with their draft issues. Ask before committing, pushing or creating issues.
+  with their draft issues; draft the decision lines and wait for me to confirm them, as
+  "What passed means" in the how-to says. Ask before committing, pushing or creating
+  issues.

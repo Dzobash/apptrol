@@ -146,7 +146,9 @@ git ls-tree --name-only origin/main docs/testing/runs/   # test run records, as 
 - What the next release contains: [CHANGELOG.md](CHANGELOG.md) › Unreleased, and the
   phase in [docs/roadmap.md](docs/roadmap.md).
 - A release candidate is tagged but not released while its run record in
-  `docs/testing/runs/` is missing or not passed; continue with the test run
+  `docs/testing/runs/` is missing or not
+  [passed](docs/testing/how-to-run-release-tests.md#what-passed-means) (the owner's
+  decision ends it); continue with the test run
   ([how-to](docs/testing/how-to-run-release-tests.md)), then
   [docs/releasing.md](docs/releasing.md).
 - Agents' private notes (Claude's memory, Codex's memories) are not shared between

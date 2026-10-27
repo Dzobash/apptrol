@@ -82,3 +82,7 @@ smoke:    H-00 H-03 H-08 (H-01 is in both)
   `Makefile` targets such as `fmt` ([releasing.md](../releasing.md), step 3). Before, only
   docs and the AppStream `<release>` entry were allowed. v0.2.2 was the first: since
   v0.2.2-rc1 only such files had changed (#128, #131), so it was released without an rc2.
+- 2026-10-27: The scope command in point 2 ends at the **tag of the tested candidate**,
+  not at `HEAD` (`v0.2.1..v0.2.2-rc1`): commits merged after the candidate are not in
+  what is tested ([#200](https://github.com/Dzobash/apptrol/issues/200),
+  [how-to](../testing/how-to-run-release-tests.md#choosing-what-to-run)).
