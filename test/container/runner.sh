@@ -263,6 +263,80 @@ if [[ ${1:-} == @install ]]; then
     fi
     run_distros install
 fi
+# Remove the folders and logs that failed runs keep (QA-18, ADR 0034). It starts no
+# container and mounts nothing: `podman unshare` only lets this host process act as
+# the user IDs a recipe may have written files as. Only exact names the script
+# creates itself, directly inside this checkout's .tmp/ and .audit/logs/, are
+# touched; each helper builds the path from a name it checks again, so no caller
+# can hand it another path. The shared lock above is held for a whole run, so a run
+# in progress is never cleaned under its feet.
+remove_kept_folder() {
+    [[ $1 =~ ^run-[A-Za-z0-9]{8}$ ]] || return 200
+    local path="$repo/.tmp/$1"
+    if [[ -L $path ]]; then
+        # A link is removed as a link; its target is never touched.
+        rm -f -- "$path"
+    elif [[ -d $path ]]; then
+        "${engine[@]}" unshare rm -rf --one-file-system -- "$path"
+    else
+        return 201
+    fi
+}
+remove_kept_log() {
+    [[ $1 =~ ^run-[A-Za-z0-9]{8}\.log$ ]] || return 200
+    local path="$repo/.audit/logs/$1"
+    [[ -L $path || -f $path ]] || return 201
+    rm -f -- "$path"
+}
+clean_kept() (
+    runid=$(mktemp -u clean-XXXXXXXX)
+    start=$SECONDS
+    result=FAIL
+    digest=unknown
+    # Installed before any check: a refused cleanup is recorded too, like a run.
+    trap 'write_audit "$runid" @clean "$digest" none "$result" "$((SECONDS-start))"' EXIT
+    [[ $label =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]{0,63}$ ]] || { echo 'AGENT must be a short model or caller label' >&2; exit 2; }
+    agent=$label
+    digest=$(sha256sum test/container/*.sh test/container/valid.toml test/container/containers.conf | sha256sum | cut -d' ' -f1)
+    [[ $(id -u) != 0 ]] || { echo 'Rootless Podman is required' >&2; exit 1; }
+    [[ $("${engine[@]}" info --format '{{.Host.Security.Rootless}}') == true ]] || { echo 'Podman must be rootless' >&2; exit 1; }
+    echo "cleaning kept failed runs in $repo/.tmp and $repo/.audit/logs (not .audit/runs.log)"
+    folders=0 logs=0 left=0 failed=0
+    shopt -s nullglob
+    for path in "$repo"/.tmp/*; do
+        name=${path##*/}
+        if remove_kept_folder "$name"; then
+            echo "removed: .tmp/$name"
+            folders=$((folders + 1))
+        elif (($? == 200 || $? == 201)); then
+            echo "left alone: .tmp/$name"
+            left=$((left + 1))
+        else
+            echo "FAILED: .tmp/$name" >&2
+            failed=$((failed + 1))
+        fi
+    done
+    for path in "$repo"/.audit/logs/*; do
+        name=${path##*/}
+        if remove_kept_log "$name"; then
+            echo "removed: .audit/logs/$name"
+            logs=$((logs + 1))
+        elif (($? == 200 || $? == 201)); then
+            echo "left alone: .audit/logs/$name"
+            left=$((left + 1))
+        else
+            echo "FAILED: .audit/logs/$name" >&2
+            failed=$((failed + 1))
+        fi
+    done
+    echo "removed $folders run folders and $logs logs; left alone $left; failed $failed"
+    ((failed == 0)) || exit 1
+    result=PASS
+)
+if [[ ${1:-} == @clean ]]; then
+    clean_kept
+    exit 0
+fi
 name=${1:-}
 run_one "${name#recipe:}" & only=$!
 children=("$only")

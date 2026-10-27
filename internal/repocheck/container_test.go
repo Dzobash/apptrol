@@ -5,7 +5,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // containerFixture substitutes fixed host dependencies in a private copy, rather
@@ -323,7 +325,7 @@ func TestQA16_BuildScopeAndProbeFailClosed(t *testing.T) {
 // TestQA16_BadRecipesRefused covers path traversal, shell syntax, option syntax,
 // missing folders and the private systemd selector (QA-16, ADR 0034).
 func TestQA16_BadRecipesRefused(t *testing.T) {
-	for _, recipe := range []string{"", "../sample", "/tmp/sample", "sample/name", "sample name", "$(touch injected)", "--privileged", "@systemd", "@install", "install-ubuntu", "systemd-fedora", "missing"} {
+	for _, recipe := range []string{"", "../sample", "/tmp/sample", "sample/name", "sample name", "$(touch injected)", "--privileged", "@systemd", "@install", "@clean", "install-ubuntu", "systemd-fedora", "missing"} {
 		t.Run(recipe, func(t *testing.T) {
 			root := containerFixture(t)
 			out, err := runContainerMake(t, root, recipe)
@@ -780,5 +782,311 @@ func TestQA17_InstallPassesTheFullCommit(t *testing.T) {
 	}
 	if strings.Count(string(calls), "/test/container/status.sh package "+strings.TrimSpace(string(head))+"\n") != 2 {
 		t.Errorf("the containers did not get the full commit %s: %s", head, calls)
+	}
+}
+
+// runCleanMake runs the real `make test-clean` target against a fixture (QA-18).
+func runCleanMake(t *testing.T, root string, extra ...string) ([]byte, error) {
+	t.Helper()
+	cmd := exec.Command("make", append([]string{"test-clean"}, extra...)...)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "SSH_AUTH_SOCK=/private/test-socket", "CONTAINERS_CONF=/private/untrusted.conf")
+	return cmd.CombinedOutput()
+}
+
+// touch makes a file, and its folders, below root.
+func touch(t *testing.T, root string, parts ...string) string {
+	t.Helper()
+	path := filepath.Join(append([]string{root}, parts...)...)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func exists(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
+}
+
+// TestQA18_CleanRemovesOnlyKeptRunsAndLogs checks which names go and which stay,
+// that Podman is asked only for `info` and `unshare rm` on exact paths directly
+// inside this checkout's .tmp/, and that runs.log keeps its lines and gains one
+// (QA-18, ADR 0034).
+func TestQA18_CleanRemovesOnlyKeptRunsAndLogs(t *testing.T) {
+	root := containerFixture(t)
+	gone := []string{
+		".tmp/run-AbCd1234/out/deep/file",
+		".tmp/run-Zz99Zz99/file",
+		".audit/logs/run-AbCd1234.log",
+		".audit/logs/run-Zz99Zz99.log",
+	}
+	stay := []string{
+		".tmp/keep-me/file",
+		".tmp/run-short/file",
+		".tmp/run-AbCd12345/file", // nine characters
+		".tmp/run-AbCd.234/file",
+		".tmp/.run-AbCd1234/file",
+		".tmp/run-FileFile", // a plain file, not a folder
+		".audit/logs/notes.log",
+		".audit/logs/run-AbCd1234.log.txt",
+		".audit/logs/run-short.log",
+		".audit/recipes/sample/commands.sh",
+	}
+	for _, name := range append(append([]string{}, gone...), stay...) {
+		touch(t, root, name)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".audit/runs.log"), []byte("an earlier line\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runCleanMake(t, root, "FLAGS=--privileged", "JOBS=999", "RECIPE=sample", "AGENT=claude-sonnet-5-5")
+	if err != nil {
+		t.Fatalf("make: %v\n%s", err, out)
+	}
+	for _, name := range gone {
+		if exists(filepath.Join(root, name)) {
+			t.Errorf("%s was not removed", name)
+		}
+	}
+	for _, name := range stay {
+		if !exists(filepath.Join(root, name)) {
+			t.Errorf("%s must stay", name)
+		}
+	}
+	calls, err := os.ReadFile(filepath.Join(root, "calls"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	unshares := 0
+	for _, line := range strings.Split(strings.TrimSpace(string(calls)), "\n") {
+		if strings.HasPrefix(line, "info ") {
+			continue
+		}
+		path, ok := strings.CutPrefix(line, "unshare rm -rf --one-file-system -- ")
+		name, inside := strings.CutPrefix(path, filepath.Join(root, ".tmp")+"/")
+		if !ok || !inside || strings.Contains(name, "/") || len(name) != len("run-AbCd1234") || !strings.HasPrefix(name, "run-") {
+			t.Errorf("Podman was asked for more than one folder in .tmp: %q", line)
+		}
+		unshares++
+	}
+	if unshares != 2 {
+		t.Errorf("want 2 folders removed through unshare, got %d: %s", unshares, calls)
+	}
+	for _, forbidden := range []string{"create", "start", "--mount", "--privileged", "999"} {
+		if strings.Contains(string(calls), forbidden) {
+			t.Errorf("cleanup reached Podman with %q: %s", forbidden, calls)
+		}
+	}
+	audit, err := os.ReadFile(filepath.Join(root, ".audit/runs.log"))
+	lines := strings.Split(strings.TrimSpace(string(audit)), "\n")
+	if err != nil || len(lines) != 2 || lines[0] != "an earlier line" {
+		t.Fatalf("runs.log must keep its lines and gain one: %q (%v)", audit, err)
+	}
+	for _, want := range []string{" run=clean-", " agent=claude-sonnet-5-5 ", " recipe=@clean ", " image=none ", " result=PASS "} {
+		if !strings.Contains(lines[1], want) {
+			t.Errorf("audit line lacks %q: %s", want, lines[1])
+		}
+	}
+	if strings.Contains(lines[1], root) || strings.Contains(lines[1], "AbCd1234") {
+		t.Errorf("audit line leaked a path or a run name: %s", lines[1])
+	}
+	for _, want := range []string{"removed: .tmp/run-AbCd1234", "left alone: .tmp/keep-me", "removed 2 run folders and 2 logs"} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("output lacks %q:\n%s", want, out)
+		}
+	}
+}
+
+// TestQA18_CleanWithNothingKeptStillRecords covers a fresh checkout (QA-18).
+func TestQA18_CleanWithNothingKeptStillRecords(t *testing.T) {
+	root := containerFixture(t)
+	if out, err := runCleanMake(t, root); err != nil {
+		t.Fatalf("make: %v\n%s", err, out)
+	}
+	audit, err := os.ReadFile(filepath.Join(root, ".audit/runs.log"))
+	if err != nil || strings.Count(string(audit), "\n") != 1 || !strings.Contains(string(audit), "agent=unspecified ") || !strings.Contains(string(audit), "result=PASS") {
+		t.Fatalf("audit: %s (%v)", audit, err)
+	}
+}
+
+// TestQA18_CleanNeverFollowsLinks puts links named like runs next to real files
+// outside the checkout: the links go, what they point at stays (QA-18, ADR 0034).
+func TestQA18_CleanNeverFollowsLinks(t *testing.T) {
+	root := containerFixture(t)
+	outside := t.TempDir()
+	precious := touch(t, outside, "folder", "precious")
+	preciousLog := touch(t, outside, "precious.log")
+	if err := os.MkdirAll(filepath.Join(root, ".tmp"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, ".audit/logs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	folderLink := filepath.Join(root, ".tmp/run-LinkLink")
+	logLink := filepath.Join(root, ".audit/logs/run-LinkLink.log")
+	if err := os.Symlink(filepath.Dir(precious), folderLink); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(preciousLog, logLink); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runCleanMake(t, root)
+	if err != nil {
+		t.Fatalf("make: %v\n%s", err, out)
+	}
+	if exists(folderLink) || exists(logLink) {
+		t.Error("a link named like a run was not removed")
+	}
+	if !exists(precious) || !exists(preciousLog) {
+		t.Fatal("cleanup followed a link and deleted its target")
+	}
+	calls, _ := os.ReadFile(filepath.Join(root, "calls"))
+	if strings.Contains(string(calls), outside) {
+		t.Errorf("Podman was given a path outside the checkout: %s", calls)
+	}
+}
+
+// TestQA18_CleanRefusesLinkedFolders stops before any removal when .tmp or the
+// log folder is itself a link (QA-18, ADR 0034).
+func TestQA18_CleanRefusesLinkedFolders(t *testing.T) {
+	for _, linked := range []string{".tmp", ".audit/logs"} {
+		t.Run(linked, func(t *testing.T) {
+			root := containerFixture(t)
+			outside := t.TempDir()
+			victims := []string{
+				touch(t, outside, "run-AbCd1234", "file"),
+				touch(t, outside, "run-AbCd1234.log"),
+			}
+			if err := os.MkdirAll(filepath.Join(root, ".audit"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(outside, filepath.Join(root, linked)); err != nil {
+				t.Fatal(err)
+			}
+			out, err := runCleanMake(t, root)
+			if err == nil || !strings.Contains(string(out), "Refusing symlink") {
+				t.Fatalf("accepted a linked folder: %v\n%s", err, out)
+			}
+			for _, victim := range victims {
+				if !exists(victim) {
+					t.Errorf("%s was removed through a link", victim)
+				}
+			}
+			if _, err := os.Stat(filepath.Join(root, "calls")); !os.IsNotExist(err) {
+				t.Error("a linked folder reached Podman")
+			}
+		})
+	}
+}
+
+// TestQA18_CleanOneFailureDoesNotStopTheRest keeps going, exits 1 and records
+// FAIL, so a stuck folder is reported without leaving the others behind
+// (QA-18, ADR 0034).
+func TestQA18_CleanOneFailureDoesNotStopTheRest(t *testing.T) {
+	root := containerFixture(t)
+	path := filepath.Join(root, "fake-podman")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	patched := strings.ReplaceAll(string(data), `unshare) shift; "$@" ;;`, `unshare) shift; case "$*" in *run-BadBadBa) exit 1 ;; esac; "$@" ;;`)
+	if patched == string(data) {
+		t.Fatal("fake Podman changed; update this test")
+	}
+	if err := os.WriteFile(path, []byte(patched), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stuck := touch(t, root, ".tmp/run-BadBadBa/file")
+	other := touch(t, root, ".tmp/run-GoodGood/file")
+	out, err := runCleanMake(t, root, "AGENT=claude-sonnet-5-5")
+	if err == nil || !strings.Contains(string(out), "FAILED: .tmp/run-BadBadBa") {
+		t.Fatalf("a failed removal was not reported: %v\n%s", err, out)
+	}
+	if !exists(stuck) || exists(other) {
+		t.Error("the failure stopped the other removals, or removed the stuck folder")
+	}
+	audit, _ := os.ReadFile(filepath.Join(root, ".audit/runs.log"))
+	if strings.Count(string(audit), "\n") != 1 || !strings.Contains(string(audit), "result=FAIL") {
+		t.Fatalf("audit: %s", audit)
+	}
+}
+
+// TestQA18_CleanAuditLabelIsData refuses a bad label before removing anything,
+// and still records the attempt (QA-18, QA-16).
+func TestQA18_CleanAuditLabelIsData(t *testing.T) {
+	root := containerFixture(t)
+	kept := touch(t, root, ".tmp/run-AbCd1234/file")
+	if out, err := runCleanMake(t, root, "AGENT=model\nresult=PASS"); err == nil {
+		t.Fatalf("accepted an invalid label: %s", out)
+	}
+	if !exists(kept) {
+		t.Error("a refused cleanup removed a folder")
+	}
+	audit, err := os.ReadFile(filepath.Join(root, ".audit/runs.log"))
+	if err != nil || strings.Count(string(audit), "\n") != 1 || !strings.Contains(string(audit), "agent=unspecified ") || !strings.Contains(string(audit), "result=FAIL") {
+		t.Fatalf("audit: %s (%v)", audit, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "calls")); !os.IsNotExist(err) {
+		t.Error("a refused cleanup reached Podman")
+	}
+}
+
+// TestQA18_CleanWaitsForARunInProgress holds the shared lock the way a running
+// container check does: the cleanup must not delete a live run folder before the
+// run lets go (QA-18, ADR 0034).
+func TestQA18_CleanWaitsForARunInProgress(t *testing.T) {
+	if _, err := exec.LookPath("flock"); err != nil {
+		t.Fatal("flock is required for QA-18")
+	}
+	root := containerFixture(t)
+	live := touch(t, root, ".tmp/run-LiveLive/file")
+	holder := exec.Command("flock", filepath.Join(root, "git-common/apptrol-containers.lock"), "sleep", "60")
+	// flock runs sleep as a child that keeps the lock, so the whole group is killed.
+	holder.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := holder.Start(); err != nil {
+		t.Fatal(err)
+	}
+	release := func() { _ = syscall.Kill(-holder.Process.Pid, syscall.SIGKILL); _ = holder.Wait() }
+	defer release()
+	// Wait until the holder really has the lock, so the cleanup cannot get in first.
+	for i := 0; ; i++ {
+		probe := exec.Command("flock", "--nonblock", filepath.Join(root, "git-common/apptrol-containers.lock"), "true")
+		if probe.Run() != nil {
+			break
+		}
+		if i > 200 {
+			t.Fatal("the lock holder did not start")
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	cmd := exec.Command("make", "test-clean")
+	cmd.Dir = root
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case err := <-done:
+		t.Fatalf("the cleanup did not wait for the lock (%v)", err)
+	case <-time.After(1500 * time.Millisecond):
+	}
+	if !exists(live) {
+		t.Fatal("a run in progress lost its folder")
+	}
+	release()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("make: %v", err)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("the cleanup did not continue after the lock was released")
+	}
+	if exists(live) {
+		t.Error("the folder stayed after the run let go")
 	}
 }
