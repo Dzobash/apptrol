@@ -38,16 +38,17 @@ Read these instead of guessing; this file only links to them:
 - The owner reviews and merges PRs. **Ask before pushing, opening a PR or creating
   issues.** Once the owner has OK'd a PR, its review fixes and marking it ready need
   no new question (Several agents at once › Draft until reviewed).
-- Suggest an issue for every bug found, every idea or task left for later, and every
-  bug in another app (rules in [CONTRIBUTING.md](CONTRIBUTING.md#issues)); a fix's PR
-  says `Fixes #n`.
+- Suggest an issue whenever [CONTRIBUTING.md › Issues](CONTRIBUTING.md#issues) asks for
+  one (a bug in a released version, an idea or task left for later, a bug in another
+  app); a fix's PR says `Fixes #n`. A security problem is never a public issue or PR
+  text first: tell the owner, who reports it as [SECURITY.md](SECURITY.md) says.
 - **Check the open issues** (`gh issue list`) when planning a feature or an ADR and
   before opening a PR: does the change make one obsolete, conflict with one, or finish
   one? Say so in the plan and the PR, and suggest updating or closing it (e.g. R's
   play/pause and launchers left no press for moving apps between outputs, #61).
 - **Small PRs.** Split a feature into 2–4 PRs, each one something the owner can see or
   try on its own (e.g. media buttons went in four: discovery, matching, R, media keys).
-- After a merge: `git switch main && git pull`, then delete the local branch.
+- After a merge: `git switch main`, `git pull`, then delete the local branch.
 - Releases: release candidates (`vX.Y.Z-rcN`) first, the manual test run on an installed
   candidate ([ADR 0032](docs/adr/0032-patch-releases-test-what-changed.md) says which
   cases), then the release as in [docs/releasing.md](docs/releasing.md). Fixes ship as
@@ -70,7 +71,7 @@ git ls-tree --name-only origin/main docs/testing/runs/   # test run records, as 
 ```
 
 - Where to start depends on the checkout: in the main checkout, new work starts with
-  `git switch main && git pull`, then a new branch. In a worktree you were handed, stay
+  `git switch main`, `git pull`, then a new branch. In a worktree you were handed, stay
   on its branch: `main` is checked out elsewhere, so `git switch main` fails there.
 - Release state is read from `origin/main`, not from your branch, which may be older:
   e.g. `git show origin/main:CHANGELOG.md`. Your branch's files tell you about your task.
@@ -228,9 +229,11 @@ The owner wants to keep learning while working, not just receive finished result
                 CI checks)
   build, test   make check, make test-audio, make test-systemd, make test-install,
                 make test-clean, make container-run RECIPE=<name>
-  git           list branches, git switch -c, commit (deleting or renaming a branch,
-                and push, only after the owner's OK, see Workflow)
-  waiting       any of these in the background, e.g. gh pr checks --watch for CI
+  git           list branches, git switch (also -c), git pull, git add, commit
+                (deleting or renaming a branch, and push, only after the owner's OK,
+                see Workflow)
+  waiting       any of these in the background, e.g. gh pr checks --watch for CI, or
+                the tool's own way to watch a PR where it has one (T3 Code)
   ```
   The exact commands are in [.claude/settings.json](.claude/settings.json) for Claude
   Code and [.codex/rules/apptrol.rules](.codex/rules/apptrol.rules) for Codex: those run
@@ -263,10 +266,8 @@ The owner wants to keep learning while working, not just receive finished result
   too (QA-18). The script mounts only the checkout,
   read-only, and `.tmp/<run>/` inside it as the one writable folder (ignored by git):
   never `~/.ssh`, the rest of the home folder or `/run/user/…`, and no
-  `SSH_AUTH_SOCK`. A flag the script lacks is a pull request to the script. With the
-  script, typed `docker`, `podman` and `buildah` become blocked; until then each one
-  needs the owner's OK, and the request names both sides
-  (`host <repo>/bin/apptrol → container /usr/bin/apptrol, read-only`). The block
+  `SSH_AUTH_SOCK`. A flag the script lacks is a pull request to the script. Typed
+  `docker`, `podman` and `buildah` are blocked in both command lists. The block
   matches only a command's first word, so never wrap one to get past it (`sudo`,
   `env`, `nice`, `bash -c`); the owner answers such a request no.
   **During a manual test run only**

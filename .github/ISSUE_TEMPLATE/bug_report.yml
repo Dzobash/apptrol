@@ -8,6 +8,10 @@ body:
         Thanks for reporting! Please fill in as much as you can — logs and versions
         make it much faster to find the cause.
 
+        Issues are public. A security problem goes through
+        [private reporting](https://github.com/Dzobash/apptrol/security/advisories/new)
+        instead (see SECURITY.md).
+
   - type: textarea
     id: what-happened
     attributes:
@@ -60,13 +64,17 @@ body:
       description: |
         Set `level = "debug"` in the config, reproduce the problem, then paste the output of
         `journalctl --user -u apptrol --since "10 min ago"` (or the log file).
+        Before posting, replace what you don't want public (device names, your user
+        name and home folder, media titles) with placeholders like `<device>`.
       render: shell
 
   - type: textarea
     id: config
     attributes:
       label: Configuration
-      description: Your `~/.config/apptrol/config.toml`, or the relevant part
+      description: |
+        Your `~/.config/apptrol/config.toml`, or the relevant part. Replace private
+        values (device names, paths in launcher commands) with placeholders.
       render: toml
 
   - type: checkboxes

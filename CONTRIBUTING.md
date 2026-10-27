@@ -26,6 +26,9 @@ done. Open one for:
    [known issues](docs/known-issues.md)), with the label `upstream`, closed right away as *not
    planned*: it can be found, without promising a fix.
 
+A security problem is never a public issue: report it privately, as
+[SECURITY.md](SECURITY.md) says.
+
 An idea that is dropped is closed as *not planned*, with the reason, and removed from the
 roadmap and requirements in the same change.
 
@@ -59,8 +62,11 @@ All changes go through a branch and a pull request (GitHub Flow):
 
 Repository settings that support this (**Settings → General → Pull Requests**): allow only
 *squash merging*, set the default commit message to *pull request title*, and enable
-*automatically delete head branches*. Once the repository is public, a branch rule for
-`main` requires pull requests and a green CI (QA-02).
+*automatically delete head branches*. A ruleset on `main` requires pull requests and a
+green CI (QA-02).
+
+Coding agents follow [AGENTS.md › Workflow](AGENTS.md#workflow) on top of these steps
+(asking before a push, draft pull requests, reviews).
 
 ## Commits and pull requests
 
