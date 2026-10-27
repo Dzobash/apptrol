@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Refs #156).
 
 ### Added
+- `make test-clean` removes the folders and logs that failed container runs keep
+  (`.tmp/run-*`, `.audit/logs/`) through the container script, including files written
+  as other user IDs, in this checkout only. It starts no container, never follows links,
+  waits for any run in progress, keeps `.audit/runs.log` and adds one `recipe=@clean`
+  line to it. Both agents' command lists allow it (QA-18,
+  [TC-QA-006](docs/testing/cases/qa.md), #195).
 - The `Systemd in containers` CI job summary shows this attempt's result and elapsed
   time for Ubuntu 26.04 and Fedora 44, including failures or missing results, without
   reusing committed audit history (QA-16, #196).

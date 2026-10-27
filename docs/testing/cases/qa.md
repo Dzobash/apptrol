@@ -78,3 +78,38 @@ Test: `TestQA16_SystemdSummaryAudit`, `TestQA16_SystemdSummaryWorkflow` (synthet
 
 **Result:** Pass / Fail / Blocked
 **Notes:** Record which failure/cancellation scenarios were available; do not claim unobserved CI paths passed.
+
+### TC-QA-006 — `make test-clean` removes kept failed runs, including files of other user IDs
+
+Covers: QA-16, QA-18 · Phase 1.6
+Config: none (developer tool check)
+Type: Manual
+Test: `TestQA18_CleanRemovesOnlyKeptRunsAndLogs`, `TestQA18_CleanWithNothingKeptStillRecords`, `TestQA18_CleanNeverFollowsLinks`, `TestQA18_CleanRefusesLinkedFolders`, `TestQA18_CleanOneFailureDoesNotStopTheRest`, `TestQA18_CleanAuditLabelIsData`, `TestQA18_CleanWaitsForARunInProgress`, `TestQA18_CleanLooksAgainAfterTheLock`, `TestQA18_CleanLeavesFoldersWithMounts` (names, links, lock, mounts, audit and the Podman calls against a fake Podman; the sub-UID files need real Podman)
+
+**Setup**
+- [ ] Rootless Podman is installed, as for TC-QA-003
+- [ ] A throwaway recipe `.audit/recipes/clean-proof/` (do not commit it) with this `Dockerfile` and `commands.sh`:
+
+```text
+Dockerfile:   FROM docker.io/library/ubuntu:26.04
+commands.sh:  #!/bin/sh
+              set -eu
+              mkdir /work/owned-by-other-user
+              echo x > /work/owned-by-other-user/file
+              chown -R 1000 /work/owned-by-other-user
+              chmod 700 /work/owned-by-other-user
+              exit 1
+```
+
+**Steps**
+- [ ] Run `make container-run RECIPE=clean-proof AGENT=<model>` → it fails and prints `Failed run kept: .tmp/run-<id> and .audit/logs/run-<id>.log`
+- [ ] `ls -l .tmp/run-<id>/` → `owned-by-other-user` belongs to a high user ID (a subordinate ID), and your own user cannot delete its contents
+- [ ] Create `.tmp/keep-me` and `.audit/logs/notes.log` (any content) → they are not run names
+- [ ] Run `make test-clean AGENT=<model>` → it prints `removed: .tmp/run-<id>` and `removed: .audit/logs/run-<id>.log`, then `left alone` for the two other names, and ends with `failed 0`
+- [ ] `ls .tmp .audit/logs` → only `keep-me` and `notes.log` remain
+- [ ] Read `.audit/runs.log` → the failed run's line is still there, followed by one new line with `recipe=@clean`, `image=none`, your `agent=` label and `result=PASS`
+- [ ] Run `make test-clean` again with nothing kept → it passes and adds one more `@clean` line
+- [ ] Remove the two test names and the throwaway recipe by hand
+
+**Result:** Pass / Fail / Blocked
+**Notes:**

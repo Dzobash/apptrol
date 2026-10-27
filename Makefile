@@ -35,6 +35,11 @@ test-systemd: ## Build and check the Status line in rootless Ubuntu and Fedora (
 test-install: ## Install the snapshot .deb and .rpm with apt and dnf in rootless containers and check the Status line (QA-17)
 	@/bin/sh test/container/run.sh @install
 
+# Removes the folders and logs that failed runs keep; starts no container (QA-18).
+.PHONY: test-clean
+test-clean: ## Remove kept failed-run folders (.tmp/run-*) and logs (.audit/logs/) through the container script (QA-18)
+	@/bin/sh test/container/run.sh @clean
+
 # Pass the name as data, never expand Make variables into shell source (QA-16).
 export RECIPE
 .PHONY: container-run

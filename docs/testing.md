@@ -19,6 +19,7 @@ of [requirements.md](requirements.md#51-quality-assurance).
 | `make test-launcher` | Starts harmless test units (`true`) in your systemd user manager and checks they are removed; CI's container job checks only the Status line, so run this before a release |
 | `make test-systemd` | Builds Apptrol and checks its Status line in rootless Ubuntu 26.04 and Fedora 44 containers |
 | `make test-install` | Installs the `.deb` from `make snapshot` with `apt` in an Ubuntu 26.04 container and the `.rpm` with `dnf` in a Fedora 44 container, then runs the same Status checks on the installed program (QA-17) |
+| `make test-clean` | Removes the folders and logs that failed container runs keep (`.tmp/run-*`, `.audit/logs/`), in this checkout only; starts no container (QA-18) |
 | `make container-run RECIPE=sample` | Runs a reviewed recipe with the same fixed restrictions and audit record |
 | `make cover` | Tests with coverage; fails below the minimum; writes `coverage.html` to open in a browser |
 | `make vulncheck` | Scans dependencies for known vulnerabilities |
@@ -176,7 +177,8 @@ Use `make test-systemd AGENT=gpt-6-astra` (or the model/caller actually starting
 to record attribution. `AGENT` is the sole environment exception: a validated,
 audit-only label, never passed to Podman. An omitted label is `unspecified`.
 Successful workspaces and logs are removed; failed ones remain in `.tmp/` and
-`.audit/logs/`. Those full logs can contain private host data and must not be
+`.audit/logs/` until `make test-clean` removes them
+([clean-up](#clean-up-of-kept-failed-runs)). Those full logs can contain private host data and must not be
 committed. A damaged or symlinked audit directory is refused before writing anything.
 The initial setup-proof records without a hash predate the complete Status test;
 they must not count toward #172's consecutive-pass gate. Making the CI job required
@@ -230,6 +232,52 @@ Each distro writes its own audit line, `recipe=install-ubuntu` and `recipe=insta
 They are counted on their own and are not part of the Status check's 300-run gate: a
 check added later runs outside the required job until it has its own evidence
 (ADR 0034).
+
+### Clean-up of kept failed runs
+
+A failed run keeps its folder and its log, to look at. `make test-clean` removes them
+when you are done looking (QA-18, [ADR 0034](adr/0034-containers-through-one-script.md#clean-up-of-kept-failed-runs--2026-10-27)).
+
+```text
+.tmp/run-AbCd1234/            ┐ failed run's workspace; may hold files of other user IDs
+.audit/logs/run-AbCd1234.log  ┘ its full log                                   → removed
+.tmp/keep-me, .audit/logs/notes.log          other names                       → left alone, listed
+.audit/runs.log                              the evidence ledger               → kept, one line added
+```
+
+The folders are written by container users that map to subordinate user IDs, so your
+own user often cannot delete them. The script removes them with `podman unshare rm`,
+the same call it makes after a passed run. That is not a container: no image, no mount,
+nothing is started. What keeps it safe:
+
+- **Exact names only.** `run-` plus 8 letters or digits, directly inside this checkout's
+  `.tmp/` (and the same with `.log` in `.audit/logs/`). Anything else is left alone and
+  printed. Other worktrees and clones have their own folders; the script never looks at
+  them.
+- **Links are never followed.** `.tmp/`, `.audit/` and `.audit/logs/` must not be links
+  (the script refuses before it writes anything, as for every run). A link *named* like
+  a run is removed as a link; what it points at stays. The wait for the lock can be as
+  long as a run, so the folders are looked at again after it and before every removal:
+  a link swapped in meanwhile stops the clean-up (and the audit line is never appended
+  through a linked `.audit/runs.log`).
+- **A mount stops the removal of its folder.** `rm --one-file-system` does not stop at a
+  bind mount of the same file system, so a run folder with a mount at or below it is
+  left alone and reported (`has a mount in it`); the others are still removed.
+- **Not under a running check.** The script's shared lock is held for a whole run, and the
+  clean-up takes it first, so it waits for any run in progress.
+- **One failure does not stop the rest.** Each failed removal is printed, the exit status
+  is 1 and the audit line says `result=FAIL`.
+- **Recorded like a run:** one line in `.audit/runs.log` with your `AGENT=` label,
+  `recipe=@clean` (an `@` cannot be part of a recipe name, so it never mixes with a
+  recipe's evidence) and `image=none`; the names and counts are only printed. A refusal
+  by the shared preflight (a link, another repository) writes nothing, as for runs.
+
+```text
+2026-10-27T… run=clean-<id> agent=<model> branch=… commit=… dirty=no recipe=@clean hash=… image=none jobs=16 result=PASS seconds=1
+```
+
+Run it as `make test-clean AGENT=<model>`. Manual case:
+[TC-QA-006](testing/cases/qa.md#tc-qa-006--make-test-clean-removes-kept-failed-runs-including-files-of-other-user-ids).
 
 ## Writing tests
 

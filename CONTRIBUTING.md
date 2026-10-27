@@ -108,6 +108,7 @@ make test-systemd # Status line in rootless Ubuntu and Fedora containers
 make snapshot     # release packages into dist/ (needs GoReleaser)
 make test-install # install those packages with apt and dnf in the containers
 make container-run RECIPE=sample # audited recipe, fixed mounts and limits
+make test-clean   # remove the folders and logs that failed container runs keep
 make build    # bin/apptrol with version information
 make help     # all targets
 ```
