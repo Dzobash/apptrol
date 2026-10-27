@@ -168,8 +168,9 @@ case that did not pass:
 
 ```text
 Decision: release v0.3.0 — owner, 2026-11-02
-  TC-SVC-003, TC-HW-007   Blocked   waived: two-user code unchanged since v0.2.2
-  TC-LED-004              Fail      accepted: cosmetic, fix in 0.3.1 (#210)
+  TC-MEDIA-001   Blocked   waived: needs Switch user; login-screen code unchanged since v0.2.2
+  TC-QA-006      Blocked   waived: needs files of another user ID; make test-clean unchanged
+  TC-OUT-007     Fail      accepted: LED only, cosmetic; fix in 0.3.1 (#210)
 ```
 
 When every case passed, the decision is the first line alone. **Without the decision
