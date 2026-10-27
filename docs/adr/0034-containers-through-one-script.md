@@ -355,6 +355,40 @@ make test-install    →  Ubuntu: apt-get install      Fedora: dnf install
   until it has its own 300 local and 10 CI green runs per distro; this one does, and the
   Status check's evidence is not reset by it.
 
+### Clean-up of kept failed runs — 2026-10-27
+
+Point 3 keeps a failed run's folder, and point 5 its log, to look at. Nothing removed
+them later (#195). `make test-clean` (QA-18) does, through the same script. It changes
+no earlier decision and adds no guarantee-widening flag, mount or environment value.
+
+```text
+make test-clean AGENT=<model>
+  └─ script, @clean mode: same checks and lock as a run, then
+       .tmp/run-<8>/              → podman unshare rm -rf --one-file-system
+       .audit/logs/run-<8>.log    → rm -f
+       .audit/runs.log            → kept; one line added (recipe=@clean)
+```
+
+- **No container.** Only `podman info` (rootless check) and `podman unshare rm` run, the
+  call the script already makes after a passed run. `unshare` lets the host process act as
+  the subordinate user IDs a recipe may have written files as; it mounts nothing, so the
+  mount inventory of point 3 is unchanged.
+- **Scope.** Exact names the script creates (`run-` plus 8 letters or digits, `.log` for
+  logs), directly inside this checkout's `.tmp/` and `.audit/logs/`; each removal helper
+  builds its path from a name it checks again. Other names are left alone and printed.
+  Links are never followed: `.tmp/`, `.audit/` and `.audit/logs/` as links are refused as
+  for every run, and a link named like a run is removed as a link only.
+- **All kept runs, no age limit** (owner's decision, 2026-10-27): the message of a failed
+  run says it is kept for you; you run the clean-up when you are done looking. A run in
+  progress is safe because the script's shared lock is held for a whole run and the
+  clean-up waits for it.
+- **One line in the ledger, like a run** (owner's decision): `recipe=@clean`,
+  `image=none`, the `AGENT=` label, `result=PASS` or `FAIL`. `@` cannot occur in a recipe
+  name, so the line never mixes with a recipe's evidence, and the per-distro counts of
+  point 6 are unchanged. Names and counts of removed items are printed, not stored.
+  One failed removal does not stop the others; the exit status is 1 and the line says
+  `FAIL`.
+
 ### Effects
 
 - Agents run containers without prompts, and the owner can see afterwards what ran

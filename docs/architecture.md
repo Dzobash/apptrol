@@ -849,11 +849,18 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   the same containers a second way: `status.sh` installs the `.deb` with apt or the
   `.rpm` with dnf from `dist/` (read through the read-only checkout; the runner never
   builds packages) and checks the Status line of the installed files, under its own
-  audit names `install-ubuntu` and `install-fedora` (QA-17). `internal/repocheck`
+  audit names `install-ubuntu` and `install-fedora` (QA-17). `make test-clean` is the
+  runner's fourth mode (`@clean`): it starts no container, takes the same shared lock
+  (so a run in progress is never cleaned), and removes only exact `run-<8>` names
+  directly inside this checkout's `.tmp/` and `.audit/logs/`, with `podman unshare rm`
+  for folders that may hold files of other user IDs. One function, `write_audit`,
+  writes the `runs.log` line for runs and clean-ups alike; the clean-up's is
+  `recipe=@clean` (QA-18). `internal/repocheck`
   tests the runner with a fake Podman and keeps both
-  agents' allow, ask and block lists equal (QA-15, QA-16, QA-17, ADR 0034). See
-  [rootless container checks](testing.md#rootless-container-checks) and
-  [package installs](testing.md#package-installs).
+  agents' allow, ask and block lists equal (QA-15, QA-16, QA-17, QA-18, ADR 0034). See
+  [rootless container checks](testing.md#rootless-container-checks),
+  [package installs](testing.md#package-installs) and
+  [clean-up](testing.md#clean-up-of-kept-failed-runs).
 - `config`, `state`: unit tests and fuzzing on malformed input; the blocked-command check
   is fuzzed too. Inputs are tested in both forms, `[inputs.<id>]` and the old `type`
   (CFG-18, CFG-19). Output tests cover selector presence, values, cross-table rules,

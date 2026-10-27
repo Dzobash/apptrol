@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Refs #156).
 
 ### Added
+- `make test-clean` removes the folders and logs that failed container runs keep
+  (`.tmp/run-*`, `.audit/logs/`) through the container script, including files written
+  as other user IDs, in this checkout only. It starts no container, never follows links,
+  waits for any run in progress, keeps `.audit/runs.log` and adds one `recipe=@clean`
+  line to it. Both agents' command lists allow it (QA-18,
+  [TC-QA-005](docs/testing/cases/qa.md), #195).
 - `make test-install` installs the `.deb` from `make snapshot` with `apt` in the Ubuntu
   26.04 container and the `.rpm` with `dnf` in the Fedora 44 one, then runs the Status
   line checks on the installed program and unit. It uses the same image, mounts and
