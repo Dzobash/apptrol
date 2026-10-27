@@ -227,7 +227,7 @@ The owner wants to keep learning while working, not just receive finished result
                 GitHub commands that only read (status, log, diff, PR and issue views,
                 CI checks)
   build, test   make check, make test-audio, make test-systemd, make test-install,
-                make container-run RECIPE=<name>
+                make test-clean, make container-run RECIPE=<name>
   git           list branches, git switch -c, commit (deleting or renaming a branch,
                 and push, only after the owner's OK, see Workflow)
   waiting       any of these in the background, e.g. gh pr checks --watch for CI
@@ -257,7 +257,10 @@ The owner wants to keep learning while working, not just receive finished result
   the script includes `AGENT=<model-name>` for audit attribution (ADR 0034's dated
   clarification; this label never reaches Podman). Every run goes through
   the repository's container script (`make test-systemd`, `make test-install`,
-  `make container-run RECIPE=<name>`), which records it in `.audit/`. The script mounts only the checkout,
+  `make container-run RECIPE=<name>`), which records it in `.audit/`.
+  `make test-clean` removes the folders and logs that failed runs keep (`.tmp/run-*`,
+  `.audit/logs/`) through the same script, in this checkout only, and records itself
+  too (QA-18). The script mounts only the checkout,
   read-only, and `.tmp/<run>/` inside it as the one writable folder (ignored by git):
   never `~/.ssh`, the rest of the home folder or `/run/user/…`, and no
   `SSH_AUTH_SOCK`. A flag the script lacks is a pull request to the script. With the
