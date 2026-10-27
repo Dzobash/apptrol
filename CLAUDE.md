@@ -7,7 +7,7 @@ through this import:
 
 ## Only for Claude Code
 
-- **Manual test runs:** `/test-run vX.Y.Z` ([.claude/commands/test-run.md](.claude/commands/test-run.md))
+- **Manual test runs:** `/test-run vX.Y.Z-rcN` ([.claude/commands/test-run.md](.claude/commands/test-run.md))
   walks through the cases one at a time, as the
   [how-to](docs/testing/how-to-run-release-tests.md) describes.
 - **End of a session:** `/wrap-up` ([.claude/commands/wrap-up.md](.claude/commands/wrap-up.md))

@@ -62,7 +62,8 @@ risk is covered without hardware, so the list of risks stays complete in one pla
    quiet test tones from mpv as the sound sources. Every run starts from the same setup.
 3. One **exploratory charter** per release: a short, open session looking for what no case
    describes.
-4. The results are recorded in `runs/vX.Y.Z.md` and committed.
+4. The results are recorded in `runs/vX.Y.Z-rcN.md`, one record per tested candidate,
+   ending with the owner's decision, and committed.
 
 The steps are in [Running the release tests](how-to-run-release-tests.md); the case
 format is in [Test cases](cases/README.md).

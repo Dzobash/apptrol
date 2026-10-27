@@ -44,8 +44,9 @@ git tag --sort=-creatordate | head -3            # releases and candidates
 ```
 
 - An open PR: say what it waits for (the review, CI, the owner's merge).
-- A tagged candidate without a passed run record in `docs/testing/runs/` on `origin/main`:
-  the test run is still open.
+- A tagged candidate without a
+  [passed](../../../docs/testing/how-to-run-release-tests.md#what-passed-means) run record
+  in `docs/testing/runs/` on `origin/main`: the test run is still open.
 
 ## 4. Memory
 

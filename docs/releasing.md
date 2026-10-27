@@ -61,9 +61,10 @@ The service is **not** enabled automatically; each user runs
 
 ## Making a release
 
-1. Check that CI is green on `main` and, from Phase 1 on, that the
-   [hardware checklist](testing.md#manual-hardware-checklist) passes: all of it for a
-   MINOR release, the smoke set and the changed requirements' steps for a PATCH release
+1. Check that CI is green on `main` and that the candidate's run record in
+   `docs/testing/runs/` has [passed](testing/how-to-run-release-tests.md#what-passed-means),
+   with the owner's decision: all cases for a MINOR release, the smoke set and the changed
+   requirements' cases for a PATCH release
    ([ADR 0032](adr/0032-patch-releases-test-what-changed.md)).
 2. On a branch `chore/release-v0.1.0`, in [CHANGELOG.md](https://github.com/Dzobash/apptrol/blob/main/CHANGELOG.md), add
    `## [0.1.0] - YYYY-MM-DD` below `## [Unreleased]`, so that the entries move under it
@@ -80,14 +81,25 @@ The service is **not** enabled automatically; each user runs
    the `<release>` entry in the AppStream file (it describes the version, it changes
    no behaviour), and files that change nothing that is built or packaged: tests
    (`*_test.go`), `.gitignore`, and check-only targets in the `Makefile` (such as `fmt`),
-   never the build or `third-party-licenses` targets. After the merge, check it, then tag
-   the merge commit:
+   never the build or `third-party-licenses` targets. After the merge, find the release
+   PR's merge commit by its SHA, check that commit, and tag that same commit, never
+   `HEAD` or a branch name: another PR may have been merged since, or your checkout may
+   be on another branch.
+   ```text
+   main:  ── A ── M (chore: release v0.1.0) ── C (another PR)
+                  ▲
+                  tag v0.1.0 here, by M's SHA
+   ```
    ```bash
-   git switch main && git pull
-   git diff --stat v0.1.0-rc1 HEAD      # *.md, docs/, packaging/appstream/, *_test.go, .gitignore, Makefile checks
-   git tag -a v0.1.0 -m "v0.1.0"
+   git fetch origin
+   gh pr view <n> --json mergeCommit --jq .mergeCommit.oid   # M's SHA
+   git log -1 --format='%H %s' <sha>    # check: "chore: release v0.1.0 (#<n>)"
+   git diff --stat v0.1.0-rc1 <sha>     # *.md, docs/, packaging/appstream/, *_test.go, .gitignore, Makefile checks
+   git tag -a v0.1.0 <sha> -m "v0.1.0"
    git push origin v0.1.0
    ```
+   If the commit to tag changes (e.g. a fix to the release PR), check the new SHA again
+   before tagging it.
 4. Watch **Actions → Release** on GitHub. When it finishes, the release appears under
    **Releases**, with release notes generated from the commit messages.
 
@@ -95,19 +107,26 @@ The service is **not** enabled automatically; each user runs
 
 Before a new version, publish a release candidate and test the installed package:
 
-1. Tag `main` with a suffix; the changelog stays under `[Unreleased]`:
+1. Tag a commit on `main` with a suffix; the changelog stays under `[Unreleased]`. Name
+   the commit by its SHA, check that one, and tag that one, not your checkout's `HEAD`:
    ```bash
-   git tag -a v0.1.0-rc1 -m "v0.1.0-rc1"
+   git fetch origin
+   git rev-parse origin/main               # the commit to test: note its SHA
+   git log -1 --format='%H %s' <sha>       # check: the commit you meant
+   gh run list --commit <sha>              # check: CI green on it
+   git tag -a v0.1.0-rc1 <sha> -m "v0.1.0-rc1"
    git push origin v0.1.0-rc1
    ```
+   If `main` moved before you tag and you want the newer commit, check its SHA again.
 2. GitHub publishes it as a **pre-release**. Check the download as users would
    ([install guide](install.md#checking-a-download): `sha256sum -c` and
    `gh attestation verify`), install the package, enable the service and complete the
-   [hardware checklist](testing.md#manual-hardware-checklist).
-3. Fix what fails, merge, and tag `v0.1.0-rc2`. When a candidate passes, make the release
-   as described above, with the same code. Problems that are not new in this version,
-   or that are harmless, need no new candidate: open an issue and fix them in the next
-   PATCH release.
+   manual test run ([how-to](testing/how-to-run-release-tests.md)), with a run record
+   named after the candidate's tag (`docs/testing/runs/v0.1.0-rc1.md`).
+3. When the run has [passed](testing/how-to-run-release-tests.md#what-passed-means),
+   which needs the owner's decision in the record, make the release as described above,
+   with the same code. Otherwise fix what failed, merge, and tag `v0.1.0-rc2`, which
+   gets its own run record.
 
 ## Trying it locally first
 

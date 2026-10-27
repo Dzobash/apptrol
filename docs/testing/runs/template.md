@@ -1,7 +1,8 @@
-# Test run vX.Y.Z
+# Test run vX.Y.Z-rcN
 
-The blank record of a manual test run. Copy it to `runs/vX.Y.Z.md` for each release (see
-[Running the release tests](../how-to-run-release-tests.md)) and leave this file as it is.
+The blank record of a manual test run. Copy it to `runs/vX.Y.Z-rcN.md`, named after the
+tag of the candidate you test, one record per tested candidate (see
+[Running the release tests](../how-to-run-release-tests.md)), and leave this file as it is.
 
 This record is public: no device names or IDs, process numbers, user names, home paths or
 media titles. Use placeholders (`<pid>`, `<device>`, `/home/you`).
@@ -42,4 +43,16 @@ to find   <the kind of problem>
 - **Passed:** n of m
 - **Failed:** the case IDs, each with its issue
 - **Blocked:** the case IDs, each with the reason
-- **Release:** go / no-go, and why
+
+## Decision
+
+The owner's decision ends the record; without it the run has not passed
+([what passed means](../how-to-run-release-tests.md#what-passed-means)). The agent drafts
+it, the owner confirms it. One line per case that did not pass; the first line alone when
+every case passed.
+
+```text
+Decision: release vX.Y.Z — owner, YYYY-MM-DD
+  TC-…-NNN   Blocked   waived: <why it is safe to release without it>
+  TC-…-NNN   Fail      accepted: <why>, fix in vX.Y.Z (#n)
+```
