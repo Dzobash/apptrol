@@ -9,8 +9,9 @@ Please follow the [code of conduct](CODE_OF_CONDUCT.md).
   Features outside the current phase are welcome as ideas, but may wait for their phase.
 - For a larger change, open an issue first so we can agree on the approach.
 - Report security problems privately, see [SECURITY.md](SECURITY.md).
-- Decisions that affect the design are recorded as [ADRs](docs/adr/). If your change
-  alters one, add a new record that supersedes it.
+- Every decision gets an [ADR](docs/adr/): copy `template.md`, take the next free
+  number, add it to the index. Accepted ADRs are not rewritten, only given dated notes;
+  a changed decision gets a new ADR that supersedes the old one.
 
 ## Issues
 
@@ -52,21 +53,28 @@ All changes go through a branch and a pull request (GitHub Flow):
    git push -u origin feat/config-loading
    ```
 3. Open a pull request into `main` on GitHub. CI runs on it; fill in the PR template.
-4. Merge with **Squash and merge** once CI is green. The PR title becomes the single commit
-   on `main`, so it must follow Conventional Commits (it feeds the release notes).
-5. Delete the branch, then update your local `main`:
+4. Merge with **Squash and merge** once the 7 required checks are green: Lint, Test (on
+   two Go versions), Fuzz, Vulnerability check, Build and Packaging. The PR title
+   becomes the single commit on `main`, so it must follow Conventional Commits (it
+   feeds the release notes).
+5. Update your local `main`, then delete the branch:
    ```bash
-   git switch main && git pull
-   git branch -d feat/config-loading
+   git switch main
+   git pull
+   git branch -D feat/config-loading
    ```
+   `-D`, because the squash merge put one new commit on `main`: git does not see the
+   branch's own commits as merged, so `-d` refuses.
 
 Repository settings that support this (**Settings → General → Pull Requests**): allow only
 *squash merging*, set the default commit message to *pull request title*, and enable
 *automatically delete head branches*. A ruleset on `main` requires pull requests and a
 green CI (QA-02).
 
-Coding agents follow [AGENTS.md › Publish](AGENTS.md#publish) on top of these steps
-(asking before a push, draft pull requests, reviews).
+Coding agents follow [AGENTS.md](AGENTS.md) on top of these steps: reviews
+([Review](AGENTS.md#review)), asking before a push and draft pull requests
+([Publish](AGENTS.md#publish)), and deleting a merged branch, also in a worktree
+([Clean up](AGENTS.md#clean-up)).
 
 ## Commits and pull requests
 
@@ -181,11 +189,16 @@ the same on GitHub and on the website:
   Ask what the reader has in their hand: a problem → how-to; a word or value they are
   missing → reference; curiosity → explanation; nothing yet, they want to learn →
   tutorial.
-- **Show it, then explain it.** Where a setting or a behaviour can be drawn — a timeline,
-  the controller's LEDs, a sequence of states — add a plain-text diagram in a fenced
-  code block on top of the written explanation (e.g. *Several users* in
+- **Show it, then explain it.** Wherever a setting or a behaviour can be shown visually —
+  a timeline, the controller's LEDs, a sequence of states, a small graph — add a
+  plain-text diagram in a fenced code block on top of the written explanation, never
+  instead of it (e.g. *Several users* in
   [docs/config.md](docs/config.md#several-users)). Keep it under about 100 characters
-  wide.
+  wide. This holds outside `docs/` too (README, rules, pull requests):
+  ```
+  keep:     you keep it ─────┤ released ─────┤ you take it again
+  release:  released ────────────────────────┤ you take it again
+  ```
 - **[docs/roadmap.md](docs/roadmap.md) is the only roadmap.** Every new phase gets a
   pop-culture name (its topic stays as the subtitle), a one-line **Goal** and a
   **Done when** line. Dropped ideas go to *Out of roadmap* with the reason and a link.
