@@ -1,5 +1,5 @@
-# Commands Codex may run without asking, from AGENTS.md › How we work together ›
-# Commands you may run yourself. .claude/settings.json holds the same list for
+# Commands Codex may run without asking, from AGENTS.md › Boundaries › Commands
+# you may run yourself. .claude/settings.json holds the same list for
 # Claude Code; change both together (QA-15). A rule matches how a command starts,
 # whatever arguments follow. These rules decide what runs outside Codex's sandbox;
 # they load only when the project is trusted in Codex, at Codex's start.
@@ -51,7 +51,7 @@ prefix_rule(
     decision = "prompt",
 )
 
-# Changes outside this checkout: only after the owner's OK (AGENTS.md › Workflow)
+# Changes outside this checkout: only after the owner's OK (AGENTS.md › Publish)
 prefix_rule(pattern = ["git", "push"], decision = "prompt")
 prefix_rule(
     pattern = ["gh", "pr", ["create", "ready", "edit", "merge", "close", "comment", "review",

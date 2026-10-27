@@ -7,7 +7,7 @@ description: End-of-session check for the Apptrol repository. Use when the owner
 
 The owner asks this at the end of a session. Check every point below, then give one short
 report: a line per point, `✓` when it is in order, `→` with what is open. Change nothing
-that needs the owner's OK without asking first (AGENTS.md › Workflow): pushing, opening
+that needs the owner's OK without asking first (AGENTS.md › Publish): pushing, opening
 or merging a PR, deleting a branch that has commits not on GitHub, creating issues.
 
 ## 1. Other agents first
@@ -52,12 +52,11 @@ git tag --sort=-creatordate | head -3            # releases and candidates
   directions. A new rule from today that is not there yet: suggest the PR.
 - **Facts about the owner, their machine and how you work together** go in your own
   notes (Claude: its memory directory; Codex: its memories). Save what you learned today.
-- Nothing private in the repository (AGENTS.md › Privacy).
+- Nothing private in the repository (AGENTS.md › Boundaries).
 
 ## 5. Handover
 
-- The state of open work goes where every agent finds it (AGENTS.md › Finding the
-  current state): its PR, its issue, or the handed-over task. If an open item has none
+- The state of open work goes where every agent finds it (AGENTS.md › Start): its PR, its issue, or the handed-over task. If an open item has none
   of these, suggest one (ask before opening a PR or an issue).
 - Your own notes only point there: what is released, which PR or issue is next. The
   next session still looks the state up first; the note only says where to look.

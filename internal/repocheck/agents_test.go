@@ -231,7 +231,7 @@ func TestQA15_AgentCommandListsMatch(t *testing.T) {
 }
 
 // mustAsk are the commands that push, change GitHub or delete a branch. They need the
-// owner's OK (AGENTS.md › Workflow), so this list is kept here on its own: removing
+// owner's OK (AGENTS.md › Publish), so this list is kept here on its own: removing
 // one from both files at once must still fail (QA-15).
 var mustAsk = []string{
 	"git push",
