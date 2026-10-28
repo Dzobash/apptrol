@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"slices"
 	"sync"
 	"time"
 
@@ -130,14 +131,15 @@ type Backend struct {
 	// Wait before reconnecting: starts at retryMin, doubles up to retryMax.
 	retryMin, retryMax time.Duration
 
-	mu       sync.Mutex
-	cur      *conn
-	channels map[uint32]int    // channel count per stream, for setting volume
-	devChans map[string]int    // channel count per capture device
-	outChans map[string]int    // channel count per output device (OUT-01)
-	guards   map[uint32]*guard // new streams
-	devGuard map[string]*guard // new capture devices
-	outGuard map[string]*guard // new output devices: volume and mute (OUT-05, ADR 0027, #177)
+	mu         sync.Mutex
+	cur        *conn
+	channels   map[uint32]int            // channel count per stream, for setting volume
+	devChans   map[string]int            // channel count per capture device
+	outChans   map[string]int            // channel count per output device (OUT-01)
+	outBalance map[string]*outputBalance // live channel ratios (OUT-15, ADR 0039)
+	guards     map[uint32]*guard         // new streams
+	devGuard   map[string]*guard         // new capture devices
+	outGuard   map[string]*guard         // new output devices: volume and mute (OUT-05, ADR 0027, #177)
 	// Never reset on removal or reconnect: an old buffered answer must not
 	// acknowledge a new incarnation of the same name (CTRL-06, ADR 0027).
 	outputGeneration uint64
@@ -163,7 +165,7 @@ type Backend struct {
 	// to the server.
 	streamWrite func(id uint32, channels int, v float64) error
 	sourceWrite func(name string, channels int, v float64) error
-	outputWrite func(name string, channels int, v float64) error
+	outputWrite func(name string, volumes proto.ChannelVolumes) error
 	// outputMuteWrite replaces the write of an output device's mute in tests;
 	// nil writes to the server (OUT-05, QA-11, #177).
 	outputMuteWrite func(name string, muted bool) error
@@ -259,6 +261,13 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 		}
 	}
 	resync := func() error {
+		b.wire.Lock()
+		locked := true
+		defer func() {
+			if locked {
+				b.wire.Unlock()
+			}
+		}()
 		k.overflow.Store(false)
 		streams, err := k.streams()
 		if err != nil {
@@ -291,6 +300,11 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 			devChans[d.Name] = d.Channels
 		}
 		b.mu.Lock()
+		reason := "snapshot"
+		if b.cur == k {
+			reason = "resync"
+		}
+		b.resetOutputBalance(sinks, reason)
 		for i := range sinks {
 			b.outputGeneration++
 			sinks[i].Generation = b.outputGeneration
@@ -304,6 +318,8 @@ func (b *Backend) session(ctx context.Context, k *conn, out chan<- mixer.Event) 
 		b.muteWant, b.devMuteWant = map[uint32]muteWant{}, map[string]muteWant{}
 		b.outMuteWant = map[string]muteWant{}
 		b.mu.Unlock()
+		b.wire.Unlock()
+		locked = false
 		return send(Snapshot(streams, sources, sinks, t.defaultSink))
 	}
 	if err := resync(); err != nil {
@@ -542,6 +558,7 @@ func (b *Backend) sinkEvent(k *conn, t *tracker, index uint32, removed bool, rea
 		}
 		if r, ok := ev.(mixer.OutputRemoved); ok {
 			b.mu.Lock()
+			delete(b.outBalance, r.Name)
 			delete(b.outChans, r.Name)
 			delete(b.outGuard, r.Name)
 			delete(b.outMuteWant, r.Name)
@@ -577,6 +594,13 @@ func (b *Backend) sinkRead(k *conn, d *SinkInfo, same bool) error {
 	}
 	_, tracked := b.outChans[d.Name]
 	b.outChans[d.Name] = d.Channels
+	reason := "outside_change"
+	if !tracked {
+		reason = "new_device"
+	} else if g := b.outGuard[d.Name]; g != nil && time.Now().Before(g.until) {
+		reason = "guard_read"
+	}
+	b.observeOutputBalance(*d, reason)
 	if !tracked {
 		b.outGuard[d.Name] = newGuardNow()
 	}
@@ -730,7 +754,7 @@ func (b *Backend) defendOutput(k *conn, d SinkInfo) error {
 	muted := b.checkOutputMute(d.Name, d.Muted)
 	b.mu.Unlock()
 	b.logOutputRead(d, state)
-	if err := b.restoreOutput(k, d.Name, d.Channels, d.Volume, vol); err != nil {
+	if err := b.restoreOutput(k, d.Name, d.Volume, vol); err != nil {
 		return err
 	}
 	return b.restoreOutputMute(k, d.Name, d.Muted, muted)
@@ -879,7 +903,7 @@ func (b *Backend) keepOutput(name string, generation uint64) error {
 		}
 		g.answered = true
 	}
-	k, chans := b.cur, b.outChans[name]
+	k := b.cur
 	var vol *float64
 	var read float64
 	state := guardNone
@@ -905,7 +929,7 @@ func (b *Backend) keepOutput(name string, generation uint64) error {
 	if k == nil {
 		return nil // the guards start again on a reconnect
 	}
-	if err := b.restoreOutput(k, name, chans, read, vol); err != nil {
+	if err := b.restoreOutput(k, name, read, vol); err != nil {
 		return err
 	}
 	return b.restoreOutputMute(k, name, readMuted, muted)
@@ -923,13 +947,20 @@ func (b *Backend) logStaleAnswer(action, name string, answer, current uint64) {
 
 // restoreOutput sets vol again on an output whose read volume the guard
 // rejected; nil sets nothing (OUT-05, ADR 0027).
-func (b *Backend) restoreOutput(k *conn, name string, channels int, read float64, vol *float64) error {
+func (b *Backend) restoreOutput(k *conn, name string, read float64, vol *float64) error {
 	if vol == nil {
 		return nil
 	}
-	b.log.Debug("audio server changed the volume of a new output; setting it again",
-		logattr.KeyDeviceName, name, logattr.KeyVolume, percent(read), logattr.KeyWanted, percent(*vol))
-	if err := b.setOutputVolume(k, name, channels, *vol); err != nil && !IsGone(err) {
+	attrs := []any{logattr.KeyDeviceName, name, logattr.KeyVolume, percent(read), logattr.KeyWanted, percent(*vol)}
+	b.mu.Lock()
+	if balance := b.outBalance[name]; balance != nil {
+		attrs = append(attrs, balance.attributes()...)
+		attrs = append(attrs, logattr.KeyChannelVolumes, channelPercents(balance.read),
+			logattr.KeyWantedChannelVolumes, channelPercents(balance.scaled(*vol)))
+	}
+	b.mu.Unlock()
+	b.log.Debug("audio server changed the volume of a new output; setting it again", attrs...)
+	if err := b.setOutputVolume(k, name, *vol); err != nil && !IsGone(err) {
 		return err
 	}
 	return nil
@@ -962,21 +993,32 @@ func (b *Backend) restoreOutputMute(k *conn, name string, read bool, muted *bool
 //
 // Accepted is not applied, though: within the guard's window the output is
 // read again after outputRecheck, which sets a lost write again (#166).
-func (b *Backend) setOutputVolume(k *conn, name string, channels int, v float64) error {
-	var err error
+func (b *Backend) setOutputVolume(k *conn, name string, v float64) error {
+	balance, err := b.balanceForWrite(k, name)
+	if err != nil {
+		b.log.Debug("output volume request completed", logattr.KeyDeviceName, name,
+			logattr.KeyWanted, percent(v), logattr.KeyAudioResult, "failed",
+			logattr.Error(logattr.ErrAudioApply, err))
+		return err
+	}
+	volumes := balance.scaled(v)
+	channels := len(volumes)
 	if b.outputWrite != nil {
-		err = b.outputWrite(name, channels, v)
+		err = b.outputWrite(name, volumes)
 	} else {
-		err = k.setSinkVolume(name, channels, v)
+		err = k.setSinkVolume(name, volumes)
 	}
 	attrs := []any{logattr.KeyDeviceName, name, logattr.KeyAudioChannels, channels,
 		logattr.KeyWanted, percent(v), logattr.KeyAudioResult, "success"}
+	attrs = append(attrs, balance.attributes()...)
+	attrs = append(attrs, logattr.KeyWantedChannelVolumes, channelPercents(volumes))
 	guarded := false
 	if err != nil {
-		attrs[len(attrs)-1] = "failed"
+		attrs[7] = "failed"
 		attrs = append(attrs, logattr.Error(logattr.ErrAudioApply, err))
 	} else {
 		b.mu.Lock()
+		balance.written = slices.Clone(volumes)
 		if g := b.outGuard[name]; g != nil {
 			g.read = &v
 			guarded = true
@@ -1010,7 +1052,8 @@ func (b *Backend) readAgain(name string) {
 func (b *Backend) logOutputRead(d SinkInfo, state string) {
 	attrs := []any{logattr.KeyDeviceIndex, d.Index, logattr.KeyDeviceName, d.Name,
 		logattr.KeyDeviceDescription, d.Description, logattr.KeyAudioChannels, d.Channels,
-		logattr.KeyVolume, percent(d.Volume), logattr.KeyMuted, d.Muted, logattr.KeyGuardState, state}
+		logattr.KeyVolume, percent(d.Volume), logattr.KeyMuted, d.Muted, logattr.KeyGuardState, state,
+		logattr.KeyChannelPositions, []byte(d.Positions), logattr.KeyChannelVolumes, channelPercents(d.Volumes)}
 	b.mu.Lock()
 	if g := b.outGuard[d.Name]; g != nil {
 		attrs = append(attrs, logattr.KeyGuardRemaining, max(0, time.Until(g.until).Milliseconds()))
@@ -1226,14 +1269,7 @@ func (b *Backend) Apply(a mixer.Action) error {
 	case mixer.SetOutputMute:
 		return b.setOutputMute(k, a.Device, a.Muted)
 	case mixer.SetOutputVolume:
-		if chans == 0 {
-			d, err := k.sinkByName(a.Device)
-			if err != nil {
-				return err
-			}
-			chans = d.Channels
-		}
-		return b.setOutputVolume(k, a.Device, chans, a.Volume)
+		return b.setOutputVolume(k, a.Device, a.Volume)
 	}
 	return nil
 }
@@ -1302,6 +1338,9 @@ func (b *Backend) setSourceVolume(k *conn, name string, channels int, v float64)
 func (b *Backend) setConn(k *conn) {
 	b.mu.Lock()
 	b.cur = k
+	if k == nil {
+		b.outBalance = nil
+	}
 	b.mu.Unlock()
 }
 

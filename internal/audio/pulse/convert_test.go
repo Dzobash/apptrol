@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"math"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -201,7 +202,8 @@ func TestOUT12_SinkFromReply(t *testing.T) {
 	}
 	want := SinkInfo{Device: mixer.Device{Name: "alsa_output.test.analog-stereo", Description: "Test Speakers"},
 		Index: 4, Volume: 0.25, Muted: true, Channels: 2}
-	if got := sinkFromReply(r); got != want {
+	want.Volumes = r.ChannelVolumes
+	if got := sinkFromReply(r); !reflect.DeepEqual(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
 	// Without a description, the name stands in for it.
@@ -345,6 +347,7 @@ func TestOUT05_GuardKeepsTheVolumeSetOnANewOutput(t *testing.T) {
 func TestOUT01_LatestSliderPositionWinsOverAGuardWrite(t *testing.T) {
 	b := New(quietLog(), "")
 	b.cur = &conn{} // never used: writes go through outputWrite
+	testSeedBalance(b, "spk")
 	b.outChans, b.outGuard = map[string]int{"spk": 2}, map[string]*guard{"spk": newGuardNow()}
 	v := 1.0
 	b.outGuard["spk"].volume = &v // the slider was at 100 % when the output appeared
@@ -353,7 +356,8 @@ func TestOUT01_LatestSliderPositionWinsOverAGuardWrite(t *testing.T) {
 	var writes []float64 // in the order they finished
 	guardWriting, sliderWaits := make(chan struct{}), make(chan struct{})
 	b.beforeWire = func() { close(sliderWaits) }
-	b.outputWrite = func(_ string, _ int, v float64) error {
+	b.outputWrite = func(_ string, cv proto.ChannelVolumes) error {
+		v := float64(percent(outputLevel(cv))) / 100
 		if v == 1.0 {
 			// The guard's write lasts until the slider's Apply is at wire:
 			// if Apply did not wait there, its write would finish first.
@@ -372,7 +376,7 @@ func TestOUT01_LatestSliderPositionWinsOverAGuardWrite(t *testing.T) {
 	go func() {
 		b.wire.Lock()
 		defer b.wire.Unlock()
-		guardDone <- b.defendOutput(b.cur, SinkInfo{Device: mixer.Device{Name: "spk"}, Volume: 0.5, Channels: 2})
+		guardDone <- testDefendOutput(b, SinkInfo{Device: mixer.Device{Name: "spk"}, Volume: 0.5, Channels: 2})
 	}()
 	<-guardWriting
 	if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 0.1}); err != nil {
@@ -399,9 +403,14 @@ func TestOUT01_LatestSliderPositionWinsOverAGuardWrite(t *testing.T) {
 func TestCTRL06_ReleasedOutputIsNoLongerDefended(t *testing.T) {
 	b := New(quietLog(), "")
 	b.cur = &conn{} // never used: writes go through outputWrite
+	testSeedBalance(b, "spk")
 	b.outChans, b.outGuard = map[string]int{"spk": 2}, map[string]*guard{"spk": newGuardNow()}
 	var writes []float64
-	b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+	b.outputWrite = func(_ string, cv proto.ChannelVolumes) error {
+		v := float64(percent(outputLevel(cv))) / 100
+		writes = append(writes, v)
+		return nil
+	}
 	if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 1}); err != nil {
 		t.Fatal(err)
 	}
@@ -427,7 +436,7 @@ func TestCTRL06_ReleasedOutputIsNoLongerDefended(t *testing.T) {
 
 	writes = nil
 	lowered := SinkInfo{Device: mixer.Device{Name: "spk"}, Volume: 0.2, Channels: 2} // set elsewhere
-	if err := b.defendOutput(b.cur, lowered); err != nil {
+	if err := testDefendOutput(b, lowered); err != nil {
 		t.Fatal(err)
 	}
 	if len(writes) != 0 {
@@ -439,7 +448,7 @@ func TestCTRL06_ReleasedOutputIsNoLongerDefended(t *testing.T) {
 		t.Fatal(err)
 	}
 	writes = nil
-	if err := b.defendOutput(b.cur, lowered); err != nil {
+	if err := testDefendOutput(b, lowered); err != nil {
 		t.Fatal(err)
 	}
 	if len(writes) != 1 || writes[0] != 0.6 {
@@ -466,10 +475,14 @@ func TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt(t *testing.T) {
 		b.cur = &conn{} // never used: writes go through outputWrite
 		b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
 		var writes []float64
-		b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+		b.outputWrite = func(_ string, cv proto.ChannelVolumes) error {
+			v := float64(percent(outputLevel(cv))) / 100
+			writes = append(writes, v)
+			return nil
+		}
 
 		spk := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
-		if err := b.sinkRead(b.cur, &spk, false); err != nil { // it appears
+		if err := testSinkRead(b, &spk, false); err != nil { // it appears
 			t.Fatal(err)
 		}
 		if err := b.Apply(mixer.SetOutputVolume{Device: "spk", Volume: 0.3}); err != nil {
@@ -479,7 +492,7 @@ func TestOUT05_RenamedOutputIsDefendedOnceTheMixerKeepsIt(t *testing.T) {
 
 		restored := spk
 		restored.Description, restored.Volume = "Speakers Pro", 1
-		if err := b.sinkRead(b.cur, &restored, false); err != nil {
+		if err := testSinkRead(b, &restored, false); err != nil {
 			t.Fatal(err)
 		}
 		if len(writes) != 0 {
@@ -528,7 +541,8 @@ func TestOUT05_KeepAfterTheFirstVolumeWritesItOnce(t *testing.T) {
 			b.cur = &conn{} // never used: writes go through outputWrite
 			b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
 			var writes []float64
-			b.outputWrite = func(_ string, _ int, v float64) error {
+			b.outputWrite = func(_ string, cv proto.ChannelVolumes) error {
+				v := float64(percent(outputLevel(cv))) / 100
 				writes = append(writes, v)
 				if fail {
 					return errors.New("write refused")
@@ -537,7 +551,7 @@ func TestOUT05_KeepAfterTheFirstVolumeWritesItOnce(t *testing.T) {
 			}
 			d := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
 			b.wire.Lock()
-			err := b.sinkRead(b.cur, &d, false) // it appears
+			err := testSinkRead(b, &d, false) // it appears
 			b.wire.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -562,7 +576,7 @@ func TestOUT05_KeepAfterTheFirstVolumeWritesItOnce(t *testing.T) {
 
 			d.Volume = 1 // the server restores its remembered volume afterwards
 			b.wire.Lock()
-			err = b.sinkRead(b.cur, &d, true)
+			err = testSinkRead(b, &d, true)
 			b.wire.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -585,12 +599,16 @@ func TestCTRL06_RenamedOutputWaitsForReleaseAcrossNotifications(t *testing.T) {
 	b.cur = &conn{}
 	b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
 	var writes []float64
-	b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+	b.outputWrite = func(_ string, cv proto.ChannelVolumes) error {
+		v := float64(percent(outputLevel(cv))) / 100
+		writes = append(writes, v)
+		return nil
+	}
 	d := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
 	read := func(same bool) {
 		t.Helper()
 		b.wire.Lock()
-		err := b.sinkRead(b.cur, &d, same)
+		err := testSinkRead(b, &d, same)
 		b.wire.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -634,7 +652,11 @@ func TestCTRL06_OutputOwnershipRejectsOlderGenerations(t *testing.T) {
 			b.cur = &conn{}
 			b.outChans, b.outGuard = map[string]int{}, map[string]*guard{}
 			var writes []float64
-			b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+			b.outputWrite = func(_ string, cv proto.ChannelVolumes) error {
+				v := float64(percent(outputLevel(cv))) / 100
+				writes = append(writes, v)
+				return nil
+			}
 			tracker := tracker{outputs: map[uint32]mixer.Device{}}
 			d := SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Volume: 1, Channels: 2}
 			read := func() mixer.Device {
@@ -643,7 +665,7 @@ func TestCTRL06_OutputOwnershipRejectsOlderGenerations(t *testing.T) {
 				defer b.wire.Unlock()
 				old, known := tracker.outputs[d.Index]
 				evs, err := outputChange(&tracker, d.Index, false, func(uint32) (SinkInfo, error) {
-					err := b.sinkRead(b.cur, &d, known && sameOutputIdentity(old, d.Device))
+					err := testSinkRead(b, &d, known && sameOutputIdentity(old, d.Device))
 					return d, err
 				})
 				if err != nil || len(evs) != 1 {
@@ -673,7 +695,7 @@ func TestCTRL06_OutputOwnershipRejectsOlderGenerations(t *testing.T) {
 			apply(mixer.KeepOutput{Device: d.Name, Generation: first.Generation})
 			apply(mixer.ReleaseOutput{Device: d.Name, Generation: first.Generation})
 			b.wire.Lock()
-			err := b.sinkRead(b.cur, &d, true)
+			err := testSinkRead(b, &d, true)
 			b.wire.Unlock()
 			if err != nil || len(writes) != 0 {
 				t.Fatalf("old answers or volume write acknowledged the pending read: %v, %v", writes, err)
@@ -732,6 +754,7 @@ func TestOUT05_ReadBackSetsOnlyALostWriteAgain(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			b := New(quietLog(), "")
 			b.cur = &conn{} // never used: reads and writes go through the hooks
+			testSeedBalance(b, "spk")
 			b.outChans, b.outGuard = map[string]int{"spk": 2}, map[string]*guard{}
 			if tc.guard != nil {
 				g := newGuardNow()
@@ -745,9 +768,13 @@ func TestOUT05_ReadBackSetsOnlyALostWriteAgain(t *testing.T) {
 				read = SinkInfo{Device: spk, Volume: 1, Channels: 2} // the server lost 30 %
 			}
 			var reads int
-			b.outputRead = func(string) (SinkInfo, error) { reads++; return read, tc.readErr }
+			b.outputRead = func(string) (SinkInfo, error) { reads++; return testFlatSink(read), tc.readErr }
 			var writes []float64
-			b.outputWrite = func(_ string, _ int, v float64) error { writes = append(writes, v); return nil }
+			b.outputWrite = func(_ string, cv proto.ChannelVolumes) error {
+				v := float64(percent(outputLevel(cv))) / 100
+				writes = append(writes, v)
+				return nil
+			}
 			tr := &tracker{outputs: map[uint32]mixer.Device{0: spk}}
 
 			b.wire.Lock()
@@ -883,7 +910,9 @@ func TestCTRL05_LatestSliderPositionWinsOverAGuardWrite(t *testing.T) {
 	b.devChans, b.devGuard = map[string]int{"mic": 1}, map[string]*guard{"mic": newGuardNow()}
 	b.devGuard["mic"].volume = ptr(1.0)
 	r := newGuardRace(b)
-	b.sourceWrite = func(_ string, _ int, v float64) error { return r.write(v) }
+	b.sourceWrite = func(_ string, _ int, v float64) error {
+		return r.write(v)
+	}
 
 	d := SourceInfo{Device: mixer.Device{Name: "mic"}, Volume: 0.5, Channels: 1}
 	r.run(t, b, func() error { return b.defendDevice(b.cur, d) }, mixer.SetDeviceVolume{Device: "mic", Volume: 0.1})

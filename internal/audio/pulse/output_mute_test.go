@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jfreymuth/pulse/proto"
+
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
@@ -101,7 +103,11 @@ func newMuteRig(t *testing.T, log *slog.Logger) *muteRig {
 		d: SinkInfo{Device: mixer.Device{Name: "spk", Description: "Speakers"}, Index: 1, Volume: 1, Channels: 2}}
 	r.b.cur = &conn{} // never used: reads and writes go through the hooks
 	r.b.outChans, r.b.outGuard, r.b.outMuteWant = map[string]int{}, map[string]*guard{}, map[string]muteWant{}
-	r.b.outputWrite = func(_ string, _ int, v float64) error { r.writes = append(r.writes, v); return nil }
+	r.b.outputWrite = func(_ string, cv proto.ChannelVolumes) error {
+		v := float64(percent(outputLevel(cv))) / 100
+		r.writes = append(r.writes, v)
+		return nil
+	}
 	r.b.outputMuteWrite = func(_ string, m bool) error { r.muteWrites = append(r.muteWrites, m); return nil }
 	return r
 }
@@ -112,7 +118,7 @@ func (r *muteRig) report() []mixer.Event {
 	r.t.Helper()
 	r.b.wire.Lock()
 	defer r.b.wire.Unlock()
-	evs, err := r.b.sinkEvent(r.b.cur, r.tr, r.d.Index, false, func(uint32) (SinkInfo, error) { return r.d, nil })
+	evs, err := r.b.sinkEvent(r.b.cur, r.tr, r.d.Index, false, func(uint32) (SinkInfo, error) { return testFlatSink(r.d), nil })
 	if err != nil {
 		r.t.Fatal(err)
 	}

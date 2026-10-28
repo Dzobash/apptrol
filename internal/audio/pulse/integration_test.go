@@ -334,15 +334,15 @@ func newOutput(t *testing.T, base string) (*Backend, string) {
 // serverOutputWrite is what Backend.outputWrite does when nil: it writes an
 // output's volume over the backend's connection. Tests wrap it to count or
 // drop writes (OUT-05, #166).
-func serverOutputWrite(b *Backend) func(name string, channels int, v float64) error {
-	return func(name string, channels int, v float64) error {
+func serverOutputWrite(b *Backend) func(name string, cv proto.ChannelVolumes) error {
+	return func(name string, cv proto.ChannelVolumes) error {
 		b.mu.Lock()
 		k := b.cur
 		b.mu.Unlock()
 		if k == nil {
 			return ErrNotConnected
 		}
-		return k.setSinkVolume(name, channels, v)
+		return k.setSinkVolume(name, cv)
 	}
 }
 
@@ -387,11 +387,11 @@ func TestIntegration_OUT05_GuardSetsTheOutputVolumeAgain(t *testing.T) {
 	var mu sync.Mutex
 	var writes []float64
 	write := serverOutputWrite(b)
-	b.outputWrite = func(name string, channels int, v float64) error {
+	b.outputWrite = func(name string, cv proto.ChannelVolumes) error {
 		mu.Lock()
-		writes = append(writes, v)
+		writes = append(writes, outputLevel(cv))
 		mu.Unlock()
-		return write(name, channels, v)
+		return write(name, cv)
 	}
 	written := func() int { mu.Lock(); defer mu.Unlock(); return len(writes) }
 	if err := b.Apply(mixer.SetOutputVolume{Device: out, Volume: 0.3}); err != nil {
@@ -446,15 +446,15 @@ func TestIntegration_OUT05_GuardSetsALostWriteAgain(t *testing.T) {
 	var mu sync.Mutex
 	var writes []float64
 	write := serverOutputWrite(b)
-	b.outputWrite = func(name string, channels int, v float64) error {
+	b.outputWrite = func(name string, cv proto.ChannelVolumes) error {
 		mu.Lock()
-		writes = append(writes, v)
+		writes = append(writes, outputLevel(cv))
 		first := len(writes) == 1
 		mu.Unlock()
 		if first {
 			return nil // accepted, but never reaches the device
 		}
-		return write(name, channels, v)
+		return write(name, cv)
 	}
 	if err := b.Apply(mixer.SetOutputVolume{Device: out, Volume: 0.3}); err != nil {
 		t.Fatal(err)
