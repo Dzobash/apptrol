@@ -142,6 +142,63 @@ func TestOUT15_ZeroAndRoundedEchoesNeverDrift(t *testing.T) {
 	r.wantWrite(0.5, 12345.0/131072)
 }
 
+// TestOUT15_OlderRoundedEchoesKeepBalance forces a read of an earlier
+// accepted write after a newer move, without relying on server timing
+// (OUT-15, OUT-16, QA-11, ADR 0039).
+func TestOUT15_OlderRoundedEchoesKeepBalance(t *testing.T) {
+	for _, guarded := range []bool{true, false} {
+		r := newBalanceRig(t)
+		r.read(1, 12345.0/65536)
+		if !guarded {
+			r.b.outGuard[r.d.Name].until = time.Now().Add(-time.Second)
+		}
+		want := slices.Clone(r.b.outBalance[r.d.Name].ratios)
+		for range 20 {
+			r.move(0.017)
+			earlier := slices.Clone(r.writes[len(r.writes)-1])
+			r.move(0.6)
+			later := slices.Clone(r.writes[len(r.writes)-1])
+			r.read(earlier[0].Norm(), earlier[1].Norm())
+			if !slices.Equal(r.b.outBalance[r.d.Name].ratios, want) {
+				t.Fatalf("guarded=%v: earlier echo changed retained ratios", guarded)
+			}
+			r.read(later[0].Norm(), later[1].Norm())
+			r.move(0.5)
+			r.wantWrite(0.5, 12345.0/131072)
+		}
+	}
+}
+
+// TestOUT15_BalanceConsistencyTolerance defines the approved one-unit
+// ambiguity, including near silence and server levels above the write cap
+// (OUT-15, OUT-16, ADR 0039 note of 2026-10-28).
+func TestOUT15_BalanceConsistencyTolerance(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		read   proto.ChannelVolumes
+		retain bool
+	}{
+		{"one unit higher", proto.ChannelVolumes{32768, 8193}, true},
+		{"one unit lower", proto.ChannelVolumes{32768, 8191}, true},
+		{"two units", proto.ChannelVolumes{32768, 8194}, false},
+		{"near silence ambiguous", proto.ChannelVolumes{1, 1}, true},
+		{"near silence distinguishable", proto.ChannelVolumes{4, 4}, false},
+		{"above write cap", proto.ChannelVolumes{131072, 32769}, true},
+		{"zero", proto.ChannelVolumes{0, 0}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newBalanceRig(t)
+			r.read(1, 0.25)
+			r.b.outGuard[r.d.Name].until = time.Now().Add(-time.Second)
+			before := slices.Clone(r.b.outBalance[r.d.Name].ratios)
+			r.read(tc.read[0].Norm(), tc.read[1].Norm())
+			if retained := slices.Equal(before, r.b.outBalance[r.d.Name].ratios); retained != tc.retain {
+				t.Fatalf("retained = %v, want %v", retained, tc.retain)
+			}
+		})
+	}
+}
+
 func TestOUT15_OverflowResyncDiscardsCachedBalance(t *testing.T) {
 	for _, zero := range []bool{true, false} {
 		r := newBalanceRig(t)
@@ -318,6 +375,7 @@ func TestOUT13_BalanceLogsExplainVectors(t *testing.T) {
 	var logs bytes.Buffer
 	r.b.log = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	r.read(0.8, 0.6)
+	r.read(0.4, 0.3)
 	r.move(0.5)
 	r.read(0, 0)
 	for _, text := range []string{"output balance selected", "output balance retained", "output device read", "output volume request completed",
@@ -325,6 +383,9 @@ func TestOUT13_BalanceLogsExplainVectors(t *testing.T) {
 		if !strings.Contains(logs.String(), text) {
 			t.Errorf("missing %s", text)
 		}
+	}
+	if !strings.Contains(logs.String(), "apptrol.audio.balance.source=remembered apptrol.audio.balance.reason=consistent") {
+		t.Fatal("consistent read did not explain retained ratios without attribution")
 	}
 }
 

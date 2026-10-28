@@ -332,6 +332,9 @@ requirement-named tests in `internal/audio/pulse/output_balance_test.go`:
 channel scaling, mono/surround, zero, boost, rounding drift, snapshots/reconnect,
 overflow resync, layout changes, outside edits, failures, guard retries/read-back,
 ownership generations, release, default takeover and latest-move ordering.
+Delayed-echo regressions interleave two writes and their reads; boundary tests
+cover the one-unit consistency tolerance, near silence and levels above the
+control's write cap (ADR 0039).
 `make check` runs these without an audio server. `make test-audio` additionally
 checks actual channel vectors on silent stereo and six-channel outputs with active
 silent streams. [TC-OUT-010](testing/cases/out.md#tc-out-010--output-volume-keeps-channel-balance)

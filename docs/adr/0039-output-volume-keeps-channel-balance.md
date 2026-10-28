@@ -205,3 +205,24 @@ the design-only stage. Channel-position attributes use PulseAudio position codes
 Unit tests cover conversion, cache lifecycle and ownership/guard ordering, and
 real-server tests use active silent stereo and six-channel outputs. TC-OUT-010's
 controller and listening checks remain part of the owner's rc1 run.
+
+## Rounding clarification — 2026-10-28
+
+After local review, the owner chose to retain the usable ratios when every read
+channel is within one protocol unit of those ratios scaled to the read's maximum.
+This covers an earlier rounded write read after a newer accepted write, small
+server rounding differences, and outside changes that only scale the volume.
+The comparison uses the observed level even above the control's write cap.
+Actual writes still obey the control's cap. Zero retains the existing balance;
+without usable ratios, the first nonzero server read supplies them.
+
+The cost is explicit: a deliberate outside balance adjustment inside this
+one-unit tolerance does not replace the retained ratios. Near silence, one unit
+can represent a large proportion of the volume. Larger changes are accepted as
+before. Tracking a history of exact writes was rejected: it adds storage and
+expiry rules and does not cover server rounding.
+
+The `output balance retained` record adds reason `consistent`, with source
+`remembered`. It does not claim who changed the volume. Exact last-write matches
+keep reason `own_write`; zero keeps reason `zero`. This one-unit balance tolerance
+is separate from the guard's unchanged 0.5 percentage-point level tolerance.

@@ -20,6 +20,7 @@ type outputBalance struct {
 	ratios    []float64
 	read      proto.ChannelVolumes
 	written   proto.ChannelVolumes
+	retained  bool // last observation kept existing ratios (OUT-15, ADR 0039)
 }
 
 // observeOutputBalance accepts a server read under mu, invalidating both
@@ -98,7 +99,7 @@ func (s *outputBalance) attributes() []any {
 		for i := range ratios {
 			ratios[i] = 1
 		}
-	} else if outputLevel(s.read) == 0 || slices.Equal(s.read, s.written) {
+	} else if s.retained {
 		source = "remembered"
 	}
 	return []any{logattr.KeyChannelPositions, channelPositionCodes(s.positions), logattr.KeyBalanceRatios, slices.Clone(ratios), logattr.KeyBalanceSource, source}
@@ -149,16 +150,22 @@ func (s *outputBalance) scaled(level float64) proto.ChannelVolumes {
 	return volumes
 }
 
-// observe retains exact own echoes and zero, otherwise accepting the server's
-// balance before level defense (OUT-15, OUT-16, ADR 0039).
+// observe retains zero, exact own echoes and reads consistent with the usable
+// ratios within protocol rounding. Attribution is deliberately not claimed for
+// consistent reads (OUT-15, OUT-16, ADR 0039 note of 2026-10-28).
 func (s *outputBalance) observe(d SinkInfo) string {
 	s.read = slices.Clone(d.Volumes)
+	s.retained = true
 	if len(s.written) != 0 && slices.Equal(s.written, d.Volumes) {
 		return "own_write"
 	}
 	if outputLevel(d.Volumes) == 0 {
 		return "zero"
 	}
+	if s.consistent(d.Volumes) {
+		return "consistent"
+	}
+	s.retained = false
 	s.written = nil
 	s.ratios = make([]float64, len(d.Volumes))
 	var loudest proto.Volume
@@ -169,4 +176,23 @@ func (s *outputBalance) observe(d SinkInfo) string {
 		s.ratios[i] = float64(v) / float64(loudest)
 	}
 	return ""
+}
+
+// consistent compares at the observed maximum, including above the control's
+// write cap. One protocol unit accommodates both rounded earlier echoes and
+// server rounding; near silence this deliberately hides otherwise ambiguous
+// ratio changes (OUT-15, OUT-16, ADR 0039 note of 2026-10-28).
+func (s *outputBalance) consistent(volumes proto.ChannelVolumes) bool {
+	if len(s.ratios) == 0 || len(s.ratios) != len(volumes) {
+		return false
+	}
+	level := outputLevel(volumes)
+	for i, v := range volumes {
+		expected := proto.NormVolume(level * s.ratios[i])
+		delta := int64(v) - int64(expected)
+		if delta < -1 || delta > 1 {
+			return false
+		}
+	}
+	return true
 }

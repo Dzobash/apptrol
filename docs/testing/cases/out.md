@@ -546,6 +546,8 @@ channel behavior with deterministic hooks. Real-server coverage is in
 
 - OUT-14: exact stereo scaling, centred channels, mono, six channels, silent channels,
   boost/cap, all-zero fallback and maximum-channel listing; apps and inputs unchanged.
+- OUT-15: delayed echoes after newer writes, the one-unit consistency boundary,
+  near-silence ambiguity and server levels above the control's write cap.
 - OUT-15: zero and repeated moves without drift, own echoes, outside edits,
   nonzero/zero snapshots, removal/reappearance, reconnect, channel-layout changes,
   mute independence, cache-miss reads and read/write failure.

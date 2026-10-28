@@ -384,7 +384,11 @@ The mixer's ownership, scalar volume actions, default-following rules and the
 service's `Audio` interface stay unchanged. The adapter keeps per-device channel
 positions, last read values and usable ratios, distinct from the guard's requested
 level. Subscription reads update balance even during active volume defense; own
-rounded echoes retain the ratios to avoid drift. Every output write scales the
+rounded echoes retain the ratios to avoid drift. A read consistent with the
+retained ratios within one protocol unit also retains them, covering earlier
+echoes and server rounding without claiming attribution. At near-zero levels
+that tolerance can hide a larger proportional outside adjustment (ADR 0039).
+Every output write scales the
 retained ratios so the maximum follows the scalar action. Apps and inputs retain
 their existing conversion.
 
