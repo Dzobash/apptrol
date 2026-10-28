@@ -1,7 +1,7 @@
 # TC-OUT-010: output channel balance (OUT-14 to OUT-16, ADR 0039).
 # Create the case's dedicated silent stereo sink before applying this fixture.
 # Top of slider6 is exactly 50%, so balanced 80/60 must become 50/37.5.
-# Behaviour is planned for 0.3.0; this fixture alone does not implement it.
+# Requires the output-balance implementation in 0.3.0.
 
 [log]
 level = "debug"

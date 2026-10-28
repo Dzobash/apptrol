@@ -196,3 +196,12 @@ device names and levels, never the owner's system values.
   audio integration tests do. Controller movement and listening remain manual.
 - #156 belongs to 0.3.0 before rc1. The current known issue is removed only when
   implementation lands; #174 and #190 remain open and out of scope.
+
+## Implementation note — 2026-10-28
+
+The output adapter now implements this decision for 0.3.0. The logging table
+above describes emitted records; its original "planned records" wording records
+the design-only stage. Channel-position attributes use PulseAudio position codes.
+Unit tests cover conversion, cache lifecycle and ownership/guard ordering, and
+real-server tests use active silent stereo and six-channel outputs. TC-OUT-010's
+controller and listening checks remain part of the owner's rc1 run.

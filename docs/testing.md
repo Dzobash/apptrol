@@ -326,17 +326,17 @@ the new table and warnings. A regression test checks that a fixed output matchin
 
 ## Output volume
 
-Output balance is designed but not implemented yet (OUT-14 to OUT-16,
-[ADR 0039](adr/0039-output-volume-keeps-channel-balance.md), #156).
-[TC-OUT-010](testing/cases/out.md#tc-out-010--output-volume-keeps-channel-balance)
-and the `output-balance` fixture specify its acceptance check. Implementation must
-add requirement-named tests for channel scaling, mono/surround, zero, boost,
-rounding drift, snapshots/reconnect, overflow resync, channel-layout changes, outside edits, failures,
-guard retries/read-back, ownership generations, release and default takeover.
-Run `make check` and `make test-audio` with the implementation; the latter must
-exercise actual per-channel reads on silent outputs with active silent streams.
-Controller movement and listening need the owner. H-52's existing balance-reset
-expectation remains current until the implementation updates it.
+Output balance (OUT-14 to OUT-16,
+[ADR 0039](adr/0039-output-volume-keeps-channel-balance.md), #156) is covered by
+requirement-named tests in `internal/audio/pulse/output_balance_test.go`:
+channel scaling, mono/surround, zero, boost, rounding drift, snapshots/reconnect,
+overflow resync, layout changes, outside edits, failures, guard retries/read-back,
+ownership generations, release, default takeover and latest-move ordering.
+`make check` runs these without an audio server. `make test-audio` additionally
+checks actual channel vectors on silent stereo and six-channel outputs with active
+silent streams. [TC-OUT-010](testing/cases/out.md#tc-out-010--output-volume-keeps-channel-balance)
+and the `output-balance` fixture cover controller movement and listening, which
+need the owner during the rc1 run; automated results do not mark that case passed.
 
 A fixed output (`match`) on a slider or knob sets its device's volume (OUT-01, OUT-02,
 [ADR 0027](adr/0027-output-volume.md)); one with `device = "default"` acts on the
@@ -538,6 +538,6 @@ talk-over), VLC or Elisa on slider 1 instead of Spotify.
 
 | # | Step | Expected | Req. |
 |---|---|---|---|
-| H-52 | **Hearing safety: turn the speakers' own knob or amplifier low first, keep headphones off, and put slider 7 at the bottom before saving.** Put your real speakers on slider 7 (`[outputs.speakers]` with `match` = part of their name from `apptrol list`, `max_volume = 100`), save; play music; move slider 7 slowly from the bottom up to the middle, then down; move it to the middle and change the volume with the volume keys | The desktop's volume settings show the speakers' volume following slider 7 (about 50 % in the middle), and the music gets louder and quieter with it; the apps' own volumes do not move. The log has `output matched` with `apptrol.device.selected_by=match`. The volume keys' change stays until slider 7 is moved again. Left/right balance is reset to the middle (known issue) | OUT-01, OUT-02, OUT-05 |
+| H-52 | **Hearing safety: turn the speakers' own knob or amplifier low first, keep headphones off, and put slider 7 at the bottom before saving.** Put your real speakers on slider 7 (`[outputs.speakers]` with `match` = part of their name from `apptrol list`, `max_volume = 100`), save; play music; move slider 7 slowly from the bottom up to the middle, then down; move it to the middle and change the volume with the volume keys | The desktop's volume settings show the speakers' volume following slider 7 (about 50 % in the middle), and the music gets louder and quieter with it; the apps' own volumes do not move. The log has `output matched` with `apptrol.device.selected_by=match`. The volume keys' change stays until slider 7 is moved again. Left/right balance is preserved; the loudest channel follows the control (TC-OUT-010) | OUT-01, OUT-02, OUT-05 |
 | H-53 | With the speakers on slider 7 and music playing: press M7, press S7, press M7 again; then solo an app on another column with its S | M7 lights and the music stops; S7 does nothing and stays dark; the second M7 brings the music back and M7 goes dark. The app solo silences the other apps but not the speakers, and S7 and M7 stay dark | OUT-06, OUT-07, OUT-10, SOLO-03 |
 | H-54 | **Hearing safety: put the headphones' volume low in the desktop's sound settings and keep them off your ears until the step says so; put slider 6 at the bottom before saving.** Add `[outputs.main]` with `device = "default"` on slider 6, save; play music on the speakers; move slider 6 to the middle. Choose the headphones in the desktop's sound settings; put them on and listen before touching slider 6; then move slider 6 a little. Press M6, choose the speakers again, press M6 | The music moves to the headphones at their own low volume: slider 6's middle is not put on them until slider 6 moves, and then it is. M6 mutes the headphones; after switching back, M6 stays lit and the speakers are muted (the mute moves with the control), and the headphones are unmuted again; the second M6 brings the music back on the speakers at the volume they had before. The log has `default output changed` with `apptrol.device.previous_name` for each switch, and `default output keeps its volume until the control is moved` | OUT-03, OUT-06, OUT-13 |

@@ -101,7 +101,17 @@ func (s *outputBalance) attributes() []any {
 	} else if outputLevel(s.read) == 0 || slices.Equal(s.read, s.written) {
 		source = "remembered"
 	}
-	return []any{logattr.KeyChannelPositions, []byte(s.positions), logattr.KeyBalanceRatios, slices.Clone(ratios), logattr.KeyBalanceSource, source}
+	return []any{logattr.KeyChannelPositions, channelPositionCodes(s.positions), logattr.KeyBalanceRatios, slices.Clone(ratios), logattr.KeyBalanceSource, source}
+}
+
+// channelPositionCodes avoids slog treating a byte slice as a string of
+// control characters, so vector ordering is readable (OUT-13, ADR 0039).
+func channelPositionCodes(positions proto.ChannelMap) []int {
+	codes := make([]int, len(positions))
+	for i, position := range positions {
+		codes[i] = int(position)
+	}
+	return codes
 }
 
 // channelPercents preserves fractional channel levels in diagnostics rather

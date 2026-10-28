@@ -1053,7 +1053,7 @@ func (b *Backend) logOutputRead(d SinkInfo, state string) {
 	attrs := []any{logattr.KeyDeviceIndex, d.Index, logattr.KeyDeviceName, d.Name,
 		logattr.KeyDeviceDescription, d.Description, logattr.KeyAudioChannels, d.Channels,
 		logattr.KeyVolume, percent(d.Volume), logattr.KeyMuted, d.Muted, logattr.KeyGuardState, state,
-		logattr.KeyChannelPositions, []byte(d.Positions), logattr.KeyChannelVolumes, channelPercents(d.Volumes)}
+		logattr.KeyChannelPositions, channelPositionCodes(d.Positions), logattr.KeyChannelVolumes, channelPercents(d.Volumes)}
 	b.mu.Lock()
 	if g := b.outGuard[d.Name]; g != nil {
 		attrs = append(attrs, logattr.KeyGuardRemaining, max(0, time.Until(g.until).Milliseconds()))

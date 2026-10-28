@@ -328,6 +328,54 @@ func TestOUT13_BalanceLogsExplainVectors(t *testing.T) {
 	}
 }
 
+func TestOUT14_OutputConversionUsesMaximumAndOwnsItsVectors(t *testing.T) {
+	reply := &proto.GetSinkInfoReply{ChannelMap: proto.ChannelMap{proto.ChannelLeft, proto.ChannelRight},
+		ChannelVolumes: proto.ChannelVolumes{proto.NormVolume(0.8), proto.NormVolume(0.6)}}
+	d := sinkFromReply(reply)
+	if d.Volume != reply.ChannelVolumes[0].Norm() {
+		t.Fatal("output summary is not maximum")
+	}
+	reply.ChannelMap[0] = proto.ChannelMono
+	reply.ChannelVolumes[0] = 0
+	if d.Positions[0] != proto.ChannelLeft || d.Volumes[0] == 0 {
+		t.Fatal("read aliases protocol reply")
+	}
+	if got := fromChannelVolumes(proto.ChannelVolumes{proto.NormVolume(0.8), proto.NormVolume(0.6)}); !near(got, 0.7) {
+		t.Fatal("input/stream averaging changed")
+	}
+}
+
+func TestOUT16_LatestMoveWinsWithBalancedGuardCorrection(t *testing.T) {
+	r := newBalanceRig(t)
+	r.read(0.8, 0.4)
+	r.move(1)
+	race := newGuardRace(r.b)
+	var vectors []proto.ChannelVolumes
+	r.b.outputWrite = func(_ string, cv proto.ChannelVolumes) error {
+		err := race.write(float64(percent(outputLevel(cv))) / 100)
+		vectors = append(vectors, slices.Clone(cv))
+		return err
+	}
+	race.run(t, r.b, func() error {
+		_, err := r.b.sinkEvent(r.b.cur, r.tr, r.d.Index, false, func(uint32) (SinkInfo, error) { return r.d, nil })
+		return err
+	}, mixer.SetOutputVolume{Device: r.d.Name, Volume: 0.1})
+	r.writes = vectors
+	r.wantWrite(0.1, 0.05)
+}
+
+func TestOUT16_ChangedLayoutUsesOnlyNewPositions(t *testing.T) {
+	r := newBalanceRig(t)
+	r.read(0.8, 0.6)
+	r.move(0.5)
+	r.d.Positions = proto.ChannelMap{proto.ChannelMono}
+	r.read(0.9)
+	r.wantWrite(0.5)
+	if len(r.b.outBalance[r.d.Name].ratios) != 1 {
+		t.Fatal("old positions survived layout change")
+	}
+}
+
 // testSeedBalance gives older ownership tests their explicitly balanced
 // fixture without a server read (OUT-15, ADR 0039).
 func testSeedBalance(b *Backend, name string) {

@@ -287,7 +287,7 @@ func (w testWriter) Write(p []byte) (int, error) {
 // the mixer would for a control that holds the output: each later
 // OutputAdded for it (a new description) is logged and answered with
 // KeepOutput (OUT-05, ADR 0027).
-func newOutput(t *testing.T, base string) (*Backend, string) {
+func newOutput(t *testing.T, base string, positions ...string) (*Backend, string) {
 	t.Helper()
 	b := New(testLog(t), "")
 	events := make(chan mixer.Event, 256)
@@ -297,7 +297,21 @@ func newOutput(t *testing.T, base string) (*Backend, string) {
 	next(t, events, func(mixer.AudioSnapshot) bool { return true })
 
 	out := unique(base)
-	addSink(t, out, "Apptrol-Test-Output")
+	if len(positions) == 0 {
+		addSink(t, out, "Apptrol-Test-Output")
+	} else {
+		loadModule(t, "module-null-sink", "sink_name="+out,
+			fmt.Sprintf("channels=%d", len(positions)), "channel_map="+strings.Join(positions, ","),
+			"sink_properties=device.description=Apptrol-Test-Balance")
+		// An active silent stream keeps the null output running, as real
+		// applications do; no physical output is used (OUT-14, ADR 0039).
+		cmd := exec.Command("pacat", "--playback", "--device="+out,
+			fmt.Sprintf("--channels=%d", len(positions)), "--channel-map="+strings.Join(positions, ","), "/dev/zero")
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	}
 	first := next(t, events, func(e mixer.OutputAdded) bool { return e.Device.Name == out })
 	t.Logf("output added: %q, description %q", first.Device.Name, first.Device.Description)
 	if err := b.Apply(mixer.KeepOutput{Device: out, Generation: first.Device.Generation}); err != nil {

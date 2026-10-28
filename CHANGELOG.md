@@ -7,14 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Documentation
-- Approved output balance for 0.3.0: the loudest channel follows the control and
-  the others keep their proportions, always on for outputs only. The decision,
-  requirements and planned test case are recorded; implementation is still pending
-  (OUT-14 to OUT-16, [ADR 0039](docs/adr/0039-output-volume-keeps-channel-balance.md),
-  Refs #156).
-
 ### Added
+- Output controls keep each channel's balance: the loudest channel follows the
+  requested level (80/60 at 50% becomes 50/37.5), including during new-output
+  guard retries. Zero retains balance while the device and layout remain live;
+  reconnect and overflow resync obtain it afresh. `apptrol list` shows the maximum
+  output channel level. Apps and inputs are unchanged (OUT-14 to OUT-16,
+  [ADR 0039](docs/adr/0039-output-volume-keeps-channel-balance.md), #156).
 - `make test-clean` removes the folders and logs that failed container runs keep
   (`.tmp/run-*`, `.audit/logs/`) through the container script, including files written
   as other user IDs, in this checkout only. It starts no container, never follows links,
