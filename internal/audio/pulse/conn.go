@@ -232,12 +232,11 @@ func (k *conn) sinkByName(name string) (SinkInfo, error) {
 	return sinkFromReply(&r), nil
 }
 
-// setSinkVolume sets an output device's volume: one value on every channel,
-// like streams and inputs, so a left/right balance set elsewhere is lost
-// (OUT-01, ADR 0027; docs/known-issues.md).
-func (k *conn) setSinkVolume(name string, channels int, v float64) error {
+// setSinkVolume sends the adapter's balanced channel vector unchanged
+// (OUT-14, OUT-16, ADR 0039).
+func (k *conn) setSinkVolume(name string, volumes proto.ChannelVolumes) error {
 	return k.request(&proto.SetSinkVolume{SinkIndex: proto.Undefined, SinkName: name,
-		ChannelVolumes: channelVolumes(channels, v)}, nil)
+		ChannelVolumes: volumes}, nil)
 }
 
 // setSinkMute sets the output mute through PulseAudio (OUT-06, ADR 0027).

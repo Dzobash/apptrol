@@ -2,6 +2,7 @@ package pulse
 
 import (
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/jfreymuth/pulse/proto"
@@ -32,10 +33,12 @@ type SourceInfo struct {
 // headphones, or one output of an audio interface (OUT-12, ADR 0027).
 type SinkInfo struct {
 	mixer.Device
-	Index    uint32 // the server's index, used in change notifications and by streams
-	Volume   float64
-	Muted    bool
-	Channels int
+	Index     uint32 // the server's index, used in change notifications and by streams
+	Volume    float64
+	Muted     bool
+	Channels  int
+	Positions proto.ChannelMap
+	Volumes   proto.ChannelVolumes
 }
 
 func streamFromReply(r *proto.GetSinkInputInfoReply) StreamInfo {
@@ -83,10 +86,12 @@ func sinkFromReply(r *proto.GetSinkInfoReply) SinkInfo {
 			Name:        r.SinkName,
 			Description: prop(r.Properties, "device.description", r.SinkName),
 		},
-		Index:    r.SinkIndex,
-		Volume:   fromChannelVolumes(r.ChannelVolumes),
-		Muted:    r.Mute,
-		Channels: len(r.ChannelVolumes),
+		Index:     r.SinkIndex,
+		Volume:    outputLevel(r.ChannelVolumes),
+		Muted:     r.Mute,
+		Channels:  len(r.ChannelVolumes),
+		Positions: slices.Clone(r.ChannelMap),
+		Volumes:   slices.Clone(r.ChannelVolumes),
 	}
 }
 

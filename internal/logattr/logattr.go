@@ -74,11 +74,17 @@ const (
 
 	// What the audio adapter read from and wrote to an output device, and
 	// what its new-output guard decided (OUT-05, OUT-13, ADR 0027).
-	KeyDeviceIndex    = "apptrol.device.index"             // the audio server's index of an output device
-	KeyAudioChannels  = "apptrol.audio.channels"           // channels read or written
-	KeyAudioResult    = "apptrol.audio.result"             // the server's answer to a request: success or failed
-	KeyGuardState     = "apptrol.audio.guard.state"        // why the new-output guard set a volume again or not
-	KeyGuardRemaining = "apptrol.audio.guard.remaining_ms" // milliseconds left in the new-output guard
+	KeyDeviceIndex          = "apptrol.device.index"   // the audio server's index of an output device
+	KeyAudioChannels        = "apptrol.audio.channels" // channels read or written
+	KeyChannelPositions     = "apptrol.audio.channel_positions"
+	KeyChannelVolumes       = "apptrol.audio.channel_volumes_percent"
+	KeyWantedChannelVolumes = "apptrol.audio.wanted_channel_volumes_percent"
+	KeyBalanceRatios        = "apptrol.audio.balance.ratios"
+	KeyBalanceSource        = "apptrol.audio.balance.source"
+	KeyBalanceReason        = "apptrol.audio.balance.reason"
+	KeyAudioResult          = "apptrol.audio.result"             // the server's answer to a request: success or failed
+	KeyGuardState           = "apptrol.audio.guard.state"        // why the new-output guard set a volume again or not
+	KeyGuardRemaining       = "apptrol.audio.guard.remaining_ms" // milliseconds left in the new-output guard
 
 	// Why the adapter ignored an ownership answer for an older identity of an
 	// output (CTRL-06, ADR 0027).

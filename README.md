@@ -65,7 +65,9 @@ the separate `[apps]`, `[inputs]` and `[outputs]` configuration tables, and a sl
 knob sets an output's volume: a fixed one, or the output your system uses right now
 (`device = "default"`), which it follows when you switch. M toggles its saved mute;
 outside mutes are taken over, and M's LED shows it. When two controls choose one
-device, the first control owns it. Outputs have no solo. See the [configuration reference](docs/config.md).
+device, the first control owns it. Output volume preserves channel balance, with
+its loudest channel following the control: 80/60 becomes 50/37.5 at 50%.
+Outputs have no solo. See the [configuration reference](docs/config.md).
 
 ## Before you install
 

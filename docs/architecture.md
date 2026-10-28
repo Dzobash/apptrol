@@ -7,7 +7,7 @@ How the service is put together. Decisions and their reasons are in
 
 ```
  nanoKONTROL2 ──► controller ──┐                          ┌──► audio ──────► PipeWire
-  (raw MIDI)      (decode MIDI,│                          │    (volume and mute, including outputs)
+  (raw MIDI)      (decode MIDI,│                          │    (volume, mute, output channel balance)
                    drive LEDs) │       events   ┌───────┐ ├──► controller ─► LEDs
  config.toml ───► config ──────┼───────────────►│ mixer │─┤
                   (load,       │                │ (pure │ ├──► desktop ────► media players
@@ -34,6 +34,8 @@ How the service is put together. Decisions and their reasons are in
   has no clock, so it is tested completely with plain unit tests.
   A read-only solo accessor supplies the column, configured app name and current
   playing state for the service's Status line (SVC-13).
+  Output actions carry a scalar level; channel balance lives in the audio adapter
+  (OUT-14, ADR 0039).
 - **Adapters** (`controller`, `audio`, `desktop`, `session`, `launcher`, `systemd`,
   `config`, `state`, `logging`) talk to the outside world. The service uses them through
   small interfaces (`service.Controller`, `service.Audio`, `service.Desktop`,
@@ -54,7 +56,7 @@ How the service is put together. Decisions and their reasons are in
 | `internal/mixer` | Core logic (pure): matching streams, inputs, output devices and media players to controls, following the default output, output ownership, output volume, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write; lets go of the controller and takes it back (ADR 0029) |
-| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`): playback streams, capture devices and output devices, their volume and mute; the default output and its changes; the new-device guard; reconnects; `apptrol list` data |
+| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`): playback streams, capture devices and output devices, their volume and mute; the default output and its changes; output channel positions and ratios; the level-only output guard; reconnects; `apptrol list` data |
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
 | `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, whether the user's graphical session is unlocked, locked, behind another session or unknown, and whose session is in front at the seat (ADR 0029); reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
@@ -91,6 +93,8 @@ is part of this guard. Windows adapters and path changes remain in #92.
    player*, *start OBS*, *state changed*.
 4. The service executes them. Failures are logged; they never stop the loop. Player
    commands and app starts are only handed over: their adapters log the outcome later.
+   An output's scalar volume becomes a per-channel vector in the audio adapter,
+   using the device's latest usable balance (OUT-14, ADR 0039).
 
 One loop runs inside the audio adapter without the mixer: for 3 seconds after a
 stream, input or output appears, the new-device guard sets the volume and mute Apptrol
@@ -363,11 +367,10 @@ shows the control in the output devices' CONTROL column (OUT-12). It passes the
 server's default output into the snapshot, so a `device = "default"` control shows on
 the `*` device, and of two controls on one device only the owner is shown.
 
-### Planned: preserving output balance
+### Preserving output balance
 
 [ADR 0039](adr/0039-output-volume-keeps-channel-balance.md), OUT-14 to OUT-16,
-is accepted for 0.3.0; implementation is pending (#156). The current audio adapter
-still flattens channels as described below. The planned boundary is:
+is implemented in the audio adapter for 0.3.0 (#156):
 
 ```text
 controller → pure mixer → SetOutputVolume 50% → audio adapter → channels 50/37.5
@@ -381,7 +384,11 @@ The mixer's ownership, scalar volume actions, default-following rules and the
 service's `Audio` interface stay unchanged. The adapter keeps per-device channel
 positions, last read values and usable ratios, distinct from the guard's requested
 level. Subscription reads update balance even during active volume defense; own
-rounded echoes retain the ratios to avoid drift. Every output write scales the
+rounded echoes retain the ratios to avoid drift. A read consistent with the
+retained ratios within one protocol unit also retains them, covering earlier
+echoes and server rounding without claiming attribution. At near-zero levels
+that tolerance can hide a larger proportional outside adjustment (ADR 0039).
+Every output write scales the
 retained ratios so the maximum follows the scalar action. Apps and inputs retain
 their existing conversion.
 
@@ -396,10 +403,11 @@ read accept usable server balance, then compare
 the maximum channel level with the requested level. A correction scales the latest
 ratios, including a late restore's balance; balance-only changes stay. Generation answers,
 pending ownership, `ReleaseOutput`, `ForgetOutputVolume`, mute defense and the
-`wire` then `mu` lock order retain their existing roles. Tests will exercise the
+`wire` then `mu` lock order retain their existing roles. Tests exercise the
 conversion and these lifecycle boundaries, including lost writes and a move while
 a correction is in progress; [TC-OUT-010](testing/cases/out.md#tc-out-010--output-volume-keeps-channel-balance)
-records the planned controller and real-server checks.
+records the controller checks for the owner's rc1 run. Real-server tests inspect
+stereo and six-channel vectors on active silent outputs.
 
 ## Controller access
 
@@ -477,10 +485,14 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
 - Volume is set per stream, per input and per output device (`SetSinkVolume` by the
   sink's name, OUT-01); mute per stream, per input and per output (`SetSinkMute`). The percentage is the one desktop
   mixers (KDE, GNOME, pavucontrol) show, so a slider at 50 % shows 50 % there. The top of
-  a control is the target's `max_volume` (default 100 %, up to 150 %). All channels get
-  the same volume, so an output's left/right balance is lost
-  ([known issue](known-issues.md)). The adapter keeps each sink's channel count, as it
-  does for streams and inputs.
+  a control is the target's `max_volume` (default 100 %, up to 150 %). Apps and inputs
+  set every channel equally. Outputs use the maximum-channel level and preserve
+  their proportions (OUT-14, ADR 0039); other applets may summarize them differently.
+  The adapter caches each sink's positions, usable ratios, last read vector and
+  last accepted write, separately from its scalar guard. Missing cache information
+  requires a server read; failure never guesses a layout or writes equal channels.
+  Full snapshots and overflow resyncs reset that cache under `wire` then `mu`,
+  without keeping ratios from potentially removed devices.
 - Monitors of outputs ("Monitor of GoXLR…") are not capture devices and are never
   matched. A monitor is a source, never a sink, so it is listed neither as an input nor
   as an output (OUT-12). The config validator warns about monitor fragments before the
@@ -489,7 +501,8 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   output's when it appears. When that lands after Apptrol has set the control's position,
   Apptrol sets it again: for 3 seconds after a stream, input or output appears, changes
   to what Apptrol set are undone (PRIO-03, OUT-05). For an output, the guard defends
-  the volume and the mute the owning control set (#177). Within its window, a mute
+  the maximum-channel level and the mute the owning control set, accepting the
+  server's balance (OUT-16, ADR 0039; mute: #177). Within its window, a mute
   change other than the echo of Apptrol's write is never reported to the mixer: the
   server's restore and an outside change look the same, so the guard sets the mute
   again, as for streams and inputs. It holds the mute once a control set one, while
@@ -799,7 +812,12 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
 - `controller`: MIDI decoding and the CC map with byte-level tests and fuzzing.
   `controller/rawmidi`: discovery, plug/unplug and busy devices against fake devices; the
   real controller is checked by hand (`apptrol test`, docs/testing.md).
-- `audio/pulse`: integration tests against a headless PipeWire in CI: streams, a test
+- `audio/pulse`: output-balance unit tests cover mono, stereo, surround, zero,
+  silent channels, boost, rounding echoes, snapshots, reconnect, overflow resync,
+  layouts, outside edits, failures and ownership/guard ordering (OUT-14 to OUT-16).
+  Integration tests inspect balanced vectors, zero recovery and level-only guard
+  corrections on active silent stereo and six-channel outputs.
+  Other integration tests against a headless PipeWire in CI: streams, a test
   input and a silent test output that appear and go, the test output's volume set to
   30 % and read back, the new-output guard setting it back within its 3 seconds and
   leaving it after them, a first write the server accepts but loses being set again

@@ -6,22 +6,6 @@ around. Found another one? Please [open an issue](https://github.com/Dzobash/app
 
 ## In Apptrol
 
-### An output on a control loses its left/right balance
-
-*From 0.3.0, by design for now (OUT-01, [ADR 0027](adr/0027-output-volume.md)).*
-
-When a slider or knob sets an output's volume, every channel gets the same value, as
-for apps and inputs. A balance set in the desktop's volume settings (say, the left
-speaker quieter than the right) is gone after the first move of the control:
-
-```
-before:  left 40 %   right 60 %   (balance set in the desktop)
-slider:  left 50 %   right 50 %   (the slider's position on both)
-```
-
-**Workaround:** set the balance on the speakers or amplifier themselves, or leave that
-output on no control.
-
 ### A "no permission" error when a second user logs in
 
 *In 0.2.1; fixed in 0.2.2 ([#104](https://github.com/Dzobash/apptrol/issues/104)).*

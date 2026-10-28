@@ -53,6 +53,12 @@ Apptrol's own:
 | `apptrol.device.previous_name` | The default output before it changed; empty if there was none (OUT-03, ADR 0038) |
 | `apptrol.device.index` | The audio server's number for an output device (changes when it is added again) |
 | `apptrol.audio.channels` | How many channels a device has, as read or written |
+| `apptrol.audio.channel_positions` | Ordered PulseAudio channel-position codes for the accompanying output vectors (ADR 0039) |
+| `apptrol.audio.channel_volumes_percent` | Output channel percentages read from the server, in position order |
+| `apptrol.audio.wanted_channel_volumes_percent` | Requested output channel percentages, in position order |
+| `apptrol.audio.balance.ratios` | Output channel proportions relative to the loudest channel, in position order |
+| `apptrol.audio.balance.source` | Where the selected ratios came from: `server`, `remembered`, or `equal` fallback |
+| `apptrol.audio.balance.reason` | Why balance was selected or retained: `snapshot`, `resync`, `new_device`, `outside_change`, `guard_read`, `zero`, `layout_changed`, `missing_cache`, `own_write`, or `consistent` (within one protocol unit of retained ratios; does not attribute the change) |
 | `apptrol.audio.result` | The audio server's answer to a request: `success` or `failed` |
 | `apptrol.audio.guard.state` | What the new-output guard made of a read: `restore_volume` (set again), `at_wanted_volume`, `no_volume_set` (no control set it, or it was released), `expired`, `no_guard` (not new), `identity_changed` (new, or a new name or description: the mixer decides first), `ownership_pending` (no answer for the newest reported identity yet; no guard write); for a mute change not taken over within the guard's window (#177): `restore_mute` (the other value: set again), `at_wanted_mute` (the value Apptrol set), `ownership_pending`, or `released` (no control holds the device: held, set nothing, ADR 0038) |
 | `apptrol.audio.guard.remaining_ms` | Milliseconds left in the new-output guard's 3 seconds |

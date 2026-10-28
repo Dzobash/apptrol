@@ -116,7 +116,7 @@ in [ADR 0029](adr/0029-controller-follows-the-user-in-front.md).
 | ID | Requirement | Level |
 |---|---|---|
 | CTRL-01 | Each slider and each knob MAY be assigned one target in the active layout. Unassigned controls MUST do nothing. | MUST |
-| CTRL-02 | Moving a control MUST set the volume of its target to the control's position, mapped linearly from 0–127 to 0 % – the target's `max_volume` (CTRL-03), in the audio server's displayed percentage scale, not linear amplitude. For outputs this is the loudest channel's percentage, preserving the other channels' proportions (OUT-14, planned for 0.3.0); apps and inputs continue to set every channel equally. | MUST |
+| CTRL-02 | Moving a control MUST set the volume of its target to the control's position, mapped linearly from 0–127 to 0 % – the target's `max_volume` (CTRL-03), in the audio server's displayed percentage scale, not linear amplitude. For outputs this is the loudest channel's percentage, preserving the other channels' proportions (OUT-14); apps and inputs continue to set every channel equally. | MUST |
 | CTRL-03 | Volume MUST stay between 0 % and the app's `max_volume` (default 100 %). `max_volume` MAY be set per app from 1 to 150 %; the control then spans 0 to that value, so it also works as a cap below 100 %. | MUST |
 | CTRL-04 | For an **app** target, the volume MUST be applied to every playback stream that matches the app, including several streams of the same program (e.g. several browser tabs). | MUST |
 | CTRL-05 | For an **input** target, the volume MUST be applied to the matching capture device. | MUST |
@@ -320,7 +320,7 @@ in [ADR 0029](adr/0029-controller-follows-the-user-in-front.md).
 Designed in [ADR 0027](adr/0027-output-volume.md); fixed-output ownership updated
 by [ADR 0035](adr/0035-first-control-owns-matched-output.md). Output balance
 (OUT-14 to OUT-16), designed in [ADR 0039](adr/0039-output-volume-keeps-channel-balance.md),
-is planned for 0.3.0 before rc1; implementation is pending (#156).
+is implemented for 0.3.0 (#156).
 
 | ID | Requirement | Level |
 |---|---|---|
@@ -345,7 +345,7 @@ For OUT-05, the defended output volume is its maximum-channel level; server bala
 changes are accepted even during the guard window (OUT-16). For OUT-13,
 debug records MUST also explain the selected or retained balance and its source,
 zero/layout fallbacks, per-channel reads and writes, and guard corrections, as in
-ADR 0039's logging table. These extensions are planned with OUT-14 to OUT-16.
+ADR 0039's logging table.
 
 OUT-16's same balance and level rules MUST also apply when `KeepOutput` checks
 the latest read held while ownership was pending: use its channels and the latest

@@ -476,7 +476,7 @@ and the takeover) cannot be forced by hand; the unit test covers it.
 
 Covers: OUT-14, OUT-15, OUT-16, OUT-01, OUT-05, OUT-12, OUT-13, CTRL-02 · Phase 1.6
 Config: output-balance
-Type: Manual + Automated (planned; implementation pending, #156)
+Type: Manual + Automated (#156)
 
 ```text
 server 80/60 → slider6 top (cap 50%) → 50/37.5 → bottom → 0/0 → top → 50/37.5
@@ -484,8 +484,8 @@ outside 40/80 → next move to top    → 25/50
 ```
 
 **Setup**
-- [ ] Use a build implementing ADR 0039; otherwise record Blocked, implementation
-  pending. Do not treat the existing flat-channel behaviour as a newly found bug.
+- [ ] Use a 0.3.0 build implementing ADR 0039. Controller and listening results
+  are recorded during the owner's release-candidate run.
 - [ ] Create a silent stereo output:
   `pactl load-module module-null-sink sink_name=apptrol-test-balance channels=2 channel_map=front-left,front-right`
   → note `<module balance>`. Do not make it the system's default or route apps to it.
@@ -538,22 +538,25 @@ outside 40/80 → next move to top    → 25/50
 - [ ] Restore the fixture with `docs/testing/apply-fixture.sh --restore`, then run
   `pactl unload-module <module balance>` → the dedicated test sink is gone.
 
-**Automated coverage to add with implementation**
+**Automated coverage**
 
-Requirement-named tests must cover the following without depending on hardware
-timing. They are planned coverage, not claims that these tests exist already.
+Requirement-named tests in `internal/audio/pulse/output_balance_test.go` cover
+channel behavior with deterministic hooks. Real-server coverage is in
+`output_balance_integration_test.go`; it does not establish a controller or listening pass.
 
 - OUT-14: exact stereo scaling, centred channels, mono, six channels, silent channels,
   boost/cap, all-zero fallback and maximum-channel listing; apps and inputs unchanged.
+- OUT-15: delayed echoes after newer writes, the one-unit consistency boundary,
+  near-silence ambiguity and server levels above the control's write cap.
 - OUT-15: zero and repeated moves without drift, own echoes, outside edits,
   nonzero/zero snapshots, removal/reappearance, reconnect, channel-layout changes,
   mute independence, cache-miss reads and read/write failure.
-- OUT-15: `TestOUT15_OverflowResyncDiscardsCachedBalance` must remember 80/60,
+- OUT-15: `TestOUT15_OverflowResyncDiscardsCachedBalance` remembers 80/60,
   then resync at 0/0 with the same name, index and positions and expect 50/50 on
-  the next move to 50. A nonzero resync at 80/60 must instead yield 50/37.5.
+  the next move to 50. A nonzero resync at 80/60 yields 50/37.5.
   Also simulate a missed removal/reappearance: old ratios must not survive the
   full resync. Exercise the reset directly rather than relying on a timed overflow.
-- OUT-16: `TestOUT16_LateRestoreSuppliesBalanceOnANewOutput` must force initial
+- OUT-16: `TestOUT16_LateRestoreSuppliesBalanceOnANewOutput` forces initial
   100/100, an Apptrol write of 50/50, then a restore to 80/60, and expect 50/37.5.
   Also cover an unchanged maximum with a changed quieter channel (kept), accepted
   writes lost without notifications, read-back and notifications taking the same
@@ -561,7 +564,7 @@ timing. They are planned coverage, not claims that these tests exist already.
   own rounded echoes, a newer move during a guard correction, pending/stale
   ownership answers, release and default takeover forgetting the requested level.
   Use deterministic hooks for event order.
-- OUT-16: `TestOUT16_KeepOutputUsesHeldBalance` must hold a rename read at 80/60
+- OUT-16: `TestOUT16_KeepOutputUsesHeldBalance` holds a rename read at 80/60
   while ownership is pending, then deliver the current `KeepOutput` inside the
   window with 50 requested and expect 50/37.5. Also check a newer held read,
   stale answers and an answer after expiry; no flat write or average comparison.
