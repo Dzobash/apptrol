@@ -1199,7 +1199,6 @@ func (b *Backend) Apply(a mixer.Action) error {
 			g.muted, g.released = &m, false
 		}
 	case mixer.SetOutputVolume:
-		chans = b.outChans[a.Device]
 		if g := b.outGuard[a.Device]; g != nil {
 			v := a.Volume
 			g.volume = &v
