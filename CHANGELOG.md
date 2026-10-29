@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reconnect and overflow resync obtain it afresh. `apptrol list` shows the maximum
   output channel level. Apps and inputs are unchanged (OUT-14 to OUT-16,
   [ADR 0039](docs/adr/0039-output-volume-keeps-channel-balance.md), #156).
+- `make test-systemd RUNS=<n>` repeats the Status line check n times per distro in one
+  call, up to 8 containers at once, each run with its own `.audit/runs.log` line; it
+  stops starting runs after the first failure and prints a per-distro summary, so the
+  300 runs #172 asks for take one call instead of 300 (QA-16,
+  [ADR 0034](docs/adr/0034-containers-through-one-script.md#repeated-runs--2026-10-28)).
 - `make test-clean` removes the folders and logs that failed container runs keep
   (`.tmp/run-*`, `.audit/logs/`) through the container script, including files written
   as other user IDs, in this checkout only. It starts no container, never follows links,
@@ -161,6 +166,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer read it (CFG-19).
 
 ### Fixed
+- Canceling container checks now stops dispatch and waits for started runs to finish
+  cleanup and their audit records, even after repeated INT/TERM signals to the runner
+  or its process group. Foreground commands keep terminal Ctrl-C routed to the
+  dispatcher; workers cannot be stopped by terminal input/output. It prints their
+  results before returning the signal status (QA-16, ADR 0034).
 - R and ▶ no longer blink when you seek in a browser video with the mouse. Many web
   players pause the video for 60–100 ms while you scrub, and the LEDs followed every
   pause. They now go dark only after a player has stayed paused for 500 ms; buffering

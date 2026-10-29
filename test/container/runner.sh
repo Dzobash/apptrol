@@ -4,7 +4,10 @@
 set -euo pipefail
 umask 077
 label=${APPTROL_AUDIT_AGENT:-unspecified}
-unset APPTROL_AUDIT_AGENT
+# RUNS is caller data like AGENT: checked below, never in Podman's environment,
+# arguments or paths (QA-16, ADR 0034, #172).
+runs=${APPTROL_RUNS-1}
+unset APPTROL_AUDIT_AGENT APPTROL_RUNS
 agent=unspecified
 repo=$(cd -- "$(dirname -- "$0")/../.." && pwd -P)
 cd "$repo"
@@ -29,6 +32,12 @@ for path in .tmp .audit .audit/logs .audit/runs.log; do
 done
 mkdir -p .tmp .audit/logs
 [[ ! -e .audit/runs.log || -f .audit/runs.log ]]
+# A plain decimal 1-1000: no sign, space or leading zero, so it is safe in
+# arithmetic. Refused before the lock and before Podman; no run was attempted, so
+# no audit line is written (QA-16, ADR 0034, #172).
+if [[ ${1:-} == @systemd ]]; then
+    [[ $runs =~ ^[1-9][0-9]{0,3}$ ]] && ((runs <= 1000)) || { echo 'RUNS must be a whole number from 1 to 1000' >&2; exit 2; }
+fi
 # Worktrees share the budget lock, but never mount it (QA-16, ADR 0034).
 common=$(git rev-parse --path-format=absolute --git-common-dir)
 lock="$common/apptrol-containers.lock"
@@ -37,7 +46,10 @@ exec 9>"$lock"
 flock 9
 available=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
 jobs=$(( (available - 4194304) / 524288 ))
-((jobs <= 16)) || jobs=16
+# Memory alone is not enough: per-user inotify instances are shared by every
+# rootless container and the owner's desktop, and 16 systemd containers at once
+# ran out of them. At most 8 at once is the owner's choice (QA-16, ADR 0034, #172).
+((jobs <= 8)) || jobs=8
 ((jobs >= 0)) || jobs=0
 source_commit=$(git rev-parse --short HEAD)
 # The audit line shows the short form; the package check needs the full commit,
@@ -64,8 +76,15 @@ write_audit() {
 
 # The trap is installed before validation or Podman: rejected attempts count too.
 # Raw names/errors stay in local logs, never the committed audit line (QA-16).
+# Arguments: the run's folder from new_run, recipe, mode, and reuse=1 when an
+# earlier run of this call built the image (QA-16, ADR 0034, #172).
 run_one() (
-    run=$(mktemp -d "$repo/.tmp/run-XXXXXXXX")
+    # Cancellation belongs to the dispatcher. Finish the whole transaction,
+    # including cleanup and the locked audit append (QA-16, ADR 0034).
+    trap '' INT TERM TTOU
+    set +m
+    run=$1
+    shift
     runid=${run##*/}
     log="$repo/.audit/logs/$runid.log"
     start=$SECONDS
@@ -79,6 +98,20 @@ run_one() (
         rc=$?
         trap - EXIT
         exec 1>&3 2>&4
+        # A failed repeated run publishes its id under the stop marker's lock, so
+        # the dispatcher starts nothing after it: at once when the check failed,
+        # and again below if cleanup turns the result into FAIL (QA-16, #172).
+        # A failed write sends no signal: the marker lives in .tmp/, and when
+        # .tmp/ cannot be written the next run cannot make its own workspace
+        # there either, so it fails before any container starts; the check when
+        # this run is reaped still stops dispatch.
+        published=0
+        publish_failure() {
+            ((published == 0)) && [[ -n ${stop_mark:-} ]] || return 0
+            published=1
+            { flock 6 && printf '%s\n' "$runid" >&6; } 6>>"$stop_mark" 2>/dev/null || :
+        }
+        if ((rc != 0)); then publish_failure; fi
         if ((created)); then
             "${engine[@]}" rm --force --ignore "$container" >>"$log" 2>&1 || rc=1
         fi
@@ -88,7 +121,7 @@ run_one() (
             "${engine[@]}" unshare rm -rf -- "$run" >>"$log" 2>&1 || rc=1
         fi
         result=FAIL
-        if ((rc == 0)); then result=PASS; fi
+        if ((rc == 0)); then result=PASS; else publish_failure; fi
         write_audit "$runid" "$recipe" "$digest" "$image" "$result" "$((SECONDS-start))"
         cat "$log"
         if ((rc == 0)); then
@@ -99,8 +132,6 @@ run_one() (
         exit "$rc"
     }
     trap finish EXIT
-    trap 'exit 130' INT
-    trap 'exit 143' TERM
     exec >"$log" 2>&1
     [[ $label =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]{0,63}$ ]] || { echo 'AGENT must be a short model or caller label'; exit 2; }
     agent=$label
@@ -144,11 +175,18 @@ run_one() (
     image="localhost/apptrol-$imagename:$buildhash"
     echo "recipe=$recipe jobs=$jobs image=$image"
     echo "host $repo -> container /src read-only; host $run -> container /work writable"
-    # Never cache the enforcement proof: delegation can change between runs.
+    # Never cache the enforcement proof: delegation can change between calls.
     # Use the same build arguments for the probe and recipe (QA-16, ADR 0034).
-    /usr/bin/systemd-run --user --scope --unit="apptrol-build-$runid" \
-        -p Delegate=yes -p TasksMax=256 -p MemoryMax=512M -p MemorySwapMax=0 \
-        /bin/bash "$repo/test/container/build.sh" "$repo/$dockerfile" "$repo/$context" "$image" "$run"
+    # Repeated runs build nothing: this call's first run of the distro built and
+    # proved the image under the same lock, and --pull=never refuses a missing
+    # one (QA-16, ADR 0034, #172).
+    if [[ ${3:-} == reuse ]]; then
+        echo 'image built by the first run of this call; no build here'
+    else
+        /usr/bin/systemd-run --user --scope --unit="apptrol-build-$runid" \
+            -p Delegate=yes -p TasksMax=256 -p MemoryMax=512M -p MemorySwapMax=0 \
+            /bin/bash "$repo/test/container/build.sh" "$repo/$dockerfile" "$repo/$context" "$image" "$run"
+    fi
     args=(--name "$container" --pull=never --network=none --memory=512m --memory-swap=512m --pids-limit=256
         --http-proxy=false --unsetenv-all --image-volume=ignore --user=0:0
         --env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -209,20 +247,66 @@ run_one() (
 
 children=()
 stop_children() {
-    trap - INT TERM
-    if ((${#children[@]})); then
-        kill -TERM "${children[@]}" 2>/dev/null || :
-        wait "${children[@]}" || :
+    # Exit from the handler: execution can never return to a half-finished launch.
+    # Bash owns the job table even before $! is registered in our arrays. Ignore
+    # repeated signals throughout draining and reporting (QA-16, ADR 0034).
+    trap '' INT TERM TTOU
+    # A signal may arrive inside a launch's job-control interval. Foreground
+    # drain commands must never claim the terminal (QA-16, ADR 0034).
+    set +m
+    local status=$1
+    exec 6<&-
+    # A signal already pending when the handler began can interrupt its first
+    # wait too. The job table, not wait's status, proves draining is complete
+    # (QA-16, ADR 0034).
+    while [[ -n $(jobs -pr) || -n $(jobs -ps) ]]; do wait || :; done
+    if [[ -f .audit/runs.log ]]; then
+        awk -v before="$audit_start" '
+            NR > before {
+                recipe = result = ""
+                for (i = 1; i <= NF; i++) {
+                    if ($i ~ /^recipe=/) recipe = substr($i, 8)
+                    if ($i ~ /^result=/) result = substr($i, 8)
+                }
+                if (!(recipe in seen)) order[++n] = recipe
+                seen[recipe] = 1
+                if (result == "PASS") passed[recipe]++; else failed[recipe]++
+            }
+            END {
+                for (i = 1; i <= n; i++) {
+                    recipe = order[i]
+                    printf "%s: %d passed, %d failed (canceled)\n", recipe, passed[recipe], failed[recipe]
+                }
+            }
+        ' .audit/runs.log
     fi
-    exit 130
+    [[ -z ${stop_mark:-} ]] || rm -f -- "$stop_mark"
+    exit "$status"
 }
-trap stop_children INT TERM
+# Job control is enabled only across each background launch: it creates a separate
+# worker group without handing foreground dispatcher commands the terminal. Only
+# builtins run until set +m, including in the cancellation handler. Worker stdin
+# is /dev/null; workers ignore TTOU for their final log output (QA-16, ADR 0034).
+audit_start=0
+if [[ -f .audit/runs.log ]]; then audit_start=$(wc -l < .audit/runs.log); fi
+trap 'stop_children 130' INT
+trap 'stop_children 143' TERM
+# The folder is made here, not inside run_one, so the caller knows each run id.
+new_run() {
+    mktemp -d "$repo/.tmp/run-XXXXXXXX"
+}
 # Both distros of one mode (systemd or install), side by side when memory allows.
 run_distros() {
     local mode=$1
     if ((jobs >= 2)); then
-        run_one "$mode-ubuntu" "$mode" & first=$!
-        run_one "$mode-fedora" "$mode" & second=$!
+        run=$(new_run)
+        set -m
+        run_one "$run" "$mode-ubuntu" "$mode" </dev/null & first=$!
+        set +m
+        run=$(new_run)
+        set -m
+        run_one "$run" "$mode-fedora" "$mode" </dev/null & second=$!
+        set +m
         children=("$first" "$second")
         failed=0
         wait "$first" || failed=1
@@ -230,18 +314,113 @@ run_distros() {
         exit "$failed"
     fi
     # Do not suppress errexit inside run_one by calling it as an if condition.
-    run_one "$mode-ubuntu" "$mode" & first=$!
+    run=$(new_run)
+    set -m
+    run_one "$run" "$mode-ubuntu" "$mode" </dev/null & first=$!
+    set +m
     children=("$first")
     failed=0
     wait "$first" || failed=1
-    run_one "$mode-fedora" "$mode" & second=$!
+    run=$(new_run)
+    set -m
+    run_one "$run" "$mode-fedora" "$mode" </dev/null & second=$!
+    set +m
     children=("$second")
     wait "$second" || failed=1
     exit "$failed"
 }
+
+# Repeated runs collect the #172 evidence in one call: up to $jobs containers at
+# once, all under the one lock, so other worktrees still wait. Each run keeps its
+# own container, folder, run id and audit line. One red run resets the streak, so
+# after the first failure nothing new starts; the running ones finish
+# (QA-16, ADR 0034, #172).
+declare -A running=() passes=() fails=()
+first_failed=
+# Failed runs write their ids here; empty means none yet (QA-16, #172).
+stop_mark=
+# Waits for any one run and counts it. Only INT and TERM are trapped, and their
+# handler exits, so `wait` comes back with a run, or with none when no run is
+# left: that is a dispatcher bug, never counted as a pass.
+reap() {
+    local pid= rc=0 recipe runid
+    wait -n -p pid "${!running[@]}" || rc=$?
+    if [[ -z ${pid:-} || -z ${running[${pid:-0}]:-} ]]; then
+        echo "FAIL: waited for a run but none was collected (status $rc)" >&2
+        exit 1
+    fi
+    read -r recipe runid <<< "${running[$pid]}"
+    unset "running[$pid]"
+    children=("${!running[@]}")
+    if ((rc == 0)); then
+        passes[$recipe]=$((${passes[$recipe]:-0} + 1))
+    else
+        fails[$recipe]=$((${fails[$recipe]:-0} + 1))
+        first_failed=${first_failed:-$runid}
+    fi
+}
+# Starts the recipes in order, at most $slots at once, none after a failure.
+# Arguments: reuse or build, then the recipes.
+start_runs() {
+    local how=$1 recipe run
+    shift
+    for recipe in "$@"; do
+        while ((${#running[@]} >= slots)); do reap; done
+        # A failure counts from the moment its run writes the marker, not from when
+        # it is reaped: with free slots nothing may be waiting on it. The check and
+        # the start hold the marker's lock, which the failed run writes under, so
+        # no run starts after a published failure (QA-16, #172).
+        exec 6<"$stop_mark"
+        flock 6
+        if [[ -n $first_failed || -s $stop_mark ]]; then
+            exec 6<&-
+            return 0
+        fi
+        run=$(new_run)
+        set -m
+        run_one "$run" "$recipe" systemd "$how" 6<&- </dev/null &
+        running[$!]="$recipe ${run##*/}"
+        set +m
+        children=("${!running[@]}")
+        exec 6<&-
+    done
+}
+run_repeated() {
+    local began=$SECONDS i recipe done_runs rest=()
+    # With jobs=0 one slot is left, so run_one records the memory refusal.
+    slots=$((jobs > 0 ? jobs : 1))
+    stop_mark=$(mktemp "$repo/.tmp/stop-XXXXXXXX")
+    # Each distro's first run builds and proves its image; the rest reuse it.
+    start_runs build systemd-ubuntu systemd-fedora
+    while ((${#running[@]})); do reap; done
+    for ((i = 2; i <= runs; i++)); do
+        rest+=(systemd-ubuntu systemd-fedora)
+    done
+    start_runs reuse "${rest[@]}"
+    while ((${#running[@]})); do reap; done
+    # The first published failure, if any, is the one named below.
+    if [[ -s $stop_mark ]]; then
+        read -r first_failed < "$stop_mark"
+    fi
+    rm -f -- "$stop_mark"
+    echo "RUNS=$runs, up to $slots at once, wall time $((SECONDS - began)) s"
+    for recipe in systemd-ubuntu systemd-fedora; do
+        done_runs=$((${passes[$recipe]:-0} + ${fails[$recipe]:-0}))
+        echo "$recipe: ${passes[$recipe]:-0} passed, ${fails[$recipe]:-0} failed, $((runs - done_runs)) not started"
+    done
+    if [[ -n $first_failed ]]; then
+        echo "First failed run: $first_failed (.tmp/$first_failed, .audit/logs/$first_failed.log); no new runs were started after it" >&2
+        exit 1
+    fi
+    exit 0
+}
 if [[ ${1:-} == @systemd ]]; then
     /bin/bash "$repo/test/container/build-apptrol.sh"
-    run_distros systemd
+    # RUNS=1, the default, is the single run per distro it always was.
+    if ((runs == 1)); then
+        run_distros systemd
+    fi
+    run_repeated
 fi
 # A regular file, not a folder or a link, with the extension $1 in dist/.
 has_package() {
@@ -370,6 +549,9 @@ if [[ ${1:-} == @clean ]]; then
     exit 0
 fi
 name=${1:-}
-run_one "${name#recipe:}" & only=$!
+run=$(new_run)
+set -m
+run_one "$run" "${name#recipe:}" </dev/null & only=$!
+set +m
 children=("$only")
 wait "$only"

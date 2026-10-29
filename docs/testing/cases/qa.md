@@ -113,3 +113,25 @@ commands.sh:  #!/bin/sh
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
+
+### TC-QA-007 — `make test-systemd RUNS=<n>` repeats the check in one call
+
+Covers: QA-16 · Phase 1.6
+Config: `test/container/valid.toml` (container-only fixture)
+Type: Manual
+Test: `TestQA16_RunsDefaultIsOneRunPerDistro`, `TestQA16_RunsRepeatsEachDistro`, `TestQA16_RunsCeilingIsEight`, `TestQA16_RunsStopAfterTheFirstFailure`, `TestQA16_BadRunsRefused` (count, slots, the ceiling of 8, stop after a failure, refused values and Podman's arguments against a fake Podman; real timing needs real Podman)
+
+**Setup**
+- [ ] Rootless Podman is installed, as for TC-QA-003
+- [ ] No uncommitted changes (`git status --short` is empty), so the lines say `dirty=no`
+
+**Steps**
+- [ ] Run `make test-systemd RUNS=01 AGENT=<model>` → refused with "RUNS must be a whole number from 1 to 1000", no container starts, no audit line
+- [ ] Run `make test-systemd RUNS=16 AGENT=<model>` → the binary is built once, each distro's first run builds and proves its image, the later runs print "no build here"
+- [ ] The summary says `up to 8 at once` (fewer only when memory is short), `systemd-ubuntu: 16 passed, 0 failed, 0 not started`, the same for Fedora, and a wall time
+- [ ] Read `.audit/runs.log` → 16 new PASS lines per distro, each with its own `run=`, all `dirty=no`
+- [ ] Read `.tmp/` and `.audit/logs/` → no leftovers from the passed runs
+- [ ] Start another repeated call and press Ctrl-C while checks are running, then press it again while stopping → no further runs are dispatched; started runs finish, clean up and each append one complete PASS/FAIL line; their per-distro summary is printed before exit. The runner returns 130 (Make may wrap it). Repeat with default `RUNS=1`, install and a recipe. Waiting has no finite upper bound; see ADR 0034's cancellation note. Automated gate coverage: `TestQA16_CancellationDrainsTransactions`.
+
+**Result:** Pass / Fail / Blocked
+**Notes:** Record the wall time and the `jobs=` value, to estimate a RUNS=300 call (docs/testing.md › Collecting the #172 evidence).
