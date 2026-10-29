@@ -876,6 +876,152 @@ done
 	}
 }
 
+// fileText reads a command's output file when printed.
+type fileText struct{ path string }
+
+func (f fileText) String() string {
+	data, _ := os.ReadFile(f.path)
+	return string(data)
+}
+
+// TestQA16_SignalDuringLaunchStopsTheNewRun sends TERM to the runner after a run
+// is launched (`&`) but before it is registered, on the RUNS dispatch path and on
+// run_distros. The runner pauses at that point on a gate and the run's start is
+// held until the test releases it, so without the guard the call ends while the
+// run still waits there, and the run's audit line cannot exist yet: no timing luck
+// decides the result (QA-16, ADR 0034, #172, review round 4).
+func TestQA16_SignalDuringLaunchStopsTheNewRun(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		launchLine string // the runner's launch line; the gate goes right after it
+		pauseAt    int    // which pass over that line pauses
+		blockStart int    // which fake `start` waits for the test
+		args       []string
+		wantLines  int // audit lines when the call ends: the runs before, and the stopped one
+		wantCreate int // most containers created: no run starts after the signal
+	}{
+		{"RUNS dispatch", "        run_one \"$folder\" \"$next\" systemd \"$how\" 6<&- &\n", 3, 3, []string{"RUNS=2"}, 3, 3},
+		{"run_distros", "\n        run_one \"$run\" \"$mode-ubuntu\" \"$mode\" &\n", 1, 1, nil, 1, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := containerFixture(t)
+			replaceIn(t, filepath.Join(root, "fake-podman"),
+				`    start) if [ -e start-delay ]; then sleep "$(cat start-delay)"; fi ;;`,
+				`    start) n=$(flock starts.lock sh -c 'echo x >> starts; wc -l < starts'); if [ "$n" -eq `+strconv.Itoa(tc.blockStart)+` ]; then i=0; until [ -e release-start ]; do i=$((i + 1)); [ "$i" -lt 800 ] || exit 1; sleep 0.025; done; fi ;;`)
+			gate := `#!/bin/sh
+set -eu
+cd "$(dirname "$0")"
+echo x >> launches
+[ "$(wc -l < launches)" -eq "$1" ] || exit 0
+echo "$PPID" > runner-pid
+i=0
+until [ -e release-launch ]; do
+    i=$((i + 1)); [ "$i" -lt 800 ] || exit 1; sleep 0.025
+done
+`
+			if err := os.WriteFile(filepath.Join(root, "fake-launch-gate"), []byte(gate), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			runSystemdStub(t, root, 8)
+			runner := filepath.Join(root, "test/container/runner.sh")
+			data, err := os.ReadFile(runner)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Count(string(data), tc.launchLine) != 1 {
+				t.Fatalf("runner.sh no longer has %q once; update this test", tc.launchLine)
+			}
+			hook := "        \"$repo/fake-launch-gate\" " + strconv.Itoa(tc.pauseAt) + "\n"
+			replaceIn(t, runner, tc.launchLine, tc.launchLine+hook)
+			release := func(name string) {
+				if err := os.WriteFile(filepath.Join(root, name), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// Let a run left behind finish before the folder goes, whatever happened.
+			t.Cleanup(func() {
+				release("release-launch")
+				release("release-start")
+				for i := 0; i < 200 && countLines(t, filepath.Join(root, ".audit/runs.log")) < tc.wantLines; i++ {
+					time.Sleep(25 * time.Millisecond)
+				}
+			})
+
+			// A file, not a buffer: Wait then returns when make ends, not when the
+			// last process holding the output (a run left behind) does.
+			outFile, err := os.Create(filepath.Join(t.TempDir(), "out"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer outFile.Close()
+			out := fileText{outFile.Name()}
+			cmd := exec.Command("make", append([]string{"test-systemd"}, tc.args...)...)
+			cmd.Dir = root
+			cmd.Stdout, cmd.Stderr = outFile, outFile
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() { done <- cmd.Wait() }()
+			var pid int
+			for i := 0; ; i++ {
+				if data, err := os.ReadFile(filepath.Join(root, "runner-pid")); err == nil && len(data) > 0 {
+					if pid, err = strconv.Atoi(strings.TrimSpace(string(data))); err != nil {
+						t.Fatal(err)
+					}
+					break
+				}
+				select {
+				case err := <-done:
+					t.Fatalf("the call ended before the launch gate (%v)\n%s", err, out.String())
+				default:
+				}
+				if i > 800 {
+					t.Fatal("the runner did not reach the launch gate")
+				}
+				time.Sleep(25 * time.Millisecond)
+			}
+			// The runner waits on the gate, so the signal is handled right after it.
+			if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
+				t.Fatal(err)
+			}
+			release("release-launch")
+			// A guarded runner cannot end before the stopped run has: hold that
+			// run's start a moment, then let it go.
+			lines := -1
+			select {
+			case err = <-done:
+				lines = countLines(t, filepath.Join(root, ".audit/runs.log"))
+			case <-time.After(1500 * time.Millisecond):
+				release("release-start")
+				select {
+				case err = <-done:
+					lines = countLines(t, filepath.Join(root, ".audit/runs.log"))
+				case <-time.After(30 * time.Second):
+					t.Fatal("the call did not end after the run was released")
+				}
+			}
+			if lines != tc.wantLines {
+				t.Fatalf("the call ended with %d audit lines, want %d: the launched run was not stopped and drained\n%s", lines, tc.wantLines, out.String())
+			}
+			if err == nil || !strings.Contains(out.String(), "Error 130") {
+				t.Errorf("want the cancellation exit 130: %v\n%s", err, out.String())
+			}
+			calls, _ := os.ReadFile(filepath.Join(root, "calls"))
+			// The stopped run may end before it creates its container.
+			if n := strings.Count(string(calls), "\ncreate "); n > tc.wantCreate {
+				t.Errorf("want at most %d containers created, got %d: a run started after the signal\n%s", tc.wantCreate, n, calls)
+			}
+			if live, _ := filepath.Glob(filepath.Join(root, "live", "*")); len(live) != 0 {
+				t.Errorf("containers left after the call: %v", live)
+			}
+			if audit, _ := os.ReadFile(filepath.Join(root, ".audit/runs.log")); !strings.Contains(string(audit), "result=FAIL") {
+				t.Errorf("the stopped run was not recorded as FAIL:\n%s\n%s", audit, out.String())
+			}
+		})
+	}
+}
+
 // TestQA16_RunsStopAfterTheFirstFailure fails the third container: nothing new
 // starts, the running ones finish, the call exits 1 and names the failed run, whose
 // folder and log are kept (QA-16, ADR 0034, #172).
