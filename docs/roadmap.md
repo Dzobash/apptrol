@@ -140,7 +140,7 @@ on-screen display still needs a trial on GNOME. The on-screen display moved to P
 - [x] Show this CI attempt's per-distro result and time in the job summary (QA-16, [TC-QA-005](testing/cases/qa.md#tc-qa-005--ci-summarizes-only-this-attempts-systemd-results), #196)
 - [x] Install the snapshot `.deb` with `apt` and the `.rpm` with `dnf` in the containers and check the Status line (QA-17, [TC-QA-004](testing/cases/qa.md), #172, #116)
 - [x] `make test-clean` removes the folders and logs that failed container runs keep (QA-18, [TC-QA-006](testing/cases/qa.md), #195)
-- [ ] Require the container check, once each distro has its evidence (#172)
+- [x] Require the container check, once each distro has its evidence: `make test-systemd RUNS=<n>` collects 300 runs per distro in one call, 8 at once (QA-16, [TC-QA-007](testing/cases/qa.md), PR #207, #172)
 - [ ] Validate the Debian DEP-5 copyright file and record Discover's license display on a release candidate ([TC-NFR-001](testing/cases/nfr.md), NFR-09, #97)
 
 **Done when:** all Phase 1.6 MUST requirements are met, configurations in the old form
