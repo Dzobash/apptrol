@@ -79,6 +79,9 @@ write_audit() {
 # Arguments: the run's folder from new_run, recipe, mode, and reuse=1 when an
 # earlier run of this call built the image (QA-16, ADR 0034, #172).
 run_one() (
+    # Cancellation belongs to the dispatcher. Finish the whole transaction,
+    # including cleanup and the locked audit append (QA-16, ADR 0034).
+    trap '' INT TERM
     run=$1
     shift
     runid=${run##*/}
@@ -128,8 +131,6 @@ run_one() (
         exit "$rc"
     }
     trap finish EXIT
-    trap 'exit 130' INT
-    trap 'exit 143' TERM
     exec >"$log" 2>&1
     [[ $label =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]{0,63}$ ]] || { echo 'AGENT must be a short model or caller label'; exit 2; }
     agent=$label
@@ -245,17 +246,47 @@ run_one() (
 
 children=()
 stop_children() {
-    trap - INT TERM
-    # Let go of the stop marker's lock first: stopped runs write to it on the way out.
+    # Exit from the handler: execution can never return to a half-finished launch.
+    # Bash owns the job table even before $! is registered in our arrays. Ignore
+    # repeated signals throughout draining and reporting (QA-16, ADR 0034).
+    trap '' INT TERM
+    local status=$1
     exec 6<&-
-    if ((${#children[@]})); then
-        kill -TERM "${children[@]}" 2>/dev/null || :
-        wait "${children[@]}" || :
+    # A signal already pending when the handler began can interrupt its first
+    # wait too. The job table, not wait's status, proves draining is complete
+    # (QA-16, ADR 0034).
+    while [[ -n $(jobs -pr) ]]; do wait || :; done
+    if [[ -f .audit/runs.log ]]; then
+        awk -v before="$audit_start" '
+            NR > before {
+                recipe = result = ""
+                for (i = 1; i <= NF; i++) {
+                    if ($i ~ /^recipe=/) recipe = substr($i, 8)
+                    if ($i ~ /^result=/) result = substr($i, 8)
+                }
+                if (!(recipe in seen)) order[++n] = recipe
+                seen[recipe] = 1
+                if (result == "PASS") passed[recipe]++; else failed[recipe]++
+            }
+            END {
+                for (i = 1; i <= n; i++) {
+                    recipe = order[i]
+                    printf "%s: %d passed, %d failed (canceled)\n", recipe, passed[recipe], failed[recipe]
+                }
+            }
+        ' .audit/runs.log
     fi
     [[ -z ${stop_mark:-} ]] || rm -f -- "$stop_mark"
-    exit 130
+    exit "$status"
 }
-trap stop_children INT TERM
+# Separate process groups keep terminal Ctrl-C away from workers, including the
+# interval before their first instruction. The dispatcher alone drains them;
+# workers also ignore tool-delivered INT/TERM (QA-16, ADR 0034).
+set -m
+audit_start=0
+if [[ -f .audit/runs.log ]]; then audit_start=$(wc -l < .audit/runs.log); fi
+trap 'stop_children 130' INT
+trap 'stop_children 143' TERM
 # The folder is made here, not inside run_one, so the caller knows each run id.
 new_run() {
     mktemp -d "$repo/.tmp/run-XXXXXXXX"

@@ -795,6 +795,186 @@ func replaceIn(t *testing.T, path string, pairs ...string) {
 	}
 }
 
+// TestQA16_CancellationDrainsTransactions gates launch, execution and finalization
+// independently of scheduler timing, including a second signal while draining
+// (QA-16, ADR 0034).
+func TestQA16_CancellationDrainsTransactions(t *testing.T) {
+	for _, mode := range []string{"repeated", "parallel", "single", "install", "recipe"} {
+		for _, phase := range []string{"launch", "bootstrap", "run", "failure", "cleanup", "audit"} {
+			t.Run(mode+"/"+phase, func(t *testing.T) {
+				root := containerFixture(t)
+				jobs := 1
+				if mode == "parallel" {
+					jobs = 2
+				}
+				runSystemdStub(t, root, jobs)
+				runner := filepath.Join(root, "test/container/runner.sh")
+				write := func(name, data string) {
+					t.Helper()
+					if err := os.WriteFile(filepath.Join(root, name), []byte(data), 0o755); err != nil {
+						t.Fatal(err)
+					}
+				}
+				write("gate", `#!/bin/sh
+set -eu
+echo x >> reached
+until [ -e release ]; do sleep 0.01; done
+`)
+				replaceIn(t, runner,
+					"# The folder is made here", "echo \"$BASHPID\" > runner-pid\ntrap 'echo $? > runner-status' EXIT\n# The folder is made here",
+					"\n    exec 6<&-\n", "\n    exec 6<&-\n    : > stopping\n")
+				args := []string{"test-systemd", "RUNS=3"}
+				switch mode {
+				case "single":
+					args = []string{"test-systemd"}
+				case "install":
+					args = []string{"test-install"}
+					if err := os.Mkdir(filepath.Join(root, "dist"), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					write("dist/fixture.deb", "")
+					write("dist/fixture.rpm", "")
+				case "recipe":
+					args = []string{"container-run", "RECIPE=sample"}
+				}
+				switch phase {
+				case "bootstrap":
+					replaceIn(t, runner, "run_one() (\n", "run_one() (\n    \"$repo/gate\"\n")
+				case "launch":
+					// Cancel after fork but before the dispatcher stores $!: the
+					// worker gate makes an unregistered live child observable.
+					replaceIn(t, runner, "    run=$1\n", "    run=$1\n    \"$repo/gate\"\n")
+					anchor := "        running[$!]="
+					switch mode {
+					case "single", "install":
+						anchor = "    children=(\"$first\")"
+					case "recipe":
+						anchor = "children=(\"$only\")"
+					}
+					replaceIn(t, runner, anchor, "kill -TERM \"$BASHPID\"\n"+anchor)
+				case "run":
+					replaceIn(t, filepath.Join(root, "fake-podman"), "    start) if", "    start) ./gate; if")
+				case "failure":
+					replaceIn(t, filepath.Join(root, "fake-podman"), "    start) if", "    start) ./gate; exit 1; if")
+				case "cleanup":
+					replaceIn(t, filepath.Join(root, "fake-podman"), "    rm) rm", "    rm) ./gate; rm")
+				case "audit":
+					replaceIn(t, runner, "        flock 8\n", "        flock 8\n        \"$repo/gate\"\n")
+				}
+				cmd := exec.Command("make", args...)
+				cmd.Dir = root
+				cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+				var output bytes.Buffer
+				cmd.Stdout, cmd.Stderr = &output, &output
+				if err := cmd.Start(); err != nil {
+					t.Fatal(err)
+				}
+				done := make(chan error, 1)
+				go func() { done <- cmd.Wait() }()
+				t.Cleanup(func() {
+					write("release", "")
+					_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+				})
+				waitFile := func(name string) {
+					t.Helper()
+					deadline := time.Now().Add(10 * time.Second)
+					for {
+						if _, err := os.Stat(filepath.Join(root, name)); err == nil {
+							return
+						}
+						if time.Now().After(deadline) {
+							t.Fatalf("gate %s was not reached", name)
+						}
+						time.Sleep(10 * time.Millisecond)
+					}
+				}
+				wantRuns := jobs
+				if phase == "launch" {
+					wantRuns = 1
+				}
+				waitFile("reached")
+				deadline := time.Now().Add(10 * time.Second)
+				for {
+					reached := countLines(t, filepath.Join(root, "reached"))
+					// The first audit writer holds fd 8, so the other writer
+					// must wait outside that gate (QA-16, ADR 0034).
+					if phase == "audit" {
+						created, _ := filepath.Glob(filepath.Join(root, "mounts.*"))
+						if reached > 0 && len(created) == wantRuns {
+							break
+						}
+					} else if reached == wantRuns {
+						break
+					}
+					if time.Now().After(deadline) {
+						t.Fatal("not all workers reached their gates")
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+				data, err := os.ReadFile(filepath.Join(root, "runner-pid"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if phase != "launch" {
+					// A terminal sends INT to the foreground process group; a tool
+					// can send TERM just to the runner (QA-16, ADR 0034).
+					signal := syscall.SIGINT
+					if phase == "bootstrap" {
+						signal = syscall.SIGTERM
+					}
+					if err := syscall.Kill(-cmd.Process.Pid, signal); err != nil {
+						t.Fatal(err)
+					}
+				}
+				waitFile("stopping")
+				_ = syscall.Kill(pid, syscall.SIGTERM)
+				write("release", "")
+				select {
+				case err := <-done:
+					if err == nil {
+						t.Error("canceled make succeeded")
+					}
+				case <-time.After(10 * time.Second):
+					t.Fatal("canceled make did not drain")
+				}
+				wantStatus := "130"
+				if phase == "launch" || phase == "bootstrap" {
+					wantStatus = "143"
+				}
+				status, err := os.ReadFile(filepath.Join(root, "runner-status"))
+				wantResult, wantSummary := "PASS", "1 passed, 0 failed (canceled)"
+				if phase == "failure" {
+					wantResult, wantSummary = "FAIL", "0 passed, 1 failed (canceled)"
+				}
+				if err != nil || strings.TrimSpace(string(status)) != wantStatus || strings.Count(output.String(), wantSummary) != wantRuns {
+					t.Errorf("status %q (%v), want %s and summary:\n%s", status, err, wantStatus, &output)
+				}
+				audit, err := os.ReadFile(filepath.Join(root, ".audit/runs.log"))
+				if err != nil || strings.Count(string(audit), "\n") != wantRuns || strings.Count(string(audit), " result="+wantResult+" ") != wantRuns || len(strings.Fields(string(audit))) != 12*wantRuns {
+					t.Errorf("want %d complete %s lines: %s (%v)", wantRuns, wantResult, audit, err)
+				}
+				for _, pattern := range []string{"live/*", ".tmp/run-*", ".tmp/stop-*", ".audit/logs/*"} {
+					wantLeft := 0
+					if phase == "failure" && (pattern == ".tmp/run-*" || pattern == ".audit/logs/*") {
+						wantLeft = wantRuns
+					}
+					if left, _ := filepath.Glob(filepath.Join(root, pattern)); len(left) != wantLeft {
+						t.Errorf("left behind %s: %v", pattern, left)
+					}
+				}
+				lock := exec.Command("flock", "-n", filepath.Join(root, "git-common/apptrol-containers.lock"), "true")
+				if err := lock.Run(); err != nil {
+					t.Errorf("shared lock still held: %v", err)
+				}
+			})
+		}
+	}
+}
+
 // TestQA16_RunsStopWhenAFailureIsKnownWithFreeSlots: with 8 slots and only three
 // runs started, nothing waits on the failed run, so the dispatcher must see it
 // before starting the next. A gate holds every later start until the failure is in
