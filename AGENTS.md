@@ -384,7 +384,7 @@ from one to another.
 - **Ready means, for every PR:**
   ```
   ✓ the PR's current commit was reviewed, with a clean round (Review)
-  ✓ the 7 required checks are green (CONTRIBUTING.md › Branches and pull requests)
+  ✓ the 8 required checks are green (CONTRIBUTING.md › Branches and pull requests)
   ✓ any other failing check is explained in the PR
   ✓ no open findings
   ```

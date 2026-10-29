@@ -540,6 +540,24 @@ re-enables signal handling. `podman start --attach` can then forward TERM into t
 container and turn an otherwise passing check into FAIL. Such tools must signal
 the runner or its process group for graceful draining.
 
+### Required check — 2026-10-29
+
+Point 6's gate is met for both distros, so `Systemd in containers` is the 8th required
+check on `main` (#172):
+
+```text
+                 owner's machine (RUNS=300, PR #207)     CI, pull requests after #188, before #208
+systemd-ubuntu   300 green in a row, one recipe hash     17 green, 0 red
+systemd-fedora   300 green in a row, one recipe hash     17 green, 0 red
+```
+
+The CI count covers the pull request runs after #188 merged and before #208, the PR
+that records this note. #188's own runs are left out: its red ones (Fedora's PAM
+helper and AppArmor, see the CI policy clarification above) were explained and fixed
+before it merged. A green CI run counts for both distros: the job has no
+`continue-on-error` and fails when either distro fails. The package-install recipes
+(`install-*`) are not part of this gate and have no CI job yet.
+
 ### Effects
 
 - Agents run containers without prompts, and the owner can see afterwards what ran

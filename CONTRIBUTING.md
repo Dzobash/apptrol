@@ -53,8 +53,9 @@ All changes go through a branch and a pull request (GitHub Flow):
    git push -u origin feat/config-loading
    ```
 3. Open a pull request into `main` on GitHub. CI runs on it; fill in the PR template.
-4. Merge with **Squash and merge** once the 7 required checks are green: Lint, Test (on
-   two Go versions), Fuzz, Vulnerability check, Build and Packaging. The PR title
+4. Merge with **Squash and merge** once the 8 required checks are green: Lint, Test (on
+   two Go versions), Fuzz, Vulnerability check, Build, Packaging and Systemd in
+   containers. The PR title
    becomes the single commit on `main`, so it must follow Conventional Commits (it
    feeds the release notes).
 5. Update your local `main`, then delete the branch:

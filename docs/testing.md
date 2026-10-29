@@ -39,7 +39,7 @@ Every push to `main` and every pull request runs [`.github/workflows/ci.yml`](ht
 | **Lint** | `golangci-lint` with the rules in [`.golangci.yml`](https://github.com/Dzobash/apptrol/blob/main/.golangci.yml) (includes `gofmt` and `goimports`) |
 | **Test** | Starts a headless PipeWire (PipeWire, then WirePlumber and pipewire-pulse, waiting until each is ready; their logs are printed when a step fails), then `go vet` and all tests including the audio integration tests, with the race detector, on the minimum Go version and the latest stable; coverage report in the job summary; fails below the minimum |
 | **Fuzz** | Runs every fuzz test (config, saved state, MIDI decoding, mixer) for 20 seconds |
-| **Systemd in containers** | `make test-systemd AGENT=ci`: the shipped binary and service unit's Status line in rootless Ubuntu 26.04 and Fedora 44, with build and runtime limit proofs; a per-distro result/time table in the job summary and `.audit/` upload run even on failure (SVC-13, QA-16). Advisory, not a required check (#172). |
+| **Systemd in containers** | `make test-systemd AGENT=ci`: the shipped binary and service unit's Status line in rootless Ubuntu 26.04 and Fedora 44, with build and runtime limit proofs; a per-distro result/time table in the job summary and `.audit/` upload run even on failure (SVC-13, QA-16). A required check since 2026-10-29 (#172, [ADR 0034](adr/0034-containers-through-one-script.md#required-check--2026-10-29)). |
 | **Vulnerability check** | `govulncheck` |
 | **Build** | Builds the Linux binary, runs `apptrol --version`, cross-compiles the portable packages for Windows without cgo (`make check-portable`, NFR-11), and checks third-party licenses |
 | **Packaging** | `goreleaser check`, then the whole release as a snapshot (`make snapshot`: binaries, archives, .deb, .rpm; nothing is published, no secrets), then `lintian` on the .deb. Lintian errors fail the job; warnings and informational tags are only printed. Suppressed tags, each with its reason, are in the job's comments (NFR-05, NFR-08, NFR-09, #146) |
@@ -193,14 +193,15 @@ Successful workspaces and logs are removed; failed ones remain in `.tmp/` and
 ([clean-up](#clean-up-of-kept-failed-runs)). Those full logs can contain private host data and must not be
 committed. A damaged or symlinked audit directory is refused before writing anything.
 The initial setup-proof records without a hash predate the complete Status test;
-they must not count toward #172's consecutive-pass gate. Making the CI job required
-remains in #172.
+they must not count toward #172's consecutive-pass gate.
 
 ### Collecting the #172 evidence
 
-The CI job becomes a required check after 300 green runs in a row per distro on the
-owner's machine ([ADR 0034](adr/0034-containers-through-one-script.md#repeated-runs--2026-10-28),
-point 6). One call collects them (QA-16, #172):
+The CI job became a required check after 300 green runs in a row per distro on the
+owner's machine and 10 green CI runs per distro
+([ADR 0034](adr/0034-containers-through-one-script.md#required-check--2026-10-29),
+point 6); a distro or recipe added later collects its own the same way. One call
+collects them (QA-16, #172):
 
 ```text
 commit first (dirty=no), then:
