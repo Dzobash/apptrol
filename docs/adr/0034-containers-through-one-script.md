@@ -505,26 +505,37 @@ dispatch → INT/TERM → stop dispatch → drain all started runs → summary �
 worker   → check → remove container → handle workspace → one locked audit line
 ```
 
-Cancellation stops dispatch immediately, but lets started runs finish normally
-(QA-16). This applies to repeated Systemd checks, the default single checks, package
-installs and recipes. Bash's job table owns draining, including a child launched
-before its PID has been saved by the dispatcher. A pending signal can interrupt
-the first drain wait too, so draining ends only when the job table is empty.
-Workers have separate process
-groups so terminal Ctrl-C cannot interrupt their launch; they ignore INT/TERM
-through execution, cleanup and the audit append. The dispatcher ignores further
-INT/TERM while draining and reporting, then exits 130 for INT or 143 for TERM.
+INT/TERM sent to the runner or its process group stops dispatch immediately, but
+lets started runs finish normally (QA-16). This applies to repeated Systemd checks,
+the default single checks, package installs and recipes. Bash's job table owns
+draining, including a child launched before its PID has been saved by the dispatcher.
+A pending signal can interrupt the first drain wait too, so draining ends only when
+no running or stopped jobs remain.
+Workers have separate process groups so terminal Ctrl-C cannot interrupt their
+launch. Job control is enabled only around each background launch; foreground
+dispatcher commands keep its terminal group, including during draining. Workers
+read stdin from `/dev/null` and ignore terminal output stops, so terminal settings
+cannot stop their final log output. For cancellation sent to the runner or its
+group, workers finish execution, cleanup and the audit append. The dispatcher
+ignores further INT/TERM while draining and reporting, then exits 130 for INT or
+143 for TERM.
 Make may report its own nonzero status around that runner status.
 
 The shared budget lock stays held until draining and reporting finish. The summary
 counts only this invocation's audit lines, under that lock; each started run records
 its actual PASS or FAIL, keeps failed workspaces/logs and removes successful ones as
-usual. Cancellation does not turn a passing check into a failure.
+usual. Cancellation sent to the runner or its group does not turn a passing check
+into a failure.
 
 There is **no finite worst-case cancellation time**: it is the longest remaining
 started run plus cleanup and reporting, and builds, recipes and Podman operations
 have no overall deadline. A second signal does not force termination. SIGKILL,
 machine shutdown and storage failures cannot provide this graceful-drain guarantee.
+Neither can a tool that sends TERM to every process in the tree: it may kill a worker
+before its first trap, leaving no audit record, or reach Podman, whose Go runtime
+re-enables signal handling. `podman start --attach` can then forward TERM into the
+container and turn an otherwise passing check into FAIL. Such tools must signal
+the runner or its process group for graceful draining.
 
 ### Effects
 

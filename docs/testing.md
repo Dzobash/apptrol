@@ -57,8 +57,12 @@ not require Podman. They also substitute private host proc/cgroup fixtures: corr
 runtime limits pass; wrong memory, swap, pids, nice or network, unreadable evidence
 and writable recipe cgroups fail before `start`, even when the image would report
 exit code zero. File gates also exercise cancellation during launch, execution,
-cleanup and audit writing, with repeated signals, through all four run paths
-(`TestQA16_CancellationDrainsTransactions`, QA-16, ADR 0034).
+cleanup and audit writing, with repeated signals, through all four run paths,
+including both serial and concurrent default Systemd/install dispatch. A private
+pseudo-terminal checks actual Ctrl-C during a foreground dispatcher command, worker
+stdin and final output with terminal output stopping enabled
+(`TestQA16_CancellationDrainsTransactions`,
+`TestQA16_TerminalCancellationKeepsDispatcherForeground`, QA-16, ADR 0034).
 
 The separate Systemd in containers job prepares Podman, user
 namespace mappings and a systemd user manager with delegated memory and pids
