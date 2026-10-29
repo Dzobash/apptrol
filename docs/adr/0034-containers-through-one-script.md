@@ -509,8 +509,8 @@ INT/TERM sent to the runner or its process group stops dispatch immediately, but
 lets started runs finish normally (QA-16). This applies to repeated Systemd checks,
 the default single checks, package installs and recipes. Bash's job table owns
 draining, including a child launched before its PID has been saved by the dispatcher.
-A pending signal can interrupt the first drain wait too, so draining ends only when
-no running or stopped jobs remain.
+A pending signal can interrupt the first drain wait too, so draining waits again
+until no running job remains.
 Workers have separate process groups so terminal Ctrl-C cannot interrupt their
 launch. Job control is enabled only around each background launch; foreground
 dispatcher commands keep its terminal group, including during draining. Workers
@@ -530,7 +530,10 @@ into a failure.
 There is **no finite worst-case cancellation time**: it is the longest remaining
 started run plus cleanup and reporting, and builds, recipes and Podman operations
 have no overall deadline. A second signal does not force termination. SIGKILL,
-machine shutdown and storage failures cannot provide this graceful-drain guarantee.
+a SIGSTOP or SIGTSTP sent to a worker from outside, machine shutdown and storage
+failures cannot provide this graceful-drain guarantee; the terminal itself cannot
+stop a worker (own process group, stdin from `/dev/null`, terminal output stops
+ignored).
 Neither can a tool that sends TERM to every process in the tree: it may kill a worker
 before its first trap, leaving no audit record, or reach Podman, whose Go runtime
 re-enables signal handling. `podman start --attach` can then forward TERM into the
