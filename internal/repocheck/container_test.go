@@ -799,12 +799,12 @@ func replaceIn(t *testing.T, path string, pairs ...string) {
 // independently of scheduler timing, including a second signal while draining
 // (QA-16, ADR 0034).
 func TestQA16_CancellationDrainsTransactions(t *testing.T) {
-	for _, mode := range []string{"repeated", "parallel", "single", "install", "recipe"} {
+	for _, mode := range []string{"repeated", "parallel", "single", "single-parallel", "install", "install-parallel", "recipe"} {
 		for _, phase := range []string{"launch", "bootstrap", "run", "failure", "cleanup", "audit"} {
 			t.Run(mode+"/"+phase, func(t *testing.T) {
 				root := containerFixture(t)
 				jobs := 1
-				if mode == "parallel" {
+				if mode == "parallel" || strings.HasSuffix(mode, "-parallel") {
 					jobs = 2
 				}
 				runSystemdStub(t, root, jobs)
@@ -825,9 +825,9 @@ until [ -e release ]; do sleep 0.01; done
 					"\n    exec 6<&-\n", "\n    exec 6<&-\n    : > stopping\n")
 				args := []string{"test-systemd", "RUNS=3"}
 				switch mode {
-				case "single":
+				case "single", "single-parallel":
 					args = []string{"test-systemd"}
-				case "install":
+				case "install", "install-parallel":
 					args = []string{"test-install"}
 					if err := os.Mkdir(filepath.Join(root, "dist"), 0o755); err != nil {
 						t.Fatal(err)
@@ -848,14 +848,25 @@ until [ -e release ]; do sleep 0.01; done
 					switch mode {
 					case "single", "install":
 						anchor = "    children=(\"$first\")"
+					case "single-parallel", "install-parallel":
+						// Stop between the two launches, before children is set
+						// (QA-16, ADR 0034).
+						anchor = " & first=$!\n"
+						replaceIn(t, runner, anchor, anchor+"kill -TERM \"$BASHPID\"\n")
+						anchor = ""
 					case "recipe":
 						anchor = "children=(\"$only\")"
 					}
-					replaceIn(t, runner, anchor, "kill -TERM \"$BASHPID\"\n"+anchor)
+					if anchor != "" {
+						replaceIn(t, runner, anchor, "kill -TERM \"$BASHPID\"\n"+anchor)
+					}
 				case "run":
 					replaceIn(t, filepath.Join(root, "fake-podman"), "    start) if", "    start) ./gate; if")
 				case "failure":
 					replaceIn(t, filepath.Join(root, "fake-podman"), "    start) if", "    start) ./gate; exit 1; if")
+					// Changing job-control mode must preserve both errexit and
+					// an ERR trap at the failed command (QA-16, ADR 0034).
+					replaceIn(t, runner, "    trap finish EXIT\n", "    trap finish EXIT\n    trap 'echo \"$runid\" >> \"$repo/err-traps\"' ERR\n")
 				case "cleanup":
 					replaceIn(t, filepath.Join(root, "fake-podman"), "    rm) rm", "    rm) ./gate; rm")
 				case "audit":
@@ -949,6 +960,9 @@ until [ -e release ]; do sleep 0.01; done
 				wantResult, wantSummary := "PASS", "1 passed, 0 failed (canceled)"
 				if phase == "failure" {
 					wantResult, wantSummary = "FAIL", "0 passed, 1 failed (canceled)"
+					if countLines(t, filepath.Join(root, "err-traps")) != wantRuns {
+						t.Error("failed command did not trigger each worker's ERR trap")
+					}
 				}
 				if err != nil || strings.TrimSpace(string(status)) != wantStatus || strings.Count(output.String(), wantSummary) != wantRuns {
 					t.Errorf("status %q (%v), want %s and summary:\n%s", status, err, wantStatus, &output)

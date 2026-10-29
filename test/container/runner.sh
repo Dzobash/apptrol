@@ -81,7 +81,8 @@ write_audit() {
 run_one() (
     # Cancellation belongs to the dispatcher. Finish the whole transaction,
     # including cleanup and the locked audit append (QA-16, ADR 0034).
-    trap '' INT TERM
+    trap '' INT TERM TTOU
+    set +m
     run=$1
     shift
     runid=${run##*/}
@@ -249,13 +250,16 @@ stop_children() {
     # Exit from the handler: execution can never return to a half-finished launch.
     # Bash owns the job table even before $! is registered in our arrays. Ignore
     # repeated signals throughout draining and reporting (QA-16, ADR 0034).
-    trap '' INT TERM
+    trap '' INT TERM TTOU
+    # A signal may arrive inside a launch's job-control interval. Foreground
+    # drain commands must never claim the terminal (QA-16, ADR 0034).
+    set +m
     local status=$1
     exec 6<&-
     # A signal already pending when the handler began can interrupt its first
     # wait too. The job table, not wait's status, proves draining is complete
     # (QA-16, ADR 0034).
-    while [[ -n $(jobs -pr) ]]; do wait || :; done
+    while [[ -n $(jobs -pr) || -n $(jobs -ps) ]]; do wait || :; done
     if [[ -f .audit/runs.log ]]; then
         awk -v before="$audit_start" '
             NR > before {
@@ -279,10 +283,10 @@ stop_children() {
     [[ -z ${stop_mark:-} ]] || rm -f -- "$stop_mark"
     exit "$status"
 }
-# Separate process groups keep terminal Ctrl-C away from workers, including the
-# interval before their first instruction. The dispatcher alone drains them;
-# workers also ignore tool-delivered INT/TERM (QA-16, ADR 0034).
-set -m
+# Job control is enabled only across each background launch: it creates a separate
+# worker group without handing foreground dispatcher commands the terminal. Only
+# builtins run until set +m, including in the cancellation handler. Worker stdin
+# is /dev/null; workers ignore TTOU for their final log output (QA-16, ADR 0034).
 audit_start=0
 if [[ -f .audit/runs.log ]]; then audit_start=$(wc -l < .audit/runs.log); fi
 trap 'stop_children 130' INT
@@ -296,9 +300,13 @@ run_distros() {
     local mode=$1
     if ((jobs >= 2)); then
         run=$(new_run)
-        run_one "$run" "$mode-ubuntu" "$mode" & first=$!
+        set -m
+        run_one "$run" "$mode-ubuntu" "$mode" </dev/null & first=$!
+        set +m
         run=$(new_run)
-        run_one "$run" "$mode-fedora" "$mode" & second=$!
+        set -m
+        run_one "$run" "$mode-fedora" "$mode" </dev/null & second=$!
+        set +m
         children=("$first" "$second")
         failed=0
         wait "$first" || failed=1
@@ -307,12 +315,16 @@ run_distros() {
     fi
     # Do not suppress errexit inside run_one by calling it as an if condition.
     run=$(new_run)
-    run_one "$run" "$mode-ubuntu" "$mode" & first=$!
+    set -m
+    run_one "$run" "$mode-ubuntu" "$mode" </dev/null & first=$!
+    set +m
     children=("$first")
     failed=0
     wait "$first" || failed=1
     run=$(new_run)
-    run_one "$run" "$mode-fedora" "$mode" & second=$!
+    set -m
+    run_one "$run" "$mode-fedora" "$mode" </dev/null & second=$!
+    set +m
     children=("$second")
     wait "$second" || failed=1
     exit "$failed"
@@ -365,8 +377,10 @@ start_runs() {
             return 0
         fi
         run=$(new_run)
-        run_one "$run" "$recipe" systemd "$how" 6<&- &
+        set -m
+        run_one "$run" "$recipe" systemd "$how" 6<&- </dev/null &
         running[$!]="$recipe ${run##*/}"
+        set +m
         children=("${!running[@]}")
         exec 6<&-
     done
@@ -536,6 +550,8 @@ if [[ ${1:-} == @clean ]]; then
 fi
 name=${1:-}
 run=$(new_run)
-run_one "$run" "${name#recipe:}" & only=$!
+set -m
+run_one "$run" "${name#recipe:}" </dev/null & only=$!
+set +m
 children=("$only")
 wait "$only"
