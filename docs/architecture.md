@@ -871,7 +871,9 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   image are built once, then up to 8 containers run at once (fewer when memory is short;
   per-user inotify instances set the 8),
   each with its own run id and audit line; no new run starts after the first failure
-  (#172). `make test-install` runs
+  (#172). On INT/TERM the dispatcher stops and drains Bash's complete job table;
+  separate worker process groups finish cleanup and auditing before the cancellation
+  summary and lock release (QA-16, ADR 0034). `make test-install` runs
   the same containers a second way: `status.sh` installs the `.deb` with apt or the
   `.rpm` with dnf from `dist/` (read through the read-only checkout; the runner never
   builds packages) and checks the Status line of the installed files, under its own

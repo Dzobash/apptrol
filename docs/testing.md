@@ -56,7 +56,9 @@ checkout's own `core.fsmonitor` never runs and another repository is refused. Th
 not require Podman. They also substitute private host proc/cgroup fixtures: correct
 runtime limits pass; wrong memory, swap, pids, nice or network, unreadable evidence
 and writable recipe cgroups fail before `start`, even when the image would report
-exit code zero.
+exit code zero. File gates also exercise cancellation during launch, execution,
+cleanup and audit writing, with repeated signals, through all four run paths
+(`TestQA16_CancellationDrainsTransactions`, QA-16, ADR 0034).
 
 The separate Systemd in containers job prepares Podman, user
 namespace mappings and a systemd user manager with delegated memory and pids

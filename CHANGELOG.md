@@ -166,6 +166,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer read it (CFG-19).
 
 ### Fixed
+- Canceling container checks now stops dispatch and waits for started runs to finish
+  cleanup and their audit records, even after repeated INT/TERM signals. It prints
+  their results before returning the signal status (QA-16, ADR 0034).
 - R and ▶ no longer blink when you seek in a browser video with the mouse. Many web
   players pause the video for 60–100 ms while you scrub, and the LEDs followed every
   pause. They now go dark only after a player has stayed paused for 500 ms; buffering
