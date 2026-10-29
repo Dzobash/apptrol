@@ -866,7 +866,12 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   manager, and uploads `.audit/` even on failure (#171). A runner-side helper outside
   `test/container` writes a per-distro result/time table from only the audit records
   appended during this attempt; missing results remain explicit, and the complete
-  audit artifact is retained (#196). `make test-install` runs
+  audit artifact is retained (#196). `make test-systemd RUNS=<n>` repeats the check
+  n times per distro in one call, under the one lock: the binary and each distro's
+  image are built once, then up to 8 containers run at once (fewer when memory is short;
+  per-user inotify instances set the 8),
+  each with its own run id and audit line; no new run starts after the first failure
+  (#172). `make test-install` runs
   the same containers a second way: `status.sh` installs the `.deb` with apt or the
   `.rpm` with dnf from `dist/` (read through the read-only checkout; the runner never
   builds packages) and checks the Status line of the installed files, under its own

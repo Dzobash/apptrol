@@ -17,7 +17,7 @@ of [requirements.md](requirements.md#51-quality-assurance).
 | `make test-audio` | Integration tests against your running PipeWire (they add a silent test output and inputs and remove them afterwards) |
 | `make test-desktop` | D-Bus integration tests in a private session bus (`dbus-run-session`): media players, and a fake logind standing in for the system bus; your desktop's buses and media players are not touched |
 | `make test-launcher` | Starts harmless test units (`true`) in your systemd user manager and checks they are removed; CI's container job checks only the Status line, so run this before a release |
-| `make test-systemd` | Builds Apptrol and checks its Status line in rootless Ubuntu 26.04 and Fedora 44 containers |
+| `make test-systemd` | Builds Apptrol and checks its Status line in rootless Ubuntu 26.04 and Fedora 44 containers; `RUNS=<n>` repeats it n times per distro |
 | `make test-install` | Installs the `.deb` from `make snapshot` with `apt` in an Ubuntu 26.04 container and the `.rpm` with `dnf` in a Fedora 44 container, then runs the same Status checks on the installed program (QA-17) |
 | `make test-clean` | Removes the folders and logs that failed container runs keep (`.tmp/run-*`, `.audit/logs/`), in this checkout only; starts no container (QA-18) |
 | `make container-run RECIPE=sample` | Runs a reviewed recipe with the same fixed restrictions and audit record |
@@ -132,7 +132,8 @@ old layers. There is no CPU quota and no need for a CPU controller (ADR 0034).
 
 `make test-systemd` builds `bin/apptrol` through a fixed helper after clearing the
 caller environment; Make's `BINARY`, `LDFLAGS`, version fields and `GOFLAGS` cannot
-change that build. It runs each distro once and installs the binary and the shipped
+change that build. It runs each distro once (or `RUNS` times, see
+[below](#collecting-the-172-evidence)) and installs the binary and the shipped
 unit, checks the version-prefixed Status text, restarts with invalid configuration,
 then fixes the file and waits for recovery. It allows 60 seconds for systemd and
 the user manager to start, and 15 seconds for each Status change. The fixture is
@@ -140,12 +141,16 @@ the user manager to start, and 15 seconds for each Status change. The fixture is
 multi-user desktop behavior and the brief stopping state remain in
 [TC-SVC-001](testing/cases/svc.md).
 
-The concurrency ceiling is 16, reduced from available memory to leave 4 GiB free
-before starting. Each container reserves 512 MiB in that calculation. The two
+The concurrency ceiling is 8, reduced from available memory to leave 4 GiB free
+before starting. Each container reserves 512 MiB in that calculation. Memory alone is
+not enough: per-user inotify instances (`fs.inotify.max_user_instances`) are shared
+by every rootless container and the desktop, and 16 systemd containers at once ran out
+of them ([ADR 0034](adr/0034-containers-through-one-script.md#repeated-runs--2026-10-28)). The two
 distros run side by side when possible; invocations across this repository's worktrees
 wait on `apptrol-containers.lock` in Git's common directory. That host-only lock is
-never mounted and prevents budgeting the same memory twice. These targets do not repeat
-recipes automatically. `JOBS` from the caller does not override the ceiling.
+never mounted and prevents budgeting the same memory twice. Only `make test-systemd
+RUNS=<n>` repeats runs; the other targets run each recipe once. `JOBS` from the caller
+does not override the ceiling.
 
 For another experiment, add `.audit/recipes/<name>/Dockerfile` and `commands.sh`,
 then run `make container-run RECIPE=<name>`. Names start with a letter or digit and
@@ -174,8 +179,9 @@ records source changes, including untracked non-ignored files. Only `.audit/runs
 is excluded, so appending the first distro's result does not taint the second.
 For acceptance evidence, commit source changes first and require `dirty=no`.
 Use `make test-systemd AGENT=gpt-6-astra` (or the model/caller actually starting it)
-to record attribution. `AGENT` is the sole environment exception: a validated,
-audit-only label, never passed to Podman. An omitted label is `unspecified`.
+to record attribution. `AGENT` and `RUNS` are the only environment exceptions, both
+validated and never passed to Podman: `AGENT` is an audit-only label (omitted, it is
+`unspecified`), `RUNS` a number of repeats.
 Successful workspaces and logs are removed; failed ones remain in `.tmp/` and
 `.audit/logs/` until `make test-clean` removes them
 ([clean-up](#clean-up-of-kept-failed-runs)). Those full logs can contain private host data and must not be
@@ -183,6 +189,35 @@ committed. A damaged or symlinked audit directory is refused before writing anyt
 The initial setup-proof records without a hash predate the complete Status test;
 they must not count toward #172's consecutive-pass gate. Making the CI job required
 remains in #172.
+
+### Collecting the #172 evidence
+
+The CI job becomes a required check after 300 green runs in a row per distro on the
+owner's machine ([ADR 0034](adr/0034-containers-through-one-script.md#repeated-runs--2026-10-28),
+point 6). One call collects them (QA-16, #172):
+
+```text
+commit first (dirty=no), then:
+make test-systemd RUNS=300 AGENT=<model>
+
+  build bin/apptrol once
+  ubuntu #1, fedora #1          each builds and proves its image
+  up to <jobs> at once          ubuntu #2 … #300, fedora #2 … #300, each its own audit line
+  summary                       RUNS=300, up to 8 at once, wall time <seconds> s
+                                systemd-ubuntu: 300 passed, 0 failed, 0 not started
+                                systemd-fedora: 300 passed, 0 failed, 0 not started
+```
+
+`RUNS` is a plain number from 1 to 1000 (no sign, space or leading zero); anything
+else is refused before any container starts. The default is 1. Every run writes its
+own line to `.audit/runs.log`, and the call holds the shared lock throughout, so other
+worktrees wait. `<jobs>` is the ceiling above (at most 8).
+
+**A red run resets the count.** One failed run starts that distro's count from zero,
+so the call stops starting new runs after the first failure, lets the running ones
+finish, exits 1 and prints `First failed run: run-<id>`. Its folder and log are kept
+for a look and an issue (ADR 0034, point 6); the count starts again with the next
+call, from the next green line in `runs.log`.
 
 ### Package installs
 
@@ -273,7 +308,7 @@ nothing is started. What keeps it safe:
   by the shared preflight (a link, another repository) writes nothing, as for runs.
 
 ```text
-2026-10-27T… run=clean-<id> agent=<model> branch=… commit=… dirty=no recipe=@clean hash=… image=none jobs=16 result=PASS seconds=1
+2026-10-27T… run=clean-<id> agent=<model> branch=… commit=… dirty=no recipe=@clean hash=… image=none jobs=8 result=PASS seconds=1
 ```
 
 Run it as `make test-clean AGENT=<model>`. Manual case:

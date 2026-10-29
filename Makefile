@@ -26,8 +26,17 @@ all: check build ## Run all checks, then build
 override SHELL := /bin/sh
 override .SHELLFLAGS := -c
 
+# RUNS=<n> repeats the check n times per distro in one call (#172). It is passed
+# as data like RECIPE; Make exports an unset variable as empty, so the default is
+# set here and an empty RUNS= is refused by the runner (QA-16, ADR 0034).
+# A recursive variable would run Make expressions such as $(shell …) when it is
+# exported, before the runner can refuse the value: $(value) freezes the caller's
+# text, command line and environment alike, as literal data (review round 1).
+RUNS ?= 1
+override RUNS := $(value RUNS)
+export RUNS
 .PHONY: test-systemd
-test-systemd: ## Build and check the Status line in rootless Ubuntu and Fedora (QA-16)
+test-systemd: ## Build and check the Status line in rootless Ubuntu and Fedora; RUNS=<n> repeats it (QA-16)
 	@/bin/sh test/container/run.sh @systemd
 
 # The packages come from `make snapshot`; this target only installs and starts them.

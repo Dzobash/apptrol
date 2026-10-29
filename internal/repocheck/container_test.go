@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -101,10 +103,10 @@ func containerFixtureAt(t *testing.T, root string, fakeGit bool) string {
 	write("fake-systemd-run", `#!/bin/sh
 set -eu
 printf '%s\n' "$*" >> scope-calls
-# Every real scope is new; a second build in one fixture must not see the first's leaf.
-rm -rf "$(dirname "$0")/fake-cgroup/supervisor"
 while [ "$1" != /bin/bash ]; do shift; done
-exec "$@"
+# Every real scope is new; a second build in one fixture must not see the first's leaf.
+# The fixture has one stand-in scope, so parallel builds take turns (QA-16, #172).
+exec flock "$(dirname "$0")/fake-scope.lock" sh -c 'rm -rf "$0/fake-cgroup/supervisor"; shift; exec "$@"' "$(dirname "$0")" -- "$@"
 `)
 	write("test/container/empty-hooks/.gitkeep", "")
 	write(".audit/recipes/sample/Dockerfile", "FROM scratch\n")
@@ -129,7 +131,14 @@ case "$1" in
             shift
         done ;;
     create)
-        : > mounts
+        # One mount list per container, and a count of the containers alive at
+        # once, so parallel runs can be checked (QA-16, #172).
+        test "$2" = --name
+        name=$3
+        mkdir -p live
+        : > "live/$name"
+        ls live | wc -l >> live-counts
+        : > "mounts.$name"
         while [ "$#" -gt 0 ]; do
             if [ "$1" = --mount ]; then
                 shift
@@ -137,8 +146,8 @@ case "$1" in
                 source=${spec#type=bind,src=}
                 source=${source%%,dst=*}
                 case "$spec" in
-                    *,dst=/src,ro=true) printf '%s|/src|false\n' "$source" >> mounts ;;
-                    *,dst=/work,rw=true) test -z "$(ls -A "$source")"; printf '%s|/work|true\n' "$source" >> mounts ;;
+                    *,dst=/src,ro=true) printf '%s|/src|false\n' "$source" >> "mounts.$name" ;;
+                    *,dst=/work,rw=true) test -z "$(ls -A "$source")"; printf '%s|/work|true\n' "$source" >> "mounts.$name" ;;
                     *) exit 1 ;;
                 esac
             fi
@@ -148,11 +157,13 @@ case "$1" in
         case "$3" in
             *State.Pid*) echo 123 ;;
             *State.ExitCode*) echo 0 ;;
-            *) cat mounts ;;
+            *) cat "mounts.$4" ;;
         esac ;;
     unshare) shift; "$@" ;;
     init) : ;;
-    start|exec|rm) : ;;
+    start) if [ -e start-delay ]; then sleep "$(cat start-delay)"; fi ;;
+    exec) : ;;
+    rm) rm -f "live/$4" ;;
     *) exit 1 ;;
 esac
 `)
@@ -177,7 +188,8 @@ func TestQA16_RecipeMountsEnvironmentAndFlags(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "injected.sh"), []byte("touch env-marker\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out, err := runContainerMake(t, root, "sample", "FLAGS=--privileged", "JOBS=999", "AGENT=gpt-6-astra", "SHELL=/nonexistent", ".SHELLFLAGS=invalid")
+	// RUNS belongs to test-systemd only: a recipe ignores even an invalid one (#172).
+	out, err := runContainerMake(t, root, "sample", "FLAGS=--privileged", "JOBS=999", "AGENT=gpt-6-astra", "SHELL=/nonexistent", ".SHELLFLAGS=invalid", "RUNS=0")
 	if err != nil {
 		t.Fatalf("make: %v\n%s", err, out)
 	}
@@ -202,7 +214,7 @@ func TestQA16_RecipeMountsEnvironmentAndFlags(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{"SSH_AUTH_SOCK=", "FLAGS=", "BASH_ENV=", "CONTAINER_HOST=", "/private/untrusted.conf", "JOBS=999", "AGENT="} {
+	for _, forbidden := range []string{"SSH_AUTH_SOCK=", "FLAGS=", "BASH_ENV=", "CONTAINER_HOST=", "/private/untrusted.conf", "JOBS=999", "AGENT=", "RUNS="} {
 		if strings.Contains(string(env), forbidden) {
 			t.Errorf("Podman received %s", forbidden)
 		}
@@ -422,9 +434,9 @@ func TestQA16_UnexpectedMountAndContainerFailureAreRecorded(t *testing.T) {
 		name, old, replacement string
 		mustNotStart           bool
 	}{
-		{"unexpected mount", "*) cat mounts ;;", "*) cat mounts; echo '/private|/private|true' ;;", true},
+		{"unexpected mount", `*) cat "mounts.$4" ;;`, `*) cat "mounts.$4"; echo '/private|/private|true' ;;`, true},
 		{"container failed", "*State.ExitCode*) echo 0 ;;", "*State.ExitCode*) echo 17 ;;", false},
-		{"engine rejected limit", "start|exec|rm) : ;;", "start) exit 125 ;;\n    exec|rm) : ;;", false},
+		{"engine rejected limit", "    start) ", "    start) exit 125 ;;\n    unused) ", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := containerFixture(t)
@@ -573,9 +585,406 @@ func TestQA16_AuditLabelIsData(t *testing.T) {
 	}
 }
 
+// runSystemdMake runs the real `make test-systemd` target against a fixture
+// prepared by runSystemdStub (QA-16, ADR 0034, #172).
+func runSystemdMake(t *testing.T, root string, jobs int, extra ...string) ([]byte, error) {
+	t.Helper()
+	runSystemdStub(t, root, jobs)
+	cmd := exec.Command("make", append([]string{"test-systemd"}, extra...)...)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "SSH_AUTH_SOCK=/private/test-socket", "CONTAINERS_CONF=/private/untrusted.conf")
+	return cmd.CombinedOutput()
+}
+
+// runSystemdStub replaces the Go build with a stand-in that only counts itself,
+// and sets the memory reading so the runner gets jobs slots (QA-16, #172).
+func runSystemdStub(t *testing.T, root string, jobs int) {
+	t.Helper()
+	stub := "#!/bin/bash\necho built >> binary-builds\n"
+	if err := os.WriteFile(filepath.Join(root, "test/container/build-apptrol.sh"), []byte(stub), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runner := filepath.Join(root, "test/container/runner.sh")
+	data, err := os.ReadFile(runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// jobs = (available - 4 GiB) / 512 MiB, in KiB as /proc/meminfo has it.
+	available := 4194304 + jobs*524288
+	patched := strings.ReplaceAll(string(data), "available=16777216", "available="+strconv.Itoa(available))
+	if err := os.WriteFile(runner, []byte(patched), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// auditRuns returns the run ids in runs.log per recipe and result, e.g.
+// "systemd-ubuntu PASS" → ids (QA-16, #172).
+func auditRuns(t *testing.T, root string) map[string][]string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(root, ".audit/runs.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	runs := map[string][]string{}
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		fields := map[string]string{}
+		for _, field := range strings.Fields(line) {
+			if key, value, ok := strings.Cut(field, "="); ok {
+				fields[key] = value
+			}
+		}
+		key := fields["recipe"] + " " + fields["result"]
+		runs[key] = append(runs[key], fields["run"])
+	}
+	return runs
+}
+
+// countLines counts the lines of a fixture file; a missing file has none.
+func countLines(t *testing.T, path string) int {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return 0
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Count(string(data), "\n")
+}
+
+// TestQA16_RunsDefaultIsOneRunPerDistro keeps `make test-systemd` without RUNS as
+// it was: one run per distro, each with its own build, and no summary (#172).
+func TestQA16_RunsDefaultIsOneRunPerDistro(t *testing.T) {
+	root := containerFixture(t)
+	out, err := runSystemdMake(t, root, 8, "AGENT=claude-opus-5.5")
+	if err != nil {
+		t.Fatalf("make: %v\n%s", err, out)
+	}
+	runs := auditRuns(t, root)
+	if len(runs) != 2 || len(runs["systemd-ubuntu PASS"]) != 1 || len(runs["systemd-fedora PASS"]) != 1 {
+		t.Fatalf("want one passed run per distro: %v", runs)
+	}
+	if n := countLines(t, filepath.Join(root, "scope-calls")); n != 2 {
+		t.Errorf("want one image build per distro, got %d", n)
+	}
+	if strings.Contains(string(out), "wall time") {
+		t.Errorf("a single run printed the repeated-run summary:\n%s", out)
+	}
+}
+
+// TestQA16_RunsRepeatsEachDistro checks RUNS=5 with three slots: five audit lines
+// per distro with their own run ids, one binary and one image build per distro,
+// never more than three containers at once, and RUNS kept away from Podman
+// (QA-16, ADR 0034, #172).
+func TestQA16_RunsRepeatsEachDistro(t *testing.T) {
+	root := containerFixture(t)
+	// A short pause at start lets the runs overlap, so the slot limit is tested.
+	if err := os.WriteFile(filepath.Join(root, "start-delay"), []byte("0.3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runSystemdMake(t, root, 3, "RUNS=5", "AGENT=claude-opus-5.5")
+	if err != nil {
+		t.Fatalf("make: %v\n%s", err, out)
+	}
+	runs := auditRuns(t, root)
+	if len(runs) != 2 || len(runs["systemd-ubuntu PASS"]) != 5 || len(runs["systemd-fedora PASS"]) != 5 {
+		t.Fatalf("want five passed runs per distro: %v", runs)
+	}
+	seen := map[string]bool{}
+	for _, ids := range runs {
+		for _, id := range ids {
+			if seen[id] {
+				t.Errorf("run id %s used twice", id)
+			}
+			seen[id] = true
+		}
+	}
+	if n := countLines(t, filepath.Join(root, "binary-builds")); n != 1 {
+		t.Errorf("want one binary build per call, got %d", n)
+	}
+	if n := countLines(t, filepath.Join(root, "scope-calls")); n != 2 {
+		t.Errorf("want one image build per distro, got %d", n)
+	}
+	counts, err := os.ReadFile(filepath.Join(root, "live-counts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	most := 0
+	for _, field := range strings.Fields(string(counts)) {
+		n, err := strconv.Atoi(field)
+		if err != nil {
+			t.Fatal(err)
+		}
+		most = max(most, n)
+	}
+	if most > 3 || most < 2 {
+		t.Errorf("want up to 3 containers at once and some overlap, saw at most %d", most)
+	}
+	for _, want := range []string{"systemd-ubuntu: 5 passed, 0 failed, 0 not started", "systemd-fedora: 5 passed, 0 failed, 0 not started", "up to 3 at once, wall time "} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("summary lacks %q:\n%s", want, out)
+		}
+	}
+	for _, name := range []string{"calls", "received-environment"} {
+		data, err := os.ReadFile(filepath.Join(root, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "RUNS") {
+			t.Errorf("RUNS reached Podman through %s", name)
+		}
+	}
+	if left, _ := filepath.Glob(filepath.Join(root, ".tmp", "run-*")); len(left) != 0 {
+		t.Errorf("passed runs left folders: %v", left)
+	}
+}
+
+// TestQA16_RunsCeilingIsEight gives the runner memory for 24 containers: per-user
+// inotify instances, shared with the owner's desktop, still allow only 8 at once,
+// and the audit lines say jobs=8 (QA-16, ADR 0034, #172).
+func TestQA16_RunsCeilingIsEight(t *testing.T) {
+	root := containerFixture(t)
+	if err := os.WriteFile(filepath.Join(root, "start-delay"), []byte("0.5\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runSystemdMake(t, root, 24, "RUNS=10")
+	if err != nil {
+		t.Fatalf("make: %v\n%s", err, out)
+	}
+	counts, err := os.ReadFile(filepath.Join(root, "live-counts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	most := 0
+	for _, field := range strings.Fields(string(counts)) {
+		n, err := strconv.Atoi(field)
+		if err != nil {
+			t.Fatal(err)
+		}
+		most = max(most, n)
+	}
+	if most > 8 {
+		t.Errorf("want at most 8 containers at once, saw %d", most)
+	}
+	if !strings.Contains(string(out), "up to 8 at once") {
+		t.Errorf("summary lacks the ceiling:\n%s", out)
+	}
+	audit, err := os.ReadFile(filepath.Join(root, ".audit/runs.log"))
+	if err != nil || strings.Count(string(audit), " jobs=8 ") != 20 {
+		t.Fatalf("want 20 audit lines with jobs=8: %s (%v)", audit, err)
+	}
+}
+
+// replaceIn applies old → new pairs to a fixture file, failing when one no
+// longer matches, so a changed fixture cannot silently disable a test.
+func replaceIn(t *testing.T, path string, pairs ...string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	for i := 0; i+1 < len(pairs); i += 2 {
+		if !strings.Contains(text, pairs[i]) {
+			t.Fatalf("%s no longer contains %q; update this test", path, pairs[i])
+		}
+		text = strings.ReplaceAll(text, pairs[i], pairs[i+1])
+	}
+	if err := os.WriteFile(path, []byte(text), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestQA16_RunsStopWhenAFailureIsKnownWithFreeSlots: with 8 slots and only three
+// runs started, nothing waits on the failed run, so the dispatcher must see it
+// before starting the next. A gate holds every later start until the failure is in
+// the audit log; no timing luck is involved. The run fails two ways: its check,
+// and its cleanup after a passed check (QA-16, #172).
+func TestQA16_RunsStopWhenAFailureIsKnownWithFreeSlots(t *testing.T) {
+	const fastStart = `    start) if [ -e start-delay ]; then sleep "$(cat start-delay)"; fi ;;`
+	// The third start or rm belongs to the first reused run; the others pass.
+	const failThirdStart = `    start) n=$(flock starts.lock sh -c 'echo x >> starts; wc -l < starts'); [ "$n" -ne 3 ] ;;`
+	const fastRm = `    rm) rm -f "live/$4" ;;`
+	const failThirdRm = `    rm) rm -f "live/$4"; n=$(flock rms.lock sh -c 'echo x >> rms; wc -l < rms'); [ "$n" -ne 3 ] ;;`
+	for _, tc := range []struct {
+		name   string
+		podman []string // old → new in the fake Podman
+	}{
+		{"check fails", []string{fastStart, failThirdStart}},
+		{"cleanup fails after a passed check", []string{fastRm, failThirdRm}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := containerFixture(t)
+			replaceIn(t, filepath.Join(root, "fake-podman"), tc.podman...)
+			runGatedAfterFailure(t, root)
+		})
+	}
+}
+
+// runGatedAfterFailure runs RUNS=3 with 8 slots, the gate in place, and checks
+// that only the two first runs and the failed one ran (QA-16, #172).
+func runGatedAfterFailure(t *testing.T, root string) {
+	t.Helper()
+	// The first reused start goes ahead; every later one waits until the failed
+	// run's audit line is written, which comes after it publishes the failure.
+	gate := `#!/bin/sh
+set -eu
+cd "$(dirname "$0")"
+[ "$1" = reuse ] || exit 0
+echo x >> dispatches
+[ "$(wc -l < dispatches)" -gt 1 ] || exit 0
+i=0
+until grep -q result=FAIL .audit/runs.log 2>/dev/null; do
+    i=$((i + 1)); [ "$i" -lt 400 ] || exit 1; sleep 0.025
+done
+`
+	if err := os.WriteFile(filepath.Join(root, "fake-dispatch"), []byte(gate), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	runSystemdStub(t, root, 8)
+	runner := filepath.Join(root, "test/container/runner.sh")
+	slotWait := "        while ((${#running[@]} >= slots)); do reap; done\n"
+	data, err := os.ReadFile(runner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(data), slotWait) != 1 {
+		t.Fatal("runner.sh no longer waits for a slot on its own line; update this test")
+	}
+	replaceIn(t, runner, slotWait, slotWait+"        \"$repo/fake-dispatch\" \"$how\"\n")
+	cmd := exec.Command("make", "test-systemd", "RUNS=3")
+	cmd.Dir = root
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("a failed run was reported as success:\n%s", out)
+	}
+	runs := auditRuns(t, root)
+	fails := runs["systemd-ubuntu FAIL"]
+	if len(runs["systemd-ubuntu PASS"]) != 1 || len(runs["systemd-fedora PASS"]) != 1 || len(fails) != 1 || len(runs) != 3 {
+		t.Fatalf("want the two first runs and the failed one, nothing after it: %v\n%s", runs, out)
+	}
+	if want := "First failed run: " + fails[0]; !strings.Contains(string(out), want) {
+		t.Errorf("output lacks %q:\n%s", want, out)
+	}
+	for _, want := range []string{"systemd-ubuntu: 1 passed, 1 failed, 1 not started", "systemd-fedora: 1 passed, 0 failed, 2 not started"} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("summary lacks %q:\n%s", want, out)
+		}
+	}
+	if left, _ := filepath.Glob(filepath.Join(root, ".tmp", "stop-*")); len(left) != 0 {
+		t.Errorf("the stop marker was left behind: %v", left)
+	}
+}
+
+// TestQA16_RunsStopAfterTheFirstFailure fails the third container: nothing new
+// starts, the running ones finish, the call exits 1 and names the failed run, whose
+// folder and log are kept (QA-16, ADR 0034, #172).
+func TestQA16_RunsStopAfterTheFirstFailure(t *testing.T) {
+	root := containerFixture(t)
+	path := filepath.Join(root, "fake-podman")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The third start fails at once while the others pause, so the failure is
+	// seen while the run beside it is still going.
+	failThird := `start) n=$(flock starts.lock sh -c 'echo x >> starts; wc -l < starts'); [ "$n" -ne 3 ]; sleep 0.5 ;;`
+	patched := strings.ReplaceAll(string(data), `    start) if [ -e start-delay ]; then sleep "$(cat start-delay)"; fi ;;`, "    "+failThird)
+	if patched == string(data) {
+		t.Fatal("fake Podman changed; update this test")
+	}
+	if err := os.WriteFile(path, []byte(patched), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runSystemdMake(t, root, 2, "RUNS=10")
+	if err == nil {
+		t.Fatalf("a failed run was reported as success:\n%s", out)
+	}
+	runs := auditRuns(t, root)
+	var fails []string
+	total := 0
+	for key, ids := range runs {
+		total += len(ids)
+		if strings.HasSuffix(key, " FAIL") {
+			fails = append(fails, ids...)
+		}
+	}
+	if len(fails) != 1 {
+		t.Fatalf("want exactly one failed run: %v", runs)
+	}
+	// Two slots: the failed run, the one beside it and at most one started while
+	// it ran, after the two first runs.
+	if total > 5 {
+		t.Errorf("runs kept starting after the failure: %d runs: %v", total, runs)
+	}
+	if want := "First failed run: " + fails[0]; !strings.Contains(string(out), want) {
+		t.Errorf("output lacks %q:\n%s", want, out)
+	}
+	notStarted := 0
+	for _, m := range regexp.MustCompile(`(?m)^systemd-(?:ubuntu|fedora): \d+ passed, \d+ failed, (\d+) not started$`).FindAllStringSubmatch(string(out), -1) {
+		n, _ := strconv.Atoi(m[1])
+		notStarted += n
+	}
+	if notStarted != 20-total {
+		t.Errorf("summary says %d not started, want %d:\n%s", notStarted, 20-total, out)
+	}
+	if !exists(filepath.Join(root, ".tmp", fails[0])) || !exists(filepath.Join(root, ".audit/logs", fails[0]+".log")) {
+		t.Error("the failed run did not keep its folder and log")
+	}
+}
+
+// TestQA16_BadRunsRefused refuses every RUNS that is not a plain 1-1000, through
+// Make and through run.sh, before the binary build and before Podman (#172). A Make
+// expression stays literal text: $(shell …) never runs, and "$(shell …)2" does not
+// become a valid 2 (review round 1). <marker> is the fixture's "injected" file.
+func TestQA16_BadRunsRefused(t *testing.T) {
+	for _, value := range []string{"0", "1001", "-1", "+3", "01", "3 ", " 3", "1;x", "", "3\n", "1e3", "$(touch injected)", "a[$(touch injected)]", "$(shell touch <marker>)", "$(shell touch <marker>)2"} {
+		// The subtest name becomes part of the fixture's path, so it must not carry
+		// a Make or shell expression itself.
+		name := strings.NewReplacer("$", "dollar", "(", "_", ")", "_").Replace(value)
+		t.Run(name, func(t *testing.T) {
+			root := containerFixture(t)
+			runs := strings.ReplaceAll(value, "<marker>", filepath.Join(root, "injected"))
+			if strings.Contains(value, "$(shell") {
+				// The environment is the other way into Make's variables.
+				runSystemdStub(t, root, 8)
+				cmd := exec.Command("make", "test-systemd")
+				cmd.Dir = root
+				cmd.Env = append(os.Environ(), "RUNS="+runs)
+				if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "RUNS must be") {
+					t.Fatalf("make accepted RUNS=%q from the environment: %v\n%s", runs, err, out)
+				}
+			}
+			// Make drops leading spaces of a command-line value itself, so " 3"
+			// arrives as a valid 3; only run.sh sees it as written.
+			if !strings.HasPrefix(runs, " ") {
+				out, err := runSystemdMake(t, root, 8, "RUNS="+runs)
+				if err == nil || !strings.Contains(string(out), "RUNS must be a whole number from 1 to 1000") {
+					t.Fatalf("make accepted RUNS=%q: %v\n%s", runs, err, out)
+				}
+			} else {
+				runSystemdStub(t, root, 8)
+			}
+			// run.sh is the public entry point: the environment keeps the value as
+			// the caller wrote it.
+			cmd := exec.Command("/bin/sh", "test/container/run.sh", "@systemd")
+			cmd.Dir = root
+			cmd.Env = append(os.Environ(), "RUNS="+runs)
+			if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "RUNS must be") {
+				t.Fatalf("run.sh accepted RUNS=%q: %v\n%s", runs, err, out)
+			}
+			for _, name := range []string{"calls", "binary-builds", "injected", ".audit/runs.log"} {
+				if exists(filepath.Join(root, name)) {
+					t.Errorf("a refused RUNS left %s", name)
+				}
+			}
+		})
+	}
+}
+
 // runInstallMake runs the real `make test-install` target against a fixture.
-// The fixture's memory reading allows one container at a time, because the fake
-// engine keeps one shared mount list (QA-17, ADR 0034).
+// The fixture's memory reading allows one container at a time, so the install
+// runs also cover the one-after-the-other path (QA-17, ADR 0034).
 func runInstallMake(t *testing.T, root string, extra ...string) ([]byte, error) {
 	t.Helper()
 	runner := filepath.Join(root, "test/container/runner.sh")
@@ -655,7 +1064,8 @@ func TestQA17_InstallUsesTheSameSandboxAsStatus(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	out, err := runInstallMake(t, root, "FLAGS=--privileged", "AGENT=claude-sonnet-5-5")
+	// RUNS repeats only test-systemd; the install check ignores it (#172).
+	out, err := runInstallMake(t, root, "FLAGS=--privileged", "AGENT=claude-sonnet-5-5", "RUNS=1;x")
 	if err != nil {
 		t.Fatalf("make: %v\n%s", err, out)
 	}

@@ -430,6 +430,74 @@ make test-clean AGENT=<model>
   One failed removal does not stop the others; the exit status is 1 and the line says
   `FAIL`.
 
+### Repeated runs — 2026-10-28
+
+Point 6 needs 300 green runs in a row per distro, and #172 and point 4 counted on doing
+them 16 at once, in about 10 minutes. What PR #182 built runs each distro once per
+`make test-systemd` call, and the shared lock is held for the whole call, so calls
+cannot overlap: 300 runs took about 300 calls one after another, roughly 1.5–2 hours,
+with 14 of the 16 slots unused. The owner decided (2026-10-28) that one call must do
+the 300. `make test-systemd RUNS=<n>` (QA-16, #172) does.
+
+```text
+before   call 1 ─ lock ─ ubuntu ┐            call 2 ─ lock ─ ubuntu ┐       … × 300
+                         fedora ┘ unlock                     fedora ┘ unlock
+
+RUNS=300 call ─ lock ─ build binary once
+                       ubuntu #1, fedora #1     each builds and proves its image
+                       then up to <jobs> at once: ubuntu #2 … #300, fedora #2 … #300
+                       summary ─ unlock
+```
+
+- **Still one lock.** The lock is taken once for the whole call, so another worktree's
+  run or `make test-clean` still waits until every run of the call has finished. The
+  slots come from the same memory reading (4 GiB kept free), now at most 8 (below).
+- **Every run is still a run.** Its own container, `.tmp/<run>/` folder, run id and
+  `runs.log` line, in the same format; the same mounts, limits, host-side proofs and
+  `--network none`. A failed run keeps its folder and log.
+- **Built once per call.** The binary is built once. Each distro's first run builds and
+  proves its image as before; the later runs of that call build nothing and reuse it
+  (`--pull=never` refuses a missing image). ADR 0037 holds as written: the uncached
+  probe runs in every call and before every build; a reused run builds nothing, so it
+  has nothing to probe. Each run's runtime limits are still proven from the host.
+- **Stop at the first red run.** One red run resets the distro's count (point 6), so
+  continuing would prove nothing: after the first failure no new run starts, the running
+  ones finish, the call exits 1 and names the failed run id. A summary gives passed,
+  failed and not started per distro, and the wall time.
+- **RUNS is data, like AGENT.** This amends the 2026-10-23 clarification: `AGENT` is no
+  longer the only caller value. `run.sh` passes `RUNS` through `env -i` as data; the
+  runner accepts only a plain decimal 1–1000 (no sign, space or leading zero), checks
+  it before the lock, removes it from the environment, and never puts it in Podman's
+  arguments, a path or shell source. A refused value writes no audit line: no run was
+  attempted. `RUNS=1`, the default, is the old path unchanged; `make test-install`,
+  `make test-clean` and `make container-run` ignore it. The Makefile freezes `RUNS` as
+  literal data (`$(value RUNS)`), so a Make expression in it never runs (review round 1).
+- **At most 8 at once, not 16.** This amends point 4's ceiling of 16. The first real
+  `RUNS=16` call, 16 systemd containers at once, had 3 of 18 runs fail; systemd in the
+  containers logged:
+
+  ```text
+  systemd[<pid>]: Failed to create control group inotify object: Too many open files
+  systemd[<pid>]: Failed to allocate manager object: Too many open files
+  ```
+
+  Inotify instances are a per-user budget (`fs.inotify.max_user_instances`), shared by
+  every rootless container and the desktop session; 16 at once exceeded it on the
+  owner's machine. Memory alone does not tell how many fit. The cause is known; it is
+  not an Apptrol or test flaw, and the 18 lines stay in `runs.log`.
+
+  ```text
+  the user's inotify instances (fs.inotify.max_user_instances)
+    ├─ the desktop session
+    └─ every rootless container's systemd and user manager
+         16 at once → budget exceeded, runs fail
+  ```
+
+  At most 8 at once, for all container runs, is the owner's choice (2026-10-28). The
+  memory reading still applies and can only lower it.
+- **Left for later.** Adapting the ceiling to the free inotify instances was
+  considered and left for later.
+
 ### Effects
 
 - Agents run containers without prompts, and the owner can see afterwards what ran
