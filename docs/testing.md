@@ -193,8 +193,7 @@ Successful workspaces and logs are removed; failed ones remain in `.tmp/` and
 ([clean-up](#clean-up-of-kept-failed-runs)). Those full logs can contain private host data and must not be
 committed. A damaged or symlinked audit directory is refused before writing anything.
 The initial setup-proof records without a hash predate the complete Status test;
-they must not count toward #172's consecutive-pass gate. Making the CI job required
-remains in #172.
+they must not count toward #172's consecutive-pass gate.
 
 ### Collecting the #172 evidence
 

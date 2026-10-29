@@ -546,12 +546,13 @@ Point 6's gate is met for both distros, so `Systemd in containers` is the 8th re
 check on `main` (#172):
 
 ```text
-                 owner's machine (RUNS=300, PR #207)     CI, pull requests since #188
-systemd-ubuntu   300 green in a row, one recipe hash     18 green, 0 red
-systemd-fedora   300 green in a row, one recipe hash     18 green, 0 red
+                 owner's machine (RUNS=300, PR #207)     CI, pull requests after #188, before #208
+systemd-ubuntu   300 green in a row, one recipe hash     17 green, 0 red
+systemd-fedora   300 green in a row, one recipe hash     17 green, 0 red
 ```
 
-The CI count starts after the job's own setup in #188, whose red runs (Fedora's PAM
+The CI count covers the pull request runs after #188 merged and before #208, the PR
+that records this note. #188's own runs are left out: its red ones (Fedora's PAM
 helper and AppArmor, see the CI policy clarification above) were explained and fixed
 before it merged. A green CI run counts for both distros: the job has no
 `continue-on-error` and fails when either distro fails. The package-install recipes
