@@ -78,14 +78,7 @@ write_audit() {
 # Raw names/errors stay in local logs, never the committed audit line (QA-16).
 # Arguments: the run's folder from new_run, recipe, mode, and reuse=1 when an
 # earlier run of this call built the image (QA-16, ADR 0034, #172).
-# Always started with `&`, which already gives it its own process. Its body is a
-# group, not a subshell: a `( … )` body would fork once more, $! would name only
-# the outer fork, and stop_children's TERM would end that one while the run went
-# on (QA-16, ADR 0034, #172, review round 4). Its variables (run, recipe, …) are
-# plain variables of that process, so functions that launch it must not have a
-# `local` of the same name: the run would write into that local, which is gone
-# by the time its EXIT trap runs.
-run_one() {
+run_one() (
     run=$1
     shift
     runid=${run##*/}
@@ -248,7 +241,7 @@ run_one() {
         /usr/bin/nice -n 10 "${engine[@]}" start --attach "$container"
         [[ $("${engine[@]}" inspect --format '{{.State.ExitCode}}' "$container") == 0 ]]
     fi
-}
+)
 
 children=()
 stop_children() {
@@ -262,31 +255,7 @@ stop_children() {
     [[ -z ${stop_mark:-} ]] || rm -f -- "$stop_mark"
     exit 130
 }
-# A child is tracked only once its pid is in children. Between `&` and that
-# registration a signal is only recorded, and handled right after, so
-# stop_children never misses a run it would leave running containers behind
-# (QA-16, ADR 0034, #172, review round 4).
-launching=0
-pending_signal=
-on_signal() {
-    if ((launching)); then
-        pending_signal=$1
-        return 0
-    fi
-    stop_children
-}
-trap 'on_signal INT' INT
-trap 'on_signal TERM' TERM
-# Wrap every launch: begin_launch, `run_one … &`, children+=("$!"), end_launch.
-begin_launch() {
-    launching=1
-}
-end_launch() {
-    launching=0
-    if [[ -n $pending_signal ]]; then
-        stop_children
-    fi
-}
+trap stop_children INT TERM
 # The folder is made here, not inside run_one, so the caller knows each run id.
 new_run() {
     mktemp -d "$repo/.tmp/run-XXXXXXXX"
@@ -296,17 +265,10 @@ run_distros() {
     local mode=$1
     if ((jobs >= 2)); then
         run=$(new_run)
-        begin_launch
-        run_one "$run" "$mode-ubuntu" "$mode" &
-        children+=("$!")
-        end_launch
-        first=$!
+        run_one "$run" "$mode-ubuntu" "$mode" & first=$!
         run=$(new_run)
-        begin_launch
-        run_one "$run" "$mode-fedora" "$mode" &
-        children+=("$!")
-        end_launch
-        second=$!
+        run_one "$run" "$mode-fedora" "$mode" & second=$!
+        children=("$first" "$second")
         failed=0
         wait "$first" || failed=1
         wait "$second" || failed=1
@@ -314,19 +276,13 @@ run_distros() {
     fi
     # Do not suppress errexit inside run_one by calling it as an if condition.
     run=$(new_run)
-    begin_launch
-    run_one "$run" "$mode-ubuntu" "$mode" &
-    children=("$!")
-    end_launch
-    first=$!
+    run_one "$run" "$mode-ubuntu" "$mode" & first=$!
+    children=("$first")
     failed=0
     wait "$first" || failed=1
     run=$(new_run)
-    begin_launch
-    run_one "$run" "$mode-fedora" "$mode" &
-    children=("$!")
-    end_launch
-    second=$!
+    run_one "$run" "$mode-fedora" "$mode" & second=$!
+    children=("$second")
     wait "$second" || failed=1
     exit "$failed"
 }
@@ -363,10 +319,9 @@ reap() {
 # Starts the recipes in order, at most $slots at once, none after a failure.
 # Arguments: reuse or build, then the recipes.
 start_runs() {
-    # No local named like run_one's variables (run, recipe, distro, …; see it).
-    local how=$1 next folder
+    local how=$1 recipe run
     shift
-    for next in "$@"; do
+    for recipe in "$@"; do
         while ((${#running[@]} >= slots)); do reap; done
         # A failure counts from the moment its run writes the marker, not from when
         # it is reaped: with free slots nothing may be waiting on it. The check and
@@ -378,18 +333,15 @@ start_runs() {
             exec 6<&-
             return 0
         fi
-        folder=$(new_run)
-        begin_launch
-        run_one "$folder" "$next" systemd "$how" 6<&- &
-        children+=("$!")
-        running[$!]="$next ${folder##*/}"
+        run=$(new_run)
+        run_one "$run" "$recipe" systemd "$how" 6<&- &
+        running[$!]="$recipe ${run##*/}"
+        children=("${!running[@]}")
         exec 6<&-
-        end_launch
     done
 }
 run_repeated() {
-    # No local named like run_one's variables here either: it calls start_runs.
-    local began=$SECONDS i each done_runs rest=()
+    local began=$SECONDS i recipe done_runs rest=()
     # With jobs=0 one slot is left, so run_one records the memory refusal.
     slots=$((jobs > 0 ? jobs : 1))
     stop_mark=$(mktemp "$repo/.tmp/stop-XXXXXXXX")
@@ -407,9 +359,9 @@ run_repeated() {
     fi
     rm -f -- "$stop_mark"
     echo "RUNS=$runs, up to $slots at once, wall time $((SECONDS - began)) s"
-    for each in systemd-ubuntu systemd-fedora; do
-        done_runs=$((${passes[$each]:-0} + ${fails[$each]:-0}))
-        echo "$each: ${passes[$each]:-0} passed, ${fails[$each]:-0} failed, $((runs - done_runs)) not started"
+    for recipe in systemd-ubuntu systemd-fedora; do
+        done_runs=$((${passes[$recipe]:-0} + ${fails[$recipe]:-0}))
+        echo "$recipe: ${passes[$recipe]:-0} passed, ${fails[$recipe]:-0} failed, $((runs - done_runs)) not started"
     done
     if [[ -n $first_failed ]]; then
         echo "First failed run: $first_failed (.tmp/$first_failed, .audit/logs/$first_failed.log); no new runs were started after it" >&2
@@ -553,9 +505,6 @@ if [[ ${1:-} == @clean ]]; then
 fi
 name=${1:-}
 run=$(new_run)
-begin_launch
-run_one "$run" "${name#recipe:}" &
-children=("$!")
-end_launch
-only=$!
+run_one "$run" "${name#recipe:}" & only=$!
+children=("$only")
 wait "$only"
