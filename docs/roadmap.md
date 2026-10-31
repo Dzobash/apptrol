@@ -178,7 +178,7 @@ the LEDs whether OBS records or is live, and put OBS's audio sources on faders.
 
 Planned on 2026-10-31 ([#216](https://github.com/Dzobash/apptrol/issues/216)). Apptrol
 talks to OBS's built-in WebSocket server (obs-websocket v5), so no OBS plugin is needed.
-OBS targets do not depend on layouts; only pinning a layout with Cycle does, and comes
+OBS targets do not depend on layouts; only Cycle's pinned layout does, and comes
 with Phase 2. The security base comes first, then the features, one PR each:
 
 ```
@@ -209,22 +209,22 @@ controller.
 
 ```
 ◀ Track ▶       step to the previous / next layout
-Cycle (alone)   pin the current layout, Cycle LED lit;
-                press again: back to the layout before it
+Cycle (alone)   switch to the pinned layout (set in the config), Cycle LED lit;
+                press again: back to the previous unpinned layout
 ```
 
 - [ ] Multiple layouts with their own assignments and saved state
 - [ ] Switch behaviour per layout: fixed value (with per-control overrides), last values, carry over
 - [ ] Pick-up after a switch; blinking M LED while a control is waiting
 - [ ] Track ◀ / ▶ to step through layouts
-- [ ] Cycle tapped alone toggles a pinned layout (e.g. an OBS layout): Cycle LED lit while pinned; pressing it again returns to the previous unpinned layout. (Cycle + S / M / R to jump to a layout was dropped on 2026-10-31, [#216](https://github.com/Dzobash/apptrol/issues/216).)
+- [ ] A pinned layout, named in the config (e.g. `pinned = "Stream"`): Cycle tapped alone switches to it, Cycle LED lit while it is active; pressing Cycle again returns to the previous unpinned layout. (Cycle + S / M / R to jump to a layout was dropped on 2026-10-31, [#216](https://github.com/Dzobash/apptrol/issues/216).)
 - [ ] Optional automatic switching by running application
 - [ ] Resolve open question Q-1
 
-**Done when:** layouts step with Track ◀ / ▶ and Cycle pins one and returns from it,
-each layout brings back its own positions, mutes and solo, pick-up works with a blinking
-M LED, Q-1 is decided, and the hardware checklist passes on an installed release
-candidate.
+**Done when:** layouts step with Track ◀ / ▶, Cycle switches to the pinned layout and
+back, each layout brings back its own positions, mutes and solo, pick-up works with a
+blinking M LED, Q-1 is decided, and the hardware checklist passes on an installed
+release candidate.
 
 ## Phase 3 — I'm In
 

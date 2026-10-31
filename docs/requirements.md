@@ -432,7 +432,7 @@ Sway setups) need one line in their config so started apps can open windows;
 - Every layout keeps its own positions, user mutes and solo state, and restores them when it becomes active. Switching layouts does not change the state of apps that are not part of the new layout.
 - Per layout, what happens on switch: set controls to a **fixed value** (a layout-wide default with optional per-control overrides), restore **this layout's last values**, or **carry over** the physical positions from the previous layout.
 - **Pick-up** (as on the GoXLR): after a switch, a control does nothing until its physical position crosses the target's current level. The M LED of a waiting column blinks.
-- Track ◀ / ▶ step through layouts. Cycle tapped alone toggles a pinned layout (e.g. an OBS layout): the Cycle LED is lit while it is pinned, and pressing Cycle again returns to the previous unpinned layout. *(Cycle + S / M / R to jump to a layout was dropped on 2026-10-31, #216.)*
+- Track ◀ / ▶ step through layouts. One layout can be the pinned layout, named in the config (e.g. `pinned = "Stream"`): Cycle tapped alone switches to it and lights the Cycle LED, and pressing Cycle again returns to the previous unpinned layout. *(Cycle + S / M / R to jump to a layout was dropped on 2026-10-31, #216.)*
 - Optional automatic switching (e.g. when a game starts).
 
 ### Phase 3 — Setup and tray *(ADR 0021; no desktop GUI)*

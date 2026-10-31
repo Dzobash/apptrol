@@ -47,5 +47,5 @@ Recording, output switching (R), bleep and Marker buttons stay in the backlog.
   comes after the LED language, whose patterns it uses, and before layouts, because OBS
   targets do not need layouts. It finishes the recording control that was in the
   backlog (#62). Layouts move to `0.6.0`, setup and tray to `0.7.0`; the phase numbers
-  stay. Layouts also change: Cycle tapped alone pins a layout, and Cycle + S / M / R to
-  jump to a layout is dropped.
+  stay. Layouts also change: Cycle tapped alone switches to a pinned layout named in
+  the config and back, and Cycle + S / M / R to jump to a layout is dropped.
