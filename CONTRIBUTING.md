@@ -52,8 +52,9 @@ in what order.
 - An issue that moves to another phase moves to that phase's milestone. A phase that
   moves to another version gets its milestone renamed.
 - A pull request that finishes a planned issue gets the same milestone.
-- Open issues are moved out before the release candidate, and the milestone is closed
-  after the release ([releasing.md](docs/releasing.md)).
+- Before the release candidate, each open issue is moved or kept, with the decision in
+  the issue (e.g. "stays: checked on the candidate"). Before the release, none is open
+  any more, and the milestone is closed after it ([releasing.md](docs/releasing.md)).
 
 ## Branches and pull requests
 
