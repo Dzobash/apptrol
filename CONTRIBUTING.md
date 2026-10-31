@@ -41,17 +41,19 @@ enough.
 A milestone says what is left in a release; the [roadmap](docs/roadmap.md) says why and
 in what order.
 
-- An issue planned for a phase gets that phase's milestone. Its title is the version,
-  then the phase's name, so milestones sort by version:
+- Every release has a milestone, a patch too. Its title is the version, then the
+  phase's name, so milestones sort by version; a patch keeps its phase's name:
   ```text
-  0.3.0 — These Go to Eleven
+  0.3.0 — These Go to Eleven     the phase's release
+  0.3.1 — These Go to Eleven     a patch: same name, its own milestone
   ```
-  A `backlog` issue gets none. A phase's milestone is made when the phase gets its first
-  issue.
+- An issue planned for a release gets its milestone; a `backlog` issue gets none. A
+  milestone is made as soon as its release is planned or gets an issue.
 - An issue that moves to another phase moves to that phase's milestone. A phase that
   moves to another version gets its milestone renamed.
 - A pull request that finishes a planned issue gets the same milestone.
-- At the release, its milestone is closed ([releasing.md](docs/releasing.md#making-a-release)).
+- Open issues are moved out before the release candidate, and the milestone is closed
+  after the release ([releasing.md](docs/releasing.md)).
 
 ## Branches and pull requests
 

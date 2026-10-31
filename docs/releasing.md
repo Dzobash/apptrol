@@ -66,6 +66,8 @@ The service is **not** enabled automatically; each user runs
    with the owner's decision: all cases for a MINOR release, the smoke set and the changed
    requirements' cases for a PATCH release
    ([ADR 0032](adr/0032-patch-releases-test-what-changed.md)).
+   Check that the release's milestone has no open issues left, as before the candidate
+   (see [Release candidates](#release-candidates)).
 2. On a branch `chore/release-v0.1.0`, in [CHANGELOG.md](https://github.com/Dzobash/apptrol/blob/main/CHANGELOG.md), add
    `## [0.1.0] - YYYY-MM-DD` below `## [Unreleased]`, so that the entries move under it
    and `[Unreleased]` stays, empty, above; update the links at the end of the file.
@@ -102,17 +104,20 @@ The service is **not** enabled automatically; each user runs
    before tagging it.
 4. Watch **Actions → Release** on GitHub. When it finishes, the release appears under
    **Releases**, with release notes generated from the commit messages.
-5. Close the release's milestone (`0.1.0 — <phase name>`, under **Issues → Milestones**),
-   if it has one ([CONTRIBUTING › Milestones](https://github.com/Dzobash/apptrol/blob/main/CONTRIBUTING.md#milestones)).
-   Close it only when no issue in it is open: move each open one to another milestone
-   or to the backlog, and write the decision in the issue.
+5. Close the release's milestone (`0.1.0 — <phase name>`, under **Issues → Milestones**;
+   every release has one, a patch too:
+   [CONTRIBUTING › Milestones](https://github.com/Dzobash/apptrol/blob/main/CONTRIBUTING.md#milestones)).
+   It has no open issues left (step 1).
 
 ## Release candidates
 
 Before a new version, publish a release candidate and test the installed package:
 
-1. Tag a commit on `main` with a suffix; the changelog stays under `[Unreleased]`. Name
-   the commit by its SHA, check that one, and tag that one, not your checkout's `HEAD`:
+1. First check the release's milestone (`0.1.0 — <phase name>`) for open issues: move
+   each one to another milestone or to the backlog, and write the decision in the issue.
+   Then tag a commit on `main` with a suffix; the changelog stays under `[Unreleased]`.
+   Name the commit by its SHA, check that one, and tag that one, not your checkout's
+   `HEAD`:
    ```bash
    git fetch origin
    git rev-parse origin/main               # the commit to test: note its SHA
