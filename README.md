@@ -18,7 +18,7 @@
 ## What it does
 
 <p align="center">
-  <img src="docs/assets/photos/nanokontrol2-controls.png" alt="The Korg nanoKONTROL2 with its controls marked: sliders, knobs, S and M since 0.1.0; the R buttons, the transport buttons as media keys, and Marker and Record as app launchers since 0.2.0; Track and Cycle are planned for 0.5.0 to switch layouts" width="800"><br>
+  <img src="docs/assets/photos/nanokontrol2-controls.png" alt="The Korg nanoKONTROL2 with its controls marked: sliders, knobs, S and M since 0.1.0; the R buttons, the transport buttons as media keys, and Marker and Record as app launchers since 0.2.0; Track and Cycle are planned for 0.6.0 to switch layouts" width="800"><br>
   <sub>Photo: jzohsuh / <a href="https://www.ifixit.com/Guide/Korg+nanoKONTROL2+Disassembly/117910">iFixit</a>, <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/">CC BY-NC-SA 3.0</a>, annotated.</sub>
 </p>
 
@@ -57,8 +57,10 @@ what you're doing.
 - **0.3.0:** volume for whole outputs (speakers, headphones), not only apps
 - **0.4.0:** an on-screen display when you move a slider or mute an app, and LEDs that
   say more
-- **0.5.0:** several layouts, e.g. *Work* and *Gaming*, switched with Track and Cycle
-- **0.6.0:** a setup in the terminal and a tray icon
+- **0.5.0:** OBS from the controller: start and stop recording and streaming, see on the
+  LEDs whether you are live, and put OBS's audio sources on faders
+- **0.6.0:** several layouts, e.g. *Work* and *Gaming*, switched with Track and Cycle
+- **0.7.0:** a setup in the terminal and a tray icon
 
 The [roadmap](docs/roadmap.md) has the details. The development version already accepts
 the separate `[apps]`, `[inputs]` and `[outputs]` configuration tables, and a slider or

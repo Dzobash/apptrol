@@ -421,12 +421,18 @@ Sway setups) need one line in their config so started apps can open windows;
 - A desktop notification when something needs attention, e.g. an invalid configuration or the controller unplugged (ADR 0021).
 - An LED language beyond on and off: steady, blinking by itself, blinking on request, per screen state; used for problems, solo on a silent app, the media keys' column and a service menu (#100, #101, #103, #108).
 
+### Phase 1.8 — OBS *(#216)*
+- Start and stop recording and streaming in OBS from the controller, over OBS's built-in WebSocket server (obs-websocket v5); the Record LED lit while OBS records or streams (#212, ADR 0043). This finishes the recording control that was in the backlog (#62).
+- OBS's audio sources on faders; M blinks while a fader is not at OBS's level (#213).
+- Before the first connection: outgoing connections only, to hosts in an allow list (#209, ADR 0041), and the OBS password kept in the keyring or a password file (#210, ADR 0042).
+- The transport buttons can be configured; media keys stay the default (#211).
+
 ### Phase 2 — Layouts
 - Several layouts (e.g. *Work*, *Gaming*), each with its own assignments.
 - Every layout keeps its own positions, user mutes and solo state, and restores them when it becomes active. Switching layouts does not change the state of apps that are not part of the new layout.
 - Per layout, what happens on switch: set controls to a **fixed value** (a layout-wide default with optional per-control overrides), restore **this layout's last values**, or **carry over** the physical positions from the previous layout.
 - **Pick-up** (as on the GoXLR): after a switch, a control does nothing until its physical position crosses the target's current level. The M LED of a waiting column blinks.
-- Track ◀ / ▶ step through layouts; Cycle + S / M / R on a column jumps directly to a layout (up to 24).
+- Track ◀ / ▶ step through layouts. Cycle tapped alone toggles a pinned layout (e.g. an OBS layout): the Cycle LED is lit while it is pinned, and pressing Cycle again returns to the previous unpinned layout. *(Cycle + S / M / R to jump to a layout was dropped on 2026-10-31, #216.)*
 - Optional automatic switching (e.g. when a game starts).
 
 ### Phase 3 — Setup and tray *(ADR 0021; no desktop GUI)*
@@ -439,7 +445,9 @@ Sway setups) need one line in their config so started apps can open windows;
 - A man page and shell completions (bash, zsh, fish) in the packages, written without a command-line framework (ADR 0021).
 
 ### Backlog (unscheduled)
-- Recording control beyond starting an app (e.g. start/stop recording in OBS via its WebSocket API, with the Record LED showing the state).
+- Recording control beyond starting an app: planned in Phase 1.8 (OBS, #216), see above.
+- A Home Assistant adapter (#214).
+- Mute and deafen in Discord through its RPC, once Discord approves it (#215).
 - Read the controller's LED mode over SysEx (read-only) and log a **warning** only when it is "Internal", replacing the HW-03 hint.
 - Support for other MIDI controllers.
 

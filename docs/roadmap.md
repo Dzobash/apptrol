@@ -10,14 +10,15 @@ Each phase ends with a tagged release. Detailed requirements live in
 | 1.5 | You Get a Button! And You Get a Button! | Media, launcher and column buttons | 0.2.0 | ✅ Released 2026-10-04 |
 | 1.6 | These Go to Eleven | Output volume | 0.3.0 | ⚪ Planned |
 | 1.7 | Show Me What You Got | On-screen display and LEDs | 0.4.0 | ⚪ Planned |
-| 2 | Multiverse of Madness | Layouts | 0.5.0 | ⚪ Planned |
-| 3 | I'm In | Setup and tray | 0.6.0 | ⚪ Planned |
+| 1.8 | We'll Do It Live! | OBS | 0.5.0 | ⚪ Planned |
+| 2 | Multiverse of Madness | Layouts | 0.6.0 | ⚪ Planned |
+| 3 | I'm In | Setup and tray | 0.7.0 | ⚪ Planned |
 | – | Soon™ | Backlog | – | ⚪ Unscheduled |
 
 `1.0.0` is released once Phases 1–3 are stable and the config format is frozen.
 
 <p align="center">
-  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by version: sliders, knobs, S and M since 0.1.0; R buttons, the transport buttons as media keys, and Marker and Record as launchers since 0.2.0; Track and Cycle for layouts planned for 0.5.0" width="800">
+  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by version: sliders, knobs, S and M since 0.1.0; R buttons, the transport buttons as media keys, and Marker and Record as launchers since 0.2.0; Track and Cycle for layouts planned for 0.6.0" width="800">
 </p>
 
 ---
@@ -168,27 +169,66 @@ display differs per desktop and needs a trial on GNOME first (#116).
 KDE and as a notification on GNOME, the LED language is decided and built, and the
 hardware checklist passes on an installed release candidate.
 
+## Phase 1.8 — We'll Do It Live!
+
+*OBS · `0.5.0` · ⚪ Planned*
+
+**Goal:** control OBS from the controller: start and stop recording and streaming, see on
+the LEDs whether OBS records or is live, and put OBS's audio sources on faders.
+
+Planned on 2026-10-31 ([#216](https://github.com/Dzobash/apptrol/issues/216)). Apptrol
+talks to OBS's built-in WebSocket server (obs-websocket v5), so no OBS plugin is needed.
+OBS targets do not depend on layouts; only pinning a layout with Cycle does, and comes
+with Phase 2. The security base comes first, then the features, one PR each:
+
+```
+security base                 features
+  #209 network  ─┐              #211 transport buttons
+  #210 secrets  ─┴──────────→   #212 OBS record and stream  (uses #100's LED patterns)
+                                #213 OBS audio sources on faders
+```
+
+- [ ] Network: outgoing connections only, to hosts in a `[network] allow` list (`localhost` too); when TLS is required; a rule for choosing dependencies; `govulncheck` every week in CI (ADR 0041, [#209](https://github.com/Dzobash/apptrol/issues/209))
+- [ ] Secrets: the OBS password in the keyring (Secret Service) or a password file only its owner can read (`0600`); `apptrol secret set` / `delete` (ADR 0042, [#210](https://github.com/Dzobash/apptrol/issues/210))
+- [ ] Transport buttons (◀◀ ▶▶ ■ ▶) can be configured; media keys stay the default ([#211](https://github.com/Dzobash/apptrol/issues/211))
+- [ ] OBS record and stream: ● starts and stops recording, lit while OBS records or streams; ▶ starts the stream, ■ stops it after a hold (3 s by default); nothing starts or stops while the screen is locked; OBS offline shown with an LED pattern from [#100](https://github.com/Dzobash/apptrol/issues/100) (ADR 0043, [#212](https://github.com/Dzobash/apptrol/issues/212))
+- [ ] OBS audio sources on faders; M blinks while the fader is not at OBS's level (SHOULD, [#213](https://github.com/Dzobash/apptrol/issues/213))
+- [ ] Finishes recording control beyond starting an app ([#62](https://github.com/Dzobash/apptrol/issues/62))
+
+**Done when:** all Phase 1.8 MUST requirements are met, recording and streaming start
+and stop from the controller and REC shows their state against a real OBS, Apptrol
+connects only to allowed hosts and keeps the OBS password out of `config.toml`, and the
+hardware checklist passes on an installed release candidate.
+
 ## Phase 2 — Multiverse of Madness
 
-*Layouts · `0.5.0` · ⚪ Planned*
+*Layouts · `0.6.0` · ⚪ Planned*
 
 **Goal:** several sets of assignments (e.g. *Work*, *Gaming*), switched from the
 controller.
 
+```
+◀ Track ▶       step to the previous / next layout
+Cycle (alone)   pin the current layout, Cycle LED lit;
+                press again: back to the layout before it
+```
+
 - [ ] Multiple layouts with their own assignments and saved state
 - [ ] Switch behaviour per layout: fixed value (with per-control overrides), last values, carry over
 - [ ] Pick-up after a switch; blinking M LED while a control is waiting
-- [ ] Track ◀ / ▶ to step through layouts; Cycle + S / M / R to jump to one (up to 24)
+- [ ] Track ◀ / ▶ to step through layouts
+- [ ] Cycle tapped alone toggles a pinned layout (e.g. an OBS layout): Cycle LED lit while pinned; pressing it again returns to the previous unpinned layout. (Cycle + S / M / R to jump to a layout was dropped on 2026-10-31, [#216](https://github.com/Dzobash/apptrol/issues/216).)
 - [ ] Optional automatic switching by running application
 - [ ] Resolve open question Q-1
 
-**Done when:** layouts switch with Track and Cycle, each brings back its own positions,
-mutes and solo, pick-up works with a blinking M LED, Q-1 is decided, and the hardware
-checklist passes on an installed release candidate.
+**Done when:** layouts step with Track ◀ / ▶ and Cycle pins one and returns from it,
+each layout brings back its own positions, mutes and solo, pick-up works with a blinking
+M LED, Q-1 is decided, and the hardware checklist passes on an installed release
+candidate.
 
 ## Phase 3 — I'm In
 
-*Setup and tray · `0.6.0` · ⚪ Planned*
+*Setup and tray · `0.7.0` · ⚪ Planned*
 
 **Goal:** set up Apptrol without editing a file, and see its status in the tray.
 
@@ -210,7 +250,8 @@ an installed release candidate.
 
 **Goal:** ideas worth keeping that have no release yet.
 
-- Recording control beyond starting an app (e.g. OBS WebSocket, Record LED shows recording state) ([#62](https://github.com/Dzobash/apptrol/issues/62))
+- A Home Assistant adapter ([#214](https://github.com/Dzobash/apptrol/issues/214))
+- Mute and deafen in Discord through its RPC; needs Discord's approval first ([#215](https://github.com/Dzobash/apptrol/issues/215))
 - Read the controller's LED mode over SysEx and warn only when it is "Internal" (see HW-03) ([#63](https://github.com/Dzobash/apptrol/issues/63))
 - Support for other MIDI controllers ([#64](https://github.com/Dzobash/apptrol/issues/64))
 - Native journald protocol for structured log fields (Q-5) ([#65](https://github.com/Dzobash/apptrol/issues/65))
@@ -257,6 +298,8 @@ fader under your fingers.
 - Volume and mute of apps, inputs and outputs, and solo of apps, from a MIDI
   controller, the Korg nanoKONTROL2 first (outputs have no solo, ADR 0036)
 - Buttons for media keys and for starting apps
+- OBS from the controller: recording, streaming and its audio sources, over OBS's own
+  WebSocket server
 - Layouts: several sets of assignments, switched from the controller
 - A setup in the terminal and a tray icon
 - Any Linux desktop with PipeWire (or PulseAudio) and systemd

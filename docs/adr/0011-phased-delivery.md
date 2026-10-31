@@ -42,3 +42,10 @@ Recording, output switching (R), bleep and Marker buttons stay in the backlog.
   the on-screen display needs a trial on GNOME first. Layouts move to `0.5.0`, setup and
   tray to `0.6.0`; mentions of "Phase 1.6" for the on-screen display in earlier ADRs now
   mean Phase 1.7.
+- 2026-10-31: a new Phase 1.8, *We'll Do It Live!* (`0.5.0`), controls OBS over its
+  built-in WebSocket server: recording, streaming and OBS's audio sources (#216). It
+  comes after the LED language, whose patterns it uses, and before layouts, because OBS
+  targets do not need layouts. It finishes the recording control that was in the
+  backlog (#62). Layouts move to `0.6.0`, setup and tray to `0.7.0`; the phase numbers
+  stay. Layouts also change: Cycle tapped alone pins a layout, and Cycle + S / M / R to
+  jump to a layout is dropped.
