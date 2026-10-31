@@ -60,7 +60,7 @@ box(380,210,578,258,GREEN,12); box(513,267,576,333,GREEN,10); badge(5,578,210,GR
 items=[(1,GREEN,'Since 0.1.0','Sliders and knobs set volumes; S solos, M mutes; on a mic: talk or cough.'),
        (2,GREEN,'Since 0.2.0','R plays / pauses the app on its slider, or starts an app.'),
        (3,GREEN,'Since 0.2.0','◀◀ ▶▶ ■ ▶ control the music player that is playing.'),
-       (4,VERM,'Planned for 0.5.0','Track ◀ ▶ and Cycle switch between layouts.'),
+       (4,VERM,'Planned for 0.6.0','Track ◀ ▶ and Cycle switch between layouts.'),
        (5,GREEN,'Since 0.2.0','Marker buttons and Record start an app of your choice.')]
 y0=PAD_T+PH+PAD_B
 colx=[60,840]

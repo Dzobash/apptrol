@@ -165,6 +165,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `apps.mic: type = "input" is the old form; move it to [inputs.mic]`. Version 1.0 will
   no longer read it (CFG-19).
 
+### Documentation
+- Roadmap: new Phase 1.8, *We'll Do It Live!* (OBS, 0.5.0); layouts move to 0.6.0, setup
+  and tray to 0.7.0 (#216).
+
 ### Fixed
 - Canceling container checks now stops dispatch and waits for started runs to finish
   cleanup and their audit records, even after repeated INT/TERM signals to the runner
