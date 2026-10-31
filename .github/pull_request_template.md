@@ -1,18 +1,15 @@
-## What does this change?
+<!--
+This description becomes the commit message on main (squash merge): keep it short,
+and delete these comments. The checklist goes in the PR's first comment:
+copy .github/pull_request_checklist.md and fill it in.
+-->
 
-<!-- One or two sentences. Link the issue if there is one: "Fixes #12". -->
+<!-- What changes and why, in a few lines. Requirement IDs where they apply (SOLO-04). -->
 
-## Requirements
+<!-- Links: "Fixes #12" or "Part of #12". -->
 
-<!-- Requirement IDs this implements or changes, e.g. SOLO-04, CFG-06. "None" is fine. -->
-
-## Checklist
-
-- [ ] `make check` passes locally
-- [ ] Tests added or updated for the changed behaviour
-- [ ] For a bug fix: a test that fails without the fix (QA-11)
-- [ ] Manual test cases and fixtures in `docs/testing/` added or updated (for a new feature or behaviour change)
-- [ ] `CHANGELOG.md` updated under **Unreleased** (for user-visible changes)
-- [ ] Docs updated (`docs/`, `README.md`) if behaviour or configuration changed
-- [ ] New design decision recorded as an ADR, if there is one
-- [ ] Open issues checked: the ones this fixes, finishes, conflicts with or makes obsolete are named above
+<!-- Last paragraph, one line each: Co-authored-by for every model that wrote commits,
+Reviewed-by for every model whose review round was clean on the final commit
+(see AGENTS.md › Build). A human-only PR leaves this out. -->
+Co-authored-by: <model name> <noreply@<provider domain>>
+Reviewed-by: <model name> <noreply@<provider domain>>

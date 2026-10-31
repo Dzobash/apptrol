@@ -72,12 +72,15 @@ All changes go through a branch and a pull request (GitHub Flow):
    ```bash
    git push -u origin feat/config-loading
    ```
-3. Open a pull request into `main` on GitHub. CI runs on it; fill in the PR template.
+3. Open a pull request into `main` on GitHub. CI runs on it; write the description as
+   the PR template shows, and post the filled-in
+   [checklist](.github/pull_request_checklist.md) as its first comment
+   ([Commits and pull requests](#commits-and-pull-requests)).
 4. Merge with **Squash and merge** once the 8 required checks are green: Lint, Test (on
    two Go versions), Fuzz, Vulnerability check, Build, Packaging and Systemd in
-   containers. The PR title
-   becomes the single commit on `main`, so it must follow Conventional Commits (it
-   feeds the release notes).
+   containers. The PR title becomes the subject of the single commit on `main`, so it
+   must follow Conventional Commits (it feeds the release notes); the description
+   becomes its body.
 5. Update your local `main`, then delete the branch:
    ```bash
    git switch main
@@ -88,9 +91,9 @@ All changes go through a branch and a pull request (GitHub Flow):
    branch's own commits as merged, so `-d` refuses.
 
 Repository settings that support this (**Settings → General → Pull Requests**): allow only
-*squash merging*, set the default commit message to *pull request title*, and enable
-*automatically delete head branches*. A ruleset on `main` requires pull requests and a
-green CI (QA-02).
+*squash merging*, set the default commit message to *pull request title and
+description*, and enable *automatically delete head branches*. A ruleset on `main`
+requires pull requests and a green CI (QA-02).
 
 Coding agents follow [AGENTS.md](AGENTS.md) on top of these steps: reviews
 ([Review](AGENTS.md#review)), asking before a push and draft pull requests
@@ -105,6 +108,23 @@ Coding agents follow [AGENTS.md](AGENTS.md) on top of these steps: reviews
 - A commit written with an AI agent names its model in a `Co-Authored-By:` line, e.g.
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`; see
   [AGENTS.md › Build](AGENTS.md#build).
+- **The PR description becomes the commit message on `main`.** Keep it short: what
+  changes and why in a few lines, the links (`Fixes #n`, `Part of #n`), and, as the
+  last paragraph, the trailers that credit the models that wrote and reviewed it (git
+  reads trailers only there; a PR without AI help leaves them out). Anything else, such
+  as a "Generated with …" line, goes above them:
+  ```
+  feat: exclusive solo toggle (SOLO-04, SOLO-05)       ← PR title
+
+  Pressing S on a second column moves solo there.       ← description
+  Fixes #12
+
+  Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+  Reviewed-by: GPT-6.1-Sol <noreply@openai.com>
+  ```
+- **The checklist is the PR's first comment.** Copy
+  [.github/pull_request_checklist.md](.github/pull_request_checklist.md), tick what
+  applies and post it as a comment, so it does not end up in `main`'s history.
 - Add an entry under **Unreleased** in [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
 - **Whenever a new feature or behaviour change is added, also add or update its test
   cases and fixtures in [docs/testing/](docs/testing/cases/README.md)** (same format), in

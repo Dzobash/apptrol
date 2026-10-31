@@ -255,6 +255,16 @@ from one to another.
   as Claude, e.g. `Co-Authored-By: GPT-6.1-Sol <noreply@openai.com>` or
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, so it is clear which
   agent did what.
+- **The PR description becomes the commit on `main`** (squash merge,
+  [CONTRIBUTING.md › Commits and pull requests](CONTRIBUTING.md#commits-and-pull-requests)),
+  so it ends with a trailer block that credits every model: one `Co-authored-by` per
+  model that wrote commits on the branch, one `Reviewed-by` per model whose round was
+  clean on the PR's final commit (a model with findings in earlier rounds counts once).
+  Any provider works the same way: its model name and its noreply address.
+  ```
+  Co-authored-by: Claude Opus 5.5 <noreply@anthropic.com>
+  Reviewed-by: GPT-6.1-Sol <noreply@openai.com>
+  ```
 - Every behaviour has a requirement ID in [docs/requirements.md](docs/requirements.md);
   tests are named after it (QA-07), e.g. `TestSOLO05_PressingSoloAgainTurnsItOff`.
 - **Code comments explain the why** and cite the requirement ID and the ADR, e.g.
@@ -285,8 +295,9 @@ from one to another.
   [CONTRIBUTING.md › Documentation](CONTRIBUTING.md#documentation). This holds for
   agent rules, PRs and issues too.
 - **Before a PR:** fill in the checklist of
-  [.github/pull_request_template.md](.github/pull_request_template.md); it lists what
-  every contributor checks. Agents add only this:
+  [.github/pull_request_checklist.md](.github/pull_request_checklist.md) and post it as
+  the PR's first comment, not in the description; it lists what every contributor
+  checks. Agents add only this:
   - check the diff for private data ([Boundaries](#boundaries));
   - choose the review order: routine → push first; complex or important → review on
     the local branch first ([Review](#review)).
@@ -394,7 +405,9 @@ from one to another.
   round on the draft PR first.
 - Then the agent that owns the PR marks it ready itself (`gh pr ready <n>`), without
   asking in the chat again: the owner's OK for the PR covers pushing review fixes, the
-  next rounds and marking it ready. The tools' own prompts for `git push` and
+  next rounds and marking it ready. Just before, it fills in or updates the
+  description's trailer block ([Build](#build)) with REST PATCH ([Publish](#publish))
+  and reads it back. The tools' own prompts for `git push` and
   `gh pr ready` stay (QA-15); the owner answers them with a click, not a new decision.
 - **Rules files.** Before a PR that changes AGENTS.md or another rules file (CLAUDE.md,
   CONTRIBUTING.md, a skill or command, the settings files) is marked ready, re-read the
