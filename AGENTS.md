@@ -183,8 +183,10 @@ The owner wants to keep learning while working, not just receive finished result
   play/pause and launchers left no press for moving apps between outputs, #61).
 - Suggest an issue whenever [CONTRIBUTING.md › Issues](CONTRIBUTING.md#issues) asks for
   one (a bug in a released version, an idea or task left for later, a bug in another
-  app); a fix's PR says `Fixes #n`. A security problem is never a public issue or PR
-  text first: tell the owner, who reports it as [SECURITY.md](SECURITY.md) says.
+  app); a fix's PR says `Fixes #n`. A planned issue and its PR get the release's
+  milestone ([CONTRIBUTING.md › Milestones](CONTRIBUTING.md#milestones)). A security
+  problem is never a public issue or PR text first: tell the owner, who reports it as
+  [SECURITY.md](SECURITY.md) says.
 - ADRs follow [CONTRIBUTING.md › Before you start](CONTRIBUTING.md#before-you-start).
   Several agents may write one at the same time, so the plan **reserves the next ADR
   number** and says so in the issue or the PR (e.g. "ADR number 0040 is reserved for

@@ -66,6 +66,9 @@ The service is **not** enabled automatically; each user runs
    with the owner's decision: all cases for a MINOR release, the smoke set and the changed
    requirements' cases for a PATCH release
    ([ADR 0032](adr/0032-patch-releases-test-what-changed.md)).
+   Check that the release's milestone has no open issues left: an issue kept for the
+   candidate ([Release candidates](#release-candidates), step 1) is closed by now, or
+   moved now, with the decision in the issue.
 2. On a branch `chore/release-v0.1.0`, in [CHANGELOG.md](https://github.com/Dzobash/apptrol/blob/main/CHANGELOG.md), add
    `## [0.1.0] - YYYY-MM-DD` below `## [Unreleased]`, so that the entries move under it
    and `[Unreleased]` stays, empty, above; update the links at the end of the file.
@@ -102,13 +105,21 @@ The service is **not** enabled automatically; each user runs
    before tagging it.
 4. Watch **Actions → Release** on GitHub. When it finishes, the release appears under
    **Releases**, with release notes generated from the commit messages.
+5. Close the release's milestone (`0.1.0 — <phase name>`, under **Issues → Milestones**;
+   every release has one, a patch too:
+   [CONTRIBUTING › Milestones](https://github.com/Dzobash/apptrol/blob/main/CONTRIBUTING.md#milestones)).
+   It has no open issues left (step 1).
 
 ## Release candidates
 
 Before a new version, publish a release candidate and test the installed package:
 
-1. Tag a commit on `main` with a suffix; the changelog stays under `[Unreleased]`. Name
-   the commit by its SHA, check that one, and tag that one, not your checkout's `HEAD`:
+1. First check the release's milestone (`0.1.0 — <phase name>`) for open issues. Move
+   each one to another milestone or to the backlog, or keep it, and write the decision
+   in the issue (e.g. "stays: checked on the candidate").
+   Then tag a commit on `main` with a suffix; the changelog stays under `[Unreleased]`.
+   Name the commit by its SHA, check that one, and tag that one, not your checkout's
+   `HEAD`:
    ```bash
    git fetch origin
    git rev-parse origin/main               # the commit to test: note its SHA
