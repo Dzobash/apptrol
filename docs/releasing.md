@@ -102,6 +102,10 @@ The service is **not** enabled automatically; each user runs
    before tagging it.
 4. Watch **Actions → Release** on GitHub. When it finishes, the release appears under
    **Releases**, with release notes generated from the commit messages.
+5. Close the release's milestone (`0.1.0 — <phase name>`, under **Issues → Milestones**),
+   if it has one ([CONTRIBUTING › Milestones](https://github.com/Dzobash/apptrol/blob/main/CONTRIBUTING.md#milestones)).
+   Close it only when no issue in it is open: move each open one to another milestone
+   or to the backlog, and write the decision in the issue.
 
 ## Release candidates
 

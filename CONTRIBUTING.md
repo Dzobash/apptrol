@@ -36,6 +36,23 @@ roadmap and requirements in the same change.
 Small changes made right away (docs, refactoring) need no issue; the pull request is
 enough.
 
+### Milestones
+
+A milestone says what is left in a release; the [roadmap](docs/roadmap.md) says why and
+in what order.
+
+- An issue planned for a phase gets that phase's milestone. Its title is the version,
+  then the phase's name, so milestones sort by version:
+  ```text
+  0.3.0 — These Go to Eleven
+  ```
+  A `backlog` issue gets none. A phase's milestone is made when the phase gets its first
+  issue.
+- An issue that moves to another phase moves to that phase's milestone. A phase that
+  moves to another version gets its milestone renamed.
+- A pull request that finishes a planned issue gets the same milestone.
+- At the release, its milestone is closed ([releasing.md](docs/releasing.md#making-a-release)).
+
 ## Branches and pull requests
 
 `main` must always build and pass CI, so a release can be tagged from it at any time.

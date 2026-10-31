@@ -241,6 +241,9 @@ Ideas that were dropped or will not be done, and why.
   change are recorded in an [ADR](adr/).
 - New ideas start as an **issue**. Without a planned release they get the label
   `backlog` and are listed under *Soon™*.
+- Each planned phase has a **milestone** on GitHub, `<version> — <phase name>`, that
+  shows what is left in it; this roadmap keeps the why and the order
+  ([CONTRIBUTING › Milestones](https://github.com/Dzobash/apptrol/blob/main/CONTRIBUTING.md#milestones)).
 - Dropped ideas are **closed as *not planned*** with the reason, removed from the phases
   and listed under *Out of roadmap*
   ([CONTRIBUTING › Issues](https://github.com/Dzobash/apptrol/blob/main/CONTRIBUTING.md#issues)).
