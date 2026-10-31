@@ -270,6 +270,7 @@ Ideas that were dropped or will not be done, and why.
 | Apptrol as a virtual keyboard | Launchers already cover it: a desktop shortcut by its name, an app's own switch, or ydotool | [config.md](config.md#a-button-as-a-key-or-shortcut) |
 | Hold-to-talk for apps started by a launcher (e.g. voice typing) | Such apps only offer "toggle" from outside; one lost release would leave them recording | [config.md](config.md#a-button-as-a-key-or-shortcut) |
 | An LED mark or blinking on output columns | More complicated than it is worth; output columns light like app columns | [ADR 0027](adr/0027-output-volume.md) |
+| Cycle + S / M / R to jump to a layout (up to 24) | Cycle tapped alone switches to one pinned layout and back instead; Track ◀ / ▶ step through the rest. Simpler to remember | [#216](https://github.com/Dzobash/apptrol/issues/216) |
 | A microphone "bleep" and other audio effects | Audio effects and routing are out of scope | [requirements §2.3](requirements.md#23-never-in-scope) |
 | Windows and macOS | Apptrol is built on PipeWire, systemd and Linux's MIDI devices | [requirements §2.3](requirements.md#23-never-in-scope) |
 | Replacing an audio interface's own software | Apptrol works next to it, e.g. next to the GoXLR utility | [requirements §2.3](requirements.md#23-never-in-scope) |
