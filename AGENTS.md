@@ -256,7 +256,8 @@ from one to another.
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, so it is clear which
   agent did what.
 - **The PR description becomes the commit on `main`** (squash merge,
-  [CONTRIBUTING.md › Commits and pull requests](CONTRIBUTING.md#commits-and-pull-requests)),
+  [CONTRIBUTING.md › Commits and pull requests](CONTRIBUTING.md#commits-and-pull-requests),
+  [ADR 0044](docs/adr/0044-pr-description-is-the-commit-message.md)),
   so it ends with a trailer block that credits every model: one `Co-authored-by` per
   model that wrote commits on the branch, one `Reviewed-by` per model whose round was
   clean on the PR's final commit (a model with findings in earlier rounds counts once).

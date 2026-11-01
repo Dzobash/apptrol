@@ -112,7 +112,8 @@ Coding agents follow [AGENTS.md](AGENTS.md) on top of these steps: reviews
   changes and why in a few lines, the links (`Fixes #n`, `Part of #n`), and, as the
   last paragraph, the trailers that credit the models that wrote and reviewed it (git
   reads trailers only there; a PR without AI help leaves them out). Anything else, such
-  as a "Generated with …" line, goes above them:
+  as a "Generated with …" line, goes above them
+  ([ADR 0044](docs/adr/0044-pr-description-is-the-commit-message.md)):
   ```
   feat: exclusive solo toggle (SOLO-04, SOLO-05)       ← PR title
 
