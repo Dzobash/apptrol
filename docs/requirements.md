@@ -105,10 +105,9 @@ ADRs [0017](adr/0017-desktop-services-over-dbus.md),
 [0019](adr/0019-launcher-and-column-buttons.md),
 [0020](adr/0020-microphone-column-buttons.md) and
 [0022](adr/0022-launcher-command-safety.md). Section 4.15 and the requirements marked
-*Phase 1.6* are planned for 0.3.0, designed in ADRs
+*Phase 1.6* in Phase 1.6 (0.3.0), designed in ADRs
 [0026](adr/0026-separate-tables-for-apps-inputs-outputs.md) and
-[0027](adr/0027-output-volume.md); until they are built, the other requirements describe
-the released behaviour. The requirements marked *0.2.1* come with that release, designed
+[0027](adr/0027-output-volume.md). The requirements marked *0.2.1* come with that release, designed
 in [ADR 0029](adr/0029-controller-follows-the-user-in-front.md).
 
 ### 4.1 Controls and volume
