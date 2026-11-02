@@ -336,6 +336,27 @@ warranty of any kind ([LICENSE](https://github.com/Dzobash/apptrol/blob/main/LIC
   gets a warning at every configuration load and in `apptrol check`; the configuration
   stays valid. Use the output's name without `.monitor` to select that output.
 
+### Finding an app's name
+
+An app's `match` looks at the names its **audio** reports, not at the name in the menu
+or the window title. Often they are the same, but not always, games especially:
+
+```text
+you see          its audio reports                         a match that works
+Spotify          NAME Spotify                              "spotify" (case does not matter)
+Example Game     NAME Example Game.exe                     "Example Game"
+Example Game 2   NAME ExampleGame2                         "ExampleGame", not "Example Game 2"
+Example Quest    NAME FMOD Ex App, BINARY ExampleQuest.exe "ExampleQuest"
+```
+
+So don't guess the name, copy it: start the app, let it play a sound, run
+`apptrol list`, and put a part of its NAME or BINARY into `match`. Avoid parts that many
+apps share: every game through Proton or Wine has the BINARY `wine64-preloader`, and
+`FMOD Ex App` is an audio engine used by many games, not one game's name.
+
+`apptrol list apps` shows something else: the desktop IDs a launcher needs
+(`app = "…"`). An app's desktop ID and the names its audio reports can differ.
+
 ### Finding device names
 
 Use `apptrol list` for device names and descriptions of inputs and outputs; `*` marks
@@ -434,6 +455,21 @@ record = { app = "com.obsproject.Studio" }             # ● starts OBS
 | `s1` … `s8` | solo | — (always solo) |
 | `m1` … `m8` | mute | — (always mute) |
 | `r1` … `r8` | `play_pause` | `play_pause` (play or pause this app), `off`, or a launcher |
+
+**When the app matches several players**, `play_pause` pauses all of them but resumes
+only one, the one that played most recently (MEDIA-07). This happens when `match` names
+several programs, e.g. two browsers, or one with several windows that each show up as a
+player:
+
+```text
+match = ["chrome", "vivaldi"]      both play a video
+R1  →  Chrome paused, Vivaldi paused
+R1  →  Chrome plays again (it played last); Vivaldi stays paused
+```
+
+To pause and resume each one on its own, give each program its own app and column.
+Two tabs of one browser are a different case: the browser shows only one of them as a
+player, so R pauses only that tab ([known issues](known-issues.md)).
 
 ### Buttons on a column with an input (microphone)
 

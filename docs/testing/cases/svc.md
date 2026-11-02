@@ -48,7 +48,9 @@ Type: Manual
 - [ ] Run `systemctl --user status apptrol` → the first line reads `apptrol.service - Apptrol: control each app's volume with a hardware MIDI controller`
 - [ ] Run `systemctl --user cat apptrol` → `Description=` is that text, `Documentation=` is the repository's address, `Type=simple` and `NotifyAccess=main` are present, and `Type=notify` is not
 - [ ] Run `systemctl --user restart apptrol` → the command returns at once, without a wait of about 90 seconds
-- [ ] Open the package's AppStream data (`/usr/share/metainfo/io.github.dzobash.apptrol.metainfo.xml`) → its `<summary>` is the same text as `Description=` after `Apptrol: `
+- [ ] Open the package's AppStream data (`/usr/share/metainfo/io.github.dzobash.apptrol.metainfo.xml`) → its `<summary>` is the same text as `Description=` after `Apptrol: `. It starts
+  with a capital letter: a software centre shows `<name>` (Apptrol) and `<summary>` on
+  separate lines
 
 **Result:** Pass / Fail / Blocked
 **Notes:**

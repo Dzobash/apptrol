@@ -8,7 +8,7 @@ Each phase ends with a tagged release. Detailed requirements live in
 | 0 | It's Dangerous to Go Alone! Take This. | Project setup | 0.0.1 | ✅ Done |
 | 1 | Turn Down for What | Core mixer: sliders, knobs, M, S | 0.1.0 | ✅ Released 2026-09-30 |
 | 1.5 | You Get a Button! And You Get a Button! | Media, launcher and column buttons | 0.2.0 | ✅ Released 2026-10-04 |
-| 1.6 | These Go to Eleven | Output volume | 0.3.0 | ⚪ Planned |
+| 1.6 | These Go to Eleven | Output volume | 0.3.0 | ✅ Released 2026-11-02 |
 | 1.7 | Show Me What You Got | On-screen display and LEDs | 0.4.0 | ⚪ Planned |
 | 1.8 | We'll Do It Live! | OBS | 0.5.0 | ⚪ Planned |
 | 2 | Multiverse of Madness | Layouts | 0.6.0 | ⚪ Planned |
@@ -107,7 +107,7 @@ passes on an installed release candidate.
 
 ## Phase 1.6 — These Go to Eleven
 
-*Output volume · `0.3.0` · ⚪ Planned*
+*Output volume · `0.3.0` · ✅ Released 2026-11-02*
 
 **Goal:** control whole outputs (speakers, headphones), not only apps.
 
@@ -142,7 +142,7 @@ on-screen display still needs a trial on GNOME. The on-screen display moved to P
 - [x] Install the snapshot `.deb` with `apt` and the `.rpm` with `dnf` in the containers and check the Status line (QA-17, [TC-QA-004](testing/cases/qa.md), #172, #116)
 - [x] `make test-clean` removes the folders and logs that failed container runs keep (QA-18, [TC-QA-006](testing/cases/qa.md), #195)
 - [x] Require the container check, once each distro has its evidence: `make test-systemd RUNS=<n>` collects 300 runs per distro in one call, 8 at once (QA-16, [TC-QA-007](testing/cases/qa.md), PR #207, #172)
-- [ ] Validate the Debian DEP-5 copyright file and record Discover's license display on a release candidate ([TC-NFR-001](testing/cases/nfr.md), NFR-09, #97)
+- [x] Validate the Debian DEP-5 copyright file and record Discover's license display on a release candidate ([TC-NFR-001](testing/cases/nfr.md), NFR-09, #97): passed on v0.3.0-rc1; Discover still shows the license of a local deb as `Unknown` (#97)
 
 **Done when:** all Phase 1.6 MUST requirements are met, configurations in the old form
 still load with a warning, and the hardware checklist, including the new output rows,

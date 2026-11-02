@@ -36,7 +36,7 @@ Type: Manual
 - [ ] Run `apptrol check` → it ends with `warning: apps.mic: type = "input" is the old form; move it to [inputs.mic]`; slider 8 is listed as `Test microphone`, `input: apptrol-test-mic`, and there is no error
 - [ ] Run `journalctl --user -u apptrol -b | grep 'old form'` → one line `config uses an old form; move the entry to its own table` with `apptrol.app.id=mic` and `apptrol.config.table=inputs`
 - [ ] Move slider 8 to the middle → the volume of `apptrol-test-mic` in the desktop's volume settings follows the slider
-- [ ] Save the configuration again without changes (`touch ~/.config/apptrol/config.toml`) → `configuration reloaded`, followed by the same old-form warning again
+- [ ] Change the file without changing a setting: add a comment line (`echo '# reload test' >> ~/.config/apptrol/config.toml`) → `configuration reloaded`, followed by the same old-form warning again. A save that leaves the contents the same (`touch`) is not a change and reloads nothing (CFG-06)
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
@@ -86,7 +86,7 @@ Type: Automated
 
 Test: `TestCFG20_OutputsLoadWithEitherSelector`, `TestCFG20_RejectsInvalidSelectors`,
 `TestCFG20_DeviceRejectedOutsideOutputs`, `TestCFG20_OutputRulesAndDiagnostics`,
-`TestCFG20_OutputOverlapDoesNotClaimFirstControlWins` in `internal/config/outputs_test.go`,
+`TestOUT04_OutputOverlapWarnsFirstControlWins` in `internal/config/outputs_test.go`,
 `TestCFG20_CheckShowsOutputSelectors` in `cmd/apptrol/main_test.go`, and
 `TestCFG20_InvalidOutputReloadKeepsConfiguration` in `internal/service/service_test.go`.
 `TestCFG20_SetupPassesFixedAndDefaultOutputs` in `internal/config/setup_test.go`
@@ -151,7 +151,7 @@ Type: Manual
 
 **Steps**
 - [ ] Run `apptrol check` → no error; slider 7 shows `output: device = "default"`, knob 7 shows `output: apptrol-test-mic-sink`, both with `max 80 %`; no warning about either output (both work, ADR 0038)
-- [ ] Save the configuration again (`touch ~/.config/apptrol/config.toml`) → the journal reports `configuration reloaded` without an invalid-configuration error, and no line says `not implemented yet`
+- [ ] Add a comment line (`echo '# reload test' >> ~/.config/apptrol/config.toml`; `touch` alone changes no contents and reloads nothing) → the journal reports `configuration reloaded` without an invalid-configuration error, and no line says `not implemented yet`
 
 This case checks parsing and reload only, without moving output controls. Output
 volume is covered by [TC-OUT-003](out.md); following the default output by
