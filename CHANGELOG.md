@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-02
+
 ### Added
 - Output controls keep each channel's balance: the loudest channel follows the
   requested level (80/60 at 50% becomes 50/37.5), including during new-output
@@ -522,7 +524,8 @@ First release: Phase 1, the core mixer.
 - Example configuration and configuration reference: `[controller] port` is the ALSA
   card id from `/proc/asound/cards`, not a name from `aseqdump -l`.
 
-[Unreleased]: https://github.com/Dzobash/apptrol/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/Dzobash/apptrol/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Dzobash/apptrol/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/Dzobash/apptrol/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Dzobash/apptrol/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Dzobash/apptrol/compare/v0.1.0...v0.2.0

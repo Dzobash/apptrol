@@ -49,8 +49,8 @@ Understanding why Apptrol works the way it does.
 - [Testing strategy](testing/strategy.md): what is tested by hand and what
   automatically, and why
 - [Decision records](adr/): every design decision with its reasons
-- [Output channel balance](adr/0039-output-volume-keeps-channel-balance.md): approved
-  design for preserving output balance in 0.3.0; implementation pending
+- [Output channel balance](adr/0039-output-volume-keeps-channel-balance.md): how an
+  output's left/right balance is kept when its control moves (since 0.3.0)
 
 ## Project
 
