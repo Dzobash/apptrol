@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | Phase 1 (0.1.0) and Phase 1.5 (0.2.0) released; output volume and separate configuration tables specified for Phase 1.6 (0.3.0); later phases outlined |
-| **Last updated** | 2026-10-15 |
+| **Status** | Phase 1 (0.1.0), Phase 1.5 (0.2.0) and Phase 1.6 (0.3.0: output volume, separate configuration tables) released; later phases outlined |
+| **Last updated** | 2026-11-02 |
 | **Related** | [Roadmap](roadmap.md) · [Configuration reference](config.md) · [Decision records](adr/) |
 
 ## 1. Purpose
