@@ -102,7 +102,7 @@ its own: a change another program makes stays until you touch that app's control
 
 Many apps lose their audio connection when PipeWire restarts (e.g. with
 `systemctl --user restart pipewire pipewire-pulse`) and stay silent: browsers need the page
-reloaded, others (such as Elisa) a restart. Apptrol itself reconnects and applies the
+reloaded, others (such as Elisa and Spotify, which stops playing) a restart. Apptrol itself reconnects and applies the
 volumes, mutes and solo to each app again once it plays.
 
 ## Media players

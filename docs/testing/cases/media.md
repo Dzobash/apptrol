@@ -29,8 +29,9 @@ Was: H-49 (the media buttons part)
   with `apptrol.button=M1`, not the media warning
 - [ ] Press M1 again → M1 goes out
 - [ ] Log in as yourself again → the log has
-  `media buttons allowed: this session is in front` with
-  `apptrol.screen.state=unlocked`; the music stays paused
+  `media buttons allowed: this session is in front`, once; its `apptrol.screen.state`
+  is the state the session comes back in, `locked` when the desktop shows its lock
+  screen first, or `unlocked`; the music stays paused
 - [ ] Press ▶ → the music plays again; the log has `media key` with
   `apptrol.player.command=Play`
 - [ ] Run `journalctl --user -u apptrol --since <time> | grep -E 'media button|screen is locked'`
@@ -56,7 +57,9 @@ Type: Manual
 **Steps**
 - [ ] Click a point in the loaded part of the progress bar → R1 and ▶ stay lit, with
   no flicker
-- [ ] Drag the progress bar back and forth a few times → R1 and ▶ stay lit
+- [ ] Drag the progress bar back and forth a few times, each drag shorter than half a
+  second → R1 and ▶ stay lit. A drag held longer is a pause longer than 500 ms, and
+  R1 and ▶ go dark until the video plays again (MEDIA-09)
 - [ ] Press the keyboard's right arrow key to seek → R1 and ▶ stay lit
 - [ ] Click a point far beyond the loaded part, so the video buffers for a second or more
   → R1 and ▶ go dark until the video plays again, then light up again at once
