@@ -142,8 +142,8 @@ version you have.
 
 ## Building from source
 
-You need [Go](https://go.dev/dl/) 1.24 or newer, `git` and `make`; nothing else, as Apptrol
-is pure Go without C libraries. (Ubuntu and Kubuntu 25.04 or newer ship a recent enough Go
+You need [Go](https://go.dev/dl/) 1.26 or newer, `git` and `make`; nothing else, as Apptrol
+is pure Go without C libraries. (Ubuntu and Kubuntu 26.04 or newer ship a recent enough Go
 as `golang-go`; on older releases, install it from go.dev.)
 
 ```bash
