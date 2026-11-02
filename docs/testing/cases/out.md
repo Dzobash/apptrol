@@ -24,8 +24,10 @@ Type: Manual
   `apptrol-test-mic-sink`
 - [ ] Look at the lines that start with `*` → exactly one; it is the output noted as the
   default
-- [ ] Run `apptrol list | grep -i monitor` → nothing: no monitor is listed as an input
-  or an output
+- [ ] Run `apptrol list | grep -i monitor | grep -v apptrol-test-mic` → nothing: no
+  monitor is listed as an input or an output. The fixture's virtual microphone is left
+  out: it is a real input, but PipeWire describes it as
+  `Remapped apptrol-test-mic-sink.monitor source`
 - [ ] Choose another output as the default in the desktop's volume settings, then run
   `apptrol list` → the `*` is on that output now
 - [ ] Choose the noted output as the default again → the `*` is back on it in
