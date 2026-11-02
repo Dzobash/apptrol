@@ -1,6 +1,6 @@
 module github.com/Dzobash/apptrol
 
-go 1.24
+go 1.26.0
 
 require (
 	github.com/BurntSushi/toml v1.6.0
@@ -9,7 +9,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/jfreymuth/pulse v0.1.3
 	github.com/muesli/termenv v0.16.0
-	golang.org/x/sys v0.30.0
+	golang.org/x/sys v0.49.0
 )
 
 require (

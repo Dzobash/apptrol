@@ -130,7 +130,7 @@ ADR lists its records (level, message, attributes); see ADR 0018, point 9.
 
 ## Code
 
-Requires Go 1.24 or newer. Building and installing without changing the code is described
+Requires Go 1.26 or newer. Building and installing without changing the code is described
 in the installation guide, under [Building from source](docs/install.md#building-from-source).
 
 ```bash
