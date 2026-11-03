@@ -31,8 +31,9 @@ func TestMEDIA12_ROnAnOutputWithAPlayerListPlaysAndPausesIt(t *testing.T) {
 	w.wantPlayer(spotifastPlayer, "main", "bus_name")
 	w.wantLEDs(7, false, false, true) // R lit while it plays (MEDIA-09)
 
-	w.press(ButtonR, 7) // play_pause is the default with a player list
-	w.wantCommands(PlayerCommand{BusName: spotifastPlayer.BusName, Command: CommandPause}) // not Spotify's
+	// play_pause is the default with a player list; Spotify's player is not touched.
+	w.press(ButtonR, 7)
+	w.wantCommands(PlayerCommand{BusName: spotifastPlayer.BusName, Command: CommandPause})
 	w.do(PlayerStatusChanged{BusName: spotifastPlayer.BusName, Status: StatusPaused})
 	w.wantLEDs(7, false, false, false) // a pause from R shows at once (ADR 0033)
 
@@ -69,7 +70,8 @@ func TestMEDIA12_AnOutputWithoutAPlayerListKeepsROff(t *testing.T) {
 	w.press(ButtonR, 7)
 	w.wantCommands()
 	w.wantNotice(slog.LevelDebug, "button has no function: its mode is off") // OUT-09
-	w.wantLEDs(7, false, false, false)                                     // OUT-10
+	// R stays dark (OUT-10).
+	w.wantLEDs(7, false, false, false)
 }
 
 func TestMEDIA12_ROffAndLaunchersOnAPlayerOutputSendNothing(t *testing.T) {

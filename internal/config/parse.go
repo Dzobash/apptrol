@@ -485,7 +485,7 @@ var targetSettings = map[string]string{
 	"talk_over_volume": "an input setting, not a control; put it under [inputs.<id>]",
 	"device":           "an output setting, not a control; put it under [outputs.<id>]",
 	"player":           "an output setting, not a control; put it under [outputs.<id>]",
-	"type":            "an app setting, not a control; put it under [apps.<id>]",
+	"type":             "an app setting, not a control; put it under [apps.<id>]",
 }
 
 // decodeLayouts decodes each [layouts.<name>]: "control = app" entries as
