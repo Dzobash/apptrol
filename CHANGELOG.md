@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `record = { app = "<desktop ID>" }`. Two lines above the table say the IDs are for
   launchers (`app = "<desktop ID>"`) and that a `match` name can differ, so run
   `apptrol list` while the app plays (LAUNCH-09, #225).
+- An ignored media player's pause (MEDIA-02, e.g. a phone's player through KDE Connect)
+  no longer runs the pause delay or logs `pause shown on the LEDs` / `short pause not
+  shown on the LEDs`: no LED ever follows an ignored player (MEDIA-09, LOG-15,
+  [ADR 0033](docs/adr/0033-r-and-play-ignore-short-pauses.md), #224).
 
 ## [0.3.0] - 2026-11-02
 
