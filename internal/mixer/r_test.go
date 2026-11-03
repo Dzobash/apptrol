@@ -302,7 +302,7 @@ func TestMEDIA09_LOG15_AnIgnoredPlayersPauseLogsNoLEDMessage(t *testing.T) {
 	w.do(PlayerStatusChanged{BusName: phonePlayer.BusName, Status: StatusPaused})
 	w.do(PlayerStatusChanged{BusName: phonePlayer.BusName, Status: StatusPlaying}) // a short pause
 	w.do(PlayerStatusChanged{BusName: phonePlayer.BusName, Status: StatusPaused})
-	w.do(PlayerPauseSettled{BusName: phonePlayer.BusName, Seq: 1}) // a stray timer for it
+	w.do(PlayerPauseSettled{BusName: phonePlayer.BusName, Seq: 2}) // the live hold's timer: without the fix it would log "pause shown on the LEDs"
 	if len(w.holds) != 0 {
 		t.Errorf("pause delays asked for an ignored player = %v, want none", w.holds)
 	}
