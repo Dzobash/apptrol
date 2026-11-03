@@ -366,6 +366,12 @@ of invalid output reloads. The `outputs-table` and `device-monitors` fixtures ex
 the new table and warnings. A regression test checks that a fixed output matching
 `"speaker"` never controls an app stream named `"speaker"` (OUT-01).
 
+The list command's sections are also covered by Go tests: `TestLAUNCH16_…` in
+`cmd/apptrol/list_test.go` and `main_test.go` check that `apptrol list outputs`,
+`list inputs` and `list playing` print only their section from the same code as
+`apptrol list`, that an unknown word after `list` names the valid ones, and that the
+whole listing keeps its sections and headings (LAUNCH-16).
+
 ## Output volume
 
 Output balance (OUT-14 to OUT-16,
@@ -575,7 +581,7 @@ talk-over), VLC or Elisa on slider 1 instead of Spotify.
 | H-27 | Play videos in two browser tabs; press R2; then M2 | R2 pauses only the most recently used tab; the other keeps playing (known issue), R2 goes off. M2 silences both tabs | MEDIA-07, MEDIA-09 |
 | H-28 | Put an app without MPRIS on a slider (e.g. mpv without its plugin, or Discord) and play sound; press its R | Nothing happens; its R LED stays off; the log says there is no media player for the app | MEDIA-08, MEDIA-09 |
 | H-29 | Restart the browser and play a video again; press R2 | R2 pauses it (the player's new instance number is found) | MEDIA-01, MEDIA-03 |
-| H-30 | If KDE Connect is used: **close Spotify on the computer first**, then play Spotify on the phone; press R1 and ▶ | Neither affects the phone; the log shows the phone's player as ignored (`other_device`). With Spotify open on the computer, its R and ▶ pause the phone too: the desktop app controls the phone's playback through Spotify Connect, outside Apptrol; the log then shows the commands going to the desktop's `org.mpris.MediaPlayer2.spotify`, not to the phone's player | MEDIA-02 |
+| H-30 | If KDE Connect is used: **close Spotify on the computer first**, then play Spotify on the phone; press R1 and ▶; then pause on the phone | Neither affects the phone; the log shows the phone's player as ignored (`other_device`). Pausing on the phone logs no `pause shown on the LEDs`: no LED follows an ignored player. With Spotify open on the computer, its R and ▶ pause the phone too: the desktop app controls the phone's playback through Spotify Connect, outside Apptrol; the log then shows the commands going to the desktop's `org.mpris.MediaPlayer2.spotify`, not to the phone's player | MEDIA-02, MEDIA-09, LOG-15 |
 | H-31 | Set `record = { app = "<desktop ID>" }` (find it with `apptrol list apps <name>`), save, press ● | The app starts; the Record LED flashes briefly; the log names the unit | LAUNCH-01, LAUNCH-04, LAUNCH-08, LAUNCH-09 |
 | H-32 | With that app open: `systemctl --user restart apptrol` | The app keeps running | LAUNCH-04 |
 | H-33 | Set `if_running = "skip"`; with the app open from the menu, press ●; then close it, start it from a terminal and press ● again; press ● a few more times in a row with the app closed | Not started a second time either way; the log says how it was found (`unit`, then `process`). Presses in a row all work | LAUNCH-04, LAUNCH-06, LAUNCH-07 |

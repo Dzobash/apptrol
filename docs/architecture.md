@@ -52,7 +52,7 @@ How the service is put together. Decisions and their reasons are in
 
 | Package | Responsibility |
 |---|---|
-| `cmd/apptrol` | Command line: `run`, `list`, `check`, `test`, `version`; wires everything together |
+| `cmd/apptrol` | Command line: `run`, `list` (whole or one section, LAUNCH-16), `check`, `test`, `version`; wires everything together |
 | `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop`, `Power`, `Launcher` and `Status` interfaces; turns mixer actions into adapter calls; keeps the Status line up to date; the Record LED's flash (the mixer has no clock); config reload and its warnings, each logged by its text or with its own message and attributes; shutdown |
 | `internal/mixer` | Core logic (pure): matching streams, inputs, output devices and media players to controls, following the default output, output ownership, output volume, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
@@ -383,7 +383,10 @@ ControlMoved knob7 = 51   ──► SetOutputVolume { "alsa_output.usb-…", 0.4
 `apptrol list` asks the mixer for each output target's device (`OutputDevice`) and
 shows the control in the output devices' CONTROL column (OUT-12). It passes the
 server's default output into the snapshot, so a `device = "default"` control shows on
-the `*` device, and of two controls on one device only the owner is shown.
+the `*` device, and of two controls on one device only the owner is shown. Each
+section of the listing can also be asked for alone — `apptrol list outputs`,
+`list inputs` and `list playing` — printed by the same section code as the whole
+listing, so the two cannot drift apart (LAUNCH-16).
 
 ### Preserving output balance
 

@@ -7,7 +7,10 @@
 // Commands:
 //
 //	run      run the service (default)
-//	list     show playing apps and input devices with the names used for matching
+//	list     show playing apps and input and output devices with the names
+//	         used for matching; playing, inputs or outputs shows only that section
+//	list apps [search]
+//	         show installed apps with the desktop IDs used by launchers
 //	check    validate the configuration file and exit
 //	test     show what the controller sends and light its buttons, to check it
 //	version  print version information
@@ -57,7 +60,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 Commands:
   run      run the service (default)
-  list     show playing apps and input devices with the names used for matching
+  list     show playing apps and input and output devices with the names
+           used for matching; playing, inputs or outputs shows only that section
   list apps [search]
            show installed apps with the desktop IDs used by launchers
   check    validate the configuration file and exit
@@ -96,9 +100,35 @@ Flags:
 	if fs.NArg() > 0 {
 		cmd = fs.Arg(0)
 	}
-	// `list apps [search]` is the only command with arguments (LAUNCH-09).
-	listApps := cmd == "list" && fs.NArg() > 1 && fs.Arg(1) == "apps"
-	if fs.NArg() > 1 && (!listApps || fs.NArg() > 3) {
+	// The word after `list` picks a section of the listing (LAUNCH-16); only
+	// `list apps [search]` takes a further argument (LAUNCH-09).
+	listApps := false
+	search := ""
+	section := sectionAll
+	if cmd == "list" && fs.NArg() > 1 {
+		word := fs.Arg(1)
+		s, isSection := listSectionOf(word)
+		switch {
+		case word == "apps":
+			listApps = true
+			search = fs.Arg(2)
+			if fs.NArg() > 3 {
+				fmt.Fprintf(stderr, "apptrol: unexpected arguments after %q: %v\n", "list apps", fs.Args()[2:])
+				return 2
+			}
+		case isSection:
+			section = s
+			if fs.NArg() > 2 {
+				fmt.Fprintf(stderr, "apptrol: unexpected arguments after %q: %v\n", "list "+word, fs.Args()[2:])
+				return 2
+			}
+		default:
+			// Name the valid words, so a typo needs a one-word fix (LAUNCH-16).
+			fmt.Fprintf(stderr, "apptrol: unknown word %q after \"list\" (apps, outputs, inputs or playing)\n", word)
+			return 2
+		}
+	} else if fs.NArg() > 1 && cmd != "list" {
+		// No other command takes arguments.
 		fmt.Fprintf(stderr, "apptrol: unexpected arguments after %q: %v\n", cmd, fs.Args()[1:])
 		return 2
 	}
@@ -109,10 +139,16 @@ Flags:
 		err = cmdRun(*configPath, level, *logLevel)
 	case "list":
 		if listApps {
-			err = cmdListApps(stdout, fs.Arg(2), launcher.Installed())
+			err = cmdListApps(stdout, search, launcher.Installed())
 			break
 		}
-		err = cmdList(*configPath, stdout, func() (*pulse.Listing, error) { return pulse.List("") })
+		listFn := func() (*pulse.Listing, error) { return pulse.List("") }
+		if section != sectionAll {
+			// One section alone, e.g. `apptrol list outputs` (LAUNCH-16).
+			err = cmdListSection(*configPath, stdout, listFn, section)
+			break
+		}
+		err = cmdList(*configPath, stdout, listFn)
 	case "check":
 		err = cmdCheck(*configPath, stdout)
 	case "test":

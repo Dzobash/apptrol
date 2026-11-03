@@ -72,3 +72,9 @@ LED new: ●●●●●●●●●●●●●○○○○○○○○○○�
   example a seek) darkens the LEDs at once, once.
 - The delay is a constant in the service (`playerPauseDelay`). A setting can come later
   if someone needs another value.
+
+## Notes
+
+- 2026-11-03: Ignored players (MEDIA-02) are excluded from the delay: no LED ever
+  follows one, so its pause darkens at once, runs no timer and logs neither line
+  (MEDIA-09, LOG-15, #224).

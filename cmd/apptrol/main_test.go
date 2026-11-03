@@ -22,8 +22,16 @@ func TestRun(t *testing.T) {
 		{"version command", []string{"version"}, 0, "apptrol ", ""},
 		{"help", []string{"-h"}, 0, "", "Usage: apptrol"},
 		{"list without audio server", []string{"list"}, 1, "", "Is PipeWire"},
+		// LAUNCH-16: every section can be asked for alone, and the word after
+		// `list` is checked before the audio server is contacted.
+		{"list playing without audio server", []string{"list", "playing"}, 1, "", "Is PipeWire"},
+		{"list inputs without audio server", []string{"list", "inputs"}, 1, "", "Is PipeWire"},
+		{"list outputs without audio server", []string{"list", "outputs"}, 1, "", "Is PipeWire"},
 		{"unknown command", []string{"frobnicate"}, 2, "", `unknown command "frobnicate"`},
-		{"extra arguments", []string{"list", "extra"}, 2, "", "unexpected arguments"},
+		// LAUNCH-16: an unknown word names the valid ones.
+		{"unknown word after list", []string{"list", "output"}, 2, "", "(apps, outputs, inputs or playing)"},
+		{"extra arguments after a section", []string{"list", "outputs", "extra"}, 2, "", `unexpected arguments after "list outputs"`},
+		{"extra arguments after another command", []string{"check", "extra"}, 2, "", `unexpected arguments after "check"`},
 		{"unknown flag", []string{"--nope"}, 2, "", "flag provided but not defined"},
 		// LOG-16: an invalid --log-level stops before anything starts.
 		{"log level invalid", []string{"--log-level", "verbose", "run"}, 2, "", `--log-level "verbose" is not valid`},
