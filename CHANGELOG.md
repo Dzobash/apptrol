@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unaffected (#222).
 
 ### Fixed
+- `apptrol list apps` no longer takes its launcher example from the first desktop ID
+  of the whole list. An ID can contain `=`, and the line then read like a syntax
+  error. With a search word the example is the first match; without one it is
+  `record = { app = "<desktop ID>" }`. Two lines above the table say the IDs are for
+  launchers (`app = "<desktop ID>"`) and that a `match` name can differ, so run
+  `apptrol list` while the app plays (LAUNCH-09, #225).
 - An ignored media player's pause (MEDIA-02, e.g. a phone's player through KDE Connect)
   no longer runs the pause delay or logs `pause shown on the LEDs` / `short pause not
   shown on the LEDs`: no LED ever follows an ignored player (MEDIA-09, LOG-15,

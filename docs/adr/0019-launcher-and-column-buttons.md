@@ -168,3 +168,8 @@ Measured on the reference system (Kubuntu, KDE Plasma) on 2026-10-02:
   ran in `app-flatpak-<id>-….scope` and Snap apps in `snap.<snap>.<app>-….scope`, next
   to KDE's `app-<id>@….service`; KDE writes a `-` in the ID as `\x2d`, so the ID is
   matched in both spellings. Only active units count: KDE leaves failed units behind.
+- 2026-11-03: The list from point 13 starts with two lines: the desktop IDs are for
+  launchers, and a `match` name can differ (`apptrol list` while the app plays). The
+  closing example uses the first ID only when a search word narrowed the list;
+  otherwise it is `record = { app = "<desktop ID>" }`, so an odd first ID is not the
+  example (LAUNCH-09, #225).
