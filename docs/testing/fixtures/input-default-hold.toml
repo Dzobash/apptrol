@@ -1,0 +1,20 @@
+# TC-INPUT-002: a new default must stay muted until a fresh M press.
+# Change defaults only between silent test microphones (INPUT-09, ADR 0038).
+[log]
+level = "debug"
+outputs = ["journald"]
+
+[apps.tone]
+match = ["apptrol-test-a"]
+
+[inputs.mic]
+name = "Default microphone"
+device = "default"
+
+[layouts.default]
+slider1 = "tone"
+slider8 = "mic"
+
+[layouts.default.buttons]
+m8 = { mode = "hold_to_talk", talk_over = true }
+s8 = { mode = "off" }

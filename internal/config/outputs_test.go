@@ -72,14 +72,14 @@ func TestCFG20_RejectsInvalidSelectors(t *testing.T) {
 	}
 }
 
-func TestCFG20_DeviceRejectedOutsideOutputs(t *testing.T) {
-	for _, table := range []string{"apps", "inputs"} {
+func TestCFG20_DeviceRejectedOnApps(t *testing.T) {
+	for _, table := range []string{"apps"} {
 		for _, device := range []string{"default", ""} {
 			src := fmt.Sprintf("[%s.target]\nmatch = [\"test\"]\ndevice = %q\n[layouts.default]\nslider1 = \"target\"\n", table, device)
-			requireProblem(t, problemsOf(t, src), table+".target.device: only an output has it")
+			requireProblem(t, problemsOf(t, src), table+".target.device: only an input or output has it")
 		}
 	}
-	requireProblem(t, problemsOf(t, "[apps.mic]\ntype = \"input\"\nmatch = [\"test\"]\ndevice = \"default\"\n[layouts.default]\n"), "apps.mic.device: only an output has it")
+	mustParse(t, "[apps.mic]\ntype = \"input\"\ndevice = \"default\"\n[layouts.default]\nslider1 = \"mic\"\n")
 }
 
 func TestCFG20_OutputRulesAndDiagnostics(t *testing.T) {
@@ -103,7 +103,7 @@ func TestCFG20_OutputRulesAndDiagnostics(t *testing.T) {
 	requireProblem(t, problemsOf(t, outputsBase+"\n[layouts.default.buttons]\nm1 = { mode = \"hold_to_talk\" }\n"), `holds the output "main"`)
 	requireProblem(t, problemsOf(t, outputsBase+"\n[layouts.default.buttons]\ns1 = { mode = \"cough\" }\n"), `holds the output "main"`)
 	requireProblem(t, problemsOf(t, outputsBase+"slider2 = \"main\"\n"), "already assigned to slider1")
-	requireProblem(t, problemsOf(t, outputsBase+"device = \"default\"\n"), "put it under [outputs.<id>]")
+	requireProblem(t, problemsOf(t, outputsBase+"device = \"default\"\n"), "[outputs.<id>]")
 	requireProblem(t, problemsOf(t, outputsBase+"slider8 = \"missing\"\n"), "[outputs]")
 	for _, setting := range []string{`mode = "off"`, `command = ["true"]`} {
 		mustParse(t, outputsBase+"\n[layouts.default.buttons]\nr1 = { "+setting+" }\n")

@@ -48,7 +48,7 @@ func (c *Config) Setup() mixer.Setup {
 			kind = mixer.Output
 		}
 		s.Targets[id] = mixer.Target{ID: id, Name: app.Name, Kind: kind, Match: append([]string(nil), app.Match...),
-			FollowsDefault: app.Type == TypeOutput && app.Device == DeviceDefault,
+			FollowsDefault: app.Type != TypeApp && app.Device == DeviceDefault,
 			MaxVolume:      float64(app.MaxVolume) / 100, TalkOverVolume: app.TalkOverVolume}
 	}
 	for _, a := range c.Layout().Assignments {

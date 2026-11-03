@@ -139,8 +139,8 @@ match = ["Test speaker"]
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `name` | string | the id | Display name, used in logs (and later in popups and `apptrol setup`). |
-| `match` | list of strings | — | Required for apps and inputs; for outputs, choose either this or `device`. A nonempty list of case-insensitive name fragments. See below. |
-| `device` | string | — | `[outputs]` only. `"default"` selects the audio server's default output; no other value is accepted. Set exactly one of `match` and `device`. |
+| `match` | list of strings | — | Required for apps; for inputs and outputs, choose either this or `device`. A nonempty list of case-insensitive name fragments. See below. |
+| `device` | string | — | Inputs and outputs only. `"default"` selects the audio server's default device of that kind; no other value is accepted. Set exactly one of `match` and `device`. |
 | `max_volume` | integer | `100` | Volume in percent with the control at the top, from 1 to 150. The control spans 0 to this value: with `150`, the middle is 75 %. Below 100 it works as a cap, e.g. `80` for games that are always too loud. Above 100 the audio is amplified in software and can distort; read [Hearing safety](#hearing-safety) first. |
 | `talk_over_volume` | integer | `25` | `[inputs]` only. The volume in percent (0–100) that apps go down to during talk-over (see [Buttons](#layoutsnamebuttons)). Apps already below it stay where they are. |
 
@@ -153,9 +153,43 @@ both or neither           ──► configuration error
 ```
 
 An output accepts `name`, `max_volume`, and exactly one of `match` and `device`.
-`device` is rejected in `[apps]` and `[inputs]`; `type` and `talk_over_volume` are
+`device` is rejected on apps; `type` and `talk_over_volume` are
 rejected in `[outputs]`. Layouts can refer to an output's id, but `[media] player`
 and R's `play_pause` require an app. R can be `off` or a launcher on an output column.
+
+### The default input (`device = "default"`)
+
+```toml
+[inputs.mic]
+name = "Microphone"
+device = "default"       # replace match, rather than adding it beside match
+```
+
+```text
+default: mic A ────────────┤ mic B ├──────────────────────
+control: acts on A           acts on B; saved M mute follows
+volume:  kept on A           B keeps its own volume until the control moves
+held M:  live on A           B muted; release and press M again to talk
+```
+
+This follows the default input chosen in the desktop's sound settings (INPUT-09,
+[ADR 0038](adr/0038-default-output-follows-the-server.md)). With no default, or until
+its device appears, the control acts on nothing. `match = ["default"]` only matches
+that literal word in a device name or description; the `(default)` marker in
+`apptrol list` is not part of either.
+
+A switch releases the previous microphone: its volume stays, Apptrol's mute is undone,
+and its new-device guard stops writing. Held M, cough and S talk-over states end on a
+switch. In `hold_to_talk` the new microphone is muted until a fresh M press; cough and
+talk-over work again on the new microphone with a fresh press. A saved M mute in
+`mute` mode moves with the control.
+
+If inputs select the same microphone, the first control owns it: sliders 1–8, then
+knobs 1–8. Later controls save positions but write nothing; M and S do nothing there,
+and M's LED is off. When the overlap ends, each fixed input gets its own position and
+mute back. For 3 seconds after a microphone appears, the adapter defends the owner's
+volume and mute against the server's late restore; after that, outside mutes are taken
+over normally (`hold_to_talk` still decides its own mute).
 
 ### What an output control does
 

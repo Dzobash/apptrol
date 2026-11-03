@@ -135,6 +135,8 @@ func (w *world) apply(acts []Action) {
 			w.kept = append(w.kept, a.Device)
 		case ForgetOutputVolume:
 			w.forgot = append(w.forgot, a.Device)
+		case ReleaseDevice, KeepDevice, ForgetDeviceVolume:
+			// Adapter ownership answers have no simulated hardware effect (INPUT-09, ADR 0038).
 		case SetLED:
 			w.leds[a.LED] = a.On
 		case StateChanged:

@@ -27,6 +27,9 @@ microphone on the last one. Moving a slider or knob changes that app's volume di
 with no desktop mixer involved.
 
 - **Sliders and knobs** each control one app or one input, such as your microphone.
+  An input with `device = "default"` follows the desktop's default microphone;
+  switching microphones ends held button states and keeps hold-to-talk muted
+  until a fresh press.
 - **M** mutes, **S** solos, **R** plays or pauses the app; the LEDs show it, also when you
   change something in the desktop's volume settings.
 - **◀◀ ▶▶ ■ ▶** control the music player that played last.

@@ -89,6 +89,7 @@ type AudioSnapshot struct {
 	// DefaultOutput is the name of the server's default output, "" if none
 	// (OUT-03, ADR 0038). It may name a device not reported yet.
 	DefaultOutput string
+	DefaultInput  string // server's default capture device (INPUT-09, ADR 0038)
 }
 
 // StreamAdded reports a playback stream that appeared or changed its properties.
@@ -114,6 +115,9 @@ type OutputRemoved struct{ Name string }
 // Name, "" if there is none, e.g. after another output was chosen in the
 // desktop's sound settings (OUT-03, ADR 0038).
 type DefaultOutputChanged struct{ Name string }
+
+// DefaultInputChanged follows the server's default microphone (INPUT-09, ADR 0038).
+type DefaultInputChanged struct{ Name string }
 
 // OutputMuteChanged reports an outside output mute (OUT-05, MUTE-07, ADR 0027).
 type OutputMuteChanged struct {
@@ -189,6 +193,7 @@ func (OutputAdded) isEvent()            {}
 func (OutputRemoved) isEvent()          {}
 func (OutputMuteChanged) isEvent()      {}
 func (DefaultOutputChanged) isEvent()   {}
+func (DefaultInputChanged) isEvent()    {}
 func (StreamMuteChanged) isEvent()      {}
 func (StreamCorkChanged) isEvent()      {}
 func (DeviceMuteChanged) isEvent()      {}
@@ -306,6 +311,21 @@ type SetDeviceMute struct {
 	Muted  bool
 }
 
+// ReleaseDevice stops defending a microphone no control owns (INPUT-09, ADR 0038).
+type ReleaseDevice struct {
+	Device     string
+	Generation uint64
+}
+
+// KeepDevice answers the newest input identity before defense resumes (INPUT-09, ADR 0038).
+type KeepDevice struct {
+	Device     string
+	Generation uint64
+}
+
+// ForgetDeviceVolume ends an earlier owner's volume defense (INPUT-09, ADR 0038).
+type ForgetDeviceVolume struct{ Device string }
+
 // SetLED turns an LED on or off.
 type SetLED struct {
 	LED LED
@@ -335,6 +355,9 @@ func (SetStreamVolume) isAction()    {}
 func (SetStreamMute) isAction()      {}
 func (SetDeviceVolume) isAction()    {}
 func (SetDeviceMute) isAction()      {}
+func (ReleaseDevice) isAction()      {}
+func (KeepDevice) isAction()         {}
+func (ForgetDeviceVolume) isAction() {}
 func (SetOutputVolume) isAction()    {}
 func (SetOutputMute) isAction()      {}
 func (ReleaseOutput) isAction()      {}

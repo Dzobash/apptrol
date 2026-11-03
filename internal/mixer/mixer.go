@@ -22,11 +22,14 @@ type Mixer struct {
 	held      map[LED]bool     // M and S buttons held in a held mode (INPUT-*); never saved
 	stopping  bool             // Shutdown ran: talk-over is over (INPUT-07)
 
-	streams   map[uint32]*streamInfo
-	devices   map[string]Device // by name
-	deviceFor map[string]string // input target id -> chosen device name
-	outputs   map[string]Device // output devices by name (OUT-12, ADR 0027)
-	outputFor map[string]string // output target id -> chosen device name (OUT-02)
+	streams          map[uint32]*streamInfo
+	devices          map[string]Device  // by name
+	deviceFor        map[string]string  // input target id -> chosen device name
+	defaultInput     string             // server's default capture device (INPUT-09, ADR 0038)
+	blockedInputs    map[string]string  // first control owns overlaps (INPUT-09, ADR 0038)
+	defaultInputHeld map[string]Control // previous default owners (INPUT-09, ADR 0038)
+	outputs          map[string]Device  // output devices by name (OUT-12, ADR 0027)
+	outputFor        map[string]string  // output target id -> chosen device name (OUT-02)
 	// blockedOutputs records targets whose chosen device belongs to an earlier
 	// control, to ignore their buttons and log conflicts once (OUT-04, ADR 0035).
 	blockedOutputs map[string]string
@@ -66,22 +69,24 @@ type streamInfo struct {
 // dropped (STATE-07), and so is a solo whose column no longer holds an app.
 func New(setup Setup, saved State) *Mixer {
 	m := &Mixer{
-		positions:      map[Control]int{},
-		muted:          map[Control]bool{},
-		held:           map[LED]bool{},
-		streams:        map[uint32]*streamInfo{},
-		devices:        map[string]Device{},
-		deviceFor:      map[string]string{},
-		outputs:        map[string]Device{},
-		outputFor:      map[string]string{},
-		blockedOutputs: map[string]string{},
-		outputMuteSent: map[string]bool{},
-		defaultHeld:    map[string]Control{},
-		players:        map[string]*playerInfo{},
-		deviceMuteSent: map[string]bool{},
-		leds:           map[LED]bool{},
-		screen:         ScreenUnknown,                    // until the session adapter knows: fail closed (LAUNCH-13, ADR 0024)
-		front:          SeatChanged{Front: FrontUnknown}, // until it knows: hold the controller as before (SVC-12)
+		positions:        map[Control]int{},
+		muted:            map[Control]bool{},
+		held:             map[LED]bool{},
+		streams:          map[uint32]*streamInfo{},
+		devices:          map[string]Device{},
+		deviceFor:        map[string]string{},
+		blockedInputs:    map[string]string{},
+		defaultInputHeld: map[string]Control{},
+		outputs:          map[string]Device{},
+		outputFor:        map[string]string{},
+		blockedOutputs:   map[string]string{},
+		outputMuteSent:   map[string]bool{},
+		defaultHeld:      map[string]Control{},
+		players:          map[string]*playerInfo{},
+		deviceMuteSent:   map[string]bool{},
+		leds:             map[LED]bool{},
+		screen:           ScreenUnknown,                    // until the session adapter knows: fail closed (LAUNCH-13, ADR 0024)
+		front:            SeatChanged{Front: FrontUnknown}, // until it knows: hold the controller as before (SVC-12)
 	}
 	m.setSetup(setup)
 	m.restore(saved)
@@ -307,7 +312,8 @@ func (m *Mixer) Handle(ev Event) []Action {
 		delete(m.streams, e.ID)
 	case DeviceAdded:
 		m.devices[e.Device.Name] = e.Device
-		m.chooseDevices(&a)
+		m.chooseDevices(&a, chooseChange)
+		m.answerDevice(&a, e.Device)
 	case StreamMuteChanged:
 		m.streamMuteChanged(&a, e)
 	case StreamCorkChanged:
@@ -317,7 +323,7 @@ func (m *Mixer) Handle(ev Event) []Action {
 	case DeviceRemoved:
 		delete(m.devices, e.Name)
 		delete(m.deviceMuteSent, e.Name)
-		m.chooseDevices(&a)
+		m.chooseDevices(&a, chooseChange)
 	case OutputAdded:
 		m.outputAdded(&a, e.Device)
 	case OutputRemoved:
@@ -326,6 +332,8 @@ func (m *Mixer) Handle(ev Event) []Action {
 		m.outputMuteChanged(&a, e)
 	case DefaultOutputChanged:
 		m.defaultOutputChanged(&a, e.Name)
+	case DefaultInputChanged:
+		m.defaultInputChanged(&a, e.Name)
 	case ConfigChanged:
 		m.configChanged(&a, e.Setup)
 	case PlayerSnapshot, PlayerAdded, PlayerRemoved, PlayerStatusChanged, PlayerPauseSettled:
@@ -439,6 +447,12 @@ func (m *Mixer) buttonPressed(a *actions, e ButtonPressed) {
 		return
 	}
 	if m.isInputColumn(e.Column) {
+		id := m.setup.Assignments[Control{Slider, e.Column}]
+		if dev := m.blockedInputs[id]; dev != "" && (e.Button == ButtonM || e.Button == ButtonS) {
+			a.notice(slog.LevelDebug, "button ignored: input belongs to an earlier control",
+				m.about(Control{Slider, e.Column}, logattr.KeyButton, button, logattr.KeyDeviceName, dev)...)
+			return
+		}
 		switch b := (LED{Button: e.Button, Column: e.Column}); {
 		case e.Button == ButtonS, e.Button == ButtonM && m.holdToTalk(e.Column):
 			m.holdPressed(a, b) // INPUT-01, SOLO-07
@@ -749,6 +763,9 @@ func (m *Mixer) talkOver() talkOverState {
 			continue
 		}
 		c := Control{Slider, col}
+		if m.blockedInputs[m.setup.Assignments[c]] != "" {
+			continue
+		}
 		mb, sb := LED{Button: ButtonM, Column: col}, LED{Button: ButtonS, Column: col}
 		active := m.held[sb] && m.mode(sb) == ModeTalkOver
 		if m.setup.Buttons[mb].TalkOver {
@@ -913,8 +930,8 @@ func (m *Mixer) ledStates() []SetLED {
 				mu = m.muted[Control{Slider, col}] // LED-02
 				r = m.rLit(col, id)                // LED-03, MEDIA-09
 			case Input:
-				s, r = true, true         // LED-04: input columns are lit…
-				mu = !m.effectiveMute(id) // …and M is lit only while the input is live
+				s, r = true, true                                      // LED-04: input columns are lit…
+				mu = !m.effectiveMute(id) && m.blockedInputs[id] == "" // INPUT-09, ADR 0038
 			case Output:
 				// M as on an app column; S and R stay off, as outputs have no
 				// solo and R no lit state. A control whose device an earlier
@@ -1021,17 +1038,28 @@ func (m *Mixer) applyVolumes(a *actions) {
 }
 
 func (m *Mixer) audioSnapshot(a *actions, e AudioSnapshot) {
+	held := m.deviceFor
 	m.streams = map[uint32]*streamInfo{}
 	m.devices = map[string]Device{}
-	m.deviceFor = map[string]string{}
 	m.deviceMuteSent = map[string]bool{}
 	for _, d := range e.Devices {
 		m.devices[d.Name] = d
 	}
 	m.outputsSnapshot(a, e.Outputs, e.DefaultOutput)
-	m.chooseDevices(a)
+	m.defaultInput = e.DefaultInput
+	// Keep previous bindings until selection so a resync can end held states
+	// and release the old microphone too (INPUT-09, ADR 0038).
+	m.chooseDevices(a, chooseConnect)
 	for _, id := range m.inputTargets() {
-		if _, ok := m.deviceFor[id]; !ok {
+		if dev := m.deviceFor[id]; dev != "" && held[id] == dev && !m.setup.Targets[id].FollowsDefault {
+			m.applyInputVolume(a, id, dev)
+		}
+	}
+	for _, dev := range sortedDeviceNames(m.devices) {
+		m.answerDevice(a, m.devices[dev])
+	}
+	for _, id := range m.inputTargets() {
+		if _, ok := m.deviceFor[id]; !ok && !m.setup.Targets[id].FollowsDefault && m.blockedInputs[id] == "" {
 			a.notice(slog.LevelWarn, "no input device matches", m.aboutTarget(id,
 				logattr.KeyMatch, strings.Join(m.setup.Targets[id].Match, ", "))...)
 		}
@@ -1066,47 +1094,6 @@ func (m *Mixer) deviceMatches(id string, d Device) bool {
 		}
 	}
 	return false
-}
-
-// chooseDevices picks one device per input target: the current one while it
-// still matches, otherwise the first match by name (CFG-05). Newly chosen
-// devices get the control's position and mute.
-func (m *Mixer) chooseDevices(a *actions) {
-	names := sortedDeviceNames(m.devices)
-	chosen := map[string]string{}
-	for _, id := range m.inputTargets() {
-		cur := m.deviceFor[id]
-		pick, matches := m.pickDevice(id, names, m.devices, cur)
-		if pick == "" {
-			continue
-		}
-		chosen[id] = pick
-		if pick != cur {
-			a.notice(slog.LevelInfo, "input matched", m.aboutTarget(id,
-				logattr.KeyDeviceDescription, m.devices[pick].Description, logattr.KeyDeviceName, pick)...)
-			if len(matches) > 1 {
-				a.notice(slog.LevelWarn, "several input devices match; using the first (make the match more specific: `apptrol list` shows each device's unique name)",
-					m.aboutTarget(id, logattr.KeyDeviceName, pick, logattr.KeyDeviceMatches, strings.Join(matches, ", "))...)
-			}
-			if v, ok := m.positions[m.controlOf[id]]; ok {
-				a.add(SetDeviceVolume{Device: pick, Volume: m.volume(id, v)})
-			}
-			m.applyDeviceMute(a, pick, m.effectiveMute(id))
-		}
-	}
-	// Release devices that are no longer controlled but were muted by us.
-	for id, dev := range m.deviceFor {
-		if chosen[id] == dev {
-			continue
-		}
-		if _, still := m.devices[dev]; still && m.deviceMuteSent[dev] && !contains(chosen, dev) {
-			m.applyDeviceMute(a, dev, false)
-		}
-		if !contains(chosen, dev) {
-			delete(m.deviceMuteSent, dev)
-		}
-	}
-	m.deviceFor = chosen
 }
 
 func contains(m map[string]string, v string) bool {
@@ -1178,12 +1165,12 @@ func (m *Mixer) configChanged(a *actions, s Setup) {
 	for id, dev := range m.deviceFor {
 		devBefore[id] = dev
 	}
-	m.chooseDevices(a)
+	m.chooseDevices(a, chooseReload)
 	// An input that kept its device but moved to another control, or got
 	// another max_volume, gets its volume set again.
 	for id, dev := range m.deviceFor {
 		c := m.controlOf[id]
-		if devBefore[id] == dev && (oldControlOf[id] != c || maxChanged(id)) {
+		if !m.setup.Targets[id].FollowsDefault && devBefore[id] == dev && (oldControlOf[id] != c || maxChanged(id)) {
 			if v, ok := m.positions[c]; ok {
 				a.add(SetDeviceVolume{Device: dev, Volume: m.volume(id, v)})
 			}

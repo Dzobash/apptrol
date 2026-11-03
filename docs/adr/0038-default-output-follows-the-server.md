@@ -128,6 +128,56 @@ INFO default output is the same device as another output; the earlier control ow
 
 ## Notes
 
+- 2026-11-03: The same decision now covers inputs (`device = "default"`, INPUT-09,
+  CFG-20, #221). `AudioSnapshot.DefaultInput` and `DefaultInputChanged` report the
+  server's default capture device. The first control owns every input overlap,
+  sliders 1–8 then knobs 1–8, including fixed/default overlaps. Later controls keep
+  positions but cannot write the microphone or change their saved mute; M's LED
+  stays off. When the default moves away, a fixed control gets its position and mute
+  back. Default inputs keep their volume until moved; the saved M mute follows the
+  control, and the old microphone is unmuted if Apptrol muted it and released.
+
+  The owner chose to end held M, cough and S talk-over on a microphone switch,
+  following ADR 0020's input-change rule. End the held states **before** writing the
+  new microphone, so `hold_to_talk` is muted on it even if M is physically held.
+  Release and press again to talk. A snapshot that changes the binding follows the
+  same rule; a repeated default notice does nothing. Both this and first-control
+  ownership were confirmed by the owner on 2026-11-03.
+
+  ```text
+  M held: mic A live ─ default B ─► end held states ─► B muted ─► release A
+  M released, pressed again ──────────────────────► B live
+  ```
+
+  The input guard follows point 6: it holds restores read while released away from
+  the mixer; `SetDeviceMute` resumes defense. `ReleaseDevice` clears defense,
+  `KeepDevice` acknowledges only the newest identity, and `ForgetDeviceVolume`
+  clears an earlier owner's volume when a default control takes over. These are
+  pure actions, carried by the service to the audio adapter. A held mute restore
+  is settled even when its window ends while ownership is pending. Input write
+  read-back for silently lost writes remains the separate #174 work; this change
+  handles reported restores.
+
+  Logging follows the output records and uses existing attributes:
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | info | `default input changed` | device name, previous name |
+  | info | `input matched` | control context, device name and description, `apptrol.device.selected_by=default` or `match` |
+  | info | `default input keeps its volume until the control is moved` | control context, device name |
+  | info | `no default input; the control does nothing until there is one` | control context |
+  | info | `input is the same device as another input; the earlier control owns it` | control context of the later control, device name, controls (owner first) |
+  | info | `input released; no control holds the device` | device name |
+  | info | `held state ended` | control context, button, `apptrol.held.reason=input_changed` |
+  | debug | `input mute change not taken over: the new-input guard holds the mute` | device name, mute |
+  | debug | `button ignored: input belongs to an earlier control` | control context, button, device name |
+  | debug | `input ownership answer ignored; a newer identity was reported` | device name, action, answer generation, current generation |
+  | debug | `input volume no longer defended; the new owner sets none until it is moved` | device name |
+
+  The existing debug records `audio server changed the volume of a new input;
+  setting it again` and `audio server changed the mute of a new input; setting it
+  again` show the read and wanted values. No new attribute is needed.
+
 - 2026-10-26: [ADR 0039](0039-output-volume-keeps-channel-balance.md) supersedes the
   flat-channel consequence above for both fixed and default outputs. Balance stays
   with the device; a new default still keeps its volume until a move. Implementation

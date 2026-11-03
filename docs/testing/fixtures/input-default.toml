@@ -1,0 +1,19 @@
+# TC-INPUT-001: change the default only between silent test microphones.
+# Save and restore the original default as the case says (INPUT-09, ADR 0038).
+[log]
+level = "debug"
+outputs = ["journald"]
+
+[inputs.mic]
+name = "Default microphone"
+device = "default"
+max_volume = 80
+
+[inputs.fixed]
+name = "Fixed test microphone"
+match = ["apptrol-test-mic"]
+max_volume = 50
+
+[layouts.default]
+slider8 = "mic"
+knob8 = "fixed" # later: inactive while this microphone is also the default

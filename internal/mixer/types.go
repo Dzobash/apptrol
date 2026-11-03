@@ -153,8 +153,8 @@ type Target struct {
 	Name  string
 	Kind  TargetKind
 	Match []string // case-insensitive fragments
-	// FollowsDefault marks an output with device = "default": it acts on the
-	// audio server's default output instead of a match (OUT-03, ADR 0038).
+	// FollowsDefault selects the server's default for this device kind rather
+	// than matching (INPUT-09, OUT-03, ADR 0038).
 	FollowsDefault bool
 	// MaxVolume is the volume at the top of the control: 1 = 100 %, up to
 	// MaxBoost. 0 means 1.
@@ -259,8 +259,8 @@ type Player struct {
 type Device struct {
 	Name        string // unique name, e.g. alsa_input.usb-… or alsa_output.usb-…
 	Description string // human-readable, e.g. "GoXLR Mini Mic"
-	// Generation identifies an output read reported by the adapter. The mixer
-	// only echoes it in ownership answers (CTRL-06, ADR 0015, ADR 0027).
+	// Generation identifies a device read reported by the adapter. The mixer
+	// only echoes it in ownership answers (INPUT-09, CTRL-06, ADR 0015, ADR 0038).
 	Generation uint64
 }
 

@@ -36,6 +36,7 @@ Looking something up.
 - [Requirements](requirements.md): every behaviour with its ID
 - [Test cases](testing/cases/README.md): the format of a manual test case, and the cases
   by area
+- [Input cases](testing/cases/input.md): default microphones, held buttons and ownership
 - [Test run template](testing/runs/template.md): the record of a release's test run;
   every run is in [testing/runs/](testing/runs/)
 - [Brand guide](brand.md): logo, colours, type and how to use them

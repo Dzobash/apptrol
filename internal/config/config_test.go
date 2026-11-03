@@ -355,7 +355,7 @@ func TestCFG08_AppSettingUnderLayoutSaysWhereItBelongs(t *testing.T) {
 		"max_volume":       "an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]",
 		"match":            "an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]",
 		"name":             "an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]",
-		"device":           "an output setting, not a control; put it under [outputs.<id>]",
+		"device":           "an input or output setting, not a control; put it under [inputs.<id>] or [outputs.<id>]",
 		"type":             "an app setting, not a control; put it under [apps.<id>]",
 		"talk_over_volume": "an input setting, not a control; put it under [inputs.<id>]",
 	}

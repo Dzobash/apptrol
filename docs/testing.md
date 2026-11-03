@@ -366,6 +366,32 @@ of invalid output reloads. The `outputs-table` and `device-monitors` fixtures ex
 the new table and warnings. A regression test checks that a fixed output matching
 `"speaker"` never controls an app stream named `"speaker"` (OUT-01).
 
+## Default input
+
+INPUT-09 and CFG-20 are covered without real audio by
+`internal/config/inputs_default_test.go`, the CLI's
+`TestCFG20_CheckShowsDefaultInput`, `internal/mixer/input_default_test.go`,
+`internal/audio/pulse/input_test.go` and `internal/service/input_test.go`.
+They check selector errors, saved mute transfer, volume kept until a move,
+switches and snapshots, no default or a device arriving later, both overlap orders,
+held M/cough/talk-over ending and working on a fresh press, late restores, released
+guards, stale generations, and a held mute debt settled after its window.
+
+```text
+make check / make test ─► fake devices, no live setup
+make test-audio        ─► silent sources, real default switched and restored
+manual input cases    ─► controller LEDs, held buttons and talk-over
+```
+
+`TestIntegration_INPUT09_DefaultInputFollowsASwitch` and
+`TestIntegration_INPUT09_NewDefaultDefendsReportedRestores` are gated by
+`APPTROL_PULSE_TEST=1`, run by `make test-audio`. They switch only silent test
+microphones, restore the original default, and check both M modes and reported
+volume/mute restores. Run them only while holding the owner's live-setup grant.
+They do not prove read-back of silently lost input writes (#174).
+[TC-INPUT-001 and TC-INPUT-002](testing/cases/input.md) use `input-default` and
+`input-default-hold`; each case restores the original default as well as the fixture.
+
 ## Output volume
 
 Output balance (OUT-14 to OUT-16,

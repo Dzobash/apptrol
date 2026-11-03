@@ -185,9 +185,9 @@ func TestSnapshot(t *testing.T) {
 	ev := Snapshot(
 		[]StreamInfo{{Stream: mixer.Stream{ID: 1, AppName: "a"}}},
 		[]SourceInfo{{Device: mixer.Device{Name: "n", Description: "d"}}},
-		[]SinkInfo{{Device: mixer.Device{Name: "out", Description: "Out"}}}, "out")
+		[]SinkInfo{{Device: mixer.Device{Name: "out", Description: "Out"}}}, "out", "n")
 	if len(ev.Streams) != 1 || ev.Streams[0].ID != 1 || len(ev.Devices) != 1 || ev.Devices[0].Name != "n" ||
-		len(ev.Outputs) != 1 || ev.Outputs[0].Name != "out" || ev.DefaultOutput != "out" {
+		len(ev.Outputs) != 1 || ev.Outputs[0].Name != "out" || ev.DefaultOutput != "out" || ev.DefaultInput != "n" {
 		t.Errorf("Snapshot = %+v", ev)
 	}
 }
@@ -981,12 +981,13 @@ func (r *guardRace) run(t *testing.T, b *Backend, defend func() error, slider mi
 }
 
 // A server change notice is reported only when the default output is another
-// one; the same notice for other server changes, e.g. a new default input,
-// reports nothing, and a failed read ends the session as other reads do
+// one; an unchanged pair reports nothing, and a failed read ends the session
 // (OUT-03, ADR 0038).
 func TestOUT03_ServerChangeReportsANewDefaultOutput(t *testing.T) {
 	tr := &tracker{defaultSink: "speakers"}
-	read := func(name string) func() (string, error) { return func() (string, error) { return name, nil } }
+	read := func(name string) func() (string, string, error) {
+		return func() (string, string, error) { return name, "", nil }
+	}
 	if evs, err := serverChange(tr, read("speakers")); err != nil || len(evs) != 0 {
 		t.Errorf("same default: %v, %v", evs, err)
 	}
@@ -998,7 +999,7 @@ func TestOUT03_ServerChangeReportsANewDefaultOutput(t *testing.T) {
 		t.Errorf("no default: %v, %v", evs, err)
 	}
 	failed := errors.New("connection closed")
-	if _, err := serverChange(tr, func() (string, error) { return "", failed }); !errors.Is(err, failed) || tr.defaultSink != "" {
+	if _, err := serverChange(tr, func() (string, string, error) { return "", "", failed }); !errors.Is(err, failed) || tr.defaultSink != "" {
 		t.Errorf("failed read: %v, tracked %q", err, tr.defaultSink)
 	}
 }

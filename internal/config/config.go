@@ -26,8 +26,8 @@ const (
 	TypeOutput = "output" // a playback device, such as speakers
 )
 
-// DeviceDefault selects the audio server's default output instead of matching
-// a fixed device (CFG-20, ADR 0027 point 2).
+// DeviceDefault selects the audio server's default input or output instead of
+// matching a fixed device (CFG-20, INPUT-09, ADR 0038).
 const DeviceDefault = "default"
 
 // Log outputs and formats (LOG-03, LOG-04).
@@ -98,9 +98,9 @@ type App struct {
 	Name  string   // display name
 	Type  string   // TypeApp, TypeInput or TypeOutput
 	Match []string // case-insensitive fragments (CFG-04, CFG-05, CFG-20; ADR 0026)
-	// Device is DeviceDefault for a default-following output, otherwise empty.
-	// A validated output has either Device or a nonempty Match list; apps and
-	// inputs always use Match (CFG-20, ADR 0027 point 2).
+	// Device is DeviceDefault for a default-following input or output (CFG-20, ADR 0038).
+	// A validated input or output has either Device or a nonempty Match list;
+	// app targets always use Match (CFG-20, ADR 0038).
 	Device string
 	// MaxVolume is the volume in percent at the top of the control, 1–150
 	// (CTRL-03). Default 100.

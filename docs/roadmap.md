@@ -148,6 +148,11 @@ on-screen display still needs a trial on GNOME. The on-screen display moved to P
 still load with a warning, and the hardware checklist, including the new output rows,
 passes on an installed release candidate.
 
+**Follow-up after 0.3.0:** inputs follow the server's default microphone, using
+the same selector and ownership rule as outputs. Switching ends held states;
+hold-to-talk needs a fresh press (INPUT-09, CFG-20, #221,
+[input cases](testing/cases/input.md)). The installed-candidate checks are pending.
+
 ## Phase 1.7 — Show Me What You Got
 
 *On-screen display and LEDs · `0.4.0` · ⚪ Planned*

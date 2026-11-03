@@ -69,6 +69,11 @@ match = ["steam"]
 [inputs.mic]
 name  = "Microphone"
 match = ["GoXLR"]                  # part of the input device's name
+# To follow the desktop's default microphone, REPLACE match above with:
+# device = "default"              # only "default"; never set both match and device
+# On a switch, mute follows this control; the new mic keeps its own volume
+# until you move the control. Held M, cough and talk-over end; hold-to-talk
+# needs a fresh M press before the new mic is live (INPUT-09, ADR 0038).
 # talk_over_volume = 25            # % apps go down to during talk-over (0–100, default 25)
 
 # An output's control sets the whole device's volume (speakers, headphones);

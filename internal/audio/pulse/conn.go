@@ -244,12 +244,12 @@ func (k *conn) setSinkMute(name string, muted bool) error {
 	return k.request(&proto.SetSinkMute{SinkIndex: proto.Undefined, SinkName: name, Mute: muted}, nil)
 }
 
-// Snapshot converts listed streams, sources and sinks, and the name of the
-// default sink, into the mixer's event (SVC-04; sinks: OUT-12, ADR 0027; the
-// default: OUT-03, ADR 0038).
-func Snapshot(streams []StreamInfo, sources []SourceInfo, sinks []SinkInfo, defaultSink string) mixer.AudioSnapshot {
+// Snapshot converts listed streams, sources and sinks, and both default names,
+// into the mixer's event (SVC-04; sinks: OUT-12, ADR 0027; defaults: INPUT-09,
+// OUT-03, ADR 0038).
+func Snapshot(streams []StreamInfo, sources []SourceInfo, sinks []SinkInfo, defaultSink, defaultSource string) mixer.AudioSnapshot {
 	ev := mixer.AudioSnapshot{Streams: make([]mixer.Stream, 0, len(streams)), Devices: make([]mixer.Device, 0, len(sources)),
-		Outputs: make([]mixer.Device, 0, len(sinks)), DefaultOutput: defaultSink}
+		Outputs: make([]mixer.Device, 0, len(sinks)), DefaultOutput: defaultSink, DefaultInput: defaultSource}
 	for _, s := range streams {
 		ev.Streams = append(ev.Streams, s.Stream)
 	}
