@@ -292,3 +292,31 @@ func TestMEDIA09_ATimerOfARemovedPlayerDoesNotEndTheHoldOfItsReplacement(t *test
 		})
 	}
 }
+
+func TestMEDIA09_LOG15_AnIgnoredPlayersPauseLogsNoLEDMessage(t *testing.T) {
+	// No LED follows an ignored player (MEDIA-02), so its pause runs no delay
+	// and logs neither LED line (MEDIA-09, LOG-15, ADR 0033).
+	w := started(t)
+	w.do(PlayerSnapshot{Players: []Player{phonePlayer, spotifyPlayer}}) // the phone's player is ignored
+	w.notices = nil
+	w.do(PlayerStatusChanged{BusName: phonePlayer.BusName, Status: StatusPaused})
+	w.do(PlayerStatusChanged{BusName: phonePlayer.BusName, Status: StatusPlaying}) // a short pause
+	w.do(PlayerStatusChanged{BusName: phonePlayer.BusName, Status: StatusPaused})
+	w.do(PlayerPauseSettled{BusName: phonePlayer.BusName, Seq: 1}) // a stray timer for it
+	if len(w.holds) != 0 {
+		t.Errorf("pause delays asked for an ignored player = %v, want none", w.holds)
+	}
+	for _, msg := range []string{"pause shown on the LEDs", "short pause not shown on the LEDs"} {
+		if got := w.noticesNamed(msg); len(got) != 0 {
+			t.Errorf("the ignored player logged %q: %v", msg, got)
+		}
+	}
+
+	// A matched player's pause still runs the delay and logs both lines.
+	w.do(PlayerStatusChanged{BusName: spotifyPlayer.BusName, Status: StatusPaused})
+	w.do(PlayerStatusChanged{BusName: spotifyPlayer.BusName, Status: StatusPlaying})
+	w.wantNotice(slog.LevelDebug, "short pause not shown on the LEDs")
+	w.do(PlayerStatusChanged{BusName: spotifyPlayer.BusName, Status: StatusPaused})
+	w.pauseDelayOver(spotifyPlayer.BusName)
+	w.wantNotice(slog.LevelDebug, "pause shown on the LEDs")
+}

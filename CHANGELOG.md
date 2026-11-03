@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   requires it; Ubuntu 26.04 ships it as `golang-go`. Release packages and binaries are
   unaffected (#222).
 
+### Fixed
+- An ignored media player's pause (MEDIA-02, e.g. a phone's player through KDE Connect)
+  no longer runs the pause delay or logs `pause shown on the LEDs` / `short pause not
+  shown on the LEDs`: no LED ever follows an ignored player (MEDIA-09, LOG-15,
+  [ADR 0033](docs/adr/0033-r-and-play-ignore-short-pauses.md), #224).
+
 ## [0.3.0] - 2026-11-02
 
 ### Added

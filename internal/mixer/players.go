@@ -174,7 +174,9 @@ func (m *Mixer) playersChanged(a *actions, ev Event) {
 // statusChanged applies a player's new status and decides what the LEDs show.
 // Playing lights them at once. A pause that Apptrol did not ask for keeps
 // them lit and starts the pause delay; any other status, or a pause Apptrol
-// asked for, darkens them at once (MEDIA-09, ADR 0033).
+// asked for, darkens them at once (MEDIA-09, ADR 0033). An ignored player's
+// pause also darkens at once, without a delay: no LED ever follows an ignored
+// player (MEDIA-02), so there is nothing to hold and nothing to log (LOG-15).
 func (m *Mixer) statusChanged(a *actions, p *playerInfo, status string) {
 	before := p.Status
 	if status == before {
@@ -186,13 +188,14 @@ func (m *Mixer) statusChanged(a *actions, p *playerInfo, status string) {
 	p.Status = status
 	commanded := p.pauseCommanded
 	p.pauseCommanded = false
+	ignored := ignoredReason(p.BusName) != ""
 	switch {
 	case status == StatusPlaying:
 		if p.holding {
 			a.notice(slog.LevelDebug, "short pause not shown on the LEDs", playerAttrs(p.Player)...)
 		}
 		p.holding, p.ledPlaying = false, true
-	case status == StatusPaused && before == StatusPlaying && p.ledPlaying && !commanded:
+	case status == StatusPaused && before == StatusPlaying && p.ledPlaying && !commanded && !ignored:
 		m.holdSeq++
 		p.holding, p.holdSeq = true, m.holdSeq
 		a.add(HoldPauseLED{BusName: p.BusName, Seq: p.holdSeq})
