@@ -164,7 +164,7 @@ The owner wants to keep learning while working, not just receive finished result
 - **The plan names the builder:** the tool, the model and the worktree that will write
   the code (e.g. "Claude Opus 5.5, a delegated task in its own worktree"). The owner's
   OK on the plan also starts it, as a delegated task in its own worktree
-  ([Set up](#set-up)). Reasoning above the model's default, pushing and changes on
+  ([Set up](#set-up)). Reasoning above the project's default, pushing and changes on
   GitHub still need their own OK.
 - **Explain simply, with examples.** Lead with the plain difference in a sentence or
   two, then a concrete example (the log lines, a config snippet), then what needs
@@ -218,10 +218,11 @@ from one to another.
   ([Hand over and end](#hand-over-and-end)).
 - **Start another agent only when the owner asks** (a child task or a new thread; an
   OK'd plan that names the builder counts, see [Plan](#plan)), and say which tool and
-  model it runs on. It runs at its model's default reasoning level or
-  lower; a lower level needs no OK. Anything above the default (high, extra high, max,
-  …), another model than the table in [Review](#review) names, or wider permissions
-  need the owner's OK first: ask, with the reason and what it costs.
+  model it runs on. The project's default reasoning level is `xhigh` for GPT-6.1-Sol,
+  `high` for Claude Opus 5.5, and the model's own default for other models.
+  Agents run at that level or lower; a lower level needs no OK. Anything above the
+  project's default, another model than the table in [Review](#review) names, or wider
+  permissions need the owner's OK first: ask, with the reason and what it costs.
 - **Waiting and small jobs stay cheap.** Waiting on something that changes nothing (CI,
   a long read-only check) runs in the background, so the chat stays free: say so in one
   line, no need to ask. Running in the background does not make a command allowed; only
