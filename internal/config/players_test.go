@@ -102,7 +102,7 @@ func TestCFG14_PlayPauseOnAnOutputNeedsAPlayerList(t *testing.T) {
 	requireProblem(t, problemsOf(t, playerBase+"\n[layouts.default.buttons]\nr3 = { mode = \"play_pause\" }\n"),
 		`layouts.default.buttons.r3: "play_pause" needs an app, or an output with player, on slider3; slider3 holds the output "main", which follows the default output and cannot have player`)
 	requireProblem(t, problemsOf(t, playerBase+"\n[layouts.default.buttons]\nr8 = { mode = \"play_pause\" }\n"),
-		`layouts.default.buttons.r8: "play_pause" needs an app on slider8; slider8 holds the input "mic"`)
+		`layouts.default.buttons.r8: "play_pause" needs an app, or an output with player, on slider8; slider8 holds the input "mic"`)
 }
 
 func TestCFG15_MediaPlayerMayNameAnOutputWithAPlayerList(t *testing.T) {

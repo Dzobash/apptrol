@@ -453,8 +453,9 @@ func (m *Mixer) buttonPressed(a *actions, e ButtonPressed) {
 	button := LED{Button: e.Button, Column: e.Column}.String()
 	if m.isOutputColumn(e.Column) && e.Button == ButtonS {
 		// Outputs have no solo: next to app solo it made everything too
-		// complicated (OUT-07, ADR 0036). R works as on an input column
-		// (OUT-09, ADR 0027 point 8).
+		// complicated (OUT-07, ADR 0036). R is not blocked here: it is off or
+		// a launcher (OUT-09), or with a player list plays and pauses the
+		// output's players as on an app column (MEDIA-12, ADR 0045).
 		a.notice(slog.LevelDebug, "button has no function on an output column", m.about(Control{Slider, e.Column}, logattr.KeyButton, button)...)
 		return
 	}

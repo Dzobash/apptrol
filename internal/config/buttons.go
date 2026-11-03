@@ -207,9 +207,9 @@ func parseButtons(layout string, raw map[string]rawButton, l Layout, apps map[st
 					errs.add("%s: %q needs an app, or an output with player, on %s; %s holds the output %q, which has no player",
 						at(name), b.Mode, slider, slider, app.ID)
 				case b.Mode == ModePlayPause && assigned && app.Type != TypeApp:
-					errs.add("%s: %q needs an app on %s; %s holds the %s %q", at(name), b.Mode, slider, slider, app.Type, app.ID)
+					errs.add("%s: %q needs an app, or an output with player, on %s; %s holds the %s %q", at(name), b.Mode, slider, slider, app.Type, app.ID)
 				case b.Mode == ModePlayPause && !assigned:
-					errs.add("%s: %q needs an app on %s; nothing is assigned there", at(name), b.Mode, slider)
+					errs.add("%s: %q needs an app, or an output with player, on %s; nothing is assigned there", at(name), b.Mode, slider)
 				default:
 					errs.add("%s.mode: %q is not valid here (use %s, or app or command to start an app)", at(name), b.Mode, orList(valid))
 				}

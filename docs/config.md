@@ -249,6 +249,7 @@ slider5 = "player-sink"   slider  → the output's volume
   its own players, because R never changes the device.
 - **`[media] player`** may name such an output, on a control or not; the media keys then
   follow its players ([`[media]`](#media)).
+
 ### The default output (`device = "default"`)
 
 An output with `device = "default"` acts on the output your system uses right now, as

@@ -45,6 +45,25 @@ func TestMEDIA12_ROnAnOutputWithAPlayerListPlaysAndPausesIt(t *testing.T) {
 	}
 }
 
+// A pause R did not ask for keeps R lit for the pause delay, as on an app
+// column: a short one never shows, a lasting one darkens R once the delay is
+// over (MEDIA-09, ADR 0033).
+func TestMEDIA12_RFollowsThePauseDelayOnAnOutput(t *testing.T) {
+	w := outputWorld(t, playerOutputSetup())
+	w.do(PlayerAdded{Player: spotifastPlayer})
+	w.do(PlayerStatusChanged{BusName: spotifastPlayer.BusName, Status: StatusPaused})
+	w.wantLEDs(7, false, false, true) // still lit: the delay is running
+	w.do(PlayerStatusChanged{BusName: spotifastPlayer.BusName, Status: StatusPlaying})
+	w.wantNotice(slog.LevelDebug, "short pause not shown on the LEDs")
+	w.pauseDelayOver(spotifastPlayer.BusName) // the timer comes late: nothing to do
+	w.wantLEDs(7, false, false, true)
+
+	w.do(PlayerStatusChanged{BusName: spotifastPlayer.BusName, Status: StatusPaused})
+	w.wantLEDs(7, false, false, true)
+	w.pauseDelayOver(spotifastPlayer.BusName)
+	w.wantLEDs(7, false, false, false)
+}
+
 func TestMEDIA12_TheMatchedPlayerIsLoggedWithTheOutput(t *testing.T) {
 	w := outputWorld(t, playerOutputSetup())
 	w.notices = nil
