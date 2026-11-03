@@ -366,6 +366,12 @@ of invalid output reloads. The `outputs-table` and `device-monitors` fixtures ex
 the new table and warnings. A regression test checks that a fixed output matching
 `"speaker"` never controls an app stream named `"speaker"` (OUT-01).
 
+The list command's sections are also covered by Go tests: `TestLAUNCH16_…` in
+`cmd/apptrol/list_test.go` and `main_test.go` check that `apptrol list outputs`,
+`list inputs` and `list playing` print only their section from the same code as
+`apptrol list`, that an unknown word after `list` names the valid ones, and that the
+whole listing keeps its sections and headings (LAUNCH-16).
+
 ## Output volume
 
 Output balance (OUT-14 to OUT-16,

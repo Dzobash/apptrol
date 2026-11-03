@@ -350,7 +350,8 @@ Example Quest    NAME FMOD Ex App, BINARY ExampleQuest.exe "ExampleQuest"
 ```
 
 So don't guess the name, copy it: start the app, let it play a sound, run
-`apptrol list`, and put a part of its NAME or BINARY into `match`. Avoid parts that many
+`apptrol list` (or `apptrol list playing`, which prints only this section, LAUNCH-16),
+and put a part of its NAME or BINARY into `match`. Avoid parts that many
 apps share: every game through Proton or Wine has the BINARY `wine64-preloader`, and
 `FMOD Ex App` is an audio engine used by many games, not one game's name.
 
@@ -360,7 +361,9 @@ apps share: every game through Proton or Wine has the BINARY `wine64-preloader`,
 ### Finding device names
 
 Use `apptrol list` for device names and descriptions of inputs and outputs; `*` marks
-the output the system uses right now. Without Apptrol, the audio server also lists the
+the output the system uses right now. `apptrol list outputs` and `apptrol list inputs`
+print only that section, `apptrol list playing` only the playing apps (LAUNCH-16).
+Without Apptrol, the audio server also lists the
 names:
 
 ```bash
