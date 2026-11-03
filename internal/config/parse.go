@@ -61,6 +61,7 @@ type rawApp struct {
 	Type      *string   `toml:"type"`
 	Match     *[]string `toml:"match"`
 	Device    *string   `toml:"device"`
+	Player    *[]string `toml:"player"` // outputs with match only (MEDIA-12, ADR 0045)
 	MaxVolume *int      `toml:"max_volume"`
 	TalkOver  *int      `toml:"talk_over_volume"`
 }
@@ -162,14 +163,19 @@ func parse(path string, data []byte) (*Config, []Warning, error) {
 	// All three target tables (CFG-18, CFG-19, CFG-20, ADR 0026).
 	tableOf := parseTargets(&raw, cfg, &errs, &warnings)
 
-	// [media]
+	// [media]: an app, or an output with a player list, as only those have
+	// players (CFG-15, MEDIA-06, MEDIA-12, ADR 0045).
 	if p := raw.Media.Player; p != nil {
 		cfg.Media.Player = *p
 		switch app, ok := cfg.Apps[*p]; {
 		case !ok:
-			errs.add("media.player: app %q is not defined in [apps]", *p)
-		case app.Type != TypeApp:
-			errs.add("media.player: %q is an %s; name an app that plays media", *p, app.Type)
+			errs.add("media.player: app %q is not defined in [apps] or, with player, in [outputs]", *p)
+		case app.Type == TypeInput:
+			errs.add("media.player: %q is an input; name an app, or an output with player", *p)
+		case app.Type == TypeOutput && app.Device == DeviceDefault:
+			errs.add("media.player: %q is an output that follows the default output, which cannot have player; name an app, or an output with match and player", *p)
+		case app.Type == TypeOutput && len(app.Player) == 0:
+			errs.add("media.player: %q is an output without player; add player = [\"<player name>\"] under [outputs.%s], or name an app", *p, *p)
 		}
 	}
 
@@ -353,6 +359,9 @@ func parseTarget(table, id string, ra rawApp, errs *problems, warnings *[]Warnin
 			errs.add("%s.match: empty; list at least one name fragment", at)
 		}
 	}
+	if ra.Player != nil {
+		app.Player = parsePlayer(at, app.Type, ra, errs)
+	}
 	if ra.MaxVolume != nil {
 		app.MaxVolume = *ra.MaxVolume
 		if app.MaxVolume < 1 || app.MaxVolume > MaxVolumeLimit {
@@ -373,6 +382,47 @@ func parseTarget(table, id string, ra rawApp, errs *problems, warnings *[]Warnin
 		app.TalkOverVolume = DefaultTalkOverVolume
 	}
 	return app, true
+}
+
+// parsePlayer reads an output's player list: the media players whose sound
+// goes to that output, for R and [media] player (MEDIA-12, ADR 0045). Only a
+// fixed output may have one. An app's match already finds its players
+// (MEDIA-03), inputs have none, and anything may play over the default
+// output, so Apptrol could not tell which player R means there (ADR 0045
+// point 2). It returns nil after any problem.
+//
+//	[outputs.x] match = […]      player = ["<player>"]   valid
+//	[outputs.x] device = "default" player = […]        rejected
+//	[apps.x] / [inputs.x]          player = […]        rejected
+func parsePlayer(at, kind string, ra rawApp, errs *problems) []string {
+	switch {
+	case kind == TypeApp:
+		errs.add("%s.player: only an output has it; an app's match already finds its media player", at)
+		return nil
+	case kind == TypeInput:
+		errs.add("%s.player: only an output has it; inputs have no media player", at)
+		return nil
+	case ra.Match == nil:
+		errs.add("%s.player: only an output with match has it; any player can play over the default output, so R could not tell which one it means", at)
+		return nil
+	case len(*ra.Player) == 0:
+		errs.add("%s.player: empty; list at least one name fragment, or remove the line", at)
+		return nil
+	}
+	var out []string
+	ok := true
+	for i, p := range *ra.Player {
+		if p = strings.TrimSpace(p); p == "" {
+			errs.add("%s.player[%d]: empty fragment", at, i)
+			ok = false
+			continue
+		}
+		out = append(out, p)
+	}
+	if !ok {
+		return nil
+	}
+	return out
 }
 
 // oldType reads the type key of the old form and returns the target's type
@@ -434,7 +484,8 @@ var targetSettings = map[string]string{
 	"max_volume":       "an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]",
 	"talk_over_volume": "an input setting, not a control; put it under [inputs.<id>]",
 	"device":           "an output setting, not a control; put it under [outputs.<id>]",
-	"type":             "an app setting, not a control; put it under [apps.<id>]",
+	"player":           "an output setting, not a control; put it under [outputs.<id>]",
+	"type":            "an app setting, not a control; put it under [apps.<id>]",
 }
 
 // decodeLayouts decodes each [layouts.<name>]: "control = app" entries as

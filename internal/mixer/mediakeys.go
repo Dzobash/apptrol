@@ -120,8 +120,9 @@ var mediaKeyCommands = map[TransportButton]string{
 }
 
 // mediaKeyPlayer returns the player the media keys act on and how it was
-// chosen: with [media] player set, the most recent of that app's players,
-// else the most recent of all (MEDIA-06). "Most recent" is the player that
+// chosen: with [media] player set, the most recent of that app's players, or
+// of that output's (MEDIA-12, ADR 0045), else the most recent of all
+// (MEDIA-06). "Most recent" is the player that
 // last started playing while Apptrol ran; without that, a paused one before
 // a stopped one, then by name. nil if there is none; a pinned app without a
 // player gets nil too, never another app's player.
@@ -157,12 +158,13 @@ func (m *Mixer) mediaKeyPlayer() (p *playerInfo, selection string) {
 	return candidates[0], selection
 }
 
-// playerMatches reports whether a player belongs to app id by its match
-// list, whether or not the app is on a control: a pinned app need not be.
+// playerMatches reports whether a player belongs to target id: by an app's
+// match list, or by an output's player list (MEDIA-06, MEDIA-12, ADR 0045),
+// whether or not the target is on a control: a pinned target need not be.
 func (m *Mixer) playerMatches(p Player, id string) bool {
 	for _, value := range []string{playerName(p.BusName), p.Identity, p.DesktopEntry} {
 		value = strings.ToLower(value)
-		for _, frag := range m.fragments[id] {
+		for _, frag := range m.playerFragments[id] {
 			if value != "" && strings.Contains(value, frag) {
 				return true
 			}

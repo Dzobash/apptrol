@@ -15,6 +15,11 @@ type Mixer struct {
 	setup     Setup
 	controlOf map[string]Control  // target id -> its control
 	fragments map[string][]string // target id -> lower-case match fragments
+	// playerFragments holds, by target id, the lower-case fragments media
+	// players are matched against: an app's match list, an output's player
+	// list; none for inputs and outputs without one (MEDIA-03, MEDIA-12,
+	// ADR 0045).
+	playerFragments map[string][]string
 
 	positions map[Control]int  // known physical positions (PRIO-04: absent = unknown)
 	muted     map[Control]bool // user mutes: M (MUTE-01) or from outside Apptrol (MUTE-07)
@@ -167,12 +172,15 @@ func (m *Mixer) setSetup(s Setup) {
 	}
 	m.controlOf = map[string]Control{}
 	m.fragments = map[string][]string{}
+	m.playerFragments = map[string][]string{}
 	for id, t := range s.Targets {
 		m.setup.Targets[id] = t
-		for _, f := range t.Match {
-			if f = strings.ToLower(strings.TrimSpace(f)); f != "" {
-				m.fragments[id] = append(m.fragments[id], f)
-			}
+		m.fragments[id] = lowerFragments(t.Match)
+		switch t.Kind {
+		case App:
+			m.playerFragments[id] = m.fragments[id] // MEDIA-03
+		case Output:
+			m.playerFragments[id] = lowerFragments(t.Player) // MEDIA-12, ADR 0045
 		}
 	}
 	for c, id := range s.Assignments {
@@ -181,6 +189,18 @@ func (m *Mixer) setSetup(s Setup) {
 			m.controlOf[id] = c
 		}
 	}
+}
+
+// lowerFragments returns the nonempty fragments, trimmed and in lower case,
+// so matching is case-insensitive (CFG-04, MEDIA-03).
+func lowerFragments(list []string) []string {
+	var out []string
+	for _, f := range list {
+		if f = strings.ToLower(strings.TrimSpace(f)); f != "" {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // Snapshot returns the state to persist (STATE-01): positions and user mutes of
@@ -916,11 +936,14 @@ func (m *Mixer) ledStates() []SetLED {
 				s, r = true, true         // LED-04: input columns are lit…
 				mu = !m.effectiveMute(id) // …and M is lit only while the input is live
 			case Output:
-				// M as on an app column; S and R stay off, as outputs have no
-				// solo and R no lit state. A control whose device an earlier
-				// control owns shows no mute: it does not decide it (OUT-10,
-				// OUT-04, ADR 0035, ADR 0036).
+				// M as on an app column; S stays off, as outputs have no solo.
+				// A control whose device an earlier control owns shows no
+				// mute: it does not decide it (OUT-10, OUT-04, ADR 0035,
+				// ADR 0036). R as on an app column when the output has a
+				// player list, also on such a control, as R never touches the
+				// device; off without one (MEDIA-09, MEDIA-12, ADR 0045).
 				mu = m.muted[Control{Slider, col}] && m.blockedOutputs[id] == ""
+				r = m.rLit(col, id)
 			}
 		}
 		out = append(out,

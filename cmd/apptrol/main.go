@@ -240,6 +240,9 @@ func cmdCheck(configPath string, stdout io.Writer) error {
 		if app.Device == config.DeviceDefault {
 			selector = "device = \"default\""
 		}
+		if len(app.Player) > 0 { // the players R plays and pauses (MEDIA-12, ADR 0045)
+			selector += "; player: " + strings.Join(app.Player, ", ")
+		}
 		fmt.Fprintf(tw, "  %s\t%s\t%s: %s%s\n", a.Control, app.Name, app.Type, selector, extra)
 	}
 	if err := tw.Flush(); err != nil {
