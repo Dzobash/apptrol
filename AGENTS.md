@@ -94,7 +94,10 @@ complex or important: build → local review rounds → push → draft PR → re
   the folder is trusted, Grok (Grok Build) reads `.claude/settings.json` and AGENTS.md
   by itself, so it needs no file of its own; `grok inspect --json` shows
   `projectTrusted` and how many rules it loaded (its `sources` line may name only the
-  personal `.claude/settings.local.json`, but the count includes the shared file). Run
+  personal `.claude/settings.local.json`, but the count includes the shared file).
+  Mistral Vibe (in T3 Code, over ACP) reads AGENTS.md only in a folder it trusts
+  (`~/.vibe/trusted_folders.toml`), and not `.claude/settings.json`: until it has a
+  command file of its own, its built-in list applies and it asks about the rest. Run
   commands from the checkout's folder, one per call (no `cd … &&`, no `git -C`), so
   they match the lists.
   Before a command that does more than read, say in one or two sentences what you are
@@ -219,7 +222,8 @@ from one to another.
 - **Start another agent only when the owner asks** (a child task or a new thread; an
   OK'd plan that names the builder counts, see [Plan](#plan)), and say which tool and
   model it runs on. The project's default reasoning level is `xhigh` for GPT-6.1-Sol,
-  `high` for Claude Opus 5.5, and the model's own default for other models.
+  `high` for Claude Opus 5.5, `high` for Mistral Large 4 and GLM-5.3 (Mistral Vibe's
+  `thinking`), and the model's own default for other models.
   Agents run at that level or lower; a lower level needs no OK. Anything above the
   project's default, another model than the table in [Review](#review) names, or wider
   permissions need the owner's OK first: ask, with the reason and what it costs.
@@ -252,10 +256,14 @@ from one to another.
 
 ## Build
 
-- Every commit names the model that wrote it in a `Co-Authored-By:` line, Codex as well
-  as Claude, e.g. `Co-Authored-By: GPT-6.1-Sol <noreply@openai.com>` or
-  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`, so it is clear which
-  agent did what.
+- Every commit names the model that wrote it in a `Co-Authored-By:` line, whichever
+  tool wrote it, so it is clear which agent did what:
+  ```
+  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+  Co-Authored-By: GPT-6.1-Sol <noreply@openai.com>
+  Co-Authored-By: Mistral Large 4 <noreply@mistral.ai>
+  Co-Authored-By: GLM-5.3 <noreply@z.ai>
+  ```
 - Every behaviour has a requirement ID in [docs/requirements.md](docs/requirements.md);
   tests are named after it (QA-07), e.g. `TestSOLO05_PressingSoloAgainTurnsItOff`.
 - **Code comments explain the why** and cite the requirement ID and the ADR, e.g.
@@ -301,29 +309,37 @@ from one to another.
 
 ## Review
 
-- **The other provider reviews.** A PR written by Claude is reviewed by Codex, and one
-  written by Codex by Claude, before the owner merges it: a different model finds
-  different bugs. Review against the requirements and this file, not only the diff.
+- **Another provider reviews.** A PR is reviewed by a provider other than the one that
+  wrote it, before the owner merges it: a different model finds different bugs. The
+  providers are Claude (Claude Code), GPT (Codex) and Mistral (Mistral Vibe, in T3
+  Code); the table below says who reviews whom. Review against the requirements and
+  this file, not only the diff.
 - **When only one provider is available,** a fresh agent of the same provider on
   another model reviews, with an independent brief (see below: no chat history, no
   earlier findings). The author's provider decides which:
   ```
-  Claude implements, no Codex:   routine → Claude Sonnet 5.5
+  Claude implements, no other:   routine → Claude Sonnet 5.5
                                  complex or important → a new Claude Opus 5.5 agent
-  Codex implements, no Claude:   ask the owner which GPT model reviews
+  Codex or Mistral implements,
+  no Claude:                     ask the owner which model reviews
   ```
   The PR says which review route was used (e.g. "Reviewed by Claude Sonnet 5.5, Codex
-  not available").
-- **Split the work by provider.** When the owner hands a release's issues to both
-  providers, some go to Codex and some to Claude, and each reviews the other's PRs.
-  Codex writes code with GPT-6.1-Sol (GPT-6-Astra used up its tokens too fast and ran
-  out in the middle of tasks). The reviewer's model depends on the PR (as of 2026-10;
-  the owner names newer models when they come):
+  and Mistral not available").
+- **Split the work by provider.** When the owner hands a release's issues to several
+  providers, each gets some, and each PR is reviewed as the table says. Codex writes
+  code with GPT-6.1-Sol (GPT-6-Astra used up its tokens too fast and ran out in the
+  middle of tasks); Mistral Vibe writes code with Mistral Large 4. The reviewer's
+  model depends on the PR (as of 2026-11; the owner names newer models when they
+  come):
 
   | Implementation | Routine PR review | Complex or important PR review |
   |---|---|---|
   | **GPT / Codex implements** | Claude **Sonnet 5.5** | Claude **Opus 5.5** |
-  | **Claude Code implements** | GPT **6.1-Sol** | GPT **6.1-Sol** |
+  | **Mistral Vibe implements** | Claude **Sonnet 5.5** | Claude **Opus 5.5** |
+  | **Claude Code implements** | GPT **6.1-Sol**; without it, **GLM-5.3** | GPT **6.1-Sol**; without it, **Mistral Large 4** |
+
+  GPT reviews Claude's PRs while the owner's GPT subscription lasts; after that,
+  Mistral Vibe does.
 
   **Routine:** docs, tests, small fixes. **Complex or important:** a change of
   behaviour, a release, anything touching audio, the controller, privacy or security.
