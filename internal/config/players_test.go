@@ -72,14 +72,20 @@ func TestMEDIA12_PlayerIsRejectedOnAppsInputsAndTheDefaultOutput(t *testing.T) {
 		})
 	}
 
-	// Neither match nor device: CFG-20's error, and player's without the
-	// default output's reason, which would be wrong here.
-	problems := problemsOf(t, "[outputs.target]\nplayer = [\"test\"]\n[layouts.default]\nslider1 = \"target\"\n")
-	requireProblem(t, problems, "outputs.target: set exactly one of match and device")
-	requireProblem(t, problems, "outputs.target.player: only an output with match has it")
-	for _, p := range problems {
-		if strings.Contains(p, "default output") {
-			t.Errorf("an output without device got the default output's reason: %s", p)
+	// Neither match nor device, or a device value that is not valid: CFG-20's
+	// error, and player's without the default output's reason, which would be
+	// wrong here.
+	for _, tt := range []struct{ selector, want string }{
+		{"", "outputs.target: set exactly one of match and device"},
+		{"device = \"speakers\"\n", `outputs.target.device: "speakers" is not valid`},
+	} {
+		problems := problemsOf(t, "[outputs.target]\n"+tt.selector+"player = [\"test\"]\n[layouts.default]\nslider1 = \"target\"\n")
+		requireProblem(t, problems, tt.want)
+		requireProblem(t, problems, "outputs.target.player: only an output with match has it")
+		for _, p := range problems {
+			if strings.Contains(p, "player:") && strings.Contains(p, "default output") {
+				t.Errorf("selector %q: player got the default output's reason: %s", tt.selector, p)
+			}
 		}
 	}
 }

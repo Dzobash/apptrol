@@ -402,11 +402,12 @@ func parsePlayer(at, kind string, ra rawApp, errs *problems) []string {
 	case kind == TypeInput:
 		errs.add("%s.player: only an output has it; inputs have no media player", at)
 		return nil
-	case ra.Device != nil:
+	case ra.Device != nil && *ra.Device == DeviceDefault:
 		errs.add("%s.player: only an output with match has it; any player can play over the default output, so R could not tell which one it means", at)
 		return nil
 	case ra.Match == nil:
-		// Neither selector: CFG-20 reports that; this says what player needs.
+		// No match: no selector, or a device value that is not valid. CFG-20
+		// reports that; this says only what player needs.
 		errs.add("%s.player: only an output with match has it", at)
 		return nil
 	case len(*ra.Player) == 0:
