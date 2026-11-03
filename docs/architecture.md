@@ -29,7 +29,8 @@ How the service is put together. Decisions and their reasons are in
   which output device each output control sets (a matched one, or the system's default
   output, which it follows), who owns a device two controls choose, and that nothing
   else touches it,
-  which media player belongs to which control, what R, the media keys and the launcher
+  which media player belongs to which control (an app by its `match`, a fixed output by
+  its `player` list, ADR 0045), what R, the media keys and the launcher
   buttons do (and what they may do in each screen state), and every LED. It receives events and returns actions. It does no I/O and
   has no clock, so it is tested completely with plain unit tests.
   A read-only solo accessor supplies the column, configured app name and current
@@ -153,13 +154,19 @@ The config API for outputs (CFG-20, ADR 0027) is the existing `config.App`:
 - `Device == config.DeviceDefault` (`"default"`) selects the server's default output;
   `Match` is empty in that case. Otherwise `Device` is empty and `Match` is nonempty.
 - `Name` defaults to the id; `MaxVolume` defaults to 100 and accepts 1–150.
+- `Player` holds the fragments of a fixed output's `player` list (MEDIA-12,
+  [ADR 0045](adr/0045-a-player-list-on-outputs.md)); it is empty on apps, inputs and
+  default-following outputs, which are rejected when they set it. `App.HasPlayers()`
+  says whether a target can have media players: every app, and an output with `Player`.
+  R's `play_pause` (CFG-14) and `[media] player` (CFG-15) need it.
 - `Config.Apps[id]`, sorted `Config.AppIDs()`, `Config.Layout()` and
   `Layout.Assignment(control)` work for every target. There is no separate outputs map.
 
 The parser checks key presence, so an empty `match` alongside `device` is still an
-error. `type`, `talk_over_volume`, media-player pinning and R's `play_pause` cannot make
-an output behave like an input or app. `apptrol check` displays either the match list
-or `device = "default"`. The first-control-wins overlap warning covers apps, inputs
+error. `type` and `talk_over_volume` cannot make an output behave like an input or app;
+media-player pinning and R's `play_pause` are allowed only on an output with `player`,
+whose players they then act on, never on its device. `apptrol check` displays either the
+match list or `device = "default"`, and then the `player` list if there is one. The first-control-wins overlap warning covers apps, inputs
 and fixed outputs. Runtime output matching also catches overlaps between different
 fragments that resolve to the same device ([ADR 0035](adr/0035-first-control-owns-matched-output.md)).
 
@@ -172,6 +179,7 @@ intact.
 
 ```
 [outputs.speakers] match = [...]   ──► mixer.Output                  (the device that matches)
+          + player = [...]         ──►   … with Player               (its media players, for R)
 [outputs.main] device = "default"  ──► mixer.Output, FollowsDefault  (the server's default output)
 ```
 
@@ -328,17 +336,27 @@ for each output target on a control, the device it has chosen (`outputFor`):
   outputs (OUT-11): `effectiveMute` has no solo or talk-over rule for `Output`, so an
   output is muted only by its own saved mute. Next to app solo, a solo on outputs made
   everything too complicated: the two together could silence every app at once.
+- **R and media players** (OUT-09, MEDIA-12, [ADR 0045](adr/0045-a-player-list-on-outputs.md)):
+  an output with a `player` list gets players like an app. `setSetup` fills one map,
+  `playerFragments`: an app's match fragments, an output's player fragments, nothing for
+  inputs. `matchPlayer` (first control wins, CFG-12, over apps and outputs alike), the
+  `[media] player` pin (`playerMatches`) and `rMode` read only that map, so an output's
+  `match` is never compared with players. `rMode` defaults to `play_pause` when the
+  slider's target `hasPlayers`; `playPause` and `rLit` then work on the output's id
+  unchanged. R does not look at `blockedOutputs`: it never touches the device, so a
+  control whose device an earlier control owns still plays and pauses its players.
 - **LEDs** (OUT-10): `ledStates` lights M on an output column while the slider's saved
-  mute is on, from M or taken over from outside, as LED-02 does for apps; S and R stay
-  off. A control whose device an earlier control owns (`blockedOutputs`) shows no mute,
-  since it does not decide it (ADR 0035). `outputAdded` and `outputRemoved` sync the
+  mute is on, from M or taken over from outside, as LED-02 does for apps; S stays off,
+  and R follows `rLit` (MEDIA-09), off unless the output has `player`. A control whose
+  device an earlier control owns (`blockedOutputs`) shows no mute, since it does not
+  decide it (ADR 0035). `outputAdded` and `outputRemoved` sync the
   LEDs, because ownership, and with it M's LED, can move when a device comes or goes.
 
   ```text
             app column     output column    output column, earlier control owns device
   S         lit on solo    off              off
   M         saved mute     saved mute       off (its saved mute is kept for later)
-  R         player state   off              off
+  R         player state   off; with player: player state (both output columns)
   ```
 - **Conflicting matches** (OUT-04, ADR 0035): each target first chooses a device using
   OUT-02. In control order (sliders then knobs), only the first target can claim that
@@ -572,7 +590,8 @@ The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
 - **Media players:** every running `org.mpris.MediaPlayer2.*` name, followed through
   `NameOwnerChanged` and `PropertiesChanged` (`PlaybackStatus`). The adapter only reports
   them; the mixer ignores players on other devices, proxies and duplicates, and matches
-  the rest to controls through the apps' `match` lists (MEDIA-02, MEDIA-03).
+  the rest to controls through the apps' `match` lists and the outputs' `player` lists
+  (MEDIA-02, MEDIA-03, MEDIA-12).
   At connect, the players already running are listed (`ListNames`, then `GetNameOwner`
   and their properties for each). Every call has its own 2-second timeout, so a player
   that does not answer is left out (a warning) without using up the time of the players
@@ -800,7 +819,11 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   `ForgetOutputVolume` names only a device a default control holds. Default-output
   tests cover following a change, no default or one not reported yet, an outside mute
   on it, the overlap with a fixed output in both control orders, and when a takeover
-  sends `ForgetOutputVolume` (OUT-03, OUT-04, ADR 0038 point 6).
+  sends `ForgetOutputVolume` (OUT-03, OUT-04, ADR 0038 point 6). Player-output tests
+  cover R and its LED on an output with `player`, an output without it, a player that
+  matches an app and an output in both control orders, a control whose device an
+  earlier one owns, a reload that removes the list, and the `[media] player` pin on an
+  output on a control or not (MEDIA-12, MEDIA-06, ADR 0045).
 - `service`: the whole loop against fake adapters: config reload, state, shutdown, a
   slider on an output reaching the audio adapter as `SetOutputVolume` and M as
   `SetOutputMute`, a `device = "default"` slider following a default change; the Status line
