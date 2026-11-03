@@ -71,6 +71,17 @@ func TestMEDIA12_PlayerIsRejectedOnAppsInputsAndTheDefaultOutput(t *testing.T) {
 			requireProblem(t, problemsOf(t, tt.src+"[layouts.default]\nslider1 = \"target\"\n"), tt.want)
 		})
 	}
+
+	// Neither match nor device: CFG-20's error, and player's without the
+	// default output's reason, which would be wrong here.
+	problems := problemsOf(t, "[outputs.target]\nplayer = [\"test\"]\n[layouts.default]\nslider1 = \"target\"\n")
+	requireProblem(t, problems, "outputs.target: set exactly one of match and device")
+	requireProblem(t, problems, "outputs.target.player: only an output with match has it")
+	for _, p := range problems {
+		if strings.Contains(p, "default output") {
+			t.Errorf("an output without device got the default output's reason: %s", p)
+		}
+	}
 }
 
 func TestMEDIA12_APlayerListNeedsFragments(t *testing.T) {

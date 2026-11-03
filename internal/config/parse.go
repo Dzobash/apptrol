@@ -402,8 +402,12 @@ func parsePlayer(at, kind string, ra rawApp, errs *problems) []string {
 	case kind == TypeInput:
 		errs.add("%s.player: only an output has it; inputs have no media player", at)
 		return nil
-	case ra.Match == nil:
+	case ra.Device != nil:
 		errs.add("%s.player: only an output with match has it; any player can play over the default output, so R could not tell which one it means", at)
+		return nil
+	case ra.Match == nil:
+		// Neither selector: CFG-20 reports that; this says what player needs.
+		errs.add("%s.player: only an output with match has it", at)
 		return nil
 	case len(*ra.Player) == 0:
 		errs.add("%s.player: empty; list at least one name fragment, or remove the line", at)
