@@ -629,11 +629,16 @@ func TestIntegration_Backend(t *testing.T) {
 	// A capture device appears, is controlled and disappears (CTRL-05).
 	src := unique("test_mic")
 	remove := addSource(t, src)
-	next(t, events, func(e mixer.DeviceAdded) bool { return e.Device.Name == src })
+	device := next(t, events, func(e mixer.DeviceAdded) bool { return e.Device.Name == src }).Device
 	if err := b.Apply(mixer.SetDeviceVolume{Device: src, Volume: 0.25}); err != nil {
 		t.Fatal(err)
 	}
 	if err := b.Apply(mixer.SetDeviceMute{Device: src, Muted: true}); err != nil {
+		t.Fatal(err)
+	}
+	// Act as the mixer: writes do not acknowledge ownership; only the answer
+	// for this identity lets the new-input guard defend them (INPUT-09, ADR 0038).
+	if err := b.Apply(mixer.KeepDevice{Device: src, Generation: device.Generation}); err != nil {
 		t.Fatal(err)
 	}
 	waitSource(t, src, func(s SourceInfo) bool { return near(s.Volume, 0.25) && s.Muted })

@@ -10,6 +10,26 @@ import (
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
+// setDefaultSource waits for the server's observed default, rather than
+// treating pactl's successful request as applied state (INPUT-09, QA-09,
+// ADR 0038). Cleanup uses the same check to verify restoration.
+func setDefaultSource(t *testing.T, name string) {
+	t.Helper()
+	if out, err := exec.Command("pactl", "set-default-source", name).CombinedOutput(); err != nil {
+		t.Fatalf("set default input: %v %s", err, out)
+	}
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		l, err := List("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if l.DefaultSource == name {
+			return
+		}
+	}
+	t.Fatal("default input did not settle at the requested device")
+}
+
 // This switches the real default only between silent test microphones and
 // restores the original even on failure (INPUT-09, QA-06, ADR 0038).
 func TestIntegration_INPUT09_DefaultInputFollowsASwitch(t *testing.T) {
@@ -21,21 +41,12 @@ func TestIntegration_INPUT09_DefaultInputFollowsASwitch(t *testing.T) {
 	a, z := unique("apptrol_test_input_a"), unique("apptrol_test_input_b")
 	addSource(t, a)
 	addSource(t, z)
-	setDefault := func(name string) {
-		t.Helper()
-		if out, err := exec.Command("pactl", "set-default-source", name).CombinedOutput(); err != nil {
-			t.Fatalf("set default input: %v %s", err, out)
-		}
-	}
 	t.Cleanup(func() {
 		if before.DefaultSource != "" {
-			setDefault(before.DefaultSource)
-			if l, err := List(""); err != nil || l.DefaultSource != before.DefaultSource {
-				t.Errorf("default input not restored: %v", err)
-			}
+			setDefaultSource(t, before.DefaultSource)
 		}
 	})
-	setDefault(a)
+	setDefaultSource(t, a)
 	b := New(testLog(t), "")
 	events := make(chan mixer.Event, 256)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -72,7 +83,7 @@ func TestIntegration_INPUT09_DefaultInputFollowsASwitch(t *testing.T) {
 	apply(mixer.ControlMoved{Control: c, Value: 38})
 	apply(mixer.ButtonPressed{Button: mixer.ButtonM, Column: 8})
 	waitSource(t, a, func(d SourceInfo) bool { return d.Muted && near(d.Volume, 38.0/127) })
-	setDefault(z)
+	setDefaultSource(t, z)
 	apply(next(t, events, func(e mixer.DefaultInputChanged) bool { return e.Name == z }))
 	waitSource(t, z, func(d SourceInfo) bool { return d.Muted })
 	waitSource(t, a, func(d SourceInfo) bool { return !d.Muted && near(d.Volume, 38.0/127) })
@@ -80,7 +91,7 @@ func TestIntegration_INPUT09_DefaultInputFollowsASwitch(t *testing.T) {
 	apply(mixer.ConfigChanged{Setup: s})
 	apply(mixer.ButtonPressed{Button: mixer.ButtonM, Column: 8})
 	waitSource(t, z, func(d SourceInfo) bool { return !d.Muted })
-	setDefault(a)
+	setDefaultSource(t, a)
 	apply(next(t, events, func(e mixer.DefaultInputChanged) bool { return e.Name == a }))
 	waitSource(t, a, func(d SourceInfo) bool { return d.Muted })
 	waitSource(t, z, func(d SourceInfo) bool { return !d.Muted })
@@ -113,15 +124,11 @@ func TestIntegration_INPUT09_NewDefaultDefendsReportedRestores(t *testing.T) {
 	addSource(t, name)
 	t.Cleanup(func() {
 		if before.DefaultSource != "" {
-			if err := exec.Command("pactl", "set-default-source", before.DefaultSource).Run(); err != nil {
-				t.Errorf("restore default: %v", err)
-			}
+			setDefaultSource(t, before.DefaultSource)
 		}
 	})
 	d := next(t, events, func(e mixer.DeviceAdded) bool { return e.Device.Name == name }).Device
-	if err := exec.Command("pactl", "set-default-source", name).Run(); err != nil {
-		t.Fatal(err)
-	}
+	setDefaultSource(t, name)
 	// The server may already have made a new source the default before its
 	// DeviceAdded. The switch path is tested above; here the guard must work
 	// in either notification order (INPUT-09, ADR 0038).

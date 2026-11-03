@@ -395,6 +395,10 @@ manual input cases    ─► controller LEDs, held buttons and talk-over
 `APPTROL_PULSE_TEST=1`, run by `make test-audio`. They switch only silent test
 microphones, restore the original default, and check both M modes and reported
 volume/mute restores. Run them only while holding the owner's live-setup grant.
+Default-source requests wait until a server read reports the requested device,
+including during restoration: a successful request can precede the actual change.
+`TestIntegration_Backend` answers each new input's reported identity with
+`KeepDevice` before expecting guard defense, as the real mixer does (INPUT-09).
 They do not prove read-back of silently lost input writes (#174).
 [TC-INPUT-001 and TC-INPUT-002](testing/cases/input.md) use `input-default` and
 `input-default-hold`; each case restores the original default as well as the fixture.
