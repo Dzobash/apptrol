@@ -12,6 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   requires it; Ubuntu 26.04 ships it as `golang-go`. Release packages and binaries are
   unaffected (#222).
 
+### Fixed
+- `apptrol list apps` no longer takes its launcher example from the first desktop ID
+  of the whole list. An ID can contain `=`, and the line then read like a syntax
+  error. With a search word the example is the first match; without one it is
+  `record = { app = "<desktop ID>" }`. Two lines above the table say the IDs are for
+  launchers (`app = "<desktop ID>"`) and that a `match` name can differ, so run
+  `apptrol list` while the app plays (LAUNCH-09, #225).
+
 ## [0.3.0] - 2026-11-02
 
 ### Added
