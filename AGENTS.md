@@ -97,7 +97,8 @@ complex or important: build → local review rounds → push → draft PR → re
   personal `.claude/settings.local.json`, but the count includes the shared file).
   Mistral Vibe (in T3 Code, over ACP) reads AGENTS.md only in a folder it trusts
   (`~/.vibe/trusted_folders.toml`), and not `.claude/settings.json`: until it has a
-  command file of its own, its built-in list applies and it asks about the rest. Run
+  command file of its own, only Vibe's built-in defaults apply (a few read-only
+  commands such as `git status`, not this list) and it asks about the rest. Run
   commands from the checkout's folder, one per call (no `cd … &&`, no `git -C`), so
   they match the lists.
   Before a command that does more than read, say in one or two sentences what you are
@@ -311,20 +312,22 @@ from one to another.
 
 - **Another provider reviews.** A PR is reviewed by a provider other than the one that
   wrote it, before the owner merges it: a different model finds different bugs. The
-  providers are Claude (Claude Code), GPT (Codex) and Mistral (Mistral Vibe, in T3
-  Code); the table below says who reviews whom. Review against the requirements and
-  this file, not only the diff.
-- **When only one provider is available,** a fresh agent of the same provider on
-  another model reviews, with an independent brief (see below: no chat history, no
-  earlier findings). The author's provider decides which:
+  table below names the reviewers for Claude (Claude Code), GPT (Codex) and Mistral
+  (Mistral Vibe, in T3 Code); for a PR from any other tool (e.g. Grok), ask the owner
+  which model reviews. Review against the requirements and this file, not only the
+  diff.
+- **When the table's reviewer is not available,** the author's provider decides who
+  reviews instead:
   ```
-  Claude implements, no other:   routine → Claude Sonnet 5.5
-                                 complex or important → a new Claude Opus 5.5 agent
+  Claude implements, no GPT:      Mistral Vibe, as the table's "without it" says
+  Claude implements, no GPT       routine → Claude Sonnet 5.5
+  and no Mistral:                 complex or important → a new Claude Opus 5.5 agent
   Codex or Mistral implements,
-  no Claude:                     ask the owner which model reviews
+  no Claude:                      ask the owner which model reviews
   ```
-  The PR says which review route was used (e.g. "Reviewed by Claude Sonnet 5.5, Codex
-  and Mistral not available").
+  A fresh agent of the author's own provider gets an independent brief (see below: no
+  chat history, no earlier findings). The PR says which review route was used (e.g.
+  "Reviewed by Claude Sonnet 5.5, Codex and Mistral not available").
 - **Split the work by provider.** When the owner hands a release's issues to several
   providers, each gets some, and each PR is reviewed as the table says. Codex writes
   code with GPT-6.1-Sol (GPT-6-Astra used up its tokens too fast and ran out in the
@@ -457,5 +460,5 @@ The tool's own prompt for deleting a branch stays (QA-15), one click.
   The sender stops changing the branch before the receiver starts, and says so.
 - **At the end of a session,** when the owner asks whether everything is done, follow
   [`.agents/skills/wrap-up/SKILL.md`](.agents/skills/wrap-up/SKILL.md): other agents,
-  code, GitHub, notes, handover, then a short report (Codex: `$wrap-up`, Claude Code:
-  `/wrap-up`).
+  code, GitHub, notes, handover, then a short report (Codex: `$wrap-up`, Claude Code
+  and Mistral Vibe: `/wrap-up`).
