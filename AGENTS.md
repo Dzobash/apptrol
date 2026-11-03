@@ -341,8 +341,7 @@ from one to another.
   | **Mistral Vibe implements** | Claude **Sonnet 5.5** | Claude **Opus 5.5** |
   | **Claude Code implements** | GPT **6.1-Sol**; without it, **GLM-5.3** | GPT **6.1-Sol**; without it, **Mistral Large 4** |
 
-  GPT and Claude remain in use. The table's fallbacks apply when a reviewer is
-  unavailable; subscription choices for Mistral, GLM and Grok are undecided.
+  The table's fallbacks apply when a reviewer is unavailable.
 
   **Routine:** docs, tests, small fixes. **Complex or important:** a change of
   behaviour, a release, anything touching audio, the controller, privacy or security.
@@ -372,9 +371,10 @@ from one to another.
   ```
   before the first push:
     local round → findings → fix in new commits → next local round
-    clean local round → ask to push → push → draft PR + CI → Ready
+    clean local round → ask to push → push → draft PR + CI
   after the first push:
-    new fix commit → local rounds until clean → push → update draft PR + CI → Ready
+    new fix commit → local rounds until clean → push → update draft PR + CI
+  Ready only when the current commit meets the Ready checklist below.
   ```
   Pushed history is never rewritten. Commits that were never pushed are kept as they
   are too, with one exception: when a local round finds a **security flaw**, the

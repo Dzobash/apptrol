@@ -10,7 +10,7 @@ import (
 // Button modes and if_running values (CFG-13, ADR 0019, ADR 0020).
 const (
 	ModeOff        = "off"
-	ModePlayPause  = "play_pause"   // R on an app column
+	ModePlayPause  = "play_pause"   // R on an app column, or an output with player (MEDIA-12)
 	ModeMute       = "mute"         // M on an input column
 	ModeHoldToTalk = "hold_to_talk" // M on an input column
 	ModeCough      = "cough"        // S on an input column
@@ -193,15 +193,23 @@ func parseButtons(layout string, raw map[string]rawButton, l Layout, apps map[st
 			}
 		case letter == 'r':
 			valid := []string{ModePlayPause, ModeOff}
-			if !assigned || app.Type != TypeApp {
-				valid = []string{ModeOff} // play_pause needs an app (CFG-20, ADR 0027 point 8)
+			if !assigned || !app.HasPlayers() {
+				// play_pause needs players: an app, or an output with a player
+				// list (CFG-14, OUT-09, MEDIA-12, ADR 0027 point 8, ADR 0045).
+				valid = []string{ModeOff}
 			}
 			if rb.Mode != nil && !contains(valid, b.Mode) {
 				switch {
+				case b.Mode == ModePlayPause && assigned && app.Type == TypeOutput && app.Device == DeviceDefault:
+					errs.add("%s: %q needs an app, or an output with player, on %s; %s holds the output %q, which follows the default output and cannot have player",
+						at(name), b.Mode, slider, slider, app.ID)
+				case b.Mode == ModePlayPause && assigned && app.Type == TypeOutput:
+					errs.add("%s: %q needs an app, or an output with player, on %s; %s holds the output %q, which has no player",
+						at(name), b.Mode, slider, slider, app.ID)
 				case b.Mode == ModePlayPause && assigned && app.Type != TypeApp:
-					errs.add("%s: %q needs an app on %s; %s holds the %s %q", at(name), b.Mode, slider, slider, app.Type, app.ID)
+					errs.add("%s: %q needs an app, or an output with player, on %s; %s holds the %s %q", at(name), b.Mode, slider, slider, app.Type, app.ID)
 				case b.Mode == ModePlayPause && !assigned:
-					errs.add("%s: %q needs an app on %s; nothing is assigned there", at(name), b.Mode, slider)
+					errs.add("%s: %q needs an app, or an output with player, on %s; nothing is assigned there", at(name), b.Mode, slider)
 				default:
 					errs.add("%s.mode: %q is not valid here (use %s, or app or command to start an app)", at(name), b.Mode, orList(valid))
 				}

@@ -49,3 +49,4 @@ Copy [`template.md`](template.md) and use the next free number.
 | [0038](0038-default-output-follows-the-server.md) | The default output follows the server; the first control owns an overlap | Accepted; supersedes 0027 point 4 for the default output |
 | [0039](0039-output-volume-keeps-channel-balance.md) | Output volume keeps each channel's balance | Accepted; supersedes the flat-channel decision in 0027's note of 2026-10-20 and 0038's flat-channel consequence; implementation pending |
 | [0040](0040-where-agent-rules-live.md) | Where agent rules live: one home per rule; AGENTS.md in the order of a task | Accepted |
+| [0045](0045-a-player-list-on-outputs.md) | A player list on outputs: R plays and pauses a client that plays into its own output | Accepted; supersedes 0027 point 8 and 0036's "R stays off" for outputs with `player` |

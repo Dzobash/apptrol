@@ -82,9 +82,12 @@ match = ["GoXLR"]                  # part of the input device's name
 # If the default is also a fixed output's device, the earlier control owns it
 # (sliders 1–8, then knobs 1–8); the other does nothing meanwhile.
 # `device` is only for outputs; `type` and `talk_over_volume` are not allowed here.
+# A player that sends its sound into an output of its own: add `player` to that
+# output (only with match), and R on its column plays and pauses it.
 # [outputs.speakers]
 # name = "Speakers"
 # match = ["Speaker"]              # part of the output's name, from `apptrol list`
+# player = ["player name"]         # optional, no default: part of a media player's name
 # max_volume = 100                 # 1–150, default 100; we recommend 100 or less
 #   Output volume is the last software level before speakers or headphones.
 #   Above 100 % it is amplified and can damage your hearing. The first move sets
@@ -122,6 +125,8 @@ slider8 = "mic"
 #      "talk_over"    – other apps go down while you hold S
 #      "off"
 #   R  "off" (default), or a launcher
+# On a column with an output:  M = mute, S does nothing, R "off" (default) or a
+#   launcher; with `player`, R = play / pause that player ("play_pause", default).
 #
 # Launchers start an app: app = a desktop ID (`apptrol list apps` shows them), or
 # command = ["program", "argument"]. if_running = "start" (default) or "skip".
@@ -146,4 +151,5 @@ slider8 = "mic"
 
 # ── Media keys ────────────────────────────────────────────────────────────────
 # [media]
-# player = "spotify"               # pin ◀◀ ▶▶ ■ ▶ to one app (default: the most recent player)
+# player = "spotify"               # pin ◀◀ ▶▶ ■ ▶ to one app, or an output with player
+#                                  # (default: the most recent player)

@@ -219,3 +219,21 @@ slider2 = "speakers"
 		t.Errorf("monitor explanations=%d, want 2", n)
 	}
 }
+
+// An output's player list shows next to its match, so `apptrol check` tells
+// which players R plays and pauses (MEDIA-12, ADR 0045).
+func TestMEDIA12_CheckShowsAnOutputsPlayers(t *testing.T) {
+	const src = `[outputs.speakers]
+match  = ["test-sink"]
+player = ["test-player", "other-player"]
+[layouts.default]
+slider1 = "speakers"
+`
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"--config", writeConfig(t, src), "check"}, &stdout, &stderr); code != 0 || stderr.Len() != 0 {
+		t.Fatalf("code=%d, stderr=%s", code, &stderr)
+	}
+	if want := "output: test-sink; player: test-player, other-player"; !strings.Contains(stdout.String(), want) {
+		t.Errorf("missing %q in %s", want, &stdout)
+	}
+}

@@ -48,6 +48,7 @@ func (c *Config) Setup() mixer.Setup {
 			kind = mixer.Output
 		}
 		s.Targets[id] = mixer.Target{ID: id, Name: app.Name, Kind: kind, Match: append([]string(nil), app.Match...),
+			Player:         append([]string(nil), app.Player...), // MEDIA-12, ADR 0045
 			FollowsDefault: app.Type == TypeOutput && app.Device == DeviceDefault,
 			MaxVolume:      float64(app.MaxVolume) / 100, TalkOverVolume: app.TalkOverVolume}
 	}
