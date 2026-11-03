@@ -102,7 +102,12 @@ func (m *Mixer) chooseDevices(a *actions, why chooseReason) {
 			m.defaultInputHeld[dev] = m.controlOf[id]
 		}
 	}
-	m.applyChange(a, before, Control{})
+	// Reload compares talk-over before and after the whole configuration
+	// change; only that caller should apply the transition (INPUT-04,
+	// INPUT-09, CFG-06, ADR 0020, ADR 0038).
+	if why != chooseReload {
+		m.applyChange(a, before, Control{})
+	}
 }
 
 // applyInputVolume leaves an unknown position alone (PRIO-04, INPUT-09, ADR 0038).

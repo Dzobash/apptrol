@@ -145,3 +145,81 @@ func TestINPUT09_FirstControlOwnsOverlap(t *testing.T) {
 		}
 	}
 }
+
+func TestINPUT09_ReloadEndsHeldTalkOverOnlyOnce(t *testing.T) {
+	for _, mode := range []Mode{ModeTalkOver, ModeHoldToTalk} {
+		t.Run(mode.String(), func(t *testing.T) {
+			s := testSetup()
+			button := ButtonS
+			s.Buttons = map[LED]Button{s8: {Mode: ModeTalkOver}}
+			if mode == ModeHoldToTalk {
+				button = ButtonM
+				s.Buttons = map[LED]Button{m8: {Mode: ModeHoldToTalk, TalkOver: true}}
+			}
+			w := newWorld(t, s, State{})
+			w.do(AudioSnapshot{Devices: []Device{goxlr, webcam}, DefaultInput: webcam.Name, Streams: []Stream{spotify}})
+			w.move(Slider, 1, 100)
+			w.press(button, 8)
+			if !w.m.talkingOver() {
+				t.Fatal("held button did not start talk-over")
+			}
+			mic := s.Targets["mic"]
+			mic.Match, mic.FollowsDefault = nil, true
+			s.Targets["mic"] = mic
+			w.do(ConfigChanged{Setup: s})
+			transitions, volumes := 0, 0
+			for _, a := range w.last {
+				if n, ok := a.(Notice); ok && n.Msg == "talk-over off" {
+					transitions++
+				}
+				if v, ok := a.(SetStreamVolume); ok && v.StreamID == spotify.ID {
+					volumes++
+				}
+			}
+			if transitions != 1 || volumes != 1 || w.m.talkingOver() || !near(w.streamVol[spotify.ID], Volume(100)) {
+				t.Fatalf("reload: off records=%d, volume writes=%d, talk-over=%v, volume=%v", transitions, volumes, w.m.talkingOver(), w.streamVol[spotify.ID])
+			}
+		})
+	}
+}
+
+func TestINPUT09_YieldingInputButtonsAndLEDsAreInactive(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		s         Mode
+		mTalkOver bool
+	}{
+		{"cough", ModeCough, false},
+		{"S talk-over", ModeTalkOver, false},
+		{"M talk-over", ModeOff, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := testSetup()
+			mic := s.Targets["mic"]
+			mic.Match, mic.FollowsDefault = nil, true
+			s.Targets["mic"] = mic
+			s.Targets["owner"] = Target{ID: "owner", Kind: Input, Match: []string{webcam.Name}}
+			s.Assignments[Control{Slider, 7}] = "owner"
+			s.Buttons = map[LED]Button{s8: {Mode: tc.s}, m8: {TalkOver: tc.mTalkOver}}
+			w := newWorld(t, s, State{})
+			w.do(ControllerConnected{}, AudioSnapshot{Devices: []Device{goxlr, webcam}, DefaultInput: webcam.Name, Streams: []Stream{spotify}})
+			w.move(Slider, 1, 100)
+			if w.m.InputDevice("mic") != "" || w.leds[m8] || w.m.talkingOver() {
+				t.Fatal("yielding input showed live or started talk-over")
+			}
+			for _, button := range []ButtonKind{ButtonM, ButtonS} {
+				w.press(button, 8)
+				for _, a := range w.last {
+					switch a.(type) {
+					case SetDeviceMute, SetStreamVolume, SetStreamMute:
+						t.Fatalf("yielding button changed audio: %v", a)
+					}
+				}
+				if w.devMute[webcam.Name] || w.leds[m8] || w.m.talkingOver() || len(w.m.held) != 0 || w.m.Snapshot().Muted[Control{Slider, 8}] || !near(w.streamVol[spotify.ID], Volume(100)) {
+					t.Fatal("yielding button changed the owner, LEDs, held state or app volume")
+				}
+				w.release(button, 8)
+			}
+		})
+	}
+}

@@ -58,6 +58,12 @@ Automated: `TestCFG20_InputsAcceptEitherSelector`, `TestCFG20_InputsRejectInvali
 `TestINPUT09_DefaultInputFollowedThroughTheService`, and
 `TestIntegration_INPUT09_DefaultInputFollowsASwitch`.
 
+The yielding slider's dark M LED and inactive M/S buttons (including cough and
+talk-over) are automated-only here: `TestINPUT09_YieldingInputButtonsAndLEDsAreInactive`.
+The manual fixture's yielding control is a knob, which has no buttons or LEDs.
+`TestINPUT09_ReloadEndsHeldTalkOverOnlyOnce` checks that a selector reload ending a
+held talk-over logs one transition and restores each app's volume once.
+
 **Result:** Pass / Fail / Blocked
 **Notes:**
 

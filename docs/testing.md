@@ -376,6 +376,9 @@ They check selector errors, saved mute transfer, volume kept until a move,
 switches and snapshots, no default or a device arriving later, both overlap orders,
 held M/cough/talk-over ending and working on a fresh press, late restores, released
 guards, stale generations, and a held mute debt settled after its window.
+Review regressions also check a yielding slider's dark M LED and inactive M/S
+buttons, including cough and talk-over, and one talk-over transition and app-volume
+write when a selector reload ends a held state.
 
 ```text
 make check / make test ─► fake devices, no live setup
