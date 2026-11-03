@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `apptrol list outputs`, `apptrol list inputs` and `apptrol list playing` print only
+  that section of `apptrol list`, so a name for a match list can be found without
+  scrolling through the whole listing. An unknown word after `list` now names the valid
+  ones (#227).
+
 ### Changed
 - Building from source now needs Go 1.26 or newer, because `golang.org/x/sys` 0.49.0
   requires it; Ubuntu 26.04 ships it as `golang-go`. Release packages and binaries are
