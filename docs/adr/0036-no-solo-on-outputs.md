@@ -51,3 +51,9 @@ note of 2026-10-20). No new attribute.
   solo, or by moving apps between outputs, stays an idea for later
   ([#178](https://github.com/Dzobash/apptrol/issues/178), backlog); it would need a
   new ADR that supersedes this one.
+
+## Notes
+
+- 2026-11-03: "R stays off" no longer holds for an output with a `player` list
+  ([ADR 0045](0045-a-player-list-on-outputs.md), #231): its R LED follows the listed
+  players as on an app column (MEDIA-09). Solo is unchanged.

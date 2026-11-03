@@ -1,0 +1,26 @@
+# Test fixture "output-player": an output with a player list (MEDIA-12, OUT-09,
+# OUT-10, CFG-15, ADR 0045). apply-fixture.sh creates apptrol-test-mic-sink for its
+# virtual microphone; it plays nothing, so no volume here can be heard.
+# For: TC-MEDIA-003. Play a video in the browser. The browser need not play into the
+# test output: the player list alone joins its player to the column.
+# TestFixturesAreValid in internal/config checks that it loads.
+
+[log]
+level   = "debug"                  # the cases read the log
+outputs = ["journald"]
+
+[outputs.test-player-out]
+name   = "Test output with player"
+match  = ["apptrol-test-mic-sink"]
+player = ["firefox", "chrome", "vivaldi"]
+
+[outputs.test-out]
+name  = "Test output"
+match = ["apptrol-test"]           # the same sink, no player: slider7 owns it, R8 stays off
+
+[media]
+player = "test-player-out"         # ▶ ■ ◀◀ ▶▶ follow the output's players
+
+[layouts.default]
+slider7 = "test-player-out"
+slider8 = "test-out"

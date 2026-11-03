@@ -478,6 +478,25 @@ adapter's debug records, so a failure on CI shows each read and write; the manua
 cases are [TC-OUT-003 and TC-OUT-004](testing/cases/out.md), with the `output-fixed`
 fixture.
 
+## Media players on outputs
+
+An output with a `player` list (MEDIA-12, [ADR 0045](adr/0045-a-player-list-on-outputs.md),
+#231) is covered without an audio server or a session bus.
+`internal/mixer/output_player_test.go` checks R on such an output's column (play and
+pause, its LED and the pause delay, `off` and launchers), that an output's `match` is
+never compared with players, that a player matching an app and an output goes to the
+first control in both orders and is logged with the output (`apptrol.app.type=output`,
+`matched_by`), two outputs with one player, R on a control whose device an earlier
+control owns (it still works, M stays ignored), a reload that removes the list, and
+`[media] player` pinned to an output on a control or not (MEDIA-06).
+`internal/config/players_test.go` checks the key and every rejection: in `[apps]`,
+`[inputs]` and the old form, on `device = "default"`, an empty list or fragment, under a
+layout (CFG-08), `play_pause` on an output without it (CFG-14) and `[media] player`
+naming an output without it (CFG-15). `TestMEDIA12_CheckShowsAnOutputsPlayers` checks
+`apptrol check`. The manual case is
+[TC-MEDIA-003](testing/cases/media.md#tc-media-003--r-on-an-output-with-a-player-list-plays-and-pauses-that-player),
+with the `output-player` fixture and a browser video.
+
 ## Manual hardware checklist
 
 > This checklist is being turned into [test cases](testing/cases/README.md) with fixed

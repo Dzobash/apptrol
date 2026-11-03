@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `player` on a fixed output (`[outputs.<id>]` with `match`): name fragments of the
+  media players whose sound goes there, for a player that sends its sound into an
+  output of its own. R on that column then plays and pauses them by default, and its
+  LED follows them as on an app column; `[media] player` may name such an output.
+  `player` is rejected in `[apps]`, in `[inputs]` and with `device = "default"`; a player
+  that fits an app and an output goes to the first control. `apptrol check` shows the
+  list (MEDIA-12, OUT-09, CFG-15,
+  [ADR 0045](docs/adr/0045-a-player-list-on-outputs.md), #231).
+
 ### Changed
 - Building from source now needs Go 1.26 or newer, because `golang.org/x/sys` 0.49.0
   requires it; Ubuntu 26.04 ships it as `golang-go`. Release packages and binaries are
