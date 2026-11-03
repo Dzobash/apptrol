@@ -3,6 +3,8 @@ package mixer
 import (
 	"log/slog"
 	"testing"
+
+	"github.com/Dzobash/apptrol/internal/logattr"
 )
 
 // defaultInputWorld exercises input controls without I/O (INPUT-09, ADR 0038).
@@ -207,6 +209,26 @@ func TestINPUT09_YieldingInputButtonsAndLEDsAreInactive(t *testing.T) {
 			if w.m.InputDevice("mic") != "" || w.leds[m8] || w.m.talkingOver() {
 				t.Fatal("yielding input showed live or started talk-over")
 			}
+			saves := w.saves
+			w.move(Slider, 8, 51)
+			if w.m.Snapshot().Positions[Control{Slider, 8}] != 51 || w.saves != saves+1 {
+				t.Fatal("yielding move did not save the position")
+			}
+			for _, a := range w.last {
+				switch a := a.(type) {
+				case SetDeviceVolume:
+					t.Fatal("yielding move changed device volume")
+				case Notice:
+					if a.Msg == "volume changed" {
+						t.Fatal("yielding move claimed a volume change")
+					}
+				}
+			}
+			msg := "position saved without changing volume: input belongs to an earlier control"
+			w.wantNotice(slog.LevelDebug, msg)
+			if w.noticeAttr(msg, logattr.KeyDeviceName) != webcam.Name || w.noticeAttr(msg, logattr.KeyControl) != "slider8" {
+				t.Fatal("yielding move log did not identify the device and control")
+			}
 			for _, button := range []ButtonKind{ButtonM, ButtonS} {
 				w.press(button, 8)
 				for _, a := range w.last {
@@ -221,5 +243,51 @@ func TestINPUT09_YieldingInputButtonsAndLEDsAreInactive(t *testing.T) {
 				w.release(button, 8)
 			}
 		})
+	}
+}
+
+func TestINPUT09_DeviceReleaseAnsweredOnce(t *testing.T) {
+	for _, snapshot := range []bool{false, true} {
+		t.Run(map[bool]string{false: "description changed", true: "snapshot default changed"}[snapshot], func(t *testing.T) {
+			d := Device{Name: "test-input-a", Description: "Test microphone", Generation: 1}
+			other := Device{Name: "test-input-b", Description: "Other input", Generation: 2}
+			s := testSetup()
+			mic := s.Targets["mic"]
+			mic.Match = []string{"Test microphone"}
+			if snapshot {
+				mic.Match, mic.FollowsDefault = nil, true
+			}
+			s.Targets["mic"] = mic
+			w := newWorld(t, s, State{})
+			w.do(AudioSnapshot{Devices: []Device{d, other}, DefaultInput: d.Name})
+			d.Generation = 3
+			if snapshot {
+				w.do(AudioSnapshot{Devices: []Device{d, other}, DefaultInput: other.Name})
+			} else {
+				d.Description = "No longer matches"
+				w.do(DeviceAdded{Device: d})
+			}
+			releases := 0
+			for _, a := range w.last {
+				if r, ok := a.(ReleaseDevice); ok && r.Device == d.Name {
+					releases++
+					if r.Generation != d.Generation {
+						t.Fatal("release did not answer the reported generation")
+					}
+				}
+			}
+			if releases != 1 {
+				t.Fatalf("release answers = %d, want 1", releases)
+			}
+		})
+	}
+}
+
+func TestINPUT09_RepeatedDefaultNoticeDoesNothing(t *testing.T) {
+	w := defaultInputWorld(t, map[LED]Button{m8: {Mode: ModeHoldToTalk, TalkOver: true}}, State{})
+	w.press(ButtonM, 8)
+	w.do(DefaultInputChanged{Name: goxlr.Name})
+	if len(w.last) != 0 || !w.m.held[m8] || w.devMute[goxlr.Name] {
+		t.Fatal("repeated default notice changed the active microphone or held state")
 	}
 }

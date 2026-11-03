@@ -63,6 +63,11 @@ talk-over) are automated-only here: `TestINPUT09_YieldingInputButtonsAndLEDsAreI
 The manual fixture's yielding control is a knob, which has no buttons or LEDs.
 `TestINPUT09_ReloadEndsHeldTalkOverOnlyOnce` checks that a selector reload ending a
 held talk-over logs one transition and restores each app's volume once.
+`TestINPUT09_DeviceReleaseAnsweredOnce` checks that description and snapshot
+changes answer a released microphone once. The yielding-slider test also checks
+that a move saves its position and logs why the device's volume stays unchanged.
+`TestINPUT09_RepeatedDefaultNoticeDoesNothing` checks that a repeated server default
+notice leaves held M and the microphone unchanged.
 
 **Result:** Pass / Fail / Blocked
 **Notes:**

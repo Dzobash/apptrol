@@ -379,6 +379,10 @@ guards, stale generations, and a held mute debt settled after its window.
 Review regressions also check a yielding slider's dark M LED and inactive M/S
 buttons, including cough and talk-over, and one talk-over transition and app-volume
 write when a selector reload ends a held state.
+`TestINPUT09_DeviceReleaseAnsweredOnce` covers description changes and snapshot
+default switches without duplicate ownership releases. Yielding-move tests check
+position persistence and the explanatory log without a device volume write;
+`TestINPUT09_RepeatedDefaultNoticeDoesNothing` keeps a held M live on a repeated notice.
 
 ```text
 make check / make test ─► fake devices, no live setup

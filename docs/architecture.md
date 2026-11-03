@@ -231,6 +231,8 @@ to make a new default live in `hold_to_talk`, including when a snapshot changes 
 The mixer retains previous bindings through a snapshot so the previous microphone
 is released too. `KeepDevice` and `ReleaseDevice` echo `Device.Generation` to the
 adapter; the service forwards them through the unchanged `Audio.Apply` interface.
+A release emitted while choosing is not repeated by the identity answer, as for
+outputs. A yielding input's move saves its position and logs why it changes no volume.
 `ForgetDeviceVolume` narrows the guard's defense when a default control takes over
 from a fixed control or another default control. All device names and ownership
 decisions remain in the pure mixer; timing and I/O stay in the adapter.

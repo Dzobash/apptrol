@@ -312,8 +312,9 @@ func (m *Mixer) Handle(ev Event) []Action {
 		delete(m.streams, e.ID)
 	case DeviceAdded:
 		m.devices[e.Device.Name] = e.Device
+		from := len(a)
 		m.chooseDevices(&a, chooseChange)
-		m.answerDevice(&a, e.Device)
+		m.answerDevice(&a, e.Device, from)
 	case StreamMuteChanged:
 		m.streamMuteChanged(&a, e)
 	case StreamCorkChanged:
@@ -376,6 +377,12 @@ func (m *Mixer) controlMoved(a *actions, e ControlMoved) {
 			m.applyMutes(a) // a first move ends talk-over's mute of an unknown position (INPUT-04)
 		}
 	case Input:
+		if dev := m.blockedInputs[id]; dev != "" {
+			a.notice(slog.LevelDebug, "position saved without changing volume: input belongs to an earlier control",
+				m.about(e.Control, logattr.KeyDeviceName, dev)...)
+			a.add(StateChanged{})
+			return
+		}
 		if dev, ok := m.deviceFor[id]; ok {
 			a.add(SetDeviceVolume{Device: dev, Volume: vol}) // CTRL-05
 		}
@@ -1049,6 +1056,7 @@ func (m *Mixer) audioSnapshot(a *actions, e AudioSnapshot) {
 	m.defaultInput = e.DefaultInput
 	// Keep previous bindings until selection so a resync can end held states
 	// and release the old microphone too (INPUT-09, ADR 0038).
+	from := len(*a)
 	m.chooseDevices(a, chooseConnect)
 	for _, id := range m.inputTargets() {
 		if dev := m.deviceFor[id]; dev != "" && held[id] == dev && !m.setup.Targets[id].FollowsDefault {
@@ -1056,7 +1064,7 @@ func (m *Mixer) audioSnapshot(a *actions, e AudioSnapshot) {
 		}
 	}
 	for _, dev := range sortedDeviceNames(m.devices) {
-		m.answerDevice(a, m.devices[dev])
+		m.answerDevice(a, m.devices[dev], from)
 	}
 	for _, id := range m.inputTargets() {
 		if _, ok := m.deviceFor[id]; !ok && !m.setup.Targets[id].FollowsDefault && m.blockedInputs[id] == "" {

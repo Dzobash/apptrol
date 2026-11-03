@@ -171,6 +171,7 @@ INFO default output is the same device as another output; the earlier control ow
   | info | `held state ended` | control context, button, `apptrol.held.reason=input_changed` |
   | debug | `input mute change not taken over: the new-input guard holds the mute` | device name, mute |
   | debug | `button ignored: input belongs to an earlier control` | control context, button, device name |
+  | debug | `position saved without changing volume: input belongs to an earlier control` | control context, device name |
   | debug | `input ownership answer ignored; a newer identity was reported` | device name, action, answer generation, current generation |
   | debug | `input volume no longer defended; the new owner sets none until it is moved` | device name |
 

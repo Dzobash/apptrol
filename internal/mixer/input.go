@@ -2,6 +2,7 @@ package mixer
 
 import (
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/Dzobash/apptrol/internal/logattr"
@@ -117,11 +118,17 @@ func (m *Mixer) applyInputVolume(a *actions, id, dev string) {
 	}
 }
 
-// answerDevice echoes input identities before guard defense resumes (INPUT-09, ADR 0038).
-func (m *Mixer) answerDevice(a *actions, d Device) {
+// answerDevice echoes input identities before guard defense resumes, without
+// repeating releases emitted while choosing (INPUT-09, CTRL-06, ADR 0038).
+func (m *Mixer) answerDevice(a *actions, d Device, from int) {
 	if contains(m.deviceFor, d.Name) {
 		a.add(KeepDevice{Device: d.Name, Generation: d.Generation})
-	} else {
+		return
+	}
+	if !slices.ContainsFunc((*a)[from:], func(x Action) bool {
+		r, ok := x.(ReleaseDevice)
+		return ok && r.Device == d.Name
+	}) {
 		a.add(ReleaseDevice{Device: d.Name, Generation: d.Generation})
 	}
 }
