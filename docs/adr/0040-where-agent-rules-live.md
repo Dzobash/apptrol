@@ -59,3 +59,14 @@ its own notes.
   updating them.
 - Where two copies said different things, the difference is decided on its own, in a
   later change, not while moving the text.
+
+## 2026-11-03 — Local review before every push
+
+The owner chose to finish all agent review rounds locally before pushing, including
+routine docs and tests and later fixes. This lets review findings be addressed before
+publishing each new commit. A clean verdict names the exact commit and carries into
+the PR description, avoiding a duplicate review merely because it was pushed. GitHub
+PRs and CI remain. The shared workflow lives in
+[AGENTS.md › Review](https://github.com/Dzobash/apptrol/blob/main/AGENTS.md#review),
+[Publish](https://github.com/Dzobash/apptrol/blob/main/AGENTS.md#publish) and
+[Ready](https://github.com/Dzobash/apptrol/blob/main/AGENTS.md#ready).
