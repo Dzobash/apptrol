@@ -1,0 +1,40 @@
+# HOST MERGE SNIPPET ONLY; not a standalone Codex MCP server definition.
+# QA-15, ADR 0040. Do not rename this to .codex/config.toml.
+# Target: T3 CodexAdapterV2.codexThreadRuntimeParams(), injected
+# config["mcp_servers.t3-code"], AFTER T3 supplies url and http_headers.
+# The host must merge these fields with its existing transport/authentication.
+[mcp_servers.t3-code]
+default_tools_approval_mode = "prompt"
+
+[mcp_servers.t3-code.tools.orchestrator_capabilities]
+approval_mode = "approve"
+
+[mcp_servers.t3-code.tools.t3_worktree_status]
+approval_mode = "approve"
+
+[mcp_servers.t3-code.tools.t3_worktree_list]
+approval_mode = "approve"
+
+[mcp_servers.t3-code.tools.t3_thread_list]
+approval_mode = "approve"
+
+[mcp_servers.t3-code.tools.t3_thread_read]
+approval_mode = "approve"
+
+[mcp_servers.t3-code.tools.t3_thread_search]
+approval_mode = "approve"
+
+[mcp_servers.t3-code.tools.t3_project_list]
+approval_mode = "approve"
+
+[mcp_servers.t3-code.tools.t3_project_read]
+approval_mode = "approve"
+
+[mcp_servers.t3-code.tools.list_thread_pull_requests]
+approval_mode = "approve"
+
+[mcp_servers.t3-code.tools.read_pull_request_guide]
+approval_mode = "approve"
+
+[mcp_servers.t3-code.tools.task_status]
+approval_mode = "approve"

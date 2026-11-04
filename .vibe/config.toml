@@ -1,0 +1,159 @@
+# Vibe 3.0.4 on POSIX. Shared policy: QA-15, ADR 0040.
+# Trust is managed by the owner; this file never grants home-folder access.
+outside_workdir = "deny"
+
+[tools.bash]
+permission = "ask"
+# These lists REPLACE Vibe defaults. Keep useful native readers, with Vibe's
+# path/option guardrails; AGENTS.md still restricts every argument and path.
+allowlist = [
+  "git status",
+  "git log",
+  "git diff",
+  "git show",
+  "git fetch",
+  "git ls-files",
+  "git ls-tree",
+  "git check-ignore",
+  "git worktree list",
+  "git tag --sort=-creatordate",
+  "git tag -l",
+  "git tag --list",
+  "git branch --list",
+  "git branch --show-current",
+  "git branch -a",
+  "git branch -r",
+  "git branch -v",
+  "git branch -vv",
+  "git branch --merged",
+  "git branch --no-merged",
+  "git branch --contains",
+  "git switch",
+  "git pull",
+  "git add",
+  "git commit",
+  "gh pr list",
+  "gh pr view",
+  "gh pr diff",
+  "gh pr checks",
+  "gh issue list",
+  "gh issue view",
+  "gh run list",
+  "gh run view",
+  "gh run watch",
+  "gh issue status",
+  "gh pr status",
+  "gh search",
+  "gh status",
+  "gh release list",
+  "gh release view",
+  "gh repo view",
+  "gh repo list",
+  "gh ruleset list",
+  "gh ruleset view",
+  "gh ruleset check",
+  "gh cache list",
+  "gh label list",
+  "gh workflow list",
+  "gh workflow view",
+  "make check",
+  "make test-audio",
+  "make test-systemd",
+  "make test-install",
+  "make test-clean",
+  "make container-run",
+  "basename",
+  "cat",
+  "comm",
+  "cut",
+  "date",
+  "diff",
+  "dirname",
+  "du",
+  "file",
+  "find",
+  "fmt",
+  "fold",
+  "grep",
+  "head",
+  "join",
+  "less",
+  "ls",
+  "md5sum",
+  "more",
+  "nl",
+  "od",
+  "paste",
+  "pwd",
+  "readlink",
+  "sha1sum",
+  "sha256sum",
+  "shasum",
+  "sort",
+  "stat",
+  "sum",
+  "tac",
+  "tail",
+  "tr",
+  "tree",
+  "uname",
+  "uniq",
+  "wc",
+  "which",
+]
+# Preserve all POSIX platform denies before adding the container engines.
+# Leave denylist_standalone and sensitive_patterns at their native defaults.
+denylist = [
+  "gdb",
+  "pdb",
+  "passwd",
+  "nano",
+  "vim",
+  "vi",
+  "emacs",
+  "bash -i",
+  "sh -i",
+  "zsh -i",
+  "fish -i",
+  "dash -i",
+  "screen",
+  "tmux",
+  "docker",
+  "podman",
+  "buildah",
+]
+
+# ACP server alias is t3-code; Vibe publishes <alias>_<remote tool name>.
+# Only these dedicated readers skip approval; other MCP tools keep ASK.
+[tools."t3-code_orchestrator_capabilities"]
+permission = "always"
+
+[tools."t3-code_t3_worktree_status"]
+permission = "always"
+
+[tools."t3-code_t3_worktree_list"]
+permission = "always"
+
+[tools."t3-code_t3_thread_list"]
+permission = "always"
+
+[tools."t3-code_t3_thread_read"]
+permission = "always"
+
+[tools."t3-code_t3_thread_search"]
+permission = "always"
+
+[tools."t3-code_t3_project_list"]
+permission = "always"
+
+[tools."t3-code_t3_project_read"]
+permission = "always"
+
+[tools."t3-code_list_thread_pull_requests"]
+permission = "always"
+
+[tools."t3-code_read_pull_request_guide"]
+permission = "always"
+
+[tools."t3-code_task_status"]
+permission = "always"

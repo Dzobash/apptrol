@@ -48,8 +48,18 @@ The Packaging job has no path filter: the ruleset on `main` wants its checks on 
 pull request, and a skipped job would count as missing. `go test ./packaging` also keeps
 the MIT text in `packaging/debian/copyright` equal to `LICENSE` (NFR-09); it runs in the
 Test job. So does `go test ./internal/repocheck`, which keeps the command lists for
-Claude Code and Codex equal and checks that both ask before pushing or changing GitHub
-(QA-15), including the blocks on typed container commands. QA-16 tests invoke the
+Claude Code and Codex equal, and compares Vibe's shared policy separately from its
+native readers (QA-15). Independent inventories require approval for remote writes,
+cache deletion and all `gh api`, reject overlapping broad or narrower grants, and
+require typed container commands to be blocked. The Vibe TOML is parsed with the
+existing TOML dependency; tests preserve its POSIX deny defaults, ask-by-default Bash,
+outside-workdir denial and untouched standalone/sensitive defaults. Exact T3 reader
+inventories check Claude, Vibe and the unapplied Codex host snippet; wildcard or
+mixed/write grants, unknown project keys and malformed TOML fail. These are file
+checks, not proof that an installed agent loaded the config, that T3 merged the
+host snippet, or that a prefix constrains every argument. See
+[ADR 0040's configuration note](adr/0040-where-agent-rules-live.md#permission-configuration--2026-11-04)
+for sources and host limitations. QA-16 tests invoke the
 real Make target against a fake Podman, checking mounts, environment isolation,
 hostile flags and rejected recipe names, and, in a real Git repository, that a
 checkout's own `core.fsmonitor` never runs and another repository is refused. They do

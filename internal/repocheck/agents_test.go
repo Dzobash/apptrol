@@ -245,6 +245,7 @@ var mustAsk = []string{
 	"gh issue unpin", "gh issue develop",
 	"gh run rerun", "gh run cancel", "gh run delete",
 	"gh api", "gh secret", "gh variable",
+	"gh cache delete",
 	"gh release create", "gh release edit", "gh release upload", "gh release download",
 	"gh release delete", "gh release delete-asset",
 	"gh repo create", "gh repo edit", "gh repo delete", "gh repo fork", "gh repo rename",
@@ -269,7 +270,7 @@ func TestQA15_ChangesOutsideTheCheckoutAsk(t *testing.T) {
 		if !claude.ask[cmd] || !codex.ask[cmd] {
 			t.Errorf("%q must ask in both tools (Claude %v, Codex %v)", cmd, claude.ask[cmd], codex.ask[cmd])
 		}
-		if claude.allow[cmd] || codex.allow[cmd] {
+		if overlapsCommand(claude.allow, cmd) || overlapsCommand(codex.allow, cmd) {
 			t.Errorf("%q must not be allowed", cmd)
 		}
 	}

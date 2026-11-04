@@ -167,7 +167,7 @@ Project layout:
 | `internal/logging/` | Log outputs and formats |
 | `internal/logattr/` | Log attribute names and error types (ADR 0016) |
 | `internal/version/` | Build information (set at link time) |
-| `internal/repocheck/` | Tests for agent command-list parity and container restrictions (QA-15, QA-16) |
+| `internal/repocheck/` | Tests for shared agent permissions, native safety restrictions and container restrictions (QA-15, QA-16) |
 | `test/container/` | Rootless container runner, distro images, limit and Status checks (QA-16) |
 | `.audit/recipes/`, `.audit/runs.log` | Reviewed container recipes and one record per attempt; committed |
 | `.audit/logs/`, `.tmp/` | Local failure logs and writable container workspaces; ignored |
