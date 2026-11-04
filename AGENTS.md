@@ -32,12 +32,12 @@ The sections below follow a task from start to end. [Boundaries](#boundaries) ho
 every step.
 
 ```
-start → plan → set up → build → review ⇄ publish → ready → clean up → hand over, end
-         │                           └ rounds ┘
+start → plan → set up → build → local review → publish → ready → clean up → hand over, end
+         │
          └ the owner's OK
 
-routine:              build → push → draft PR → review rounds → ready
-complex or important: build → local review rounds → push → draft PR → ready
+every change: build → commit → local review rounds → OK, push → draft PR + CI → ready
+later fix:    new commit → local review rounds → push → draft PR + CI → ready
 ```
 
 1. [Boundaries](#boundaries): privacy, files, commands
@@ -45,9 +45,9 @@ complex or important: build → local review rounds → push → draft PR → re
 3. [Plan](#plan): issues, decisions, the builder, the owner's OK
 4. [Set up](#set-up): branch or worktree, starting other agents, the live setup
 5. [Build](#build): code, docs, tests, checks
-6. [Review](#review): another model, one commit per round, local first when it matters
-7. [Publish](#publish): the owner's OK, push, draft PR
-8. [Ready](#ready): one definition, then the owner merges
+6. [Review](#review): another provider, one commit per round, all rounds local before pushing
+7. [Publish](#publish): the owner's OK, push, draft PR with local review evidence, CI
+8. [Ready](#ready): current commit reviewed locally and CI green, then the owner merges
 9. [Clean up](#clean-up): delete the merged branch
 10. [Hand over and end](#hand-over-and-end): one owner per task
 
@@ -236,8 +236,8 @@ from one to another.
 
 - Never work on `main`. Branches, commits and the required checks:
   [CONTRIBUTING.md › Branches and pull requests](CONTRIBUTING.md#branches-and-pull-requests).
-  On top of that, agents review before the owner merges ([Review](#review)), open PRs as
-  drafts and ask before pushing ([Publish](#publish)).
+  On top of that, agents review locally before every push ([Review](#review)), open PRs
+  as drafts and ask before pushing ([Publish](#publish)).
 - **One task, one branch.** Each agent works on its own branch, or in its own worktree,
   never on a branch another agent is using. A worktree stays where its tool makes it:
   T3 Code in `~/.t3/worktrees/apptrol/`, Claude Code in `.claude/worktrees/`; one made
@@ -326,8 +326,8 @@ from one to another.
   [.github/pull_request_template.md](.github/pull_request_template.md); it lists what
   every contributor checks. Agents add only this:
   - check the diff for private data ([Boundaries](#boundaries));
-  - choose the review order: routine → push first; complex or important → review on
-    the local branch first ([Review](#review)).
+  - complete the local review rounds with a clean verdict on the exact commit before
+    pushing, including routine docs and tests ([Review](#review)).
 - For audio changes also `make test-audio` (runs against the owner's PipeWire; it adds
   a silent test output and inputs and removes them afterwards; it needs the live setup,
   see [Set up](#set-up)). CI's PipeWire is older than the owner's and behaves
@@ -338,9 +338,9 @@ from one to another.
 
 ## Review
 
-- **Another provider reviews.** A PR is reviewed by a provider other than the one that
-  wrote it, before the owner merges it: a different model finds different bugs. The
-  table below names the reviewers for Claude (Claude Code), GPT (Codex) and Mistral
+- **Another provider reviews.** Every change is reviewed locally by a provider other
+  than the one that wrote it, before pushing: a different model finds different bugs.
+  The table below names the reviewers for Claude (Claude Code), GPT (Codex) and Mistral
   (Mistral Vibe, in T3 Code); for a PR from any other tool (e.g. Grok), ask the owner
   which model reviews. Review against the requirements and this file, not only the
   diff.
@@ -369,46 +369,48 @@ from one to another.
   | **Mistral Vibe implements** | Claude **Sonnet 5.5** | Claude **Opus 5.5** |
   | **Claude Code implements** | GPT **6.1-Sol**; without it, **GLM-5.3** | GPT **6.1-Sol**; without it, **Mistral Large 4** |
 
-  GPT reviews Claude's PRs while the owner's GPT subscription lasts; after that,
-  Mistral Vibe does.
+  The table's fallbacks apply when a reviewer is unavailable.
 
   **Routine:** docs, tests, small fixes. **Complex or important:** a change of
   behaviour, a release, anything touching audio, the controller, privacy or security.
   When unsure, ask the owner which one it is.
-- **Local first when it matters.** The repository is public, so a flaw is published the
-  moment its commit is pushed (#199: PR #198's two script flaws were public until
-  fixed). A **complex or important** PR is reviewed on the local branch **before its
-  first push**; the owner's OK to push ([Publish](#publish)) is asked after the clean
-  local round. A **routine** PR is pushed first, so CI runs alongside the review.
+- **Every review round is local, before pushing.** The repository is public, so a flaw
+  is published the moment its commit is pushed (#199: PR #198's two script flaws were
+  public until fixed). This order applies to every change, including routine docs and
+  tests, and to every later fix. Ask for the owner's OK to first push and open the PR
+  ([Publish](#publish)) after the clean local round. GitHub PRs and CI follow it.
   ```
-  routine:              commit → OK, push → draft PR → review rounds → ready
-  complex or important: commit → local review rounds → OK, push → draft PR → ready
+  every change: commit → local review rounds → OK, push → draft PR + CI → ready
   ```
 - **One commit per round.** The author tells the reviewer the exact commit, and the
   reviewer names it in its verdict: "Reviewed `<sha>`: no findings". During a round the
   author does not change the branch, or the reviewer works in its own checkout of that
-  commit. A clean verdict counts only for that commit: a new commit needs a new round.
+  commit. A clean verdict counts only for that commit and carries through to its PR:
+  pushing it does not require another review of the same commit. Any later code,
+  documentation or merge fix creates a new commit and needs a clean local round
+  before it is pushed, even when the PR already exists.
   ```
   commit A → round on A → findings → commit B → round on B → clean → B may go on
   ```
-- **Rounds** come in two phases. Before the first push (complex or important PRs only)
-  every round is local. After the first push the code is public already, so every
-  round, for any PR, runs on the draft, CI included (e.g. a fix for a failing check).
+- **Rounds** stay local both before and after the first push. Findings are fixed in
+  new commits, then reviewed locally again until clean. After a push, CI runs on the
+  draft PR; a CI fix follows the same local review process before its push. Keep the
+  PR draft until [Ready](#ready) holds; a clean local round alone is not readiness.
   ```
   before the first push:
-    round with findings     →  fix in new commits → next round, still local
-    round with no findings  →  ask to push, open the draft
+    local round → findings → fix in new commits → next local round
+    clean local round → ask to push → push → draft PR + CI
   after the first push:
-    round with findings     →  fix in new commits → push → CI → next round, still draft
-    round with no findings  →  Ready
+    new fix commit → local rounds until clean → push → update draft PR + CI
+  Ready only when the current commit meets the Ready checklist below.
   ```
   Pushed history is never rewritten. Commits that were never pushed are kept as they
   are too, with one exception: when a local round finds a **security flaw**, the
   unpushed commits may be squashed into one, with the owner's OK, so the flawed version
-  never reaches GitHub. The squashed commit is new, so it gets its own round. Other
-  findings stay their own commits. A flaw found after the
-  first push: tell the owner first, and write nothing about it in public text (commits,
-  PR, issues) until the owner has reported it as [SECURITY.md](SECURITY.md) says.
+  never reaches GitHub. The squashed commit is new, so it gets its own local round.
+  Other findings stay their own commits. A flaw found after the first push: tell the
+  owner first, and write nothing about it in public text (commits, PR, issues) until
+  the owner has reported it as [SECURITY.md](SECURITY.md) says.
 - **Independent second opinion.** When a second agent checks the same thing (a review,
   an audit, a design), its brief gives the task, the files and the facts the files
   don't show yet, never the first agent's findings. The lead merges both lists and
@@ -417,11 +419,18 @@ from one to another.
 
 ## Publish
 
-- **Ask before pushing, opening a PR or creating issues.** For a complex or important PR,
-  ask after the clean local round ([Review](#review)). Once the owner has OK'd a PR,
-  its review fixes and marking it ready need no new question ([Ready](#ready)).
-- **Draft until reviewed.** Open a PR as a draft (`gh pr create --draft`), so it cannot
-  be merged halfway; it is reviewed in rounds ([Review](#review)).
+- **Ask before pushing, opening a PR or creating issues.** For every PR, ask to push
+  and open it after the clean local round ([Review](#review)). Once the owner has OK'd
+  a PR, its fixes still need clean local review before pushing, but pushing those fixes
+  and marking it ready need no new question ([Ready](#ready)).
+- **Draft until ready.** After clean local review, open the PR as a draft
+  (`gh pr create --draft`). CI runs on GitHub; keep the PR draft until all of
+  [Ready](#ready) holds.
+- **Carry the local review evidence into the PR description:** the exact commit,
+  reviewer's tool and model, clean verdict and validation limits. Record the review
+  route as [Review](#review) requires, and update the evidence after each new reviewed
+  commit is pushed. Do not launch another reviewer just because the same commit is
+  now on GitHub.
 - `gh pr edit` can fail without changing the PR; edit a PR's text with
   `gh api -X PATCH repos/Dzobash/apptrol/pulls/<n> -F body=@file` and read it back.
 - Releases: release candidates (`vX.Y.Z-rcN`) first, the manual test run on an installed
@@ -433,17 +442,19 @@ from one to another.
 
 - **Ready means, for every PR:**
   ```
-  ✓ the PR's current commit was reviewed, with a clean round (Review)
-  ✓ the 8 required checks are green (CONTRIBUTING.md › Branches and pull requests)
+  ✓ the PR's current commit has a clean local round, recorded in its description (Review, Publish)
+  ✓ the 8 required checks are green on that commit (CONTRIBUTING.md › Branches and pull requests)
   ✓ any other failing check is explained in the PR
   ✓ no open findings
   ```
-  A fix pushed after a clean round (e.g. for CI) is a new commit, so it needs its own
-  round on the draft PR first.
+  Any later code, documentation or merge fix (including a CI fix) needs its own clean
+  local round before pushing, then CI on the new PR commit. A push alone does not
+  invalidate the clean review of an unchanged commit.
 - Then the agent that owns the PR marks it ready itself (`gh pr ready <n>`), without
-  asking in the chat again: the owner's OK for the PR covers pushing review fixes, the
-  next rounds and marking it ready. The tools' own prompts for `git push` and
-  `gh pr ready` stay (QA-15); the owner answers them with a click, not a new decision.
+  asking in the chat again: the owner's OK for the PR covers the next local rounds,
+  pushing the cleanly reviewed fixes and marking it ready. The tools' own prompts for
+  `git push` and `gh pr ready` stay (QA-15); the owner answers them with a click, not a
+  new decision.
 - **Rules files.** Before a PR that changes AGENTS.md or another rules file (CLAUDE.md,
   CONTRIBUTING.md, a skill or command, the settings files) is marked ready, re-read the
   whole resulting file on top of current `main`: two PRs can merge cleanly and still

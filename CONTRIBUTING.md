@@ -92,7 +92,7 @@ Repository settings that support this (**Settings → General → Pull Requests*
 *automatically delete head branches*. A ruleset on `main` requires pull requests and a
 green CI (QA-02).
 
-Coding agents follow [AGENTS.md](AGENTS.md) on top of these steps: reviews
+Coding agents follow [AGENTS.md](AGENTS.md) on top of these steps: local reviews before pushing
 ([Review](AGENTS.md#review)), asking before a push and draft pull requests
 ([Publish](AGENTS.md#publish)), and deleting a merged branch, also in a worktree
 ([Clean up](AGENTS.md#clean-up)).
