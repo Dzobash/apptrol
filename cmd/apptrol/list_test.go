@@ -67,11 +67,48 @@ func TestCFG10_ListShowsNamesAndControls(t *testing.T) {
 	}
 }
 
+// Both list forms use the server's default input and show only the control
+// that owns an overlapping selection (INPUT-09, LAUNCH-16, ADR 0038).
+func TestINPUT09_ListShowsDefaultInputOwner(t *testing.T) {
+	path := writeConfig(t, `
+[inputs.mic]
+name = "Microphone"
+device = "default"
+[inputs.fixed]
+match = ["test-mic-b"]
+[layouts.default]
+slider1 = "mic"
+slider8 = "fixed"
+`)
+	listing := &pulse.Listing{
+		DefaultSource: "test-mic-b",
+		Sources: []pulse.SourceInfo{
+			{Device: mixer.Device{Name: "test-mic-a", Description: "Test mic A"}},
+			{Device: mixer.Device{Name: "test-mic-b", Description: "Test mic B"}},
+		},
+	}
+	for _, section := range []listSection{sectionAll, sectionInputs} {
+		var out bytes.Buffer
+		if err := cmdListSection(path, &out, func() (*pulse.Listing, error) { return listing, nil }, section); err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, line := range strings.Split(out.String(), "\n") {
+			if strings.Contains(line, "test-mic-b") && strings.Contains(line, "(default)") && strings.Contains(line, "slider1 (Microphone)") {
+				found = true
+			}
+		}
+		if !found || strings.Contains(out.String(), "slider8") {
+			t.Errorf("section %d: default input owner missing or yielding control shown:\n%s", section, &out)
+		}
+	}
+}
+
 // Output devices are listed with description, name and volume, and * marks
 // the system's default output (OUT-12, ADR 0027).
 func TestOUT12_ListShowsOutputDevices(t *testing.T) {
 	var out bytes.Buffer
-	if err := printListing(&out, testListing(), nil, ""); err != nil {
+	if err := printListing(&out, testListing(), nil, "", sectionAll); err != nil {
 		t.Fatal(err)
 	}
 	got := out.String()
@@ -157,7 +194,7 @@ func TestCFG10_ListWithoutConfig(t *testing.T) {
 
 func TestCFG10_ListEmpty(t *testing.T) {
 	var out bytes.Buffer
-	if err := printListing(&out, &pulse.Listing{Server: "x"}, nil, ""); err != nil {
+	if err := printListing(&out, &pulse.Listing{Server: "x"}, nil, "", sectionAll); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"Nothing is playing", "No input devices found", "No output devices found"} {
@@ -169,6 +206,114 @@ func TestCFG10_ListEmpty(t *testing.T) {
 
 func TestCFG10_ListServerError(t *testing.T) {
 	err := cmdList("", &bytes.Buffer{}, func() (*pulse.Listing, error) { return nil, errors.New("refused") })
+	if err == nil || !strings.Contains(err.Error(), "refused") || !strings.Contains(err.Error(), "pipewire-pulse") {
+		t.Errorf("err = %v", err)
+	}
+}
+
+// Each section can be asked for alone: it is the same section `apptrol list`
+// prints, without the others, with `*` on the default output (LAUNCH-16).
+func TestLAUNCH16_ListSectionAlone(t *testing.T) {
+	tests := []struct {
+		name    string
+		section listSection
+		want    []string
+		notWant []string
+	}{
+		{
+			name:    "outputs",
+			section: sectionOutputs,
+			want: []string{
+				"Output devices (* = the system's default). Put part of DESCRIPTION or NAME into an output's match list:\n",
+				"    DESCRIPTION        NAME                     VOLUME      CONTROL\n",
+				"  * Built-in Speakers  alsa_output.speakers     45%         -\n",
+				"    GoXLR Music        alsa_output.goxlr-music  100% muted  -\n",
+			},
+			notWant: []string{"Audio server", "Playing apps", "Input devices", "Nothing is playing"},
+		},
+		{
+			name:    "inputs",
+			section: sectionInputs,
+			want: []string{
+				"Input devices. Put part of DESCRIPTION or NAME into an input's match list:\n",
+				"  DESCRIPTION            NAME               VOLUME  CONTROL\n",
+				"  Desk Webcam (default)  alsa_input.webcam  80%     -\n",
+				"  GoXLR Mini Mic         alsa_input.goxlr   100%    -\n",
+			},
+			notWant: []string{"Audio server", "Playing apps", "Output devices"},
+		},
+		{
+			name:    "playing",
+			section: sectionPlaying,
+			want: []string{
+				// The standalone command points to the launcher command;
+				// `apptrol list` keeps the shorter heading (LAUNCH-16).
+				"Playing apps. Put part of NAME or BINARY into an app's match list (`apptrol list apps` shows the desktop IDs a launcher uses):\n",
+				"  NAME     BINARY  VOLUME      OUTPUT       CONTROL\n",
+				"  Spotify  -       71%         GoXLR Music  -\n",
+			},
+			notWant: []string{"Audio server", "an app's match list:", "Input devices", "Output devices"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out bytes.Buffer
+			if err := printListing(&out, testListing(), nil, "", tt.section); err != nil {
+				t.Fatal(err)
+			}
+			got := out.String()
+			for _, want := range tt.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("output lacks %q:\n%s", want, got)
+				}
+			}
+			for _, not := range tt.notWant {
+				if strings.Contains(got, not) {
+					t.Errorf("output contains %q:\n%s", not, got)
+				}
+			}
+		})
+	}
+}
+
+// `apptrol list` keeps printing every section with today's headings; only the
+// standalone `list playing` grew the pointer to `apptrol list apps` (LAUNCH-16).
+func TestLAUNCH16_ListKeepsEverySection(t *testing.T) {
+	var out bytes.Buffer
+	if err := printListing(&out, testListing(), nil, "", sectionAll); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	for _, want := range []string{
+		"Audio server: PulseAudio (on PipeWire 1.6.0)",
+		"Playing apps. Put part of NAME or BINARY into an app's match list:\n",
+		"Input devices. Put part of DESCRIPTION or NAME into an input's match list:\n",
+		"Output devices (* = the system's default). Put part of DESCRIPTION or NAME into an output's match list:\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "apptrol list apps") {
+		t.Errorf("`apptrol list` grew the standalone playing heading:\n%s", got)
+	}
+}
+
+// A section asked for alone carries the same note about the configuration as
+// `apptrol list`, because its CONTROL column depends on it (LAUNCH-16, CFG-10).
+func TestLAUNCH16_ListSectionWithoutConfig(t *testing.T) {
+	var out bytes.Buffer
+	path := filepath.Join(t.TempDir(), "none.toml")
+	if err := cmdListSection(path, &out, func() (*pulse.Listing, error) { return testListing(), nil }, sectionOutputs); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "no controls are shown") {
+		t.Errorf("no note about the configuration:\n%s", out.String())
+	}
+}
+
+func TestLAUNCH16_ListSectionServerError(t *testing.T) {
+	err := cmdListSection("", &bytes.Buffer{}, func() (*pulse.Listing, error) { return nil, errors.New("refused") }, sectionInputs)
 	if err == nil || !strings.Contains(err.Error(), "refused") || !strings.Contains(err.Error(), "pipewire-pulse") {
 		t.Errorf("err = %v", err)
 	}

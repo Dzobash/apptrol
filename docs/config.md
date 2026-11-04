@@ -141,6 +141,7 @@ match = ["Test speaker"]
 | `name` | string | the id | Display name, used in logs (and later in popups and `apptrol setup`). |
 | `match` | list of strings | — | Required for apps; for inputs and outputs, choose either this or `device`. A nonempty list of case-insensitive name fragments. See below. |
 | `device` | string | — | Inputs and outputs only. `"default"` selects the audio server's default device of that kind; no other value is accepted. Set exactly one of `match` and `device`. |
+| `player` | list of strings | — | `[outputs]` with `match` only. Name fragments of the media players whose sound goes to this output; R on its column then plays and pauses them. See [An output's media player](#an-outputs-media-player-player). |
 | `max_volume` | integer | `100` | Volume in percent with the control at the top, from 1 to 150. The control spans 0 to this value: with `150`, the middle is 75 %. Below 100 it works as a cap, e.g. `80` for games that are always too loud. Above 100 the audio is amplified in software and can distort; read [Hearing safety](#hearing-safety) first. |
 | `talk_over_volume` | integer | `25` | `[inputs]` only. The volume in percent (0–100) that apps go down to during talk-over (see [Buttons](#layoutsnamebuttons)). Apps already below it stay where they are. |
 
@@ -152,10 +153,12 @@ device = "default"        ──► the audio server's current default output
 both or neither           ──► configuration error
 ```
 
-An output accepts `name`, `max_volume`, and exactly one of `match` and `device`.
-`device` is rejected on apps; `type` and `talk_over_volume` are
-rejected in `[outputs]`. Layouts can refer to an output's id, but `[media] player`
-and R's `play_pause` require an app. R can be `off` or a launcher on an output column.
+An output accepts `name`, `max_volume`, exactly one of `match` and `device`, and, with
+`match`, `player`. `device` is rejected on apps; `player` is rejected on apps and inputs.
+`type` and `talk_over_volume` are rejected in `[outputs]`. Layouts can refer to an
+output's id. R on an output column can be `off` (the default) or a launcher; with
+`player` it can also be `play_pause`, its default then, and `[media] player` may name
+the output ([below](#an-outputs-media-player-player)).
 
 ### The default input (`device = "default"`)
 
@@ -229,16 +232,57 @@ what you hear:  Spotify 80 % × Speakers 50 %  ≈ 40 %
   plug in ─ muted ─ unmuted elsewhere ─► muted again ─┤ 3 s ├─ unmuted elsewhere ─► taken over
   ```
 - **M's LED is lit while the output is muted**, with M or from outside, as on an app
-  column. S and R stay off.
+  column. S stays off, and so does R unless the output has `player`.
 - **Outputs have no solo**: S on an output column does nothing, and app solo never
   mutes an output. Next to app solo, it made everything too complicated
   ([ADR 0036](adr/0036-no-solo-on-outputs.md)). To listen on one output only, mute the
-  others with M. R can be `off` or a launcher.
+  others with M. R can be `off` or a launcher, or play and pause a player
+  ([below](#an-outputs-media-player-player)).
 
   ```text
   slider6 Speakers    S ○  M ●  R ○   muted with M
   slider7 Headphones  S ○  M ○  R ○   playing
   ```
+
+### An output's media player (`player`)
+
+Some players send their sound into an output of their own, a virtual sink, instead of to
+a sound card, while their player keeps the name of the app it stands in for. A slider on
+an app (`[apps]`) then finds no stream, and a slider on the output cannot play or pause.
+`player` joins both on one column: the output's `match` chooses the device for the
+volume, and `player` names the media player R plays and pauses.
+
+```toml
+[outputs.player-sink]
+name   = "Music"
+match  = ["<sink name>"]        # the output: slider and M
+player = ["<player name>"]      # the player: R plays and pauses it, its LED follows
+```
+
+```text
+slider5 = "player-sink"   slider  → the output's volume
+                          M5      → mutes the output
+                          R5  ●   → pauses <player name>; lit while it plays
+```
+
+- **Matched like an app's `match`**: a case-insensitive part of the player's bus name,
+  the name it gives itself, or its desktop ID ([How matching works](#how-matching-works)).
+  `apptrol list` does not show players; with `level = "debug"`, the log names each player
+  Apptrol sees and why it matched or not.
+- **R works as on an app column**: `play_pause` is its default, and `off` or a launcher
+  can be set ([Buttons](#buttons-on-a-column-with-an-app)). Without `player`, R stays
+  `off` or a launcher.
+- **Only a fixed output** (`match`) can have `player`. Anything can play over the
+  default output, so on `device = "default"` it is rejected; in `[apps]` (their `match`
+  already finds the player) and in `[inputs]` (no players) too.
+- **The first control gets the player**, sliders 1–8, then knobs 1–8, if an app's
+  `match` or another output's `player` also fits it. The log line `media player matched`
+  names the one that got it.
+- **Another control owns the device?** When two outputs match the same device, the
+  first control owns it and the later one's M does nothing; its R still plays and pauses
+  its own players, because R never changes the device.
+- **`[media] player`** may name such an output, on a control or not; the media keys then
+  follow its players ([`[media]`](#media)).
 
 ### The default output (`device = "default"`)
 
@@ -354,7 +398,8 @@ warranty of any kind ([LICENSE](https://github.com/Dzobash/apptrol/blob/main/LIC
   application name (`application.name`) or program name (`application.process.binary`).
   All matching streams are controlled together, so a browser with three playing tabs is
   one app. A match list can also cover several programs, e.g. `["vivaldi", "firefox"]`.
-- **Media players** (for R and the media keys) belong to an app the same way: a fragment
+- **Media players** (for R and the media keys) belong to an app the same way, or to an
+  output by its `player` list ([An output's media player](#an-outputs-media-player-player)): a fragment
   found in the player's bus name (without `org.mpris.MediaPlayer2.` and `.instance…`), the
   name it gives itself, or its desktop ID. With `level = "debug"` the log shows every
   player and why it matched or not. Chromium-based apps often call their player
@@ -384,7 +429,8 @@ Example Quest    NAME FMOD Ex App, BINARY ExampleQuest.exe "ExampleQuest"
 ```
 
 So don't guess the name, copy it: start the app, let it play a sound, run
-`apptrol list`, and put a part of its NAME or BINARY into `match`. Avoid parts that many
+`apptrol list` (or `apptrol list playing`, which prints only this section, LAUNCH-16),
+and put a part of its NAME or BINARY into `match`. Avoid parts that many
 apps share: every game through Proton or Wine has the BINARY `wine64-preloader`, and
 `FMOD Ex App` is an audio engine used by many games, not one game's name.
 
@@ -394,7 +440,9 @@ apps share: every game through Proton or Wine has the BINARY `wine64-preloader`,
 ### Finding device names
 
 Use `apptrol list` for device names and descriptions of inputs and outputs; `*` marks
-the output the system uses right now. Without Apptrol, the audio server also lists the
+the output the system uses right now. `apptrol list outputs` and `apptrol list inputs`
+print only that section, `apptrol list playing` only the playing apps (LAUNCH-16).
+Without Apptrol, the audio server also lists the
 names:
 
 ```bash
@@ -489,6 +537,9 @@ record = { app = "com.obsproject.Studio" }             # ● starts OBS
 | `s1` … `s8` | solo | — (always solo) |
 | `m1` … `m8` | mute | — (always mute) |
 | `r1` … `r8` | `play_pause` | `play_pause` (play or pause this app), `off`, or a launcher |
+
+R on an output column with `player` works the same way, for the output's players
+([An output's media player](#an-outputs-media-player-player)).
 
 **When the app matches several players**, `play_pause` pauses all of them but resumes
 only one, the one that played most recently (MEDIA-07). This happens when `match` names
@@ -625,7 +676,7 @@ Rules checked on load (each problem is reported on its own line):
 
 - Unknown button names and modes are rejected.
 - `m` and `s` settings need an input on that column's slider; they cannot start apps.
-- `play_pause` needs an app on the column's slider.
+- `play_pause` needs an app on the column's slider, or an output with `player`.
 - `talk_over = true` is only for M buttons; `if_running` only for launchers.
 - `cough` together with `hold_to_talk` is rejected: release M to mute.
 - A `command` from the list of blocked commands below is rejected.
@@ -665,7 +716,7 @@ shell rewrites it.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `player` | string | — | An app id from `[apps]` (not an input or output), on a control or not. The media keys (◀◀ ▶▶ ■ ▶) then control that app's player only, and do nothing while it is not running; without it, the player that most recently started playing. |
+| `player` | string | — | An app id from `[apps]`, or an output id from `[outputs]` that has `player` ([An output's media player](#an-outputs-media-player-player)), on a control or not; not an input, nor an output without `player`. The media keys (◀◀ ▶▶ ■ ▶) then control that app's or output's player only, and do nothing while it is not running; without it, the player that most recently started playing. |
 
 ---
 

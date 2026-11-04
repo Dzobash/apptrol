@@ -153,6 +153,11 @@ type Target struct {
 	Name  string
 	Kind  TargetKind
 	Match []string // case-insensitive fragments
+	// Player holds, on a fixed output, case-insensitive fragments of the media
+	// players whose sound goes there. They are matched as an app's Match is,
+	// so R on the output's column plays and pauses them (MEDIA-12, ADR 0045).
+	// Apps find their players through Match; inputs have none.
+	Player []string
 	// FollowsDefault selects the server's default for this device kind rather
 	// than matching (INPUT-09, OUT-03, ADR 0038).
 	FollowsDefault bool
@@ -174,7 +179,8 @@ type Mode int
 
 // Button modes. ModeDefault is the button's default: on an input column mute
 // for M, cough for S (off when M is in hold-to-talk) and off for R; on an app
-// column play_pause for R.
+// column, and on an output column with a player list, play_pause for R
+// (MEDIA-07, MEDIA-12, ADR 0045).
 const (
 	ModeDefault    Mode = iota
 	ModeOff             // the button does nothing
@@ -182,7 +188,7 @@ const (
 	ModeHoldToTalk      // M: live only while held
 	ModeCough           // S: muted while held
 	ModeTalkOver        // S: apps go down while held
-	ModePlayPause       // R: play or pause the column's app
+	ModePlayPause       // R: play or pause the column's app, or its output's players
 	ModeLauncher        // R: starts an app (LAUNCH-01, a later step)
 )
 
@@ -204,8 +210,9 @@ type Setup struct {
 	// Buttons sets the column buttons, keyed by button (Column 1–8); a
 	// missing entry is the default.
 	Buttons map[LED]Button
-	// MediaPlayer is the id of the app the media keys are pinned to, "" for
-	// the player that most recently started playing (MEDIA-06, CFG-15).
+	// MediaPlayer is the id of the app, or of an output with a player list,
+	// the media keys are pinned to, "" for the player that most recently
+	// started playing (MEDIA-06, CFG-15, ADR 0045).
 	MediaPlayer string
 	// Launchers are the buttons that start apps: Record, the Marker buttons
 	// (LED{Transport: …}) and R buttons (LED{Button: ButtonR, …}) (LAUNCH-01).

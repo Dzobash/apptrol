@@ -110,7 +110,8 @@ Upgrading, building from source, checking a download and removing Apptrol are in
 
 ## First steps
 
-1. **Find the names** of the apps that are playing: `apptrol list`.
+1. **Find the names** of the apps that are playing: `apptrol list` (or one section
+   alone: `apptrol list playing`, `inputs` or `outputs`).
 2. **Assign them** in `~/.config/apptrol/config.toml`, which Apptrol creates on its first
    start. The [configuration reference](docs/config.md) explains every setting.
 3. **Check the file** with `apptrol check`; Apptrol picks up the changes when you save.

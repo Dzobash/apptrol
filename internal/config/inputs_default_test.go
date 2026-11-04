@@ -29,6 +29,7 @@ func TestCFG20_InputsRejectInvalidSelectors(t *testing.T) {
 		{`device = " default "`, "device:"},
 		{`device = "mic"`, "device:"},
 		{`device = true`, "device"},
+		{"device = \"default\"\nplayer = [\"test-player\"]", "inputs.mic.player: only an output has it; inputs have no media player"},
 	} {
 		requireProblem(t, problemsOf(t, "[inputs.mic]\n"+tc.selector+"\n[layouts.default]\nslider8 = \"mic\"\n"), tc.want)
 	}

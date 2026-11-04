@@ -71,10 +71,15 @@ func ignoredReason(busName string) string {
 	return ""
 }
 
-// matchPlayer returns the app target a player belongs to and what matched:
-// a fragment of the app's match list in the player's name, Identity or
-// DesktopEntry (MEDIA-03). Several matches go to the first control, sliders
-// 1–8, then knobs 1–8, as for streams (CFG-12). Inputs have no players.
+// matchPlayer returns the target a player belongs to and what matched: a
+// fragment of an app's match list (MEDIA-03), or of an output's player list
+// (MEDIA-12, ADR 0045), in the player's name, Identity or DesktopEntry.
+// Several matches go to the first control, sliders 1–8, then knobs 1–8, as
+// for streams (CFG-12), whether they are apps or outputs (ADR 0045 point 3).
+// Inputs have no players.
+//
+//	slider1 = output speakers  player = ["spotifast"]  ← gets the player
+//	slider2 = app music        match  = ["spotifast"]
 func (m *Mixer) matchPlayer(p Player) (id, matchedBy string) {
 	fields := []struct{ by, value string }{
 		{"bus_name", playerName(p.BusName)},
@@ -83,12 +88,9 @@ func (m *Mixer) matchPlayer(p Player) (id, matchedBy string) {
 	}
 	for _, c := range m.assignedControls() {
 		id := m.setup.Assignments[c]
-		if m.setup.Targets[id].Kind != App {
-			continue
-		}
 		for _, f := range fields {
 			value := strings.ToLower(f.value)
-			for _, frag := range m.fragments[id] {
+			for _, frag := range m.playerFragments[id] {
 				if value != "" && strings.Contains(value, frag) {
 					return id, f.by
 				}
@@ -174,7 +176,9 @@ func (m *Mixer) playersChanged(a *actions, ev Event) {
 // statusChanged applies a player's new status and decides what the LEDs show.
 // Playing lights them at once. A pause that Apptrol did not ask for keeps
 // them lit and starts the pause delay; any other status, or a pause Apptrol
-// asked for, darkens them at once (MEDIA-09, ADR 0033).
+// asked for, darkens them at once (MEDIA-09, ADR 0033). An ignored player's
+// pause also darkens at once, without a delay: no LED ever follows an ignored
+// player (MEDIA-02), so there is nothing to hold and nothing to log (LOG-15).
 func (m *Mixer) statusChanged(a *actions, p *playerInfo, status string) {
 	before := p.Status
 	if status == before {
@@ -186,13 +190,14 @@ func (m *Mixer) statusChanged(a *actions, p *playerInfo, status string) {
 	p.Status = status
 	commanded := p.pauseCommanded
 	p.pauseCommanded = false
+	ignored := ignoredReason(p.BusName) != ""
 	switch {
 	case status == StatusPlaying:
 		if p.holding {
 			a.notice(slog.LevelDebug, "short pause not shown on the LEDs", playerAttrs(p.Player)...)
 		}
 		p.holding, p.ledPlaying = false, true
-	case status == StatusPaused && before == StatusPlaying && p.ledPlaying && !commanded:
+	case status == StatusPaused && before == StatusPlaying && p.ledPlaying && !commanded && !ignored:
 		m.holdSeq++
 		p.holding, p.holdSeq = true, m.holdSeq
 		a.add(HoldPauseLED{BusName: p.BusName, Seq: p.holdSeq})
@@ -206,18 +211,31 @@ func (m *Mixer) nextPlaySeq() int {
 	return m.playSeq
 }
 
-// ---- R on app columns (MEDIA-07 to MEDIA-09) -----------------------------------
+// ---- R on app and player output columns (MEDIA-07 to MEDIA-09, MEDIA-12) ------
 
 // rMode returns what R on the column does: the configured mode, or by default
-// play_pause on an app column and off elsewhere.
+// play_pause on a column whose slider target has players (an app, or an output
+// with a player list) and off elsewhere (MEDIA-07, OUT-09, MEDIA-12, ADR 0045).
 func (m *Mixer) rMode(col int) Mode {
 	if mode := m.setup.Buttons[LED{Button: ButtonR, Column: col}].Mode; mode != ModeDefault {
 		return mode
 	}
-	if id, ok := m.setup.Assignments[Control{Slider, col}]; ok && m.setup.Targets[id].Kind == App {
+	if id, ok := m.setup.Assignments[Control{Slider, col}]; ok && m.hasPlayers(id) {
 		return ModePlayPause
 	}
 	return ModeOff
+}
+
+// hasPlayers reports whether target id can have media players: every app
+// (MEDIA-03), and an output with a player list (MEDIA-12, ADR 0045).
+func (m *Mixer) hasPlayers(id string) bool {
+	switch m.setup.Targets[id].Kind {
+	case App:
+		return true
+	case Output:
+		return len(m.playerFragments[id]) > 0
+	}
+	return false
 }
 
 // appPlayers returns the players matched to target id, by bus name.
@@ -248,10 +266,13 @@ func (m *Mixer) rPressed(a *actions, col int, button string) {
 	}
 }
 
-// playPause pauses every playing player of the column's app; if none plays,
-// it plays the paused one that played most recently, or the first paused one
-// by name. A stopped player is never started, as with the keyboard's
-// play / pause key (MEDIA-07, MEDIA-08).
+// playPause pauses every playing player of the column's app, or of its
+// output with a player list (MEDIA-12, ADR 0045); if none plays, it plays the
+// paused one that played most recently, or the first paused one by name. A
+// stopped player is never started, as with the keyboard's play / pause key
+// (MEDIA-07, MEDIA-08). It never touches the output device, so an output
+// whose device an earlier control owns still plays and pauses its players
+// (OUT-04, OUT-09, ADR 0045 point 4).
 func (m *Mixer) playPause(a *actions, c Control, button string) {
 	id := m.setup.Assignments[c]
 	players := m.appPlayers(id)
@@ -284,8 +305,9 @@ func (m *Mixer) playPause(a *actions, c Control, button string) {
 	}
 }
 
-// rLit reports whether the R LED of an app column is lit: in play_pause mode,
-// while one of the app's media players reports Playing, ignoring a pause
+// rLit reports whether the R LED of an app column, or of an output column
+// with a player list (MEDIA-12, ADR 0045), is lit: in play_pause mode, while
+// one of the target's media players reports Playing, ignoring a pause
 // shorter than the pause delay (MEDIA-09, ADR 0033). Lit means pressing R
 // pauses; dark means it resumes, or does nothing; the one exception is the
 // pause delay, when the LED still shows a player that is already paused and R

@@ -49,8 +49,9 @@ type Config struct {
 
 // Media configures the media keys (ADR 0018).
 type Media struct {
-	// Player is the id of the app the media keys are pinned to; "" = the
-	// player that most recently started playing (CFG-15, MEDIA-06).
+	// Player is the id of the app, or of an output with a player list, the
+	// media keys are pinned to; "" = the player that most recently started
+	// playing (CFG-15, MEDIA-06, ADR 0045).
 	Player string
 }
 
@@ -102,12 +103,26 @@ type App struct {
 	// A validated input or output has either Device or a nonempty Match list;
 	// app targets always use Match (CFG-20, ADR 0038).
 	Device string
+	// Player holds, on a fixed output only, case-insensitive fragments of the
+	// media players whose sound goes there, matched as an app's match list is
+	// (MEDIA-03). R then plays and pauses them, and [media] player may name
+	// the output (MEDIA-12, CFG-15, ADR 0045). Empty on apps, inputs and
+	// default-following outputs.
+	Player []string
 	// MaxVolume is the volume in percent at the top of the control, 1–150
 	// (CTRL-03). Default 100.
 	MaxVolume int
 	// TalkOverVolume is, on an input, the volume in percent (0–100) apps go
 	// down to during talk-over (CFG-16). Default DefaultTalkOverVolume.
 	TalkOverVolume int
+}
+
+// HasPlayers reports whether the target can have media players: an app,
+// through its match list (MEDIA-03), or an output with a player list
+// (MEDIA-12, ADR 0045). Only these may have R in play_pause (CFG-14) and be
+// named in [media] player (CFG-15).
+func (a App) HasPlayers() bool {
+	return a.Type == TypeApp || (a.Type == TypeOutput && len(a.Player) > 0)
 }
 
 // Layout assigns apps to controls.

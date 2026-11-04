@@ -169,6 +169,7 @@ display differs per desktop and needs a trial on GNOME first (#116).
 - [ ] Show microphone button states and hints, e.g. "cough has no use with hold-to-talk: release M to mute" (ADR 0020)
 - [ ] Decision record for the LED language: steady, blinking by itself, blinking on request, per screen state
 - [ ] LEDs show problems, solo on a silent app, the media keys' column, and a service menu ([#100](https://github.com/Dzobash/apptrol/issues/100), [#101](https://github.com/Dzobash/apptrol/issues/101), [#103](https://github.com/Dzobash/apptrol/issues/103), [#108](https://github.com/Dzobash/apptrol/issues/108))
+- [x] R plays and pauses a player that plays into its own output: `player` on outputs, also for `[media] player` ([#231](https://github.com/Dzobash/apptrol/issues/231), [ADR 0045](adr/0045-a-player-list-on-outputs.md))
 
 **Done when:** all Phase 1.7 MUST requirements are met, volume and mute changes show on
 KDE and as a notification on GNOME, the LED language is decided and built, and the

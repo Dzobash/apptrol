@@ -65,8 +65,8 @@ leave audio muted or too loud come first.
 | CFG | `cfg.md` | The configuration: reload, invalid files, `apptrol check` |
 | LOG | `log.md` | Log outputs, levels and records |
 | SVC | [svc.md](svc.md) | The service: start, stop, crash, several users; the Status line *(Phase 1.6)* |
-| MEDIA | [media.md](media.md) | R on app columns and the media keys *(Phase 1.5)* |
-| LAUNCH | `launch.md` | Launcher buttons and the lock screen *(Phase 1.5)* |
+| MEDIA | [media.md](media.md) | R on app columns and on outputs with `player`, and the media keys *(Phase 1.5)* |
+| LAUNCH | [launch.md](launch.md) | Launcher buttons and the lock screen *(Phase 1.5)* |
 | INPUT | [input.md](input.md) | Default microphone switching, held buttons, talk-over and ownership *(Phase 1.6 follow-up)* |
 | NFR | `nfr.md` | Package descriptions, copyright and license texts |
 | QA | [qa.md](qa.md) | Container restrictions, audit records and real systemd checks |

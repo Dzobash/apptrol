@@ -333,3 +333,7 @@ PipeWire or PulseAudio.
   ```text
   release ─ server: muted ─► held, not set (released) ─┤ 3 s ├─ applet: unmuted ─► reported (ignored, no owner)
   ```
+- 2026-11-03: Point 8 is superseded for outputs with a `player` list by
+  [ADR 0045](0045-a-player-list-on-outputs.md) (#231): R on such an output's column
+  defaults to `play_pause` and plays and pauses the listed players, with the R LED of
+  MEDIA-09. R still never changes the output or the default output.

@@ -366,12 +366,20 @@ of invalid output reloads. The `outputs-table` and `device-monitors` fixtures ex
 the new table and warnings. A regression test checks that a fixed output matching
 `"speaker"` never controls an app stream named `"speaker"` (OUT-01).
 
+The list command's sections are also covered by Go tests: `TestLAUNCH16_…` in
+`cmd/apptrol/list_test.go` and `main_test.go` check that `apptrol list outputs`,
+`list inputs` and `list playing` print only their section from the same code as
+`apptrol list`, that an unknown word after `list` names the valid ones, and that the
+whole listing keeps its sections and headings (LAUNCH-16).
+
 ## Default input
 
 INPUT-09 and CFG-20 are covered without real audio by
 `internal/config/inputs_default_test.go`, the CLI's
 `TestCFG20_CheckShowsDefaultInput`, `internal/mixer/input_default_test.go`,
 `internal/audio/pulse/input_test.go` and `internal/service/input_test.go`.
+`TestINPUT09_ListShowsDefaultInputOwner` checks both the full listing and
+`apptrol list inputs`, including an overlapping fixed input that yields.
 They check selector errors, saved mute transfer, volume kept until a move,
 switches and snapshots, no default or a device arriving later, both overlap orders,
 held M/cough/talk-over ending and working on a fresh press, late restores, released
@@ -515,6 +523,25 @@ adapter's debug records, so a failure on CI shows each read and write; the manua
 cases are [TC-OUT-003 and TC-OUT-004](testing/cases/out.md), with the `output-fixed`
 fixture.
 
+## Media players on outputs
+
+An output with a `player` list (MEDIA-12, [ADR 0045](adr/0045-a-player-list-on-outputs.md),
+#231) is covered without an audio server or a session bus.
+`internal/mixer/output_player_test.go` checks R on such an output's column (play and
+pause, its LED and the pause delay, `off` and launchers), that an output's `match` is
+never compared with players, that a player matching an app and an output goes to the
+first control in both orders and is logged with the output (`apptrol.app.type=output`,
+`matched_by`), two outputs with one player, R on a control whose device an earlier
+control owns (it still works, M stays ignored), a reload that removes the list, and
+`[media] player` pinned to an output on a control or not (MEDIA-06).
+`internal/config/players_test.go` checks the key and every rejection: in `[apps]`,
+`[inputs]` and the old form, on `device = "default"`, an empty list or fragment, under a
+layout (CFG-08), `play_pause` on an output without it (CFG-14) and `[media] player`
+naming an output without it (CFG-15). `TestMEDIA12_CheckShowsAnOutputsPlayers` checks
+`apptrol check`. The manual case is
+[TC-MEDIA-003](testing/cases/media.md#tc-media-003--r-on-an-output-with-a-player-list-plays-and-pauses-that-player),
+with the `output-player` fixture and a browser video.
+
 ## Manual hardware checklist
 
 > This checklist is being turned into [test cases](testing/cases/README.md) with fixed
@@ -593,7 +620,7 @@ talk-over), VLC or Elisa on slider 1 instead of Spotify.
 | H-27 | Play videos in two browser tabs; press R2; then M2 | R2 pauses only the most recently used tab; the other keeps playing (known issue), R2 goes off. M2 silences both tabs | MEDIA-07, MEDIA-09 |
 | H-28 | Put an app without MPRIS on a slider (e.g. mpv without its plugin, or Discord) and play sound; press its R | Nothing happens; its R LED stays off; the log says there is no media player for the app | MEDIA-08, MEDIA-09 |
 | H-29 | Restart the browser and play a video again; press R2 | R2 pauses it (the player's new instance number is found) | MEDIA-01, MEDIA-03 |
-| H-30 | If KDE Connect is used: **close Spotify on the computer first**, then play Spotify on the phone; press R1 and ▶ | Neither affects the phone; the log shows the phone's player as ignored (`other_device`). With Spotify open on the computer, its R and ▶ pause the phone too: the desktop app controls the phone's playback through Spotify Connect, outside Apptrol; the log then shows the commands going to the desktop's `org.mpris.MediaPlayer2.spotify`, not to the phone's player | MEDIA-02 |
+| H-30 | If KDE Connect is used: **close Spotify on the computer first**, then play Spotify on the phone; press R1 and ▶; then pause on the phone | Neither affects the phone; the log shows the phone's player as ignored (`other_device`). Pausing on the phone logs no `pause shown on the LEDs`: no LED follows an ignored player. With Spotify open on the computer, its R and ▶ pause the phone too: the desktop app controls the phone's playback through Spotify Connect, outside Apptrol; the log then shows the commands going to the desktop's `org.mpris.MediaPlayer2.spotify`, not to the phone's player | MEDIA-02, MEDIA-09, LOG-15 |
 | H-31 | Set `record = { app = "<desktop ID>" }` (find it with `apptrol list apps <name>`), save, press ● | The app starts; the Record LED flashes briefly; the log names the unit | LAUNCH-01, LAUNCH-04, LAUNCH-08, LAUNCH-09 |
 | H-32 | With that app open: `systemctl --user restart apptrol` | The app keeps running | LAUNCH-04 |
 | H-33 | Set `if_running = "skip"`; with the app open from the menu, press ●; then close it, start it from a terminal and press ● again; press ● a few more times in a row with the app closed | Not started a second time either way; the log says how it was found (`unit`, then `process`). Presses in a row all work | LAUNCH-04, LAUNCH-06, LAUNCH-07 |

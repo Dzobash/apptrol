@@ -13,11 +13,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Switching microphones ends held button states, so hold-to-talk needs a fresh press.
   The first control owns overlapping input selections; late server restores on new
   microphones are defended without changing the saved mute (INPUT-09, CFG-20, #221).
+- `player` on a fixed output (`[outputs.<id>]` with `match`): name fragments of the
+  media players whose sound goes there, for a player that sends its sound into an
+  output of its own. R on that column then plays and pauses them by default, and its
+  LED follows them as on an app column; `[media] player` may name such an output.
+  `player` is rejected in `[apps]`, in `[inputs]` and with `device = "default"`; a player
+  that fits an app and an output goes to the first control. `apptrol check` shows the
+  list (MEDIA-12, OUT-09, CFG-15,
+  [ADR 0045](docs/adr/0045-a-player-list-on-outputs.md), #231).
+- `apptrol list outputs`, `apptrol list inputs` and `apptrol list playing` print only
+  that section of `apptrol list`, so a name for a match list can be found without
+  scrolling through the whole listing. An unknown word after `list` now names the valid
+  ones (#227).
 
 ### Changed
 - Building from source now needs Go 1.26 or newer, because `golang.org/x/sys` 0.49.0
   requires it; Ubuntu 26.04 ships it as `golang-go`. Release packages and binaries are
   unaffected (#222).
+
+### Fixed
+- `apptrol list apps` no longer takes its launcher example from the first desktop ID
+  of the whole list. An ID can contain `=`, and the line then read like a syntax
+  error. With a search word the example is the first match; without one it is
+  `record = { app = "<desktop ID>" }`. Two lines above the table say the IDs are for
+  launchers (`app = "<desktop ID>"`) and that a `match` name can differ, so run
+  `apptrol list` while the app plays (LAUNCH-09, #225).
+- An ignored media player's pause (MEDIA-02, e.g. a phone's player through KDE Connect)
+  no longer runs the pause delay or logs `pause shown on the LEDs` / `short pause not
+  shown on the LEDs`: no LED ever follows an ignored player (MEDIA-09, LOG-15,
+  [ADR 0033](docs/adr/0033-r-and-play-ignore-short-pauses.md), #224).
 
 ## [0.3.0] - 2026-11-02
 

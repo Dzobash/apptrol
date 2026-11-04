@@ -128,3 +128,8 @@ Measured on the reference system (Kubuntu, KDE Plasma, PipeWire) on 2026-10-02:
   is not running makes the media keys do nothing; they never fall back to another
   player. Players on no control count too. The ▶ LED is lit while the media-key player
   plays (LED-06), as R's LED is for its app.
+- 2026-11-03: Players can belong to an output too ([ADR 0045](0045-a-player-list-on-outputs.md),
+  #231). A fixed output's `player` list is matched as point 3 says for an app's match
+  list, in the same first-control order; R on its column acts as point 5 says, and
+  `[media] player` may name such an output (point 6). "No extra configuration" (point 3)
+  still holds for apps.
