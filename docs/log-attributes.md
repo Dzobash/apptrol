@@ -40,7 +40,7 @@ Apptrol's own:
 | `apptrol.wanted_percent` | The volume Apptrol set, when PipeWire changed it back |
 | `apptrol.muted` | A mute state |
 | `apptrol.wanted_muted` | The mute state Apptrol set, when PipeWire changed it back |
-| `apptrol.action` | A change that could not be made, or an ownership answer the audio adapter ignored (`KeepOutput`, `ReleaseOutput`) |
+| `apptrol.action` | A change that could not be made, or an ownership answer the audio adapter ignored (`KeepOutput`, `ReleaseOutput`, `KeepDevice`, `ReleaseDevice`) |
 | `apptrol.led` | An LED, e.g. `S1` |
 | `apptrol.stream.id` | PipeWire's number for a playing stream |
 | `apptrol.stream.app_name` | The name the app gives its stream (what `match` compares) |
@@ -48,9 +48,9 @@ Apptrol's own:
 | `apptrol.device.name` | An input or output device's unique name (what `match` compares, with the description) |
 | `apptrol.device.description` | An input or output device's readable name |
 | `apptrol.device.matches` | All input or output devices that match |
-| `apptrol.device.selected_by` | How an output's device was chosen: `match` (a fixed output) or `default` (`device = "default"`, the system's default output) |
-| `apptrol.device.controls` | Output controls on one device: owner first, then the control that yields, e.g. `slider7, knob7` (OUT-04, ADR 0035, ADR 0038) |
-| `apptrol.device.previous_name` | The default output before it changed; empty if there was none (OUT-03, ADR 0038) |
+| `apptrol.device.selected_by` | How an input or output device was chosen: `match` (fixed) or `default` (`device = "default"`, the server's default of that kind; INPUT-09, OUT-03, ADR 0038) |
+| `apptrol.device.controls` | Input or output controls on one device: owner first, then the control that yields, e.g. `slider7, knob7` (INPUT-09, OUT-04, ADR 0035, ADR 0038) |
+| `apptrol.device.previous_name` | The default input or output before it changed; empty if there was none (INPUT-09, OUT-03, ADR 0038) |
 | `apptrol.device.index` | The audio server's number for an output device (changes when it is added again) |
 | `apptrol.audio.channels` | How many channels a device has, as read or written |
 | `apptrol.audio.channel_positions` | Ordered PulseAudio channel-position codes for the accompanying output vectors (ADR 0039) |
@@ -62,8 +62,8 @@ Apptrol's own:
 | `apptrol.audio.result` | The audio server's answer to a request: `success` or `failed` |
 | `apptrol.audio.guard.state` | What the new-output guard made of a read: `restore_volume` (set again), `at_wanted_volume`, `no_volume_set` (no control set it, or it was released), `expired`, `no_guard` (not new), `identity_changed` (new, or a new name or description: the mixer decides first), `ownership_pending` (no answer for the newest reported identity yet; no guard write); for a mute change not taken over within the guard's window (#177): `restore_mute` (the other value: set again), `at_wanted_mute` (the value Apptrol set), `ownership_pending`, or `released` (no control holds the device: held, set nothing, ADR 0038) |
 | `apptrol.audio.guard.remaining_ms` | Milliseconds left in the new-output guard's 3 seconds |
-| `apptrol.audio.ownership.answer_generation` | The output identity an ignored `KeepOutput` or `ReleaseOutput` answered for |
-| `apptrol.audio.ownership.generation` | The newest output identity the audio adapter reported, which the answer lost to |
+| `apptrol.audio.ownership.answer_generation` | The device identity an ignored `KeepOutput`, `ReleaseOutput`, `KeepDevice` or `ReleaseDevice` answered for |
+| `apptrol.audio.ownership.generation` | The newest input or output identity the audio adapter reported, which the answer lost to |
 | `apptrol.audio.server` | The audio server and its version |
 | `apptrol.retry.delay_s` | Seconds until Apptrol tries again |
 | `apptrol.controller.port` | The controller's sound card id from the configuration |
@@ -83,7 +83,7 @@ Apptrol's own:
 | `apptrol.state.solo` | The restored solo, e.g. `slider1` |
 | `apptrol.log.level` | The log level set with `--log-level` (on the start line) |
 | `apptrol.log.level_source` | Where the log level comes from: `flag` (`--log-level`) or `config` (on the start line) |
-| `apptrol.held.reason` | Why a held button (cough, talk-over, hold-to-talk) ended without being released: `controller_disconnected`, `controller_released` (another user came to the front), `config_changed` or `stopping` |
+| `apptrol.held.reason` | Why a held button (cough, talk-over, hold-to-talk) ended without being released: `controller_disconnected`, `controller_released` (another user came to the front), `config_changed`, `input_changed` (the microphone changed, INPUT-09, ADR 0038) or `stopping` |
 | `apptrol.talk_over_percent` | The volume apps go down to during talk-over |
 | `apptrol.button_mode` | What a button from the configuration does: its mode, or `launcher` (on `button configured`) |
 | `apptrol.button_talk_over` | `true` when an M button also turns apps down (`talk_over = true`) |

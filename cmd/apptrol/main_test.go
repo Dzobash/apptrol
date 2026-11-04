@@ -194,6 +194,14 @@ knob2 = "speakers"
 	}
 }
 
+func TestCFG20_CheckShowsDefaultInput(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := run([]string{"--config", writeConfig(t, "[inputs.mic]\ndevice = \"default\"\n[layouts.default]\nslider8 = \"mic\"\n"), "check"}, &stdout, &stderr)
+	if code != 0 || !strings.Contains(stdout.String(), `input: device = "default"`) {
+		t.Fatalf("code=%d stdout=%s stderr=%s", code, &stdout, &stderr)
+	}
+}
+
 // A monitor warning must reach the CLI without making the file invalid
 // (CFG-21, ADR 0026 point 6).
 func TestCFG21_CheckWarnsAboutInputAndOutputMonitors(t *testing.T) {

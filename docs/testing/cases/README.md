@@ -67,7 +67,7 @@ leave audio muted or too loud come first.
 | SVC | [svc.md](svc.md) | The service: start, stop, crash, several users; the Status line *(Phase 1.6)* |
 | MEDIA | [media.md](media.md) | R on app columns and on outputs with `player`, and the media keys *(Phase 1.5)* |
 | LAUNCH | [launch.md](launch.md) | Launcher buttons and the lock screen *(Phase 1.5)* |
-| INPUT | `input.md` | Microphone buttons and talk-over *(Phase 1.5)* |
+| INPUT | [input.md](input.md) | Default microphone switching, held buttons, talk-over and ownership *(Phase 1.6 follow-up)* |
 | NFR | `nfr.md` | Package descriptions, copyright and license texts |
 | QA | [qa.md](qa.md) | Container restrictions, audit records and real systemd checks |
 | OUT | [out.md](out.md) | Output devices: listing, volume, the default output, M, S and R on output columns *(Phase 1.6)* |

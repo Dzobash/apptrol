@@ -372,6 +372,45 @@ The list command's sections are also covered by Go tests: `TestLAUNCH16_…` in
 `apptrol list`, that an unknown word after `list` names the valid ones, and that the
 whole listing keeps its sections and headings (LAUNCH-16).
 
+## Default input
+
+INPUT-09 and CFG-20 are covered without real audio by
+`internal/config/inputs_default_test.go`, the CLI's
+`TestCFG20_CheckShowsDefaultInput`, `internal/mixer/input_default_test.go`,
+`internal/audio/pulse/input_test.go` and `internal/service/input_test.go`.
+`TestINPUT09_ListShowsDefaultInputOwner` checks both the full listing and
+`apptrol list inputs`, including an overlapping fixed input that yields.
+They check selector errors, saved mute transfer, volume kept until a move,
+switches and snapshots, no default or a device arriving later, both overlap orders,
+held M/cough/talk-over ending and working on a fresh press, late restores, released
+guards, stale generations, and a held mute debt settled after its window.
+Review regressions also check a yielding slider's dark M LED and inactive M/S
+buttons, including cough and talk-over, and one talk-over transition and app-volume
+write when a selector reload ends a held state.
+`TestINPUT09_DeviceReleaseAnsweredOnce` covers description changes and snapshot
+default switches without duplicate ownership releases. Yielding-move tests check
+position persistence and the explanatory log without a device volume write;
+`TestINPUT09_RepeatedDefaultNoticeDoesNothing` keeps a held M live on a repeated notice.
+
+```text
+make check / make test ─► fake devices, no live setup
+make test-audio        ─► silent sources, real default switched and restored
+manual input cases    ─► controller LEDs, held buttons and talk-over
+```
+
+`TestIntegration_INPUT09_DefaultInputFollowsASwitch` and
+`TestIntegration_INPUT09_NewDefaultDefendsReportedRestores` are gated by
+`APPTROL_PULSE_TEST=1`, run by `make test-audio`. They switch only silent test
+microphones, restore the original default, and check both M modes and reported
+volume/mute restores. Run them only while holding the owner's live-setup grant.
+Default-source requests wait until a server read reports the requested device,
+including during restoration: a successful request can precede the actual change.
+`TestIntegration_Backend` answers each new input's reported identity with
+`KeepDevice` before expecting guard defense, as the real mixer does (INPUT-09).
+They do not prove read-back of silently lost input writes (#174).
+[TC-INPUT-001 and TC-INPUT-002](testing/cases/input.md) use `input-default` and
+`input-default-hold`; each case restores the original default as well as the fixture.
+
 ## Output volume
 
 Output balance (OUT-14 to OUT-16,

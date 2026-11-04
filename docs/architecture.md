@@ -16,7 +16,7 @@ How the service is put together. Decisions and their reasons are in
  PipeWire ──────► audio ───────┤                          │    (start an app in its own unit)
   (streams, inputs and         │                          └──► state ──────► state.json
    outputs appear / go,        │
-   the default output changes) │
+   either default changes)     │
  session bus ───► desktop ─────┤
   (media players appear / go,  │
    playing or paused)          │
@@ -26,8 +26,8 @@ How the service is put together. Decisions and their reasons are in
 ```
 
 - **`mixer`** holds all behaviour: assignments, mute, solo, the held microphone buttons,
-  which output device each output control sets (a matched one, or the system's default
-  output, which it follows), who owns a device two controls choose, and that nothing
+  which input or output device each control sets (a matched one, or the system's default
+  of that kind, which it follows), who owns a device two controls choose, and that nothing
   else touches it,
   which media player belongs to which control (an app by its `match`, a fixed output by
   its `player` list, ADR 0045), what R, the media keys and the launcher
@@ -54,15 +54,15 @@ How the service is put together. Decisions and their reasons are in
 |---|---|
 | `cmd/apptrol` | Command line: `run`, `list` (whole or one section, LAUNCH-16), `check`, `test`, `version`; wires everything together |
 | `internal/service` | Event loop; the `Controller`, `Audio`, `Desktop`, `Power`, `Launcher` and `Status` interfaces; turns mixer actions into adapter calls; keeps the Status line up to date; the Record LED's flash (the mixer has no clock); config reload and its warnings, each logged by its text or with its own message and attributes; shutdown |
-| `internal/mixer` | Core logic (pure): matching streams, inputs, output devices and media players to controls, following the default output, output ownership, output volume, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
+| `internal/mixer` | Core logic (pure): matching streams, inputs, output devices and media players to controls, following default inputs and outputs, device ownership, device volume, positions, `max_volume`, user mutes, solo, held microphone buttons and talk-over, R, media keys, launcher presses, what is blocked in each screen state, LED computation |
 | `internal/controller` | MIDI decoding; the nanoKONTROL2 CC/LED map, including which buttons have LEDs |
 | `internal/controller/rawmidi` | Linux raw MIDI backend: discovery by sound card id, plug/unplug, read/write; lets go of the controller and takes it back (ADR 0029) |
-| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`): playback streams, capture devices and output devices, their volume and mute; the default output and its changes; output channel positions and ratios; the level-only output guard; reconnects; `apptrol list` data |
+| `internal/audio/pulse` | PulseAudio-protocol backend for PipeWire (`pipewire-pulse`): playback streams, capture devices and output devices, their volume and mute; default inputs and outputs and their changes; output channel positions and ratios; input/output ownership guards; reconnects; `apptrol list` data |
 | `internal/desktop` | D-Bus session bus (`godbus`, ADR 0017): finds MPRIS media players and follows them, sends them commands; reconnects; never starts a service |
 | `internal/session` | logind on the D-Bus system bus (`godbus`, ADR 0023, ADR 0024): reports each wake-up, repeated while the controller starts, whether the user's graphical session is unlocked, locked, behind another session or unknown, and whose session is in front at the seat (ADR 0029); reconnects |
 | `internal/launcher` | Installed apps from their desktop files (XDG folders, `Exec` parsing) for `apptrol list apps`; starts launcher apps through systemd (`go-systemd`, ADR 0019) |
 | `internal/systemd` | The unit's Status line: sends `STATUS=` to systemd through go-systemd's `daemon` package (pure Go, no `sdjournal`, ADR 0017); sends nothing without `NOTIFY_SOCKET` (SVC-13, ADR 0007) |
-| `internal/config` | TOML loading: `[apps]`, `[inputs]` and `[outputs]` into one map of targets, output selector validation and monitor warnings (CFG-20, CFG-21), the old `type` form with a warning (ADR 0026); validation (including button rules, blocked commands and overlap warnings), its problems as `config.Problem`; warnings as `config.Warning`; file watching |
+| `internal/config` | TOML loading: `[apps]`, `[inputs]` and `[outputs]` into one map of targets, input/output selector validation and monitor warnings (CFG-20, CFG-21), the old `type` form with a warning (ADR 0026); validation (including button rules, blocked commands and overlap warnings), its problems as `config.Problem`; warnings as `config.Warning`; file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
 | `internal/logging` | Log outputs (journald, rotating file) and formats; keeps every record on one line |
 | `internal/logattr` | Names of log attributes and error types, following the OpenTelemetry conventions (ADR 0016); explained for users in [`log-attributes.md`](log-attributes.md) |
@@ -84,13 +84,14 @@ is part of this guard. Windows adapters and path changes remain in #92.
 
 1. An adapter produces an event: *slider 3 moved to 90*, *M pressed on column 2*,
    *S released on column 8*, *stream 57 (Spotify) appeared*, *output "USB Headset"
-   appeared*, *the default output is now "USB Headset"*, *media player Spotify now playing*, *config reloaded*, *controller connected*, *controller disconnected*,
+   appeared*, *the default output is now "USB Headset"*, *the default input changed*,
+   *media player Spotify now playing*, *config reloaded*, *controller connected*, *controller disconnected*,
    *the computer woke up*, *the screen is locked*.
    Releases and disconnects only matter for buttons that act while held (INPUT-*,
    ADR 0020).
 2. The service passes it to `mixer.Handle(event)`.
 3. The mixer updates its model and returns actions: *set stream 57 to 71 %*, *mute
-   input "GoXLR"*, *set output "USB Headset" to 50 %*, *mute an output*, *LED M2 on*, *pause the Spotify
+   input "GoXLR"*, *release the previous microphone*, *set output "USB Headset" to 50 %*, *mute an output*, *LED M2 on*, *pause the Spotify
    player*, *start OBS*, *state changed*.
 4. The service executes them. Failures are logged; they never stop the loop. Player
    commands and app starts are only handed over: their adapters log the outcome later.
@@ -148,10 +149,11 @@ through `service.Audio` like every other volume.
 [apps.old] type = "input"    ─┘                    TypeInput + warning
 ```
 
-The config API for outputs (CFG-20, ADR 0027) is the existing `config.App`:
+The config API for input/output selectors (CFG-20, ADR 0038) is the existing `config.App`:
 
 - `Type == config.TypeOutput` (`"output"`) identifies entries of `[outputs]`.
-- `Device == config.DeviceDefault` (`"default"`) selects the server's default output;
+  `Type == config.TypeInput` (`"input"`) identifies inputs, including the old form.
+- `Device == config.DeviceDefault` (`"default"`) selects the server's default of that kind;
   `Match` is empty in that case. Otherwise `Device` is empty and `Match` is nonempty.
 - `Name` defaults to the id; `MaxVolume` defaults to 100 and accepts 1–150.
 - `Player` holds the fragments of a fixed output's `player` list (MEDIA-12,
@@ -181,7 +183,12 @@ intact.
 [outputs.speakers] match = [...]   ──► mixer.Output                  (the device that matches)
           + player = [...]         ──►   … with Player               (its media players, for R)
 [outputs.main] device = "default"  ──► mixer.Output, FollowsDefault  (the server's default output)
+[inputs.mic] device = "default"    ──► mixer.Input, FollowsDefault   (the server's default input)
 ```
+
+Inputs use the same selector validation, including the old `type = "input"` form;
+apps still require `match`. Both `apptrol check` and `apptrol list` use this setup,
+and the latter passes both server defaults into the mixer's snapshot.
 
 The old form (`[apps.<id>]` with `type`) is read until 1.0 (CFG-19). Each such entry adds
 a `config.Warning`: a warning has a text for people, printed by `apptrol check`, and
@@ -211,6 +218,34 @@ apptrol check   - inputs.mic: the same id is defined in two tables ([apps] and [
 log             ERRO the changed configuration is invalid; keeping the current settings … apptrol.app.id=mic error.type=config_invalid exception.message="inputs.mic: the same id …"
 ```
 
+## Default input and microphone ownership
+
+`deviceFor` holds the chosen inputs; `defaultInput` comes from
+`AudioSnapshot.DefaultInput` and `DefaultInputChanged` (INPUT-09, ADR 0038).
+`chooseDevices` gives each microphone to the first assigned control (sliders, then
+knobs). `blockedInputs` keeps later controls inactive, including their M and S
+buttons, talk-over and M LED; positions remain saved. Fixed inputs apply known
+positions on acquiring a device, while default inputs set volume only on a move.
+Mute follows the owning control in either case.
+
+```text
+DefaultInputChanged B ─► chooseDevices ─► end held M/S for changed bindings
+                                     ├─► B gets effective mute (hold-to-talk: muted)
+                                     ├─► A unmuted and ReleaseDevice
+                                     └─► applyChange: app talk-over and LEDs updated
+```
+
+The owner chose to end held states on a microphone switch. A fresh M press is needed
+to make a new default live in `hold_to_talk`, including when a snapshot changes it.
+The mixer retains previous bindings through a snapshot so the previous microphone
+is released too. `KeepDevice` and `ReleaseDevice` echo `Device.Generation` to the
+adapter; the service forwards them through the unchanged `Audio.Apply` interface.
+A release emitted while choosing is not repeated by the identity answer, as for
+outputs. A yielding input's move saves its position and logs why it changes no volume.
+`ForgetDeviceVolume` narrows the guard's defense when a default control takes over
+from a fixed control or another default control. All device names and ownership
+decisions remain in the pure mixer; timing and I/O stay in the adapter.
+
 ## Output volume
 
 An output target names one output device by `match`, or follows the server's default
@@ -231,7 +266,7 @@ for each output target on a control, the device it has chosen (`outputFor`):
   control moves, and when a device is newly chosen while the control's position is
   known (OUT-05). An unknown position leaves the device alone (PRIO-04); an output
   moved to another control or given another `max_volume` gets its volume again on a
-  reload, as inputs do. Outside changes are not reverted (PRIO-02): the adapter does not
+  reload, as fixed inputs do. Outside changes are not reverted (PRIO-02): the adapter does not
   even report an output's volume. The default output is the exception: only a move
   sets its volume, never choosing or a reload, since the known position may belong to
   the previous default (ADR 0027 point 3, ADR 0038).
@@ -461,11 +496,12 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   changes:
 
   ```
-  connect ──► AudioSnapshot { Streams, Devices (inputs), Outputs, DefaultOutput }
+  connect ──► AudioSnapshot { Streams, Devices, Outputs, DefaultOutput, DefaultInput }
   later   ──► StreamAdded / StreamRemoved    a playback stream
               DeviceAdded / DeviceRemoved    an input
               OutputAdded / OutputRemoved    an output (also when its description changes)
               OutputMuteChanged              an outside output mute (own echoes filtered)
+              DefaultInputChanged            the server's default microphone changed
   ```
 - Output devices (OUT-12, [ADR 0027](adr/0027-output-volume.md)): the adapter reports
   each sink's unique name and description; a volume-only change is not an event.
@@ -480,12 +516,13 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   the adapter also subscribes to the server's own changes. Each (re)connect reads the
   server information into the snapshot's `DefaultOutput`; a server change notice reads
   it again (`serverChange`) and reports `DefaultOutputChanged` only when the default
-  output is another one, as the same notice also comes for a new default input. It may
-  name a sink not reported yet; the mixer waits for that device.
+  output is another one. The same read reports `DefaultInputChanged` only when the
+  default input changes (INPUT-09). Snapshots include both defaults. Either default may
+  name a device not reported yet; the mixer waits for it.
 
   ```
   server: change ─► serverInfo ─► same default? ── yes ─► nothing
-                                        └─ no ─► DefaultOutputChanged{Name}
+                                        └─ no ─► DefaultOutputChanged / DefaultInputChanged
   ```
 - An app matches a stream when a configured fragment is found in `application.name` or
   `application.process.binary`; some apps (Spotify) only report the name.
@@ -566,6 +603,14 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
 
   Output identity changes pause defense across notifications until the mixer answers
   the newest reported generation; see [Output volume](#output-volume).
+  Input notifications use the same ownership protocol through `sourceEvent`:
+  `DeviceAdded`, `KeepDevice` / `ReleaseDevice`, and monotonically increasing input
+  generations. Pending and released new-input mute restores are held away from the
+  mixer, and a pending mute debt is settled after the window when ownership is
+  answered. Input guard writes go through the same `wire` then `mu` lock order.
+  `ForgetDeviceVolume` clears an earlier owner's volume defense on a default
+  takeover. Input read-back for silently lost writes remains #174; reported
+  restores are defended here (INPUT-09, ADR 0038).
   Volume writes and the guard take turns (`wire`, as mute writes do), so the guard never
   writes a position the control has moved away from in the meantime (#158, OUT-05):
 
@@ -804,6 +849,14 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
 
 ## Testing
 
+- Default-input tests cover CFG-20 parsing, setup and CLI display; mixer switches,
+  snapshots, missing devices, held M/cough/talk-over resets, saved mute and overlap
+  ownership; service routing; and deterministic adapter restores, release, stale
+  ownership answers and mute debt (INPUT-09, ADR 0038). The gated
+  `TestIntegration_INPUT09_DefaultInputFollowsASwitch` switches silent microphones
+  with both mute-toggle and hold-to-talk, restoring the original default afterwards.
+  Manual controller checks are in [input cases](testing/cases/input.md).
+
 - The portable Windows build runs in `make check` and CI's Build job (NFR-11).
   Config tests exercise the fallback metadata comparison on Linux as well, and
   verify Linux still detects an inode change with equal size and modification time.
@@ -853,7 +906,7 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   (OUT-03), a new test output that becomes the default inside its guard's window,
   its mute defended and an earlier owner's volume no longer (ADR 0038 point 6),
   `apptrol list`'s data, and a reconnect. `serverChange` is unit-tested on its
-  own: only another default output is reported. The
+  own: only changed default inputs and outputs are reported. The
   read-back's cases that must not write (no guard, gone, new description, pending
   ownership, released, expired) are unit-tested through the `outputRead` hook. Turning sink
   notifications into events, and the new-output guard (a slider move during a guard

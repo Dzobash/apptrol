@@ -327,20 +327,20 @@ func parseTarget(table, id string, ra rawApp, errs *problems, warnings *[]Warnin
 	}
 	// Check presence, not values: an explicitly empty selector is still present
 	// and cannot be silently ignored (CFG-20, ADR 0027 point 2).
-	if app.Type == TypeOutput && (ra.Match == nil) == (ra.Device == nil) {
+	if app.Type != TypeApp && (ra.Match == nil) == (ra.Device == nil) {
 		errs.add("%s: set exactly one of match and device", at)
 	}
 	if ra.Device != nil {
 		switch {
-		case app.Type != TypeOutput:
-			errs.add("%s.device: only an output has it; put it under [outputs.<id>]", at)
+		case app.Type == TypeApp:
+			errs.add("%s.device: only an input or output has it; put it under [inputs.<id>] or [outputs.<id>]", at)
 		case *ra.Device != DeviceDefault:
 			errs.add("%s.device: %q is not valid (use %q)", at, *ra.Device, DeviceDefault)
 		default:
 			app.Device = *ra.Device
 		}
 	}
-	if ra.Match == nil && app.Type != TypeOutput {
+	if ra.Match == nil && app.Type == TypeApp {
 		errs.add("%s.match: missing; list at least one name fragment", at)
 	}
 	if ra.Match != nil {
@@ -488,7 +488,7 @@ var targetSettings = map[string]string{
 	"match":            "an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]",
 	"max_volume":       "an app, input or output setting, not a control; put it under [apps.<id>], [inputs.<id>] or [outputs.<id>]",
 	"talk_over_volume": "an input setting, not a control; put it under [inputs.<id>]",
-	"device":           "an output setting, not a control; put it under [outputs.<id>]",
+	"device":           "an input or output setting, not a control; put it under [inputs.<id>] or [outputs.<id>]",
 	"player":           "an output setting, not a control; put it under [outputs.<id>]",
 	"type":             "an app setting, not a control; put it under [apps.<id>]",
 }

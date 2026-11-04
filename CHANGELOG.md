@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Inputs can follow the desktop's default microphone with `device = "default"`.
+  Mute follows the control; volume stays with the microphone until the control moves.
+  Switching microphones ends held button states, so hold-to-talk needs a fresh press.
+  The first control owns overlapping input selections; late server restores on new
+  microphones are defended without changing the saved mute (INPUT-09, CFG-20, #221).
 - `player` on a fixed output (`[outputs.<id>]` with `match`): name fragments of the
   media players whose sound goes there, for a player that sends its sound into an
   output of its own. R on that column then plays and pauses them by default, and its

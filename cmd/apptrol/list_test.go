@@ -67,6 +67,43 @@ func TestCFG10_ListShowsNamesAndControls(t *testing.T) {
 	}
 }
 
+// Both list forms use the server's default input and show only the control
+// that owns an overlapping selection (INPUT-09, LAUNCH-16, ADR 0038).
+func TestINPUT09_ListShowsDefaultInputOwner(t *testing.T) {
+	path := writeConfig(t, `
+[inputs.mic]
+name = "Microphone"
+device = "default"
+[inputs.fixed]
+match = ["test-mic-b"]
+[layouts.default]
+slider1 = "mic"
+slider8 = "fixed"
+`)
+	listing := &pulse.Listing{
+		DefaultSource: "test-mic-b",
+		Sources: []pulse.SourceInfo{
+			{Device: mixer.Device{Name: "test-mic-a", Description: "Test mic A"}},
+			{Device: mixer.Device{Name: "test-mic-b", Description: "Test mic B"}},
+		},
+	}
+	for _, section := range []listSection{sectionAll, sectionInputs} {
+		var out bytes.Buffer
+		if err := cmdListSection(path, &out, func() (*pulse.Listing, error) { return listing, nil }, section); err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, line := range strings.Split(out.String(), "\n") {
+			if strings.Contains(line, "test-mic-b") && strings.Contains(line, "(default)") && strings.Contains(line, "slider1 (Microphone)") {
+				found = true
+			}
+		}
+		if !found || strings.Contains(out.String(), "slider8") {
+			t.Errorf("section %d: default input owner missing or yielding control shown:\n%s", section, &out)
+		}
+	}
+}
+
 // Output devices are listed with description, name and volume, and * marks
 // the system's default output (OUT-12, ADR 0027).
 func TestOUT12_ListShowsOutputDevices(t *testing.T) {
