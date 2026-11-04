@@ -60,14 +60,22 @@ var t3Granted = []string{
 
 // t3MustAsk are T3 tools that must keep asking, kept here on its own so adding one
 // to t3Granted and both files together still fails: mixed tools, deleting,
-// scheduling, secrets, the owner's screen and devices, browser actions and T3
-// settings (QA-15, ADR 0040).
+// scheduling, secrets, T3 settings, the owner's screen and devices, browser actions
+// and attachments. It follows T3's tool list as of 2026-11-04 (QA-15, ADR 0040).
 var t3MustAsk = []string{
 	"t3_thread_configure", "t3_pending_request", "t3_thread_transfer",
 	"t3_project_create", "t3_project_clone", "t3_project_update", "t3_project_delete",
 	"schedule_task", "run_scheduled_task_now", "delete_scheduled_task",
-	"request_secret", "device_open", "device_screenshot", "preview_act", "preview_evaluate",
-	"t3_environment_preferences_update", "write_pull_request_guides",
+	"request_secret", "t3_environment_preferences_update", "write_pull_request_guides",
+	// devices and the owner's screen
+	"device_list", "device_open", "device_close", "device_screenshot",
+	// browser actions
+	"preview_open", "preview_navigate", "preview_act", "preview_evaluate", "preview_dialog",
+	"preview_resize", "preview_set_appearance", "preview_snapshot", "preview_wait_for",
+	"preview_recording_start", "preview_recording_stop", "t3_preview_close",
+	"html_preview", "html_render",
+	// attachments
+	"t3_attachment_prepare_upload", "t3_attachment_discard", "t3_thread_send_attachments",
 }
 
 // vibeToolConfig holds only the fields this project sets. Any other key fails the
