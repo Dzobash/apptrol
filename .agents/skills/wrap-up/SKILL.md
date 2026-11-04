@@ -23,7 +23,7 @@ issues.
 ```bash
 git status --short --branch                      # uncommitted changes, unpushed commits
 git fetch --prune origin
-git branch -vv                                   # local branches; "gone" = deleted on GitHub (not proof of a merge)
+git branch --list -vv                            # local branches; "gone" = deleted on GitHub (not proof of a merge)
 git worktree list                                # .worktrees/, .claude/worktrees/, ~/.t3/worktrees/apptrol/
 ```
 

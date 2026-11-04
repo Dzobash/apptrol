@@ -1,7 +1,8 @@
-# Container runner test cases
+# Developer permission and container runner test cases
 
-These developer checks exercise the runner's restrictions without changing the
-installed service. Real systemd checks use the fixture in `test/container/valid.toml`.
+These developer checks exercise agent permissions and the runner's restrictions
+without changing the installed service. Real systemd checks use the fixture in
+`test/container/valid.toml`.
 
 ### TC-QA-001 — Recipe flags and environment cannot widen container access
 
@@ -10,12 +11,12 @@ Config: none (developer tool check)
 Type: Automated
 Test: `TestQA16_RecipeMountsEnvironmentAndFlags`, `TestQA16_BadRecipesRefused`, `TestQA16_SymlinkRecipeRefused`
 
-### TC-QA-002 — Both agents block typed container commands
+### TC-QA-002 — Agent configurations block typed container commands
 
 Covers: QA-15, QA-16 · Phase 1.6
 Config: none (developer tool check)
 Type: Automated
-Test: `TestQA16_ContainerCommandsBlocked`, `TestQA15_DenyParity`
+Test: `TestQA16_ContainerCommandsBlocked`, `TestQA15_DenyParity`, `TestQA15_VibeSharedPolicy`
 
 ### TC-QA-003 — Rootless systemd reports each Status transition
 
@@ -135,3 +136,13 @@ Test: `TestQA16_RunsDefaultIsOneRunPerDistro`, `TestQA16_RunsRepeatsEachDistro`,
 
 **Result:** Pass / Fail / Blocked
 **Notes:** Record the wall time and the `jobs=` value, to estimate a RUNS=300 call (docs/testing.md › Collecting the #172 evidence).
+
+### TC-QA-008 — Agent permissions keep asking before changes
+
+Covers: QA-15 · Phase 1.6
+Config: none (developer tool check)
+Type: Automated
+Test: `TestQA15_AgentCommandListsMatch`, `TestQA15_ChangesOutsideTheCheckoutAsk`, `TestQA15_VibeSharedPolicy`, `TestQA15_RequiredReadersAndSandboxScope`, `TestQA15_NoBranchSwitchBeforeADelete`, `TestQA15_MustAskRejectsBroadAndNarrowAllows`, `TestQA15_ExactT3Grants`, `TestQA15_MalformedVibeConfig`
+
+File checks only: no GitHub change, container or service runs, and they do not show
+that an installed tool loaded the files.

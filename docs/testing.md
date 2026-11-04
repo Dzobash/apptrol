@@ -48,8 +48,14 @@ The Packaging job has no path filter: the ruleset on `main` wants its checks on 
 pull request, and a skipped job would count as missing. `go test ./packaging` also keeps
 the MIT text in `packaging/debian/copyright` equal to `LICENSE` (NFR-09); it runs in the
 Test job. So does `go test ./internal/repocheck`, which keeps the command lists for
-Claude Code and Codex equal and checks that both ask before pushing or changing GitHub
-(QA-15), including the blocks on typed container commands. QA-16 tests invoke the
+Claude Code and Codex equal and checks that Vibe's file allows the same commands plus
+Vibe's own readers (QA-15). Lists kept in the test itself make every file ask before
+pushing or changing GitHub (also `gh cache delete` and all of `gh api`, and no broader
+or narrower allow may cover them), block typed container commands, keep Vibe's deny
+defaults and grant only the named T3 tools, never one from a must-ask list. These check the files, not that
+an installed tool loaded them
+([ADR 0040](adr/0040-where-agent-rules-live.md#permission-configuration--2026-11-04)).
+QA-16 tests invoke the
 real Make target against a fake Podman, checking mounts, environment isolation,
 hostile flags and rejected recipe names, and, in a real Git repository, that a
 checkout's own `core.fsmonitor` never runs and another repository is refused. They do

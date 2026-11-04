@@ -966,8 +966,10 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   writes the `runs.log` line for runs and clean-ups alike; the clean-up's is
   `recipe=@clean` (QA-18). `internal/repocheck`
   tests the runner with a fake Podman, the summary with synthetic audit records,
-  and the workflow's boundary and failure handling, and keeps both
-  agents' allow, ask and block lists equal (QA-15, QA-16, QA-17, QA-18, ADR 0034). See
+  and the workflow's boundary and failure handling. It also keeps the agents'
+  permission files in step: Claude Code's and Codex's lists equal, Vibe's the same
+  commands plus its own readers, and the asks and blocks shared (QA-15, QA-16, QA-17,
+  QA-18, ADR 0034, ADR 0040). See
   [rootless container checks](testing.md#rootless-container-checks),
   [package installs](testing.md#package-installs) and
   [clean-up](testing.md#clean-up-of-kept-failed-runs).

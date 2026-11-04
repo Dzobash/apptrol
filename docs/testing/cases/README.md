@@ -69,7 +69,7 @@ leave audio muted or too loud come first.
 | LAUNCH | [launch.md](launch.md) | Launcher buttons and the lock screen *(Phase 1.5)* |
 | INPUT | [input.md](input.md) | Default microphone switching, held buttons, talk-over and ownership *(Phase 1.6 follow-up)* |
 | NFR | `nfr.md` | Package descriptions, copyright and license texts |
-| QA | [qa.md](qa.md) | Container restrictions, audit records and real systemd checks |
+| QA | [qa.md](qa.md) | Agent permissions, container restrictions, audit records and real systemd checks |
 | OUT | [out.md](out.md) | Output devices: listing, volume, the default output, M, S and R on output columns *(Phase 1.6)* |
 
 The area files are added in the pull requests that turn the old

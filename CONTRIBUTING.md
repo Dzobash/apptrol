@@ -92,7 +92,7 @@ Repository settings that support this (**Settings → General → Pull Requests*
 *automatically delete head branches*. A ruleset on `main` requires pull requests and a
 green CI (QA-02).
 
-Coding agents follow [AGENTS.md](AGENTS.md) on top of these steps: reviews
+Coding agents follow [AGENTS.md](AGENTS.md) on top of these steps: local reviews before pushing
 ([Review](AGENTS.md#review)), asking before a push and draft pull requests
 ([Publish](AGENTS.md#publish)), and deleting a merged branch, also in a worktree
 ([Clean up](AGENTS.md#clean-up)).
@@ -167,7 +167,7 @@ Project layout:
 | `internal/logging/` | Log outputs and formats |
 | `internal/logattr/` | Log attribute names and error types (ADR 0016) |
 | `internal/version/` | Build information (set at link time) |
-| `internal/repocheck/` | Tests for agent command-list parity and container restrictions (QA-15, QA-16) |
+| `internal/repocheck/` | Tests for shared agent permissions, native safety restrictions and container restrictions (QA-15, QA-16) |
 | `test/container/` | Rootless container runner, distro images, limit and Status checks (QA-16) |
 | `.audit/recipes/`, `.audit/runs.log` | Reviewed container recipes and one record per attempt; committed |
 | `.audit/logs/`, `.tmp/` | Local failure logs and writable container workspaces; ignored |

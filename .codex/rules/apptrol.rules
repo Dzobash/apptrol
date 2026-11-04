@@ -1,6 +1,6 @@
 # Commands Codex may run without asking, from AGENTS.md › Boundaries › Commands
-# you may run yourself. .claude/settings.json holds the same list for
-# Claude Code; change both together (QA-15). A rule matches how a command starts,
+# you may run yourself. .claude/settings.json and .vibe/config.toml hold the shared
+# policy for other agents; change all three together (QA-15). A rule matches how a command starts,
 # whatever arguments follow. These rules decide what runs outside Codex's sandbox;
 # they load only when the project is trusted in Codex, at Codex's start.
 
@@ -24,7 +24,9 @@ prefix_rule(pattern = ["gh", "pr", "status"], decision = "allow")
 prefix_rule(pattern = ["gh", ["search", "status"]], decision = "allow")
 prefix_rule(pattern = ["gh", "run", ["list", "view", "watch"]], decision = "allow")
 prefix_rule(pattern = ["gh", "release", ["list", "view"]], decision = "allow")
-prefix_rule(pattern = ["gh", "repo", "view"], decision = "allow")
+prefix_rule(pattern = ["gh", "repo", ["view", "list"]], decision = "allow")
+prefix_rule(pattern = ["gh", "ruleset", ["list", "view", "check"]], decision = "allow")
+prefix_rule(pattern = ["gh", "cache", "list"], decision = "allow")
 prefix_rule(pattern = ["gh", "label", "list"], decision = "allow")
 prefix_rule(pattern = ["gh", "workflow", ["list", "view"]], decision = "allow")
 # Shell readers (grep, cat, ls, find, …) are not listed: they run in Codex's sandbox,
@@ -38,12 +40,10 @@ prefix_rule(pattern = ["make", ["check", "test-audio", "test-systemd", "test-ins
 prefix_rule(pattern = [["docker", "podman", "buildah"]], decision = "forbidden")
 
 # Git. Branches are listed here, created with git switch -c; deleting, renaming and
-# copying ask. A rule sees only the switch right after "git branch".
-prefix_rule(
-    pattern = ["git", "branch", ["--list", "--show-current", "-a", "-r", "-v", "-vv",
-                                 "--merged", "--no-merged", "--contains"]],
-    decision = "allow",
-)
+# copying ask. A rule sees only the switch right after "git branch", and git still
+# deletes after -v, -vv or -r (git branch -v -d x), so only switches that refuse a
+# later -d are allowed; use git branch --list -vv, --list --merged, … (QA-15).
+prefix_rule(pattern = ["git", "branch", ["--list", "--show-current", "-a"]], decision = "allow")
 prefix_rule(pattern = ["git", ["switch", "pull", "add", "commit"]], decision = "allow")
 prefix_rule(
     pattern = ["git", "branch", ["-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C",
@@ -64,7 +64,10 @@ prefix_rule(
     decision = "prompt",
 )
 prefix_rule(pattern = ["gh", "run", ["rerun", "cancel", "delete"]], decision = "prompt")
+# Even an explicit GET prefix could be followed by flags that change the method.
+# Keep all of gh api gated (QA-15, ADR 0040).
 prefix_rule(pattern = ["gh", ["api", "secret", "variable"]], decision = "prompt")
+prefix_rule(pattern = ["gh", "cache", "delete"], decision = "prompt")
 prefix_rule(
     pattern = ["gh", "release", ["create", "edit", "upload", "download", "delete", "delete-asset"]],
     decision = "prompt",
