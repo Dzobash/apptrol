@@ -139,8 +139,18 @@ Verified integration names:
   No partial `.codex/config.toml` is added. The concrete
   [host merge snippet](https://github.com/Dzobash/apptrol/blob/main/.codex/t3-mcp-policy.toml.example)
   targets that function's `config["mcp_servers.t3-code"]`: merge its policy fields
-  after the host supplies transport/authentication. It is **unapplied**, and its
-  documented schema has not been validated against the installed Codex runtime.
+  after the host supplies transport/authentication. It is **unapplied**. A local
+  Codex 0.166.0 `initialize` / `config/read` check accepted the complete policy with
+  fixture connection details: all eleven readers were preapproved, other tools
+  defaulted to prompting, and the URL, headers and disabled-tool list were retained.
+  No model requests were made. This validates native configuration loading, not
+  the running T3 integration or a rebuilt application.
+
+  Ordinary launch arguments do not apply this policy reliably: a policy-only
+  server fails transport validation, and T3's later whole-server override discards
+  a policy placed in the same CLI override layer. The native configuration check
+  reproduced that loss. The policy must accompany the server object supplied by
+  T3's adapter; it cannot be installed by editing Apptrol's prefix rules.
 
 Project grants are not a host permission cap. At the source checked on this date,
 T3's Claude adapter also injects a broader MCP preapproval for writable sandboxes;
