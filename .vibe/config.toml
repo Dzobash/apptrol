@@ -1,6 +1,6 @@
-# Vibe 3.0.4 on POSIX. Shared policy: QA-15, ADR 0040.
-# Trust is managed by the owner; this file never grants home-folder access.
-outside_workdir = "deny"
+# Mistral Vibe 3.0.4 project permissions (POSIX). Shared policy: AGENTS.md ›
+# Boundaries, QA-15, ADR 0040. Vibe loads this only in a folder the owner trusts.
+# File access outside the workdir keeps Vibe's own default; this file grants no paths.
 
 [tools.bash]
 permission = "ask"

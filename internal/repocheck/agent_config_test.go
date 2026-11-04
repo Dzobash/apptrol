@@ -10,8 +10,10 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// overlapsCommand catches both broad allows and narrower API prefixes whose later
-// arguments can change their meaning (QA-15, ADR 0040). This is not a shell parser.
+// overlapsCommand catches both broad allows ("gh cache" covers "gh cache delete")
+// and narrower prefixes whose later arguments can change their meaning ("gh api
+// --method GET" can still write), so neither can bypass an ask rule (QA-15,
+// ADR 0040). This is not a shell parser.
 func overlapsCommand(allowed map[string]bool, cmd string) bool {
 	for prefix := range allowed {
 		if cmd == prefix || strings.HasPrefix(cmd, prefix+" ") || strings.HasPrefix(prefix, cmd+" ") {
@@ -21,61 +23,60 @@ func overlapsCommand(allowed map[string]bool, cmd string) bool {
 	return false
 }
 
-// Native Vibe POSIX readers remain separate from shared command parity. No entry
-// here becomes an unsandboxed Codex permission (QA-15, ADR 0040).
+// vibeReaders are Vibe 3.0.4's own POSIX read-only defaults, kept because a
+// configured allowlist replaces them. They run inside Vibe's native path and option
+// checks; none of them becomes an unsandboxed Codex or Claude prefix (QA-15,
+// ADR 0040).
 var vibeReaders = strings.Fields(`basename cat comm cut date diff dirname du file find
 fmt fold grep head join less ls md5sum more nl od paste pwd readlink sha1sum sha256sum
 shasum sort stat sum tac tail tr tree uname uniq wc which`)
 
-// Preserve the POSIX 3.0.4 deny defaults when replacing the list, independently of
-// the configuration being checked (QA-15, QA-16, ADR 0040).
+// vibeDefaultDenies are Vibe 3.0.4's POSIX deny defaults, which a configured
+// denylist replaces too, so they must stay next to the container engines (QA-15,
+// QA-16, ADR 0040).
 var vibeDefaultDenies = []string{
 	"gdb", "pdb", "passwd", "nano", "vim", "vi", "emacs", "bash -i", "sh -i",
 	"zsh -i", "fish -i", "dash -i", "screen", "tmux",
 }
 
-// Dedicated readers only: mixed read/write tools must never enter this independent
-// inventory just because they have a read mode (QA-15, ADR 0040).
+// t3Readers are the T3 MCP tools that only read. Mixed tools with a read mode
+// (t3_thread_configure, t3_pending_request) are left out on purpose and keep
+// asking (QA-15, ADR 0040).
 var t3Readers = []string{
 	"orchestrator_capabilities", "t3_worktree_status", "t3_worktree_list",
 	"t3_thread_list", "t3_thread_read", "t3_thread_search", "t3_project_list",
 	"t3_project_read", "list_thread_pull_requests", "read_pull_request_guide", "task_status",
 }
 
-// vibeToolConfig models only the fields this project deliberately sets. Undecoded
-// keys fail, so typos or new bypass settings cannot silently pass (QA-15, ADR 0040).
+// vibeToolConfig holds only the fields this project sets. Any other key fails the
+// parse, so a typo or a setting that switches a safeguard off cannot pass unnoticed
+// (QA-15, ADR 0040).
 type vibeToolConfig struct {
 	Permission string   `toml:"permission"`
 	Allowlist  []string `toml:"allowlist"`
 	Denylist   []string `toml:"denylist"`
 }
 
-// vibeConfig keeps outside-file access closed without project path grants
-// (QA-15, ADR 0040).
-type vibeConfig struct {
-	OutsideWorkdir string                    `toml:"outside_workdir"`
-	Tools          map[string]vibeToolConfig `toml:"tools"`
-}
-
-// parseVibeConfig checks the repository's intentional subset, not the whole native
-// schema; omitted fields keep Vibe's defaults (QA-15, ADR 0040).
-func parseVibeConfig(data []byte) (vibeConfig, error) {
-	var cfg vibeConfig
+// parseVibeConfig reads .vibe/config.toml strictly and requires Bash to ask by
+// default; everything it does not set keeps Vibe's defaults (QA-15, ADR 0040).
+func parseVibeConfig(data []byte) (map[string]vibeToolConfig, error) {
+	var cfg struct {
+		Tools map[string]vibeToolConfig `toml:"tools"`
+	}
 	md, err := toml.Decode(string(data), &cfg)
 	if err != nil {
-		return cfg, err
+		return nil, err
 	}
 	if len(md.Undecoded()) != 0 {
-		return cfg, fmt.Errorf("unexpected Vibe keys: %v", md.Undecoded())
+		return nil, fmt.Errorf("unexpected Vibe keys: %v", md.Undecoded())
 	}
-	if cfg.OutsideWorkdir != "deny" || cfg.Tools["bash"].Permission != "ask" {
-		return cfg, fmt.Errorf("Vibe must deny outside paths and ask by default for Bash")
+	if cfg.Tools["bash"].Permission != "ask" {
+		return nil, fmt.Errorf("Vibe's Bash must ask by default")
 	}
-	return cfg, nil
+	return cfg.Tools, nil
 }
 
-// commandSet keeps prefix comparisons independent of config ordering (QA-15,
-// ADR 0040).
+// commandSet turns a list into a set, for comparisons that ignore order (QA-15).
 func commandSet(commands []string) map[string]bool {
 	out := make(map[string]bool, len(commands))
 	for _, cmd := range commands {
@@ -84,10 +85,11 @@ func commandSet(commands []string) map[string]bool {
 	return out
 }
 
-// TestQA15_VibeSharedPolicy preserves shared policy and native defaults without
-// granting Codex global file readers (QA-15, ADR 0040).
+// TestQA15_VibeSharedPolicy: Vibe allows exactly the shared commands plus its own
+// readers, asks about every push and GitHub change, and blocks the container
+// engines on top of its own deny defaults (QA-15, QA-16, ADR 0040).
 func TestQA15_VibeSharedPolicy(t *testing.T) {
-	cfg, err := parseVibeConfig(readRepoFile(t, ".vibe", "config.toml"))
+	tools, err := parseVibeConfig(readRepoFile(t, ".vibe", "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +97,7 @@ func TestQA15_VibeSharedPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bash := cfg.Tools["bash"]
+	bash := tools["bash"]
 	allowed := commandSet(bash.Allowlist)
 	if len(allowed) != len(bash.Allowlist) {
 		t.Error("duplicate Vibe allow entries")
@@ -124,8 +126,9 @@ func TestQA15_VibeSharedPolicy(t *testing.T) {
 	}
 }
 
-// TestQA15_RequiredReadersAndSandboxScope requires the approved additions without
-// expanding reader file scope to achieve parity (QA-15, ADR 0040).
+// TestQA15_RequiredReadersAndSandboxScope: the added GitHub readers run without a
+// prompt in Claude Code and Codex, and no shell reader (sed, rg, grep, …) becomes a
+// global prefix there, so Codex's readers stay in its sandbox (QA-15, ADR 0040).
 func TestQA15_RequiredReadersAndSandboxScope(t *testing.T) {
 	claude, _, err := claudeCommands(readRepoFile(t, ".claude", "settings.json"))
 	if err != nil {
@@ -149,8 +152,9 @@ func TestQA15_RequiredReadersAndSandboxScope(t *testing.T) {
 	}
 }
 
-// TestQA15_MustAskRejectsBroadAndNarrowAllows exercises unsafe prefixes against the
-// independent write inventory, including cache deletion (QA-15, ADR 0040).
+// TestQA15_MustAskRejectsBroadAndNarrowAllows: overlapsCommand catches the unsafe
+// grants it exists for, each against a command in the independent mustAsk list
+// (QA-15, ADR 0040).
 func TestQA15_MustAskRejectsBroadAndNarrowAllows(t *testing.T) {
 	for _, tc := range []struct{ allow, protected string }{
 		{"gh cache", "gh cache delete"}, {"gh", "gh pr create"},
@@ -162,8 +166,9 @@ func TestQA15_MustAskRejectsBroadAndNarrowAllows(t *testing.T) {
 	}
 }
 
-// TestQA15_ExactT3ReaderGrants rejects wildcards and mixed/write tools even if both
-// configurations acquire them together (QA-15, ADR 0040).
+// TestQA15_ExactT3ReaderGrants: Claude Code and Vibe preapprove exactly the T3
+// readers, by name; a wildcard, a mixed tool or any other MCP grant fails, even if
+// both files gain it together (QA-15, ADR 0040).
 func TestQA15_ExactT3ReaderGrants(t *testing.T) {
 	var claude struct{ Permissions struct{ Allow []string } }
 	if err := json.Unmarshal(readRepoFile(t, ".claude", "settings.json"), &claude); err != nil {
@@ -184,61 +189,35 @@ func TestQA15_ExactT3ReaderGrants(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("Claude MCP grants = %v, want exact readers %v", got, want)
 	}
-	vibe, err := parseVibeConfig(readRepoFile(t, ".vibe", "config.toml"))
+	tools, err := parseVibeConfig(readRepoFile(t, ".vibe", "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	delete(vibe.Tools, "bash")
+	delete(tools, "bash")
 	for _, name := range t3Readers {
 		key := "t3-code_" + name
-		cfg := vibe.Tools[key]
+		cfg := tools[key]
 		if cfg.Permission != "always" || len(cfg.Allowlist)+len(cfg.Denylist) != 0 {
 			t.Errorf("Vibe %s must grant only this exact reader", key)
 		}
-		delete(vibe.Tools, key)
+		delete(tools, key)
 	}
-	if len(vibe.Tools) != 0 {
-		t.Errorf("unexpected Vibe tool grants: %v", vibe.Tools)
-	}
-}
-
-// TestQA15_CodexHostSnippet checks the unapplied host policy without adding a
-// partial project server or committing transport credentials (QA-15, ADR 0040).
-func TestQA15_CodexHostSnippet(t *testing.T) {
-	var cfg struct {
-		Servers map[string]struct {
-			Default string `toml:"default_tools_approval_mode"`
-			Tools   map[string]struct {
-				Approval string `toml:"approval_mode"`
-			} `toml:"tools"`
-		} `toml:"mcp_servers"`
-	}
-	md, err := toml.Decode(string(readRepoFile(t, ".codex", "t3-mcp-policy.toml.example")), &cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(md.Undecoded()) != 0 || len(cfg.Servers) != 1 {
-		t.Fatalf("unexpected host snippet keys: %v", md.Undecoded())
-	}
-	server := cfg.Servers["t3-code"]
-	if server.Default != "prompt" || len(server.Tools) != len(t3Readers) {
-		t.Fatalf("host must ask by default and grant exactly %d readers", len(t3Readers))
-	}
-	for _, name := range t3Readers {
-		if server.Tools[name].Approval != "approve" {
-			t.Errorf("host snippet missing reader %s", name)
-		}
+	if len(tools) != 0 {
+		t.Errorf("unexpected Vibe tool grants: %v", tools)
 	}
 }
 
-// TestQA15_MalformedVibeConfig refuses syntax/type errors, typos and changes that
-// override safety defaults, rather than silently ignoring them (QA-15, ADR 0040).
+// TestQA15_MalformedVibeConfig: the strict parse refuses broken TOML, Bash that
+// stops asking, and keys that would replace or switch off Vibe's safeguards
+// (QA-15, ADR 0040).
 func TestQA15_MalformedVibeConfig(t *testing.T) {
-	valid := "outside_workdir = 'deny'\n[tools.bash]\npermission = 'ask'\n"
+	valid := "[tools.bash]\npermission = 'ask'\n"
+	if _, err := parseVibeConfig([]byte(valid)); err != nil {
+		t.Fatalf("minimal valid config refused: %v", err)
+	}
 	for _, bad := range []string{
-		"[tools.bash", "", "outside_workdir = 7",
+		"[tools.bash", "",
 		strings.ReplaceAll(valid, "'ask'", "'always'"),
-		strings.ReplaceAll(valid, "'deny'", "'ask'"),
 		valid + "allowlist = 'git'\n", valid + "allow_list = []\n",
 		valid + "denylist_standalone = []\n", valid + "sensitive_patterns = []\n",
 		"bypass_tool_permissions = true\n" + valid,

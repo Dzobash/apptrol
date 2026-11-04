@@ -73,93 +73,48 @@ PRs and CI remain. The shared workflow lives in
 
 ## Permission configuration — 2026-11-04
 
-The owner approved compact read-only pipelines, missing GitHub readers, Vibe project
-permissions and exact T3 reader grants. Shared wording remains about agents in
-general; provider syntax belongs in settings. Subscription plans are not policy.
+The owner wanted fewer needless prompts without widening what agents may do. Decided:
 
-```text
-AGENTS.md: every component, argument and path must be authorized
-  ├─ Claude settings (also consumed by trusted Grok): shared commands + exact MCP names
-  ├─ Codex rules: shared commands; native readers retain sandbox scope
-  └─ Vibe config: shared commands + native readers; Bash ask, outside paths deny
-T3 host: injected server/approvals → separate host policy, not a project transport
+```
+short read-only pipelines   allowed when every part is on the list (AGENTS.md)
+gh repo list, gh ruleset    allowed in all three files
+  list/view/check,
+  gh cache list
+gh cache delete, gh api     ask; a prefix cannot tell gh api's reads from writes
+Mistral Vibe                .vibe/config.toml: shared commands + Vibe's own readers
+T3 read-only tools          granted by exact name for Claude Code and Vibe
 ```
 
-`head`, `grep`, `tail`, `wc` and `sed` print/range filtering do not need global
-unsandboxed prefixes. `sed -n` can still write or execute; shell redirections and
-write expressions are outside the read-only policy. Each component of a simple
-Codex chain is evaluated separately; a leading allowed `git diff` does not approve
-the rest. Prefix grants still cannot constrain every later flag. In particular,
-all `gh api` stays gated, including explicit GET prefixes. The installed GitHub
-CLI's cache commands are `list` and `delete`; only `list` is preapproved.
+- **Shell readers stay native.** `head`, `grep`, `sed` and the like get no global
+  prefix in the Claude or Codex files; in Codex they keep running in its sandbox.
+  `sed -n` can still write or run commands (`w`, `e`), so it is no read-only prefix.
+  Codex checks each part of a simple chain on its own, so an allowed `git diff` at the
+  start does not allow what follows.
+- **Vibe 3.0.4.** Its
+  [Bash tool](https://github.com/mistralai/mistral-vibe/blob/v3.0.4/vibe/core/tools/builtins/bash.py)
+  requires every part of a command to match and replaces its default lists with the
+  configured ones. So the file repeats Vibe's POSIX readers and deny defaults and adds
+  `docker`, `podman` and `buildah`. It leaves everything else at Vibe's defaults,
+  including access outside the workdir, `denylist_standalone` and
+  `sensitive_patterns`, and grants no paths. The
+  [project loader](https://github.com/mistralai/mistral-vibe/blob/v3.0.4/vibe/core/config/layers/project.py)
+  reads it only in a trusted folder.
+- **T3 readers:** `orchestrator_capabilities`, `t3_worktree_status`,
+  `t3_worktree_list`, `t3_thread_list`, `t3_thread_read`, `t3_thread_search`,
+  `t3_project_list`, `t3_project_read`, `list_thread_pull_requests`,
+  `read_pull_request_guide` and `task_status`. Claude Code names them
+  `mcp__t3-code__<tool>`, Vibe `t3-code_<tool>` (T3's server alias, then the tool). No
+  wildcard, and no mixed tool that also writes (`t3_thread_configure`,
+  `t3_pending_request`).
 
-Vibe 3.0.4 was checked with `vibe --version`. Its
-[Bash implementation](https://github.com/mistralai/mistral-vibe/blob/v3.0.4/vibe/core/tools/builtins/bash.py)
-splits command parts, requires every part to match, checks outside paths before
-unconditional approval and replaces configured lists. The project preserves the
-POSIX reader list and all POSIX deny defaults, adds the container-engine denies,
-and leaves `denylist_standalone` and `sensitive_patterns` unset. It grants no home
-paths. `outside_workdir = "deny"` is deliberately conservative: sibling worktrees
-and private notes do not automatically become accessible. Native readers still
-have options that write or execute; the agent must follow AGENTS.md's arguments
-rule, and Vibe's native path/option checks remain enabled. No custom shell parser
-or classifier is added. The
-[project loader](https://github.com/mistralai/mistral-vibe/blob/v3.0.4/vibe/core/config/layers/project.py)
-requires trust; global trust and credentials were not inspected or changed.
+Limits:
 
-### Exact T3 readers
-
-The grants are `orchestrator_capabilities`, `t3_worktree_status`,
-`t3_worktree_list`, `t3_thread_list`, `t3_thread_read`, `t3_thread_search`,
-`t3_project_list`, `t3_project_read`, `list_thread_pull_requests`,
-`read_pull_request_guide` and `task_status`. Thread/project reads must still obey
-the task's scope and privacy rules. No mixed tool is included, even if it has a
-read-only mode.
-
-Verified integration names:
-
-- Claude: `mcp__t3-code__<tool>`, from T3's
-  [Claude adapter](https://github.com/pingdotgg/t3code/blob/main/apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts)
-  (`claudeMcpQueryOverrides`, server key `t3-code`). Grok consumes the shared
-  settings; no separate Grok config is added. Its MCP matching was not exercised.
-- Vibe: `[tools."t3-code_<tool>"]`, `permission = "always"`. T3's
-  [ACP adapter](https://github.com/pingdotgg/t3code/blob/main/packages/provider-acp/src/server/adapter.ts)
-  supplies alias `t3-code`; Vibe's
-  [ACP projection](https://github.com/mistralai/mistral-vibe/blob/v3.0.4/vibe/acp/agent.py)
-  preserves that name, and its
-  [MCP proxies](https://github.com/mistralai/mistral-vibe/blob/v3.0.4/vibe/core/tools/mcp/tools.py)
-  publish `<alias>_<remote.name>`. Other MCP tools keep the native ask default.
-- Codex: the named config key is `mcp_servers.t3-code`, not the normalized model
-  tool prefix `mcp__t3_code__`. The official
-  [MCP configuration](https://developers.openai.com/codex/mcp/)
-  documents `default_tools_approval_mode = "prompt"` with per-tool
-  `approval_mode = "approve"`. A project MCP server needs a transport definition;
-  T3's [Codex adapter](https://github.com/pingdotgg/t3code/blob/main/apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts)
-  supplies session URL and authentication at runtime in `codexThreadRuntimeParams`.
-  No partial `.codex/config.toml` is added. The concrete
-  [host merge snippet](https://github.com/Dzobash/apptrol/blob/main/.codex/t3-mcp-policy.toml.example)
-  targets that function's `config["mcp_servers.t3-code"]`: merge its policy fields
-  after the host supplies transport/authentication. It is **unapplied**. A local
-  Codex 0.166.0 `initialize` / `config/read` check accepted the complete policy with
-  fixture connection details: all eleven readers were preapproved, other tools
-  defaulted to prompting, and the URL, headers and disabled-tool list were retained.
-  No model requests were made. This validates native configuration loading, not
-  the running T3 integration or a rebuilt application.
-
-  Ordinary launch arguments do not apply this policy reliably: a policy-only
-  server fails transport validation, and T3's later whole-server override discards
-  a policy placed in the same CLI override layer. The native configuration check
-  reproduced that loss. The policy must accompany the server object supplied by
-  T3's adapter; it cannot be installed by editing Apptrol's prefix rules.
-
-Project grants are not a host permission cap. At the source checked on this date,
-T3's Claude adapter also injects a broader MCP preapproval for writable sandboxes;
-the repository's exact grants alone cannot remove it. The Codex host merge and
-any restriction of host-injected grants remain host work. Do not switch permission
-modes globally to hide prompts: T3's
-[permission-mode guide](https://github.com/pingdotgg/t3code/blob/main/docs/user/permission-modes.md)
-distinguishes provider-native rules from T3's approval handling.
-
-QA-15 checks file policy with independent safety inventories, including cache
-deletion, platform denies and exact MCP readers. It does not claim runtime loading,
-trust, argument-level enforcement or host integration was tested.
+- **Codex** gets no T3 grants. Its MCP approvals live on the server entry, which T3
+  supplies at runtime with the connection details; a project file holding only the
+  approvals fails Codex's validation, and T3's own entry replaces it. So T3 tools in
+  Codex keep T3's approval behaviour. Changing that is T3's work, not this repository's.
+- **Host grants** are not capped by the project's: T3 may preapprove more for a
+  session itself.
+- **QA-15's tests check the files** (shared policy, asks, blocks, exact readers). They
+  do not show that an installed tool loaded them, and a prefix rule still does not
+  check arguments.

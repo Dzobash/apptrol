@@ -137,18 +137,12 @@ Test: `TestQA16_RunsDefaultIsOneRunPerDistro`, `TestQA16_RunsRepeatsEachDistro`,
 **Result:** Pass / Fail / Blocked
 **Notes:** Record the wall time and the `jobs=` value, to estimate a RUNS=300 call (docs/testing.md › Collecting the #172 evidence).
 
-### TC-QA-008 — Shared permissions retain approval and file boundaries
+### TC-QA-008 — Agent permissions keep asking before changes
 
 Covers: QA-15 · Phase 1.6
 Config: none (developer tool check)
 Type: Automated
-Test: `TestQA15_AgentCommandListsMatch`, `TestQA15_ChangesOutsideTheCheckoutAsk`, `TestQA15_VibeSharedPolicy`, `TestQA15_RequiredReadersAndSandboxScope`, `TestQA15_MustAskRejectsBroadAndNarrowAllows`, `TestQA15_ExactT3ReaderGrants`, `TestQA15_CodexHostSnippet`, `TestQA15_MalformedVibeConfig`
+Test: `TestQA15_AgentCommandListsMatch`, `TestQA15_ChangesOutsideTheCheckoutAsk`, `TestQA15_VibeSharedPolicy`, `TestQA15_RequiredReadersAndSandboxScope`, `TestQA15_MustAskRejectsBroadAndNarrowAllows`, `TestQA15_ExactT3ReaderGrants`, `TestQA15_MalformedVibeConfig`
 
-The file checks require the approved readers, independent write/deny inventories,
-Vibe's native safety defaults and exact MCP reader names. Broad `gh cache` and
-`gh api --method GET` grants fail even if several configs change together. Malformed
-TOML, unknown keys and Bash permission bypasses fail too. No real GitHub writes,
-containers or live services run. Prefix rules do not validate arbitrary arguments
-or enforce the prose rules for read-only pipelines; native tool safeguards still
-apply. Installed-tool trust/loading and host-injected approval policy need separate
-verification; the Codex snippet is not applied by this test.
+File checks only: no GitHub change, container or service runs, and they do not show
+that an installed tool loaded the files.

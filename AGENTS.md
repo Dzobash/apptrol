@@ -98,37 +98,33 @@ later fix:    new commit → local review rounds → push → draft PR + CI → 
   `projectTrusted` and how many rules it loaded (its `sources` line may name only the
   personal `.claude/settings.local.json`, but the count includes the shared file).
   Mistral Vibe (in T3 Code, over ACP) reads AGENTS.md only in a folder it trusts
-  (`~/.vibe/trusted_folders.toml`), and not `.claude/settings.json`. Its project config
-  targets Vibe 3.0.4: Bash asks by default, the shared commands and native readers
-  are allowed, and outside-workdir access is denied. Do not change global trust or
-  grant home-folder paths. A permitted sibling worktree or private-note read may
-  still need a tool's scoped access grant; policy permission does not bypass it.
-  Run commands from the checkout's workdir (no `cd … &&`, no `git -C`). Simple
-  read-only pipelines and short read-only combinations are permitted only when
-  **every component and argument** is authorized and every path stays within the
-  file-access boundaries above. For example:
+  (`~/.vibe/trusted_folders.toml`), and not `.claude/settings.json`; its
+  `.vibe/config.toml` (Vibe 3.0.4) lets the shared commands and Vibe's own readers
+  run and asks about the rest. Vibe's own file safeguards stay as they are; the file
+  grants no paths. Do not change any tool's global trust.
+  Run commands from the checkout's folder (no `cd … &&`, no `git -C`). A short
+  read-only pipeline or combination is fine when **every part and argument** is on
+  this list and every path stays inside the file boundaries above:
   ```text
-  git log -5 --oneline | head -n 3    each component reads; both must be permitted
-  git status --short; git diff --stat    two authorized reads in the same workdir
+  git log -5 --oneline | head -n 3        both parts read
+  git status --short; git diff --stat     two reads in the same folder
   ```
-  Compact `head`, `grep`, `tail`, `wc` and read-only `sed` print/range expressions
-  may filter authorized reads. Shell redirections and write expressions are not
-  covered by this permission. `sed` also writes or executes (`w`, `e`, `-i`), so
-  neither `sed` nor `sed -n` is a blanket allowlist entry. Keep native reader
-  sandboxing and file scope; do not add unsandboxed reader prefixes to Codex.
-  Never use wrappers to get around authorization. Prefer built-in limits (`git log
-  -5`, `gh … --limit`, `rg -n`) and a focused range over an entire file; avoid
-  decorative `echo` chains, duplicate reads and unnecessary calls.
-  `gh repo list`, `gh ruleset list/view/check` and `gh cache list` are readers;
-  `gh cache delete` asks. All of `gh api` asks: even a GET prefix cannot constrain
-  later flags. Arguments that write (for example `git diff --output`) still need
-  approval, whatever a prefix rule matches.
-  Dedicated T3 readers have exact named grants in the shared Claude settings and
-  Vibe config; no server-wide wildcard. Mixed tools (including
-  `t3_thread_configure` and `t3_pending_request`), edits, sends, launches,
-  delegation, scheduling and deletion stay outside those grants. Host-injected
-  approvals are separate; see [ADR 0040](docs/adr/0040-where-agent-rules-live.md#permission-configuration--2026-11-04)
-  for verified names and the Codex host policy snippet.
+  `head`, `grep`, `tail`, `wc` and `sed` printing a range (`sed -n '10,40p'`) may
+  filter such reads. Redirections (`>`) and writing expressions are not reads, and
+  `sed` can also write or run commands (`w`, `e`, `-i`), so neither `sed` nor
+  `sed -n` goes into a command list; in Codex these readers stay in its sandbox. Never
+  wrap a command to get around a rule. Prefer built-in limits (`git log -5`,
+  `gh … --limit`) and a focused range over a whole file, and skip calls that only
+  print decoration.
+  `gh repo list`, `gh ruleset list/view/check` and `gh cache list` read;
+  `gh cache delete` asks, and so does all of `gh api` (a prefix cannot stop a later
+  `-X POST`). Arguments that write (e.g. `git diff --output`) need approval whatever
+  a rule matches.
+  T3 Code's read-only tools (thread, project, worktree and task reads) are granted by
+  exact name in `.claude/settings.json` and `.vibe/config.toml`; every other T3 tool,
+  including the mixed `t3_thread_configure` and `t3_pending_request`, asks. Codex has
+  no project file T3 applies to its MCP tools, so in Codex they keep T3's own
+  approval behaviour ([ADR 0040](docs/adr/0040-where-agent-rules-live.md#permission-configuration--2026-11-04)).
   Before a command that does more than read, say in one or two sentences what you are
   doing and why; afterwards, explain the result: what passed, what failed and what it
   means. Pushing, opening a PR, creating issues and any other change on GitHub still
@@ -368,8 +364,6 @@ from one to another.
   | **GPT / Codex implements** | Claude **Sonnet 5.5** | Claude **Opus 5.5** |
   | **Mistral Vibe implements** | Claude **Sonnet 5.5** | Claude **Opus 5.5** |
   | **Claude Code implements** | GPT **6.1-Sol**; without it, **GLM-5.3** | GPT **6.1-Sol**; without it, **Mistral Large 4** |
-
-  The table's fallbacks apply when a reviewer is unavailable.
 
   **Routine:** docs, tests, small fixes. **Complex or important:** a change of
   behaviour, a release, anything touching audio, the controller, privacy or security.
