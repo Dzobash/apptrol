@@ -40,12 +40,10 @@ prefix_rule(pattern = ["make", ["check", "test-audio", "test-systemd", "test-ins
 prefix_rule(pattern = [["docker", "podman", "buildah"]], decision = "forbidden")
 
 # Git. Branches are listed here, created with git switch -c; deleting, renaming and
-# copying ask. A rule sees only the switch right after "git branch".
-prefix_rule(
-    pattern = ["git", "branch", ["--list", "--show-current", "-a", "-r", "-v", "-vv",
-                                 "--merged", "--no-merged", "--contains"]],
-    decision = "allow",
-)
+# copying ask. A rule sees only the switch right after "git branch", and git still
+# deletes after -v, -vv or -r (git branch -v -d x), so only switches that refuse a
+# later -d are allowed; use git branch --list -vv, --list --merged, … (QA-15).
+prefix_rule(pattern = ["git", "branch", ["--list", "--show-current", "-a"]], decision = "allow")
 prefix_rule(pattern = ["git", ["switch", "pull", "add", "commit"]], decision = "allow")
 prefix_rule(
     pattern = ["git", "branch", ["-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C",

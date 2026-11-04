@@ -54,7 +54,8 @@ command lists (AGENTS.md, QA-15). That did not work well:
    Agents run `make test-systemd` (the systemd check) or `make container-run
    RECIPE=<name>` (anything else). Both run without asking. With the script, typed
    `docker`, `podman` and `buildah` become blocked for agents in both command lists
-   (Claude Code `deny`, Codex `forbidden`). Needing a flag the script does not allow (a
+   (Claude Code `deny`, Codex `forbidden`); since 2026-11-04 also in Mistral Vibe's
+   `.vibe/config.toml` (`denylist`, ADR 0040). Needing a flag the script does not allow (a
    device, `--privileged`) means a pull request that changes the script: limits change
    in review, in git.
 

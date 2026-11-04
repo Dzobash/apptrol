@@ -174,6 +174,32 @@ func TestQA15_RequiredReadersAndSandboxScope(t *testing.T) {
 	}
 }
 
+// TestQA15_NoBranchSwitchBeforeADelete: a rule sees only the switch right after
+// "git branch", and git still deletes after -v, -vv or -r (`git branch -v -d x`);
+// --merged, --no-merged and --contains take a value, then the same. So none of
+// these may be allowed in any file; `git branch --list …` refuses -d (QA-15).
+func TestQA15_NoBranchSwitchBeforeADelete(t *testing.T) {
+	claude, _, err := claudeCommands(readRepoFile(t, ".claude", "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	codex, err := codexCommands(readRepoFile(t, ".codex", "rules", "apptrol.rules"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tools, err := parseVibeConfig(readRepoFile(t, ".vibe", "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	vibe := commandSet(tools["bash"].Allowlist)
+	for _, sw := range []string{"-v", "-vv", "-r", "--merged", "--no-merged", "--contains"} {
+		cmd := "git branch " + sw + " -d"
+		if overlapsCommand(claude.allow, cmd) || overlapsCommand(codex.allow, cmd) || overlapsCommand(vibe, cmd) {
+			t.Errorf("%q must ask: an allow rule covers it", cmd)
+		}
+	}
+}
+
 // TestQA15_MustAskRejectsBroadAndNarrowAllows: overlapsCommand catches the unsafe
 // grants it exists for, each against a command in the independent mustAsk list
 // (QA-15, ADR 0040).

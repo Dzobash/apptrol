@@ -94,7 +94,8 @@ T3 tools                    chosen groups granted by exact name for Claude Code
   start does not allow what follows. Claude Code does the same: its
   [permission docs](https://code.claude.com/docs/en/permissions#compound-commands)
   require every subcommand to be allowed, and an ask or deny rule applies when any
-  subcommand matches. How Grok matches a chain against `.claude/settings.json` was not
+  subcommand matches; `head`, `tail`, `grep` and `wc` are in its built-in read-only
+  set, so `git log -5 | head -n 3` runs without a prompt. How Grok matches a chain against `.claude/settings.json` was not
   checked, so Grok runs one command per call.
 - **Vibe 3.0.4.** Its
   [Bash tool](https://github.com/mistralai/mistral-vibe/blob/v3.0.4/vibe/core/tools/builtins/bash.py)
@@ -126,6 +127,11 @@ T3 tools                    chosen groups granted by exact name for Claude Code
   devices and screenshots, browser actions, T3 settings, `t3_thread_transfer` and
   the mixed `t3_thread_configure` and `t3_pending_request`. Without the prompt, only
   AGENTS.md › Set up keeps an agent from starting threads the owner did not ask for.
+
+- **`git branch` read switches.** A rule sees only the switch right after
+  `git branch`, and git still deletes after `-v`, `-vv` or `-r`
+  (`git branch -v -d x`). So only `--list`, `--show-current` and `-a`, which refuse
+  `-d`, are allowed; `git branch --list -vv` shows the same as `git branch -vv`.
 
 Limits:
 
