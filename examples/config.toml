@@ -86,7 +86,8 @@ match = ["GoXLR"]                  # part of the input device's name
 # own volume until you move the control, and the control's mute goes with it.
 # If the default is also a fixed output's device, the earlier control owns it
 # (sliders 1–8, then knobs 1–8); the other does nothing meanwhile.
-# `device` is only for outputs; `type` and `talk_over_volume` are not allowed here.
+# Inputs and outputs can use `device`; apps require `match`.
+# `type` and `talk_over_volume` are not allowed on outputs.
 # A player that sends its sound into an output of its own: add `player` to that
 # output (only with match), and R on its column plays and pauses it.
 # [outputs.speakers]

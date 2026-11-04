@@ -40,7 +40,7 @@ Apptrol's own:
 | `apptrol.wanted_percent` | The volume Apptrol set, when PipeWire changed it back |
 | `apptrol.muted` | A mute state |
 | `apptrol.wanted_muted` | The mute state Apptrol set, when PipeWire changed it back |
-| `apptrol.action` | A change that could not be made, or an ownership answer the audio adapter ignored (`KeepOutput`, `ReleaseOutput`) |
+| `apptrol.action` | A change that could not be made, or an ownership answer the audio adapter ignored (`KeepOutput`, `ReleaseOutput`, `KeepDevice`, `ReleaseDevice`) |
 | `apptrol.led` | An LED, e.g. `S1` |
 | `apptrol.stream.id` | PipeWire's number for a playing stream |
 | `apptrol.stream.app_name` | The name the app gives its stream (what `match` compares) |
