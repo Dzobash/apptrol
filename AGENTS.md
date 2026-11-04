@@ -102,9 +102,11 @@ later fix:    new commit → local review rounds → push → draft PR + CI → 
   `.vibe/config.toml` (Vibe 3.0.4) lets the shared commands and Vibe's own readers
   run and asks about the rest. Vibe's own file safeguards stay as they are; the file
   grants no paths. Do not change any tool's global trust.
-  Run commands from the checkout's folder (no `cd … &&`, no `git -C`). A short
-  read-only pipeline or combination is fine when **every part and argument** is on
-  this list and every path stays inside the file boundaries above:
+  Run commands from the checkout's folder (no `cd … &&`, no `git -C`). In Claude
+  Code, Codex and Vibe, which check every part of a chain against their rules, a
+  short read-only pipeline or combination is fine when **every part and argument** is
+  on this list and every path stays inside the file boundaries above; other tools
+  (e.g. Grok) run one command per call:
   ```text
   git log -5 --oneline | head -n 3        both parts read
   git status --short; git diff --stat     two reads in the same folder

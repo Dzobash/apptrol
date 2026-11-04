@@ -91,7 +91,11 @@ T3 tools                    chosen groups granted by exact name for Claude Code
   prefix in the Claude or Codex files; in Codex they keep running in its sandbox.
   `sed -n` can still write or run commands (`w`, `e`), so it is no read-only prefix.
   Codex checks each part of a simple chain on its own, so an allowed `git diff` at the
-  start does not allow what follows.
+  start does not allow what follows. Claude Code does the same: its
+  [permission docs](https://code.claude.com/docs/en/permissions#compound-commands)
+  require every subcommand to be allowed, and an ask or deny rule applies when any
+  subcommand matches. How Grok matches a chain against `.claude/settings.json` was not
+  checked, so Grok runs one command per call.
 - **Vibe 3.0.4.** Its
   [Bash tool](https://github.com/mistralai/mistral-vibe/blob/v3.0.4/vibe/core/tools/builtins/bash.py)
   requires every part of a command to match and replaces its default lists with the
