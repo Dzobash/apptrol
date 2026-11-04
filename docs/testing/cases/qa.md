@@ -142,7 +142,7 @@ Test: `TestQA16_RunsDefaultIsOneRunPerDistro`, `TestQA16_RunsRepeatsEachDistro`,
 Covers: QA-15 · Phase 1.6
 Config: none (developer tool check)
 Type: Automated
-Test: `TestQA15_AgentCommandListsMatch`, `TestQA15_ChangesOutsideTheCheckoutAsk`, `TestQA15_VibeSharedPolicy`, `TestQA15_RequiredReadersAndSandboxScope`, `TestQA15_MustAskRejectsBroadAndNarrowAllows`, `TestQA15_ExactT3ReaderGrants`, `TestQA15_MalformedVibeConfig`
+Test: `TestQA15_AgentCommandListsMatch`, `TestQA15_ChangesOutsideTheCheckoutAsk`, `TestQA15_VibeSharedPolicy`, `TestQA15_RequiredReadersAndSandboxScope`, `TestQA15_MustAskRejectsBroadAndNarrowAllows`, `TestQA15_ExactT3Grants`, `TestQA15_MalformedVibeConfig`
 
 File checks only: no GitHub change, container or service runs, and they do not show
 that an installed tool loaded the files.

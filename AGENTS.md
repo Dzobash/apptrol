@@ -120,11 +120,14 @@ later fix:    new commit → local review rounds → push → draft PR + CI → 
   `gh cache delete` asks, and so does all of `gh api` (a prefix cannot stop a later
   `-X POST`). Arguments that write (e.g. `git diff --output`) need approval whatever
   a rule matches.
-  T3 Code's read-only tools (thread, project, worktree and task reads) are granted by
-  exact name in `.claude/settings.json` and `.vibe/config.toml`; every other T3 tool,
-  including the mixed `t3_thread_configure` and `t3_pending_request`, asks. Codex has
-  no project file T3 applies to its MCP tools, so in Codex they keep T3's own
-  approval behaviour ([ADR 0040](docs/adr/0040-where-agent-rules-live.md#permission-configuration--2026-11-04)).
+  T3 Code's tools for reading, tidying threads, orchestration (launching, delegating,
+  sending to, stopping threads), waiting and PR tracking are granted by exact name in
+  `.claude/settings.json` and `.vibe/config.toml`, so they run without a prompt; the
+  rules for starting agents ([Set up](#set-up)) still hold. Every other T3 tool asks:
+  deleting, scheduling, secrets, devices, browser actions, T3 settings and the mixed
+  `t3_thread_configure` and `t3_pending_request`. Codex has no project file T3
+  applies to its MCP tools, so in Codex they keep T3's own approval behaviour
+  ([ADR 0040](docs/adr/0040-where-agent-rules-live.md#permission-configuration--2026-11-04)).
   Before a command that does more than read, say in one or two sentences what you are
   doing and why; afterwards, explain the result: what passed, what failed and what it
   means. Pushing, opening a PR, creating issues and any other change on GitHub still

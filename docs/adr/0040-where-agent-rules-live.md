@@ -73,7 +73,8 @@ PRs and CI remain. The shared workflow lives in
 
 ## Permission configuration — 2026-11-04
 
-The owner wanted fewer needless prompts without widening what agents may do. Decided:
+The owner wanted fewer needless prompts, while pushing and changes on GitHub keep
+asking. Decided:
 
 ```
 short read-only pipelines   allowed when every part is on the list (AGENTS.md)
@@ -82,7 +83,8 @@ gh repo list, gh ruleset    allowed in all three files
   gh cache list
 gh cache delete, gh api     ask; a prefix cannot tell gh api's reads from writes
 Mistral Vibe                .vibe/config.toml: shared commands + Vibe's own readers
-T3 read-only tools          granted by exact name for Claude Code and Vibe
+T3 tools                    chosen groups granted by exact name for Claude Code
+                              and Vibe; the rest asks
 ```
 
 - **Shell readers stay native.** `head`, `grep`, `sed` and the like get no global
@@ -99,13 +101,27 @@ T3 read-only tools          granted by exact name for Claude Code and Vibe
   `sensitive_patterns`, and grants no paths. The
   [project loader](https://github.com/mistralai/mistral-vibe/blob/v3.0.4/vibe/core/config/layers/project.py)
   reads it only in a trusted folder.
-- **T3 readers:** `orchestrator_capabilities`, `t3_worktree_status`,
-  `t3_worktree_list`, `t3_thread_list`, `t3_thread_read`, `t3_thread_search`,
-  `t3_project_list`, `t3_project_read`, `list_thread_pull_requests`,
-  `read_pull_request_guide` and `task_status`. Claude Code names them
-  `mcp__t3-code__<tool>`, Vibe `t3-code_<tool>` (T3's server alias, then the tool). No
-  wildcard, and no mixed tool that also writes (`t3_thread_configure`,
-  `t3_pending_request`).
+- **T3 tools.** The owner chose five groups to run without a prompt, because T3
+  orchestration asked about almost every step:
+  ```
+  reads           orchestrator_capabilities, t3_worktree_status/list,
+                  t3_thread_list/read/search, t3_project_list/read,
+                  list_thread_pull_requests, read_pull_request_guide, task_status,
+                  t3_environment_read, t3_preview_list, preview_status,
+                  list_scheduled_tasks
+  thread tidying  t3_thread_update, t3_thread_organize
+  orchestration   t3_thread_launch, create_threads, delegate_task, task_cancel,
+                  t3_thread_send, t3_thread_interrupt, t3_queue, t3_workflow_stop,
+                  t3_worktree_handoff
+  waiting         t3_thread_wait, t3_background_wait
+  PR tracking     link/unlink_pull_request, watch/unwatch_pull_request (T3 only,
+                  no change on GitHub)
+  ```
+  Claude Code names them `mcp__t3-code__<tool>`, Vibe `t3-code_<tool>` (T3's server
+  alias, then the tool). No wildcard. Still asking: deleting, scheduling, secrets,
+  devices and screenshots, browser actions, T3 settings, `t3_thread_transfer` and
+  the mixed `t3_thread_configure` and `t3_pending_request`. Without the prompt, only
+  AGENTS.md › Set up keeps an agent from starting threads the owner did not ask for.
 
 Limits:
 

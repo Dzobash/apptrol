@@ -124,7 +124,8 @@ denylist = [
 ]
 
 # ACP server alias is t3-code; Vibe publishes <alias>_<remote tool name>.
-# Only these dedicated readers skip approval; other MCP tools keep ASK.
+# Only these named T3 tools skip approval (reads, thread tidying, orchestration,
+# waiting, PR tracking); every other MCP tool keeps asking (QA-15, ADR 0040).
 [tools."t3-code_orchestrator_capabilities"]
 permission = "always"
 
@@ -156,4 +157,67 @@ permission = "always"
 permission = "always"
 
 [tools."t3-code_task_status"]
+permission = "always"
+
+[tools."t3-code_t3_environment_read"]
+permission = "always"
+
+[tools."t3-code_t3_preview_list"]
+permission = "always"
+
+[tools."t3-code_preview_status"]
+permission = "always"
+
+[tools."t3-code_list_scheduled_tasks"]
+permission = "always"
+
+[tools."t3-code_t3_thread_update"]
+permission = "always"
+
+[tools."t3-code_t3_thread_organize"]
+permission = "always"
+
+[tools."t3-code_t3_thread_launch"]
+permission = "always"
+
+[tools."t3-code_create_threads"]
+permission = "always"
+
+[tools."t3-code_delegate_task"]
+permission = "always"
+
+[tools."t3-code_task_cancel"]
+permission = "always"
+
+[tools."t3-code_t3_thread_send"]
+permission = "always"
+
+[tools."t3-code_t3_thread_interrupt"]
+permission = "always"
+
+[tools."t3-code_t3_queue"]
+permission = "always"
+
+[tools."t3-code_t3_workflow_stop"]
+permission = "always"
+
+[tools."t3-code_t3_worktree_handoff"]
+permission = "always"
+
+[tools."t3-code_t3_thread_wait"]
+permission = "always"
+
+[tools."t3-code_t3_background_wait"]
+permission = "always"
+
+[tools."t3-code_link_pull_request"]
+permission = "always"
+
+[tools."t3-code_unlink_pull_request"]
+permission = "always"
+
+[tools."t3-code_watch_pull_request"]
+permission = "always"
+
+[tools."t3-code_unwatch_pull_request"]
 permission = "always"

@@ -39,13 +39,35 @@ var vibeDefaultDenies = []string{
 	"zsh -i", "fish -i", "dash -i", "screen", "tmux",
 }
 
-// t3Readers are the T3 MCP tools that only read. Mixed tools with a read mode
-// (t3_thread_configure, t3_pending_request) are left out on purpose and keep
-// asking (QA-15, ADR 0040).
-var t3Readers = []string{
+// t3Granted are the T3 MCP tools the owner chose to run without a prompt: reads,
+// thread tidying, orchestration, waiting and PR tracking. Starting agents is still
+// governed by AGENTS.md › Set up (QA-15, ADR 0040).
+var t3Granted = []string{
+	// reads
 	"orchestrator_capabilities", "t3_worktree_status", "t3_worktree_list",
 	"t3_thread_list", "t3_thread_read", "t3_thread_search", "t3_project_list",
 	"t3_project_read", "list_thread_pull_requests", "read_pull_request_guide", "task_status",
+	"t3_environment_read", "t3_preview_list", "preview_status", "list_scheduled_tasks",
+	// thread tidying
+	"t3_thread_update", "t3_thread_organize",
+	// orchestration
+	"t3_thread_launch", "create_threads", "delegate_task", "task_cancel", "t3_thread_send",
+	"t3_thread_interrupt", "t3_queue", "t3_workflow_stop", "t3_worktree_handoff",
+	// waiting and PR tracking in T3 (no change on GitHub)
+	"t3_thread_wait", "t3_background_wait", "link_pull_request", "unlink_pull_request",
+	"watch_pull_request", "unwatch_pull_request",
+}
+
+// t3MustAsk are T3 tools that must keep asking, kept here on its own so adding one
+// to t3Granted and both files together still fails: mixed tools, deleting,
+// scheduling, secrets, the owner's screen and devices, browser actions and T3
+// settings (QA-15, ADR 0040).
+var t3MustAsk = []string{
+	"t3_thread_configure", "t3_pending_request", "t3_thread_transfer",
+	"t3_project_create", "t3_project_clone", "t3_project_update", "t3_project_delete",
+	"schedule_task", "run_scheduled_task_now", "delete_scheduled_task",
+	"request_secret", "device_open", "device_screenshot", "preview_act", "preview_evaluate",
+	"t3_environment_preferences_update", "write_pull_request_guides",
 }
 
 // vibeToolConfig holds only the fields this project sets. Any other key fails the
@@ -166,10 +188,15 @@ func TestQA15_MustAskRejectsBroadAndNarrowAllows(t *testing.T) {
 	}
 }
 
-// TestQA15_ExactT3ReaderGrants: Claude Code and Vibe preapprove exactly the T3
-// readers, by name; a wildcard, a mixed tool or any other MCP grant fails, even if
-// both files gain it together (QA-15, ADR 0040).
-func TestQA15_ExactT3ReaderGrants(t *testing.T) {
+// TestQA15_ExactT3Grants: Claude Code and Vibe preapprove exactly the chosen T3
+// tools, by name; a wildcard or any other MCP grant fails, and no tool in t3MustAsk
+// may be granted (QA-15, ADR 0040).
+func TestQA15_ExactT3Grants(t *testing.T) {
+	for _, name := range t3MustAsk {
+		if slices.Contains(t3Granted, name) {
+			t.Errorf("T3 tool %s must keep asking", name)
+		}
+	}
 	var claude struct{ Permissions struct{ Allow []string } }
 	if err := json.Unmarshal(readRepoFile(t, ".claude", "settings.json"), &claude); err != nil {
 		t.Fatal(err)
@@ -180,25 +207,25 @@ func TestQA15_ExactT3ReaderGrants(t *testing.T) {
 			got = append(got, grant)
 		}
 	}
-	want := make([]string, 0, len(t3Readers))
-	for _, name := range t3Readers {
+	want := make([]string, 0, len(t3Granted))
+	for _, name := range t3Granted {
 		want = append(want, "mcp__t3-code__"+name)
 	}
 	slices.Sort(got)
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
-		t.Errorf("Claude MCP grants = %v, want exact readers %v", got, want)
+		t.Errorf("Claude MCP grants = %v, want exactly %v", got, want)
 	}
 	tools, err := parseVibeConfig(readRepoFile(t, ".vibe", "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	delete(tools, "bash")
-	for _, name := range t3Readers {
+	for _, name := range t3Granted {
 		key := "t3-code_" + name
 		cfg := tools[key]
 		if cfg.Permission != "always" || len(cfg.Allowlist)+len(cfg.Denylist) != 0 {
-			t.Errorf("Vibe %s must grant only this exact reader", key)
+			t.Errorf("Vibe %s must grant only this exact tool", key)
 		}
 		delete(tools, key)
 	}

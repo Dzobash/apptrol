@@ -52,7 +52,7 @@ Claude Code and Codex equal and checks that Vibe's file allows the same commands
 Vibe's own readers (QA-15). Lists kept in the test itself make every file ask before
 pushing or changing GitHub (also `gh cache delete` and all of `gh api`, and no broader
 or narrower allow may cover them), block typed container commands, keep Vibe's deny
-defaults and grant only the named T3 read-only tools. These check the files, not that
+defaults and grant only the named T3 tools, never one from a must-ask list. These check the files, not that
 an installed tool loaded them
 ([ADR 0040](adr/0040-where-agent-rules-live.md#permission-configuration--2026-11-04)).
 QA-16 tests invoke the
