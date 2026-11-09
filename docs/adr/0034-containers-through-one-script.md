@@ -55,7 +55,8 @@ command lists (AGENTS.md, QA-15). That did not work well:
    RECIPE=<name>` (anything else). Both run without asking. With the script, typed
    `docker`, `podman` and `buildah` become blocked for agents in both command lists
    (Claude Code `deny`, Codex `forbidden`); since 2026-11-04 also in Mistral Vibe's
-   `.vibe/config.toml` (`denylist`, ADR 0040). Needing a flag the script does not allow (a
+   `.vibe/config.toml` (`denylist`, ADR 0040), and since 2026-11-09 in OpenCode's
+   `opencode.jsonc` (`deny`, ADR 0040). Needing a flag the script does not allow (a
    device, `--privileged`) means a pull request that changes the script: limits change
    in review, in git.
 

@@ -144,3 +144,67 @@ Limits:
 - **QA-15's tests check the files** (shared policy, asks, blocks, exact readers). They
   do not show that an installed tool loaded them, and a prefix rule still does not
   check arguments.
+
+## OpenCode — 2026-11-09
+
+OpenCode joins as a fourth client. Its rules live in `opencode.jsonc` at the
+repository's root, with the same shared commands, asks, blocks and T3 grants as the
+other three files (QA-15, QA-16).
+
+OpenCode works differently from the other tools in two ways that shape the file:
+
+- **It allows everything by default.** Every agent starts with a base policy of
+  `{"action": "*", "resource": "*", "effect": "allow"}`, and access outside the
+  project (`external_directory`) is allowed too. Without rules of its own, an agent
+  could run any command and read any file in the home folder.
+- **The last matching rule wins.** OpenCode puts the base policy first and the
+  file's rules after it. So the file starts with broad asks and lists every exception
+  after them; an allow placed after an ask would override it.
+
+```
+base policy  * allow                       OpenCode's own, before the file
+1. ask       shell *                       any command
+             external_directory *          any path outside the repository
+             t3-code_*, t3_code_*          any T3 tool
+2. allow     git status *, gh pr view *, … the shared commands
+             t3-code_t3_thread_read, …     the chosen T3 tools, by exact name
+3. ask       git push *, gh api *, …       pushing, branch deletes, GitHub changes
+4. deny      docker *, podman *, buildah *
+
+"git push origin" → matches 1 (ask) and 3 (ask)  → ask
+"git status -s"   → matches 1 (ask) and 2 (allow) → allow
+"podman ps"       → matches 1 (ask) and 4 (deny)  → deny
+```
+
+- **Shell patterns** match the whole command; `*` matches any text, and a pattern
+  ending in ` *` also matches the bare command (`git status *` covers `git status`).
+  OpenCode checks each part of a chain on its own, like Claude Code, Codex and Vibe.
+- **Reads and edits inside the repository** keep OpenCode's defaults (option A in the
+  owner's plan): no prompt, except reading `.env` files, which OpenCode asks about by
+  itself. Shell readers (`cat`, `grep`, …) get no rule, as in the Claude Code and
+  Codex files: OpenCode's own read, glob and grep tools stay in the project, while a
+  shell rule would reach any path.
+- **T3 tools.** OpenCode names an MCP tool `<server>_<tool>` and turns unsupported
+  characters into `_`; its docs do not say whether `-` is one of them. So every T3
+  rule is written twice, as `t3-code_…` and `t3_code_…`. Wildcards in action names
+  are documented (the base policy uses `"action": "*"`), so `t3-code_*` and
+  `t3_code_*` ask about every T3 tool, including ones T3 adds later, before the exact
+  grants.
+
+Not verified (only OpenCode's
+[permissions](https://opencode.ai/docs/permissions/) and
+[config](https://opencode.ai/docs/config/) pages were read, on 2026-11-09):
+
+- **The version.** The file uses the V2 format (`permissions`, `shell`). V1 used
+  `permission` and `bash` and would not apply these rules, leaving OpenCode at allow
+  everything. Check `opencode --version` against the docs before relying on it.
+- **The T3 spelling** OpenCode actually uses; one of the two spellings is unused.
+- **Other grants.** "Allow always" saves project rules that can override an ask (not a
+  deny), and per-agent rules in a personal or global config are appended after this
+  file's. Like host grants elsewhere, these are not capped by the project's file.
+- **Not covered by this decision:** other MCP servers, `webfetch`, `websearch` and
+  `subagent` keep OpenCode's allow default.
+
+QA-15's tests read the file strictly (comments stripped, only the known keys, the
+catch-all ask first) and decide each shared command in rule order, the way OpenCode
+does. As for the other tools, they do not show that an installed OpenCode loaded it.

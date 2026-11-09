@@ -16,7 +16,7 @@ Test: `TestQA16_RecipeMountsEnvironmentAndFlags`, `TestQA16_BadRecipesRefused`, 
 Covers: QA-15, QA-16 · Phase 1.6
 Config: none (developer tool check)
 Type: Automated
-Test: `TestQA16_ContainerCommandsBlocked`, `TestQA15_DenyParity`, `TestQA15_VibeSharedPolicy`
+Test: `TestQA16_ContainerCommandsBlocked`, `TestQA15_DenyParity`, `TestQA15_VibeSharedPolicy`, `TestQA15_OpenCodeSharedPolicy`
 
 ### TC-QA-003 — Rootless systemd reports each Status transition
 
@@ -142,7 +142,7 @@ Test: `TestQA16_RunsDefaultIsOneRunPerDistro`, `TestQA16_RunsRepeatsEachDistro`,
 Covers: QA-15 · Phase 1.6
 Config: none (developer tool check)
 Type: Automated
-Test: `TestQA15_AgentCommandListsMatch`, `TestQA15_ChangesOutsideTheCheckoutAsk`, `TestQA15_VibeSharedPolicy`, `TestQA15_RequiredReadersAndSandboxScope`, `TestQA15_NoBranchSwitchBeforeADelete`, `TestQA15_MustAskRejectsBroadAndNarrowAllows`, `TestQA15_ExactT3Grants`, `TestQA15_MalformedVibeConfig`
+Test: `TestQA15_AgentCommandListsMatch`, `TestQA15_ChangesOutsideTheCheckoutAsk`, `TestQA15_VibeSharedPolicy`, `TestQA15_RequiredReadersAndSandboxScope`, `TestQA15_NoBranchSwitchBeforeADelete`, `TestQA15_MustAskRejectsBroadAndNarrowAllows`, `TestQA15_ExactT3Grants`, `TestQA15_MalformedVibeConfig`, `TestQA15_OpenCodeSharedPolicy`, `TestQA15_OpenCodeExactT3Grants`, `TestQA15_OpenCodeLastMatchWins`, `TestQA15_MalformedOpenCodeConfig`
 
 File checks only: no GitHub change, container or service runs, and they do not show
 that an installed tool loaded the files.

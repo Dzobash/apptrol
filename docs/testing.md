@@ -49,11 +49,16 @@ pull request, and a skipped job would count as missing. `go test ./packaging` al
 the MIT text in `packaging/debian/copyright` equal to `LICENSE` (NFR-09); it runs in the
 Test job. So does `go test ./internal/repocheck`, which keeps the command lists for
 Claude Code and Codex equal and checks that Vibe's file allows the same commands plus
-Vibe's own readers (QA-15). Lists kept in the test itself make every file ask before
-pushing or changing GitHub (also `gh cache delete` and all of `gh api`, and no broader
-or narrower allow may cover them), block typed container commands, keep Vibe's deny
-defaults and grant only the named T3 tools, never one from a must-ask list. These check the files, not that
-an installed tool loaded them
+Vibe's own readers and that OpenCode's file does the same as Codex's (QA-15). For
+OpenCode, whose last matching rule wins and which allows everything without a rule,
+the test also decides each command in rule order and checks that any other command,
+path outside the repository or T3 tool asks
+([ADR 0040](adr/0040-where-agent-rules-live.md#opencode--2026-11-09)). Lists kept in
+the test itself make every file ask before pushing or changing GitHub (also
+`gh cache delete` and all of `gh api`, and no broader or narrower allow may cover
+them), block typed container commands, keep Vibe's deny defaults and grant only the
+named T3 tools, never one from a must-ask list. These check the files, not that an
+installed tool loaded them
 ([ADR 0040](adr/0040-where-agent-rules-live.md#permission-configuration--2026-11-04)).
 QA-16 tests invoke the
 real Make target against a fake Podman, checking mounts, environment isolation,
