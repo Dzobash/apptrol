@@ -195,9 +195,15 @@ Not verified (only OpenCode's
 [permissions](https://opencode.ai/docs/permissions/) and
 [config](https://opencode.ai/docs/config/) pages were read, on 2026-11-09):
 
-- **The version.** The file uses the V2 format (`permissions`, `shell`). V1 used
-  `permission` and `bash` and would not apply these rules, leaving OpenCode at allow
-  everything. Check `opencode --version` against the docs before relying on it.
+- **The version.** The file uses the V2 format (`permissions`, `shell`); V1 used
+  `permission` and `bash`. The owner reports OpenCode v2.2.6 (2026-11-09). That is not
+  confirmed to read the V2 `permissions` array: the docs call the format "V2" without
+  tying it to a program version, do not say what 2.x does with an old
+  `permission`/`bash` config, and show no wildcard action name for MCP tools
+  (`server_*`). The release notes for v2.2.5 and v2.2.6 show permission rules in use
+  and `bash` calls now running as `shell`, which fits V2 but proves nothing. If
+  OpenCode does not read the file, it allows everything, with no error, so the live
+  check [TC-QA-009](../testing/cases/qa.md) decides.
 - **The T3 spelling** OpenCode actually uses; one of the two spellings is unused.
 - **Other grants.** "Allow always" saves project rules that can override an ask (not a
   deny), and per-agent rules in a personal or global config are appended after this
