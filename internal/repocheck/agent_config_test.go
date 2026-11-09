@@ -87,11 +87,19 @@ type vibeToolConfig struct {
 	Denylist   []string `toml:"denylist"`
 }
 
+// vibeKnownMigrations are the one-time upgrade steps Vibe 3.0.4 may record in
+// .vibe/config.toml as applied_migrations. Vibe writes that key itself when it
+// rewrites the file, so it is accepted here; a migration not named below fails the
+// parse until someone has checked that it left the safeguards alone (QA-15,
+// ADR 0040).
+var vibeKnownMigrations = []string{"bash_read_only_defaults_v1"}
+
 // parseVibeConfig reads .vibe/config.toml strictly and requires Bash to ask by
 // default; everything it does not set keeps Vibe's defaults (QA-15, ADR 0040).
 func parseVibeConfig(data []byte) (map[string]vibeToolConfig, error) {
 	var cfg struct {
-		Tools map[string]vibeToolConfig `toml:"tools"`
+		AppliedMigrations []string                  `toml:"applied_migrations"`
+		Tools             map[string]vibeToolConfig `toml:"tools"`
 	}
 	md, err := toml.Decode(string(data), &cfg)
 	if err != nil {
@@ -99,6 +107,11 @@ func parseVibeConfig(data []byte) (map[string]vibeToolConfig, error) {
 	}
 	if len(md.Undecoded()) != 0 {
 		return nil, fmt.Errorf("unexpected Vibe keys: %v", md.Undecoded())
+	}
+	for _, name := range cfg.AppliedMigrations {
+		if !slices.Contains(vibeKnownMigrations, name) {
+			return nil, fmt.Errorf("unknown Vibe migration %q: check what it changed first", name)
+		}
 	}
 	if cfg.Tools["bash"].Permission != "ask" {
 		return nil, fmt.Errorf("Vibe's Bash must ask by default")
@@ -276,7 +289,14 @@ func TestQA15_MalformedVibeConfig(t *testing.T) {
 	if _, err := parseVibeConfig([]byte(valid)); err != nil {
 		t.Fatalf("minimal valid config refused: %v", err)
 	}
+	// Vibe records the migrations it has run; the known one must pass (QA-15).
+	known := "applied_migrations = ['bash_read_only_defaults_v1']\n" + valid
+	if _, err := parseVibeConfig([]byte(known)); err != nil {
+		t.Fatalf("config with Vibe's known migration refused: %v", err)
+	}
 	for _, bad := range []string{
+		"applied_migrations = ['some_new_migration_v2']\n" + valid,
+		"applied_migrations = 'bash_read_only_defaults_v1'\n" + valid,
 		"[tools.bash", "",
 		strings.ReplaceAll(valid, "'ask'", "'always'"),
 		valid + "allowlist = 'git'\n", valid + "allow_list = []\n",

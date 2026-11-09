@@ -1,217 +1,210 @@
-# Mistral Vibe 3.0.4 project permissions (POSIX). Shared policy: AGENTS.md ›
-# Boundaries, QA-15, ADR 0040. Vibe loads this only in a folder the owner trusts.
-# File access outside the workdir keeps Vibe's own default; this file grants no paths.
+applied_migrations = [
+    "bash_read_only_defaults_v1",
+]
 
 [tools.bash]
 permission = "ask"
-# These lists REPLACE Vibe defaults. Keep useful native readers, with Vibe's
-# path/option guardrails; AGENTS.md still restricts every argument and path.
 allowlist = [
-  "git status",
-  "git log",
-  "git diff",
-  "git show",
-  "git fetch",
-  "git ls-files",
-  "git ls-tree",
-  "git check-ignore",
-  "git worktree list",
-  "git tag --sort=-creatordate",
-  "git tag -l",
-  "git tag --list",
-  "git branch --list",
-  "git branch --show-current",
-  "git branch -a",
-  "git switch",
-  "git pull",
-  "git add",
-  "git commit",
-  "gh pr list",
-  "gh pr view",
-  "gh pr diff",
-  "gh pr checks",
-  "gh issue list",
-  "gh issue view",
-  "gh run list",
-  "gh run view",
-  "gh run watch",
-  "gh issue status",
-  "gh pr status",
-  "gh search",
-  "gh status",
-  "gh release list",
-  "gh release view",
-  "gh repo view",
-  "gh repo list",
-  "gh ruleset list",
-  "gh ruleset view",
-  "gh ruleset check",
-  "gh cache list",
-  "gh label list",
-  "gh workflow list",
-  "gh workflow view",
-  "make check",
-  "make test-audio",
-  "make test-systemd",
-  "make test-install",
-  "make test-clean",
-  "make container-run",
-  "basename",
-  "cat",
-  "comm",
-  "cut",
-  "date",
-  "diff",
-  "dirname",
-  "du",
-  "file",
-  "find",
-  "fmt",
-  "fold",
-  "grep",
-  "head",
-  "join",
-  "less",
-  "ls",
-  "md5sum",
-  "more",
-  "nl",
-  "od",
-  "paste",
-  "pwd",
-  "readlink",
-  "sha1sum",
-  "sha256sum",
-  "shasum",
-  "sort",
-  "stat",
-  "sum",
-  "tac",
-  "tail",
-  "tr",
-  "tree",
-  "uname",
-  "uniq",
-  "wc",
-  "which",
+    "basename",
+    "cat",
+    "comm",
+    "cut",
+    "date",
+    "diff",
+    "dirname",
+    "du",
+    "file",
+    "find",
+    "fmt",
+    "fold",
+    "gh cache list",
+    "gh issue list",
+    "gh issue status",
+    "gh issue view",
+    "gh label list",
+    "gh pr checks",
+    "gh pr diff",
+    "gh pr list",
+    "gh pr status",
+    "gh pr view",
+    "gh release list",
+    "gh release view",
+    "gh repo list",
+    "gh repo view",
+    "gh ruleset check",
+    "gh ruleset list",
+    "gh ruleset view",
+    "gh run list",
+    "gh run view",
+    "gh run watch",
+    "gh search",
+    "gh status",
+    "gh workflow list",
+    "gh workflow view",
+    "git add",
+    "git branch --list",
+    "git branch --show-current",
+    "git branch -a",
+    "git check-ignore",
+    "git commit",
+    "git diff",
+    "git fetch",
+    "git log",
+    "git ls-files",
+    "git ls-tree",
+    "git pull",
+    "git show",
+    "git status",
+    "git switch",
+    "git tag --list",
+    "git tag --sort=-creatordate",
+    "git tag -l",
+    "git worktree list",
+    "grep",
+    "head",
+    "join",
+    "less",
+    "ls",
+    "make check",
+    "make container-run",
+    "make test-audio",
+    "make test-clean",
+    "make test-install",
+    "make test-systemd",
+    "md5sum",
+    "more",
+    "nl",
+    "od",
+    "paste",
+    "pwd",
+    "readlink",
+    "sha1sum",
+    "sha256sum",
+    "shasum",
+    "sort",
+    "stat",
+    "sum",
+    "tac",
+    "tail",
+    "tr",
+    "tree",
+    "uname",
+    "uniq",
+    "wc",
+    "which",
 ]
-# Preserve all POSIX platform denies before adding the container engines.
-# Leave denylist_standalone and sensitive_patterns at their native defaults.
 denylist = [
-  "gdb",
-  "pdb",
-  "passwd",
-  "nano",
-  "vim",
-  "vi",
-  "emacs",
-  "bash -i",
-  "sh -i",
-  "zsh -i",
-  "fish -i",
-  "dash -i",
-  "screen",
-  "tmux",
-  "docker",
-  "podman",
-  "buildah",
+    "gdb",
+    "pdb",
+    "passwd",
+    "nano",
+    "vim",
+    "vi",
+    "emacs",
+    "bash -i",
+    "sh -i",
+    "zsh -i",
+    "fish -i",
+    "dash -i",
+    "screen",
+    "tmux",
+    "docker",
+    "podman",
+    "buildah",
 ]
 
-# ACP server alias is t3-code; Vibe publishes <alias>_<remote tool name>.
-# Only these named T3 tools skip approval (reads, thread tidying, orchestration,
-# waiting, PR tracking); every other MCP tool keeps asking (QA-15, ADR 0040).
-[tools."t3-code_orchestrator_capabilities"]
+[tools.t3-code_orchestrator_capabilities]
 permission = "always"
 
-[tools."t3-code_t3_worktree_status"]
+[tools.t3-code_t3_worktree_status]
 permission = "always"
 
-[tools."t3-code_t3_worktree_list"]
+[tools.t3-code_t3_worktree_list]
 permission = "always"
 
-[tools."t3-code_t3_thread_list"]
+[tools.t3-code_t3_thread_list]
 permission = "always"
 
-[tools."t3-code_t3_thread_read"]
+[tools.t3-code_t3_thread_read]
 permission = "always"
 
-[tools."t3-code_t3_thread_search"]
+[tools.t3-code_t3_thread_search]
 permission = "always"
 
-[tools."t3-code_t3_project_list"]
+[tools.t3-code_t3_project_list]
 permission = "always"
 
-[tools."t3-code_t3_project_read"]
+[tools.t3-code_t3_project_read]
 permission = "always"
 
-[tools."t3-code_list_thread_pull_requests"]
+[tools.t3-code_list_thread_pull_requests]
 permission = "always"
 
-[tools."t3-code_read_pull_request_guide"]
+[tools.t3-code_read_pull_request_guide]
 permission = "always"
 
-[tools."t3-code_task_status"]
+[tools.t3-code_task_status]
 permission = "always"
 
-[tools."t3-code_t3_environment_read"]
+[tools.t3-code_t3_environment_read]
 permission = "always"
 
-[tools."t3-code_t3_preview_list"]
+[tools.t3-code_t3_preview_list]
 permission = "always"
 
-[tools."t3-code_preview_status"]
+[tools.t3-code_preview_status]
 permission = "always"
 
-[tools."t3-code_list_scheduled_tasks"]
+[tools.t3-code_list_scheduled_tasks]
 permission = "always"
 
-[tools."t3-code_t3_thread_update"]
+[tools.t3-code_t3_thread_update]
 permission = "always"
 
-[tools."t3-code_t3_thread_organize"]
+[tools.t3-code_t3_thread_organize]
 permission = "always"
 
-[tools."t3-code_t3_thread_launch"]
+[tools.t3-code_t3_thread_launch]
 permission = "always"
 
-[tools."t3-code_create_threads"]
+[tools.t3-code_create_threads]
 permission = "always"
 
-[tools."t3-code_delegate_task"]
+[tools.t3-code_delegate_task]
 permission = "always"
 
-[tools."t3-code_task_cancel"]
+[tools.t3-code_task_cancel]
 permission = "always"
 
-[tools."t3-code_t3_thread_send"]
+[tools.t3-code_t3_thread_send]
 permission = "always"
 
-[tools."t3-code_t3_thread_interrupt"]
+[tools.t3-code_t3_thread_interrupt]
 permission = "always"
 
-[tools."t3-code_t3_queue"]
+[tools.t3-code_t3_queue]
 permission = "always"
 
-[tools."t3-code_t3_workflow_stop"]
+[tools.t3-code_t3_workflow_stop]
 permission = "always"
 
-[tools."t3-code_t3_worktree_handoff"]
+[tools.t3-code_t3_worktree_handoff]
 permission = "always"
 
-[tools."t3-code_t3_thread_wait"]
+[tools.t3-code_t3_thread_wait]
 permission = "always"
 
-[tools."t3-code_t3_background_wait"]
+[tools.t3-code_t3_background_wait]
 permission = "always"
 
-[tools."t3-code_link_pull_request"]
+[tools.t3-code_link_pull_request]
 permission = "always"
 
-[tools."t3-code_unlink_pull_request"]
+[tools.t3-code_unlink_pull_request]
 permission = "always"
 
-[tools."t3-code_watch_pull_request"]
+[tools.t3-code_watch_pull_request]
 permission = "always"
 
-[tools."t3-code_unwatch_pull_request"]
+[tools.t3-code_unwatch_pull_request]
 permission = "always"
