@@ -147,8 +147,8 @@ Limits:
 
 ## Vibe rewrites its own file — 2026-11-09
 
-Mistral Vibe 3.0.4 rewrites `.vibe/config.toml` when it starts: it sorts the lists,
-indents with four spaces, drops every comment and records the one-time upgrade it ran
+Mistral Vibe 3.0.4 rewrites `.vibe/config.toml` when it starts: it sorts the allowlist (the denylist keeps
+its order), indents with four spaces, drops every comment and records the one-time upgrade it ran
 as `applied_migrations`. The owner chose to keep Vibe's version in the repository
 instead of fighting the tool, so the file no longer shows as modified after every
 Vibe start. The command lists did not change.

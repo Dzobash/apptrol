@@ -94,6 +94,28 @@ type vibeToolConfig struct {
 // ADR 0040).
 var vibeKnownMigrations = []string{"bash_read_only_defaults_v1"}
 
+// checkVibeKeyCase accepts a key path only when each fixed part is spelled exactly:
+// the root keys, and the three fields of a tool table. Tool names are free (QA-15,
+// ADR 0040).
+func checkVibeKeyCase(key toml.Key) error {
+	exact := func(part string, allowed ...string) error {
+		if !slices.Contains(allowed, part) {
+			return fmt.Errorf("Vibe key %q must be spelled exactly as one of %v", key.String(), allowed)
+		}
+		return nil
+	}
+	if len(key) == 1 {
+		return exact(key[0], "applied_migrations", "tools")
+	}
+	if err := exact(key[0], "tools"); err != nil {
+		return err
+	}
+	if len(key) == 3 {
+		return exact(key[2], "permission", "allowlist", "denylist")
+	}
+	return nil
+}
+
 // parseVibeConfig reads .vibe/config.toml strictly and requires Bash to ask by
 // default; everything it does not set keeps Vibe's defaults (QA-15, ADR 0040).
 func parseVibeConfig(data []byte) (map[string]vibeToolConfig, error) {
@@ -107,6 +129,15 @@ func parseVibeConfig(data []byte) (map[string]vibeToolConfig, error) {
 	}
 	if len(md.Undecoded()) != 0 {
 		return nil, fmt.Errorf("unexpected Vibe keys: %v", md.Undecoded())
+	}
+	// TOML keys are case-sensitive, but the decoder fills a field from any spelling
+	// of its name, so "APPLIED_MIGRATIONS" or "PERMISSION" would be decoded, not
+	// undecoded, and could overwrite the checked value depending on order. Every key
+	// must therefore be spelled exactly as this parser expects it (QA-15, ADR 0040).
+	for _, key := range md.Keys() {
+		if err := checkVibeKeyCase(key); err != nil {
+			return nil, err
+		}
 	}
 	for _, name := range cfg.AppliedMigrations {
 		if !slices.Contains(vibeKnownMigrations, name) {
@@ -297,6 +328,16 @@ func TestQA15_MalformedVibeConfig(t *testing.T) {
 	for _, bad := range []string{
 		"applied_migrations = ['some_new_migration_v2']\n" + valid,
 		"applied_migrations = 'bash_read_only_defaults_v1'\n" + valid,
+		// TOML keys are case-sensitive but the decoder fills a field from either
+		// spelling, so a case variant could overwrite a checked value in either order
+		// (QA-15, ADR 0040).
+		"applied_migrations = ['some_new_migration_v2']\n" +
+			"APPLIED_MIGRATIONS = ['bash_read_only_defaults_v1']\n" + valid,
+		"APPLIED_MIGRATIONS = ['bash_read_only_defaults_v1']\n" +
+			"applied_migrations = ['some_new_migration_v2']\n" + valid,
+		"[tools.bash]\nPERMISSION = 'always'\npermission = 'ask'\n",
+		"[tools.bash]\npermission = 'ask'\nPERMISSION = 'always'\n",
+		"[Tools.bash]\npermission = 'ask'\n",
 		"[tools.bash", "",
 		strings.ReplaceAll(valid, "'ask'", "'always'"),
 		valid + "allowlist = 'git'\n", valid + "allow_list = []\n",
