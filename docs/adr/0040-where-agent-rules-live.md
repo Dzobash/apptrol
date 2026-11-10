@@ -144,3 +144,34 @@ Limits:
 - **QA-15's tests check the files** (shared policy, asks, blocks, exact readers). They
   do not show that an installed tool loaded them, and a prefix rule still does not
   check arguments.
+
+## Vibe rewrites its own file — 2026-11-09
+
+Mistral Vibe 3.0.4 rewrites `.vibe/config.toml` when it starts: it sorts the allowlist (the denylist keeps
+its order), indents with four spaces, drops every comment and records the one-time upgrade it ran
+as `applied_migrations`. The owner chose to keep Vibe's version in the repository
+instead of fighting the tool, so the file no longer shows as modified after every
+Vibe start. The command lists did not change.
+
+Comments in that file would be lost again on the next rewrite, so what they said
+lives here:
+
+```
+what the file says                          why
+──────────────────────────────────────      ────────────────────────────────────
+tools.bash.allowlist / denylist             Vibe replaces its default lists with
+                                            these, so they repeat Vibe's readers
+                                            and deny defaults (note 2026-11-04)
+t3-code_<tool> = "always"                   "t3-code" is T3's server alias; Vibe
+                                            publishes <alias>_<tool>. Only named
+                                            tools skip approval, every other MCP
+                                            tool keeps asking (QA-15)
+no path grants, no denylist_standalone      access outside the workdir keeps Vibe's
+  or sensitive_patterns                     own defaults
+applied_migrations                          written by Vibe, not by us
+```
+
+`internal/repocheck` accepts `applied_migrations` only with the migration name Vibe
+has written so far (`bash_read_only_defaults_v1`). A different one fails the test
+until someone has read what that migration changed, so it cannot loosen a safeguard
+unnoticed (QA-15).
