@@ -16,7 +16,7 @@ Test: `TestQA16_RecipeMountsEnvironmentAndFlags`, `TestQA16_BadRecipesRefused`, 
 Covers: QA-15, QA-16 · Phase 1.6
 Config: none (developer tool check)
 Type: Automated
-Test: `TestQA16_ContainerCommandsBlocked`, `TestQA15_DenyParity`, `TestQA15_VibeSharedPolicy`
+Test: `TestQA16_ContainerCommandsBlocked`, `TestQA15_DenyParity`, `TestQA15_VibeSharedPolicy`, `TestQA15_OpenCodeSharedPolicy`
 
 ### TC-QA-003 — Rootless systemd reports each Status transition
 
@@ -142,7 +142,34 @@ Test: `TestQA16_RunsDefaultIsOneRunPerDistro`, `TestQA16_RunsRepeatsEachDistro`,
 Covers: QA-15 · Phase 1.6
 Config: none (developer tool check)
 Type: Automated
-Test: `TestQA15_AgentCommandListsMatch`, `TestQA15_ChangesOutsideTheCheckoutAsk`, `TestQA15_VibeSharedPolicy`, `TestQA15_RequiredReadersAndSandboxScope`, `TestQA15_NoBranchSwitchBeforeADelete`, `TestQA15_MustAskRejectsBroadAndNarrowAllows`, `TestQA15_ExactT3Grants`, `TestQA15_MalformedVibeConfig`
+Test: `TestQA15_AgentCommandListsMatch`, `TestQA15_ChangesOutsideTheCheckoutAsk`, `TestQA15_VibeSharedPolicy`, `TestQA15_RequiredReadersAndSandboxScope`, `TestQA15_NoBranchSwitchBeforeADelete`, `TestQA15_MustAskRejectsBroadAndNarrowAllows`, `TestQA15_ExactT3Grants`, `TestQA15_MalformedVibeConfig`, `TestQA15_OpenCodeSharedPolicy`, `TestQA15_OpenCodeExactT3Grants`, `TestQA15_OpenCodeLastMatchWins`, `TestQA15_MalformedOpenCodeConfig`
 
 File checks only: no GitHub change, container or service runs, and they do not show
 that an installed tool loaded the files.
+
+### TC-QA-009 — OpenCode applies the repository's permission file
+
+Covers: QA-15, QA-16 · Phase 1.6
+Config: none (developer tool check)
+Type: Manual
+Test: `TestQA15_OpenCodeSharedPolicy`, `TestQA15_OpenCodeExactT3Grants` (the file's rules only; whether the installed OpenCode reads `opencode.jsonc` needs this case)
+
+Without the file, or with a format it does not read, OpenCode allows everything and
+shows no error, so only these steps show that the rules apply
+([ADR 0040](../../adr/0040-where-agent-rules-live.md#opencode--2026-11-09)). No live
+setup is needed: no audio, no service.
+
+**Setup**
+- [ ] OpenCode is installed; note `opencode --version` in the run record
+- [ ] OpenCode is started in this repository's folder, connected to T3 Code's tools
+- [ ] The branch has nothing that may be pushed by accident (a push will be refused below)
+
+**Steps**
+- [ ] Ask OpenCode to run `docker ps` → OpenCode refuses it without running it, by the deny rule (output from Docker, or "command not found" from the shell, means it ran: the file is not read)
+- [ ] Ask OpenCode to run `git push` → OpenCode asks before running it; answer no → nothing is pushed
+- [ ] Ask OpenCode to run `git status` → it runs at once, without asking
+- [ ] Ask OpenCode to run `git status && git push` → the `git status` part runs; the `git push` part asks on its own before running; answer no → nothing is pushed
+- [ ] Ask OpenCode to call T3's `delete_scheduled_task` with a made-up task ID → OpenCode asks before calling it, by the `t3-code_*`/`t3_code_*` rule; answer no
+
+**Result:** Pass / Fail / Blocked
+**Notes:** Blocked when OpenCode is not connected to T3 Code's tools; record which steps ran.

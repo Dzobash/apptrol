@@ -255,8 +255,9 @@ var mustAsk = []string{
 	"gh workflow run", "gh workflow enable", "gh workflow disable",
 }
 
-// TestQA15_ChangesOutsideTheCheckoutAsk: both tools ask before pushing or
-// changing GitHub, whatever else a personal settings file allows (QA-15).
+// TestQA15_ChangesOutsideTheCheckoutAsk: Claude Code, Codex and OpenCode ask before
+// pushing or changing GitHub, whatever else a personal settings file allows (QA-15,
+// ADR 0040).
 func TestQA15_ChangesOutsideTheCheckoutAsk(t *testing.T) {
 	claude, _, err := claudeCommands(readRepoFile(t, ".claude", "settings.json"))
 	if err != nil {
@@ -266,11 +267,12 @@ func TestQA15_ChangesOutsideTheCheckoutAsk(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	_, opencode := openCodeRules(t)
 	for _, cmd := range mustAsk {
-		if !claude.ask[cmd] || !codex.ask[cmd] {
-			t.Errorf("%q must ask in both tools (Claude %v, Codex %v)", cmd, claude.ask[cmd], codex.ask[cmd])
+		if !claude.ask[cmd] || !codex.ask[cmd] || !opencode.ask[cmd] {
+			t.Errorf("%q must ask in every tool (Claude %v, Codex %v, OpenCode %v)", cmd, claude.ask[cmd], codex.ask[cmd], opencode.ask[cmd])
 		}
-		if overlapsCommand(claude.allow, cmd) || overlapsCommand(codex.allow, cmd) {
+		if overlapsCommand(claude.allow, cmd) || overlapsCommand(codex.allow, cmd) || overlapsCommand(opencode.allow, cmd) {
 			t.Errorf("%q must not be allowed", cmd)
 		}
 	}
@@ -330,8 +332,8 @@ func TestQA15_ParseCodexPattern(t *testing.T) {
 	}
 }
 
-// TestQA16_ContainerCommandsBlocked keeps the deny inventory independent of both
-// files: deleting a block from both must fail too (QA-15, QA-16, ADR 0034).
+// TestQA16_ContainerCommandsBlocked keeps the deny inventory independent of the
+// files: deleting a block from all of them must fail too (QA-15, QA-16, ADR 0034).
 func TestQA16_ContainerCommandsBlocked(t *testing.T) {
 	claude, problems, err := claudeCommands(readRepoFile(t, ".claude", "settings.json"))
 	if err != nil || len(problems) != 0 {
@@ -341,16 +343,22 @@ func TestQA16_ContainerCommandsBlocked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	opencodeRules, opencode := openCodeRules(t)
 	for _, cmd := range []string{"docker", "podman", "buildah"} {
-		for _, lists := range []commandLists{claude, codex} {
+		for _, lists := range []commandLists{claude, codex, opencode} {
 			if !lists.deny[cmd] || lists.allow[cmd] || lists.ask[cmd] {
 				t.Errorf("%s must be blocked, without an allow or ask rule", cmd)
 			}
 		}
+		for _, c := range []string{cmd, cmd + " run x"} {
+			if got := opencodeDecide(opencodeRules, "shell", c); got != "deny" {
+				t.Errorf("OpenCode %q = %s, want deny", c, got)
+			}
+		}
 	}
 	for _, cmd := range []string{"make test-systemd", "make test-install", "make test-clean", "make container-run"} {
-		if !claude.allow[cmd] || !codex.allow[cmd] {
-			t.Errorf("%s must be allowed in both tools", cmd)
+		if !claude.allow[cmd] || !codex.allow[cmd] || !opencode.allow[cmd] {
+			t.Errorf("%s must be allowed in every tool", cmd)
 		}
 	}
 }

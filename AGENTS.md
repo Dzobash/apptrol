@@ -85,13 +85,14 @@ later fix:    new commit → local review rounds → push → draft PR + CI → 
                 the tool's own way to watch a PR where it has one (T3 Code)
   ```
   The exact commands are in [.claude/settings.json](.claude/settings.json) for Claude
-  Code, [.codex/rules/apptrol.rules](.codex/rules/apptrol.rules) for Codex and
-  [.vibe/config.toml](.vibe/config.toml) for Mistral Vibe: those run
+  Code, [.codex/rules/apptrol.rules](.codex/rules/apptrol.rules) for Codex,
+  [.vibe/config.toml](.vibe/config.toml) for Mistral Vibe and
+  [opencode.jsonc](opencode.jsonc) for OpenCode: those run
   without a prompt, and pushing or changing GitHub prompts. These lists match how a
   command starts, not its arguments (`make check` lets `make check other-target`
   through), so this list still decides which arguments are fine. Codex applies its rules
   to commands outside its sandbox, and only when the project is trusted in Codex, from
-  its next start. A new shared command goes into all three files (QA-15 tests the
+  its next start. A new shared command goes into all four files (QA-15 tests the
   shared policy and required restrictions; native reader lists may differ). When
   the folder is trusted, Grok (Grok Build) reads `.claude/settings.json` and AGENTS.md
   by itself, so it needs no file of its own; `grok inspect --json` shows
@@ -101,12 +102,16 @@ later fix:    new commit → local review rounds → push → draft PR + CI → 
   (`~/.vibe/trusted_folders.toml`), and not `.claude/settings.json`; its
   `.vibe/config.toml` (Vibe 3.0.4) lets the shared commands and Vibe's own readers
   run and asks about the rest. Vibe's own file safeguards stay as they are; the file
-  grants no paths. Do not change any tool's global trust.
+  grants no paths. OpenCode reads `opencode.jsonc` (its V2 `permissions` format;
+  check `opencode --version`): shell commands, paths outside the repository and T3
+  tools ask unless a rule allows them. Do not change any tool's global trust.
   Run commands from the checkout's folder (no `cd … &&`, no `git -C`). In Claude
   Code, Codex and Vibe, which check every part of a chain against their rules, a
-  short read-only pipeline or combination is fine when **every part and argument** is
-  on this list and every path stays inside the file boundaries above; other tools
-  (e.g. Grok) run one command per call:
+  short read-only pipeline or combination is fine when **every part and argument**
+  is on this list and every path stays inside the file boundaries above; other tools
+  (e.g. Grok, and OpenCode until TC-QA-009 shows that it checks every part of a
+  chain, [ADR 0040](docs/adr/0040-where-agent-rules-live.md)) run one command per
+  call:
   ```text
   git log -5 --oneline | head -n 3        both parts read
   git status --short; git diff --stat     two reads in the same folder
@@ -124,11 +129,12 @@ later fix:    new commit → local review rounds → push → draft PR + CI → 
   a rule matches.
   T3 Code's tools for reading, tidying threads, orchestration (launching, delegating,
   sending to, stopping threads), waiting and PR tracking are granted by exact name in
-  `.claude/settings.json` and `.vibe/config.toml`, so they run without a prompt; the
-  rules for starting agents ([Set up](#set-up)) still hold. Every other T3 tool asks:
-  deleting, scheduling, secrets, devices, browser actions, T3 settings and the mixed
-  `t3_thread_configure` and `t3_pending_request`. Codex has no project file T3
-  applies to its MCP tools, so in Codex they keep T3's own approval behaviour
+  `.claude/settings.json`, `.vibe/config.toml` and `opencode.jsonc`, so they run
+  without a prompt; the rules for starting agents ([Set up](#set-up)) still hold.
+  Every other T3 tool asks: deleting, scheduling, secrets, devices, browser actions,
+  T3 settings and the mixed `t3_thread_configure` and `t3_pending_request`. Codex has
+  no project file T3 applies to its MCP tools, so in Codex they keep T3's own approval
+  behaviour
   ([ADR 0040](docs/adr/0040-where-agent-rules-live.md#permission-configuration--2026-11-04)).
   Before a command that does more than read, say in one or two sentences what you are
   doing and why; afterwards, explain the result: what passed, what failed and what it
@@ -149,7 +155,7 @@ later fix:    new commit → local review rounds → push → draft PR + CI → 
   read-only, and `.tmp/<run>/` inside it as the one writable folder (ignored by git):
   never `~/.ssh`, the rest of the home folder or `/run/user/…`, and no
   `SSH_AUTH_SOCK`. A flag the script lacks is a pull request to the script. Typed
-  `docker`, `podman` and `buildah` are blocked in all three command lists. The block
+  `docker`, `podman` and `buildah` are blocked in all four command lists. The block
   matches only a command's first word, so never wrap one to get past it (`sudo`,
   `env`, `nice`, `bash -c`); the owner answers such a request no.
   **During a manual test run only**

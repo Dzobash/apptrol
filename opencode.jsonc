@@ -1,0 +1,243 @@
+// OpenCode project permissions, from AGENTS.md › Boundaries › Commands you may run
+// yourself. .claude/settings.json, .codex/rules/apptrol.rules and .vibe/config.toml
+// hold the same shared policy for the other agents; change all four together (QA-15,
+// QA-16, ADR 0040). internal/repocheck reads this file strictly: comments are fine,
+// trailing commas are not.
+//
+// Written for OpenCode's V2 format ("permissions", "shell"), as its docs describe it on
+// 2026-11-09. V1 used "permission" and "bash" and would not read these rules; check the
+// installed version with `opencode --version`.
+//
+// OpenCode starts every agent with "allow everything" and then applies these rules in
+// order; the LAST matching rule wins. So the broad asks come first and every exception
+// after them:
+//
+//   base policy   * allow              (OpenCode's own, before this file)
+//   1. ask        any shell command, any path outside the repository, any T3 tool
+//   2. allow      the shared commands, the chosen T3 tools by exact name
+//   3. ask        pushing, deleting branches, changes on GitHub, all of gh api
+//   4. deny       docker, podman, buildah
+//
+// A shell pattern ending in " *" also matches the bare command ("git status *" covers
+// "git status"). OpenCode's docs say it checks each part of a chain on its own; that is
+// not verified for v2.2.6 (ADR 0040), so run one command per call. Reads and edits
+// inside the repository keep OpenCode's defaults (reading .env files asks). Shell
+// readers (cat, grep, ls, …) are not listed: OpenCode's own read, glob and grep tools
+// stay inside the repository, while a shell rule would let them read anywhere.
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permissions": [
+    // 1. Ask by default.
+    { "action": "shell", "resource": "*", "effect": "ask" },
+    // Only this repository and its worktrees (AGENTS.md › Boundaries).
+    { "action": "external_directory", "resource": "*", "effect": "ask" },
+    // T3 Code's MCP server is "t3-code"; OpenCode names its tools <server>_<tool> and
+    // turns unsupported characters into "_". Whether "-" is one of them is not
+    // documented, so every T3 rule is written in both spellings. Every T3 tool not
+    // allowed below keeps asking: deleting, scheduling, secrets, devices, browser
+    // actions, T3 settings, mixed tools.
+    { "action": "t3-code_*", "resource": "*", "effect": "ask" },
+    { "action": "t3_code_*", "resource": "*", "effect": "ask" },
+
+    // 2. Read only
+    { "action": "shell", "resource": "git status *", "effect": "allow" },
+    { "action": "shell", "resource": "git log *", "effect": "allow" },
+    { "action": "shell", "resource": "git diff *", "effect": "allow" },
+    { "action": "shell", "resource": "git show *", "effect": "allow" },
+    { "action": "shell", "resource": "git fetch *", "effect": "allow" },
+    { "action": "shell", "resource": "git ls-files *", "effect": "allow" },
+    { "action": "shell", "resource": "git ls-tree *", "effect": "allow" },
+    { "action": "shell", "resource": "git check-ignore *", "effect": "allow" },
+    { "action": "shell", "resource": "git worktree list *", "effect": "allow" },
+    { "action": "shell", "resource": "git tag --sort=-creatordate *", "effect": "allow" },
+    { "action": "shell", "resource": "git tag -l *", "effect": "allow" },
+    { "action": "shell", "resource": "git tag --list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr diff *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr checks *", "effect": "allow" },
+    { "action": "shell", "resource": "gh pr status *", "effect": "allow" },
+    { "action": "shell", "resource": "gh issue list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh issue view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh issue status *", "effect": "allow" },
+    { "action": "shell", "resource": "gh search *", "effect": "allow" },
+    { "action": "shell", "resource": "gh status *", "effect": "allow" },
+    { "action": "shell", "resource": "gh run list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh run view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh run watch *", "effect": "allow" },
+    { "action": "shell", "resource": "gh release list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh release view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh repo view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh repo list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh ruleset list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh ruleset view *", "effect": "allow" },
+    { "action": "shell", "resource": "gh ruleset check *", "effect": "allow" },
+    { "action": "shell", "resource": "gh cache list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh label list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh workflow list *", "effect": "allow" },
+    { "action": "shell", "resource": "gh workflow view *", "effect": "allow" },
+    // Build and test. Containers run only through the audited script (QA-16, ADR 0034).
+    { "action": "shell", "resource": "make check *", "effect": "allow" },
+    { "action": "shell", "resource": "make test-audio *", "effect": "allow" },
+    { "action": "shell", "resource": "make test-systemd *", "effect": "allow" },
+    { "action": "shell", "resource": "make test-install *", "effect": "allow" },
+    { "action": "shell", "resource": "make test-clean *", "effect": "allow" },
+    { "action": "shell", "resource": "make container-run *", "effect": "allow" },
+    // Git. Branches are listed here and created with git switch -c. Only branch
+    // switches that refuse a later -d are allowed: git still deletes after -v, -vv or
+    // -r (git branch -v -d x), so use git branch --list -vv (QA-15).
+    { "action": "shell", "resource": "git branch --list *", "effect": "allow" },
+    { "action": "shell", "resource": "git branch --show-current *", "effect": "allow" },
+    { "action": "shell", "resource": "git branch -a *", "effect": "allow" },
+    { "action": "shell", "resource": "git switch *", "effect": "allow" },
+    { "action": "shell", "resource": "git pull *", "effect": "allow" },
+    { "action": "shell", "resource": "git add *", "effect": "allow" },
+    { "action": "shell", "resource": "git commit *", "effect": "allow" },
+    // T3 tools the owner chose to run without a prompt, by exact name, no wildcard:
+    // reads, thread tidying, orchestration, waiting, PR tracking (QA-15, ADR 0040).
+    // AGENTS.md › Set up still decides when an agent may start another.
+    { "action": "t3-code_orchestrator_capabilities", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_worktree_status", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_worktree_list", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_thread_list", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_thread_read", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_thread_search", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_project_list", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_project_read", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_list_thread_pull_requests", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_read_pull_request_guide", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_task_status", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_environment_read", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_preview_list", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_preview_status", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_list_scheduled_tasks", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_thread_update", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_thread_organize", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_thread_launch", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_create_threads", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_delegate_task", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_task_cancel", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_thread_send", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_thread_interrupt", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_queue", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_workflow_stop", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_worktree_handoff", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_thread_wait", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_t3_background_wait", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_link_pull_request", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_unlink_pull_request", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_watch_pull_request", "resource": "*", "effect": "allow" },
+    { "action": "t3-code_unwatch_pull_request", "resource": "*", "effect": "allow" },
+    // The same tools, in case OpenCode writes the server name as t3_code.
+    { "action": "t3_code_orchestrator_capabilities", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_worktree_status", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_worktree_list", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_thread_list", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_thread_read", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_thread_search", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_project_list", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_project_read", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_list_thread_pull_requests", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_read_pull_request_guide", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_task_status", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_environment_read", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_preview_list", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_preview_status", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_list_scheduled_tasks", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_thread_update", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_thread_organize", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_thread_launch", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_create_threads", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_delegate_task", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_task_cancel", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_thread_send", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_thread_interrupt", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_queue", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_workflow_stop", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_worktree_handoff", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_thread_wait", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_t3_background_wait", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_link_pull_request", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_unlink_pull_request", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_watch_pull_request", "resource": "*", "effect": "allow" },
+    { "action": "t3_code_unwatch_pull_request", "resource": "*", "effect": "allow" },
+
+    // 3. Changes outside this checkout: only after the owner's OK (AGENTS.md › Publish).
+    // These come after the allows, so no allow above can cover them.
+    { "action": "shell", "resource": "git branch -d *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch -D *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch --delete *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch -m *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch -M *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch --move *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch -c *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch -C *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch --copy *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch -f *", "effect": "ask" },
+    { "action": "shell", "resource": "git branch --force *", "effect": "ask" },
+    { "action": "shell", "resource": "git push *", "effect": "ask" },
+    { "action": "shell", "resource": "gh pr create *", "effect": "ask" },
+    { "action": "shell", "resource": "gh pr ready *", "effect": "ask" },
+    { "action": "shell", "resource": "gh pr edit *", "effect": "ask" },
+    { "action": "shell", "resource": "gh pr merge *", "effect": "ask" },
+    { "action": "shell", "resource": "gh pr close *", "effect": "ask" },
+    { "action": "shell", "resource": "gh pr comment *", "effect": "ask" },
+    { "action": "shell", "resource": "gh pr review *", "effect": "ask" },
+    { "action": "shell", "resource": "gh pr reopen *", "effect": "ask" },
+    { "action": "shell", "resource": "gh pr lock *", "effect": "ask" },
+    { "action": "shell", "resource": "gh pr unlock *", "effect": "ask" },
+    { "action": "shell", "resource": "gh pr update-branch *", "effect": "ask" },
+    { "action": "shell", "resource": "gh issue create *", "effect": "ask" },
+    { "action": "shell", "resource": "gh issue edit *", "effect": "ask" },
+    { "action": "shell", "resource": "gh issue close *", "effect": "ask" },
+    { "action": "shell", "resource": "gh issue comment *", "effect": "ask" },
+    { "action": "shell", "resource": "gh issue reopen *", "effect": "ask" },
+    { "action": "shell", "resource": "gh issue delete *", "effect": "ask" },
+    { "action": "shell", "resource": "gh issue lock *", "effect": "ask" },
+    { "action": "shell", "resource": "gh issue unlock *", "effect": "ask" },
+    { "action": "shell", "resource": "gh issue transfer *", "effect": "ask" },
+    { "action": "shell", "resource": "gh issue pin *", "effect": "ask" },
+    { "action": "shell", "resource": "gh issue unpin *", "effect": "ask" },
+    { "action": "shell", "resource": "gh issue develop *", "effect": "ask" },
+    { "action": "shell", "resource": "gh run rerun *", "effect": "ask" },
+    { "action": "shell", "resource": "gh run cancel *", "effect": "ask" },
+    { "action": "shell", "resource": "gh run delete *", "effect": "ask" },
+    // Even an explicit GET could be followed by flags that change the method. Keep all
+    // of gh api gated (QA-15, ADR 0040).
+    { "action": "shell", "resource": "gh api *", "effect": "ask" },
+    { "action": "shell", "resource": "gh secret *", "effect": "ask" },
+    { "action": "shell", "resource": "gh variable *", "effect": "ask" },
+    { "action": "shell", "resource": "gh cache delete *", "effect": "ask" },
+    { "action": "shell", "resource": "gh release create *", "effect": "ask" },
+    { "action": "shell", "resource": "gh release edit *", "effect": "ask" },
+    { "action": "shell", "resource": "gh release upload *", "effect": "ask" },
+    { "action": "shell", "resource": "gh release download *", "effect": "ask" },
+    { "action": "shell", "resource": "gh release delete *", "effect": "ask" },
+    { "action": "shell", "resource": "gh release delete-asset *", "effect": "ask" },
+    { "action": "shell", "resource": "gh repo create *", "effect": "ask" },
+    { "action": "shell", "resource": "gh repo edit *", "effect": "ask" },
+    { "action": "shell", "resource": "gh repo delete *", "effect": "ask" },
+    { "action": "shell", "resource": "gh repo fork *", "effect": "ask" },
+    { "action": "shell", "resource": "gh repo rename *", "effect": "ask" },
+    { "action": "shell", "resource": "gh repo archive *", "effect": "ask" },
+    { "action": "shell", "resource": "gh repo unarchive *", "effect": "ask" },
+    { "action": "shell", "resource": "gh repo sync *", "effect": "ask" },
+    { "action": "shell", "resource": "gh repo set-default *", "effect": "ask" },
+    { "action": "shell", "resource": "gh repo clone *", "effect": "ask" },
+    { "action": "shell", "resource": "gh repo autolink *", "effect": "ask" },
+    { "action": "shell", "resource": "gh repo deploy-key *", "effect": "ask" },
+    { "action": "shell", "resource": "gh label create *", "effect": "ask" },
+    { "action": "shell", "resource": "gh label edit *", "effect": "ask" },
+    { "action": "shell", "resource": "gh label delete *", "effect": "ask" },
+    { "action": "shell", "resource": "gh label clone *", "effect": "ask" },
+    { "action": "shell", "resource": "gh workflow run *", "effect": "ask" },
+    { "action": "shell", "resource": "gh workflow enable *", "effect": "ask" },
+    { "action": "shell", "resource": "gh workflow disable *", "effect": "ask" },
+
+    // 4. Containers run only through the audited script, never by typed engine
+    // commands (QA-16, ADR 0034). Wrapping a command is not an allowed workaround.
+    { "action": "shell", "resource": "docker *", "effect": "deny" },
+    { "action": "shell", "resource": "podman *", "effect": "deny" },
+    { "action": "shell", "resource": "buildah *", "effect": "deny" }
+  ]
+}

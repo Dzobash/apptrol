@@ -219,8 +219,9 @@ func TestQA15_RequiredReadersAndSandboxScope(t *testing.T) {
 			}
 		}
 	}
+	_, opencode := openCodeRules(t)
 	for _, reader := range append(slices.Clone(vibeReaders), "sed", "rg") {
-		if overlapsCommand(codex.allow, reader) || overlapsCommand(claude.allow, reader) {
+		if overlapsCommand(codex.allow, reader) || overlapsCommand(claude.allow, reader) || overlapsCommand(opencode.allow, reader) {
 			t.Errorf("%s must keep native reader scope, without a shared global prefix", reader)
 		}
 	}
@@ -229,7 +230,8 @@ func TestQA15_RequiredReadersAndSandboxScope(t *testing.T) {
 // TestQA15_NoBranchSwitchBeforeADelete: a rule sees only the switch right after
 // "git branch", and git still deletes after -v, -vv or -r (`git branch -v -d x`);
 // --merged, --no-merged and --contains take a value, then the same. So none of
-// these may be allowed in any file; `git branch --list …` refuses -d (QA-15).
+// these may be allowed in any file; `git branch --list …` refuses -d (QA-15,
+// ADR 0040).
 func TestQA15_NoBranchSwitchBeforeADelete(t *testing.T) {
 	claude, _, err := claudeCommands(readRepoFile(t, ".claude", "settings.json"))
 	if err != nil {
@@ -244,9 +246,11 @@ func TestQA15_NoBranchSwitchBeforeADelete(t *testing.T) {
 		t.Fatal(err)
 	}
 	vibe := commandSet(tools["bash"].Allowlist)
+	opencodeRules, opencode := openCodeRules(t)
 	for _, sw := range []string{"-v", "-vv", "-r", "--merged", "--no-merged", "--contains"} {
 		cmd := "git branch " + sw + " -d"
-		if overlapsCommand(claude.allow, cmd) || overlapsCommand(codex.allow, cmd) || overlapsCommand(vibe, cmd) {
+		if overlapsCommand(claude.allow, cmd) || overlapsCommand(codex.allow, cmd) || overlapsCommand(vibe, cmd) ||
+			overlapsCommand(opencode.allow, cmd) || opencodeDecide(opencodeRules, "shell", cmd+" x") != "ask" {
 			t.Errorf("%q must ask: an allow rule covers it", cmd)
 		}
 	}

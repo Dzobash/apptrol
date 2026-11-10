@@ -1,6 +1,6 @@
 # Commands Codex may run without asking, from AGENTS.md › Boundaries › Commands
-# you may run yourself. .claude/settings.json and .vibe/config.toml hold the shared
-# policy for other agents; change all three together (QA-15). A rule matches how a command starts,
+# you may run yourself. .claude/settings.json, .vibe/config.toml and opencode.jsonc hold
+# the shared policy for other agents; change all four together (QA-15). A rule matches how a command starts,
 # whatever arguments follow. These rules decide what runs outside Codex's sandbox;
 # they load only when the project is trusted in Codex, at Codex's start.
 
