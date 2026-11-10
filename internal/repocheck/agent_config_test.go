@@ -186,7 +186,8 @@ func TestQA15_RequiredReadersAndSandboxScope(t *testing.T) {
 // TestQA15_NoBranchSwitchBeforeADelete: a rule sees only the switch right after
 // "git branch", and git still deletes after -v, -vv or -r (`git branch -v -d x`);
 // --merged, --no-merged and --contains take a value, then the same. So none of
-// these may be allowed in any file; `git branch --list …` refuses -d (QA-15).
+// these may be allowed in any file; `git branch --list …` refuses -d (QA-15,
+// ADR 0040).
 func TestQA15_NoBranchSwitchBeforeADelete(t *testing.T) {
 	claude, _, err := claudeCommands(readRepoFile(t, ".claude", "settings.json"))
 	if err != nil {

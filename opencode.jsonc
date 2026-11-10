@@ -19,7 +19,8 @@
 //   4. deny       docker, podman, buildah
 //
 // A shell pattern ending in " *" also matches the bare command ("git status *" covers
-// "git status"), and OpenCode checks each part of a chain on its own. Reads and edits
+// "git status"). OpenCode's docs say it checks each part of a chain on its own; that is
+// not verified for v2.2.6 (ADR 0040), so run one command per call. Reads and edits
 // inside the repository keep OpenCode's defaults (reading .env files asks). Shell
 // readers (cat, grep, ls, …) are not listed: OpenCode's own read, glob and grep tools
 // stay inside the repository, while a shell rule would let them read anywhere.

@@ -106,10 +106,12 @@ later fix:    new commit → local review rounds → push → draft PR + CI → 
   check `opencode --version`): shell commands, paths outside the repository and T3
   tools ask unless a rule allows them. Do not change any tool's global trust.
   Run commands from the checkout's folder (no `cd … &&`, no `git -C`). In Claude
-  Code, Codex, Vibe and OpenCode, which check every part of a chain against their
-  rules, a short read-only pipeline or combination is fine when **every part and
-  argument** is on this list and every path stays inside the file boundaries above;
-  other tools (e.g. Grok) run one command per call:
+  Code, Codex and Vibe, which check every part of a chain against their rules, a
+  short read-only pipeline or combination is fine when **every part and argument**
+  is on this list and every path stays inside the file boundaries above; other tools
+  (e.g. Grok, and OpenCode until TC-QA-009 shows that it checks every part of a
+  chain, [ADR 0040](docs/adr/0040-where-agent-rules-live.md)) run one command per
+  call:
   ```text
   git log -5 --oneline | head -n 3        both parts read
   git status --short; git diff --stat     two reads in the same folder
