@@ -178,7 +178,8 @@ base policy  * allow                       OpenCode's own, before the file
 
 - **Shell patterns** match the whole command; `*` matches any text, and a pattern
   ending in ` *` also matches the bare command (`git status *` covers `git status`).
-  OpenCode checks each part of a chain on its own, like Claude Code, Codex and Vibe.
+  OpenCode's docs say it checks each part of a chain on its own, like Claude Code,
+  Codex and Vibe (not verified, see below).
 - **Reads and edits inside the repository** keep OpenCode's defaults (option A in the
   owner's plan): no prompt, except reading `.env` files, which OpenCode asks about by
   itself. Shell readers (`cat`, `grep`, …) get no rule, as in the Claude Code and
@@ -205,6 +206,11 @@ Not verified (only OpenCode's
   OpenCode does not read the file, it allows everything, with no error, so the live
   check [TC-QA-009](../testing/cases/qa.md) decides.
 - **The T3 spelling** OpenCode actually uses; one of the two spellings is unused.
+- **Chains and redirections.** A prefix rule cannot check arguments, so chains
+  (`&&`, pipes, `;`, `$(...)`, backticks) are only safe if OpenCode itself splits a
+  command and checks each part, which its docs describe but was not verified for
+  v2.2.6. Redirections (`git status > file`) were not verified either: plain prefix
+  matching would allow them, so they rely on OpenCode's own scanner.
 - **Other grants.** "Allow always" saves project rules that can override an ask (not a
   deny), and per-agent rules in a personal or global config are appended after this
   file's. Like host grants elsewhere, these are not capped by the project's file.

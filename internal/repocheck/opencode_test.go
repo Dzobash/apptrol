@@ -94,7 +94,7 @@ func opencodeDecide(rules []opencodeRule, action, resource string) string {
 // opencodeCommands turns the shell rules into the same lists as the other files,
 // each command as the words it starts with. A pattern other than "<command> *" (or
 // the catch-all) is a problem: it would match differently from a prefix rule
-// (QA-15).
+// (QA-15, ADR 0040).
 func opencodeCommands(rules []opencodeRule) (commandLists, []string) {
 	lists := commandLists{allow: map[string]bool{}, ask: map[string]bool{}, deny: map[string]bool{}}
 	var problems []string
@@ -112,12 +112,46 @@ func opencodeCommands(rules []opencodeRule) (commandLists, []string) {
 	return lists, problems
 }
 
-// openCodeRules reads the repository's opencode.jsonc and its shell lists (QA-15).
+// opencodeCatchAlls are the asks that keep everything no rule names from OpenCode's
+// allow-everything default: any shell command, any path outside the repository, any
+// T3 tool in either spelling, including tools T3 adds later. Sampled commands, paths
+// and tools cannot show that they are whole, so each is required exactly (QA-15,
+// ADR 0040).
+var opencodeCatchAlls = []opencodeRule{
+	{"shell", "*", "ask"},
+	{"external_directory", "*", "ask"},
+	{"t3-code_*", "*", "ask"},
+	{"t3_code_*", "*", "ask"},
+}
+
+// requireCatchAlls returns an error unless every catch-all ask is in the rules, exactly,
+// and before every allow it covers: the last match wins, so a catch-all after an allow
+// would override it (QA-15, ADR 0040).
+func requireCatchAlls(rules []opencodeRule) error {
+	for _, c := range opencodeCatchAlls {
+		at := slices.Index(rules, c)
+		if at < 0 {
+			return fmt.Errorf("OpenCode catch-all %v is missing or narrowed", c)
+		}
+		for _, r := range rules[:at] {
+			if r.Effect == "allow" && wildcardMatch(c.Action, r.Action) {
+				return fmt.Errorf("OpenCode catch-all %v comes after allow %v and overrides it", c, r)
+			}
+		}
+	}
+	return nil
+}
+
+// openCodeRules reads the repository's opencode.jsonc, requires its catch-all asks and
+// returns its shell lists (QA-15, ADR 0040).
 func openCodeRules(t *testing.T) ([]opencodeRule, commandLists) {
 	t.Helper()
 	rules, err := parseOpenCodeConfig(readRepoFile(t, "opencode.jsonc"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if err := requireCatchAlls(rules); err != nil {
+		t.Error(err)
 	}
 	lists, problems := opencodeCommands(rules)
 	for _, p := range problems {
@@ -212,6 +246,80 @@ func TestQA15_OpenCodeExactT3Grants(t *testing.T) {
 	}
 	if missing, extra := difference(want, got), difference(got, want); len(missing)+len(extra) != 0 {
 		t.Errorf("OpenCode T3 grants: missing %v, extra %v", missing, extra)
+	}
+}
+
+// TestQA15_OpenCodeCatchAllsAreRequired: the real file asks about commands, paths and
+// T3 tools no other test names; narrowing, dropping or moving any catch-all in its text
+// fails the check, and where the change opens a hole, the evaluator shows it allowed
+// (QA-15, ADR 0040).
+func TestQA15_OpenCodeCatchAllsAreRequired(t *testing.T) {
+	data := string(readRepoFile(t, "opencode.jsonc"))
+	rules, err := parseOpenCodeConfig([]byte(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := requireCatchAlls(rules); err != nil {
+		t.Fatal(err)
+	}
+	type probe struct{ action, resource string }
+	unsampled := map[string]probe{
+		"shell":     {"shell", "some-future-command --flag"},
+		"outside":   {"external_directory", "/opt/unsampled/data/*"},
+		"t3-code_*": {"t3-code_some_future_tool", "*"},
+		"t3_code_*": {"t3_code_some_future_tool", "*"},
+	}
+	for name, p := range unsampled {
+		if got := opencodeDecide(rules, p.action, p.resource); got != "ask" {
+			t.Errorf("%s: OpenCode %s %q = %s, want ask", name, p.action, p.resource, got)
+		}
+	}
+	line := func(action, resource, effect string) string {
+		return fmt.Sprintf("    { \"action\": %q, \"resource\": %q, \"effect\": %q },\n", action, resource, effect)
+	}
+	shell, ext := line("shell", "*", "ask"), line("external_directory", "*", "ask")
+	dash, under := line("t3-code_*", "*", "ask"), line("t3_code_*", "*", "ask")
+	const last = "    // 4."
+	for _, m := range []struct {
+		name    string
+		changes [][2]string // old, new, applied in order
+		hole    string      // a key of unsampled that the change leaves allowed, or ""
+	}{
+		{"shell narrowed", [][2]string{{shell, line("shell", "git *", "ask")}}, ""},
+		{"shell dropped", [][2]string{{shell, ""}}, ""},
+		{"outside narrowed", [][2]string{{ext, line("external_directory", "/elsewhere/*", "ask")}}, "outside"},
+		{"outside allowed", [][2]string{{ext, line("external_directory", "*", "allow")}}, "outside"},
+		{"outside dropped", [][2]string{{ext, ""}}, "outside"},
+		{"outside allow before the ask", [][2]string{{ext, line("external_directory", "/opt/*", "allow") + ext}}, ""},
+		{"t3-code_* as exact asks", [][2]string{{dash, line("t3-code_delete_scheduled_task", "*", "ask") +
+			line("t3-code_schedule_task", "*", "ask")}}, "t3-code_*"},
+		{"t3_code_* as exact asks", [][2]string{{under, line("t3_code_delete_scheduled_task", "*", "ask")}}, "t3_code_*"},
+		{"t3-code_* resource narrowed", [][2]string{{dash, line("t3-code_*", "none", "ask")}}, "t3-code_*"},
+		{"t3_code_* dropped", [][2]string{{under, ""}}, "t3_code_*"},
+		{"t3-code_* after the allows", [][2]string{{dash, ""}, {last, dash + last}}, ""},
+		{"t3_code_* after the allows", [][2]string{{under, ""}, {last, under + last}}, ""},
+	} {
+		t.Run(m.name, func(t *testing.T) {
+			text := data
+			for _, c := range m.changes {
+				if strings.Count(text, c[0]) != 1 {
+					t.Fatalf("the file no longer has exactly one %q; update this test", c[0])
+				}
+				text = strings.Replace(text, c[0], c[1], 1)
+			}
+			changed, err := parseOpenCodeConfig([]byte(text))
+			if err == nil {
+				err = requireCatchAlls(changed)
+			}
+			if err == nil {
+				t.Error("the check passed")
+			}
+			if m.hole != "" && changed != nil {
+				if p := unsampled[m.hole]; opencodeDecide(changed, p.action, p.resource) != "allow" {
+					t.Errorf("the change should leave %s %q allowed; the test no longer shows the hole", p.action, p.resource)
+				}
+			}
+		})
 	}
 }
 

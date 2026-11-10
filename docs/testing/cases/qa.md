@@ -168,6 +168,7 @@ setup is needed: no audio, no service.
 - [ ] Ask OpenCode to run `docker ps` → OpenCode refuses it without running it, by the deny rule (output from Docker, or "command not found" from the shell, means it ran: the file is not read)
 - [ ] Ask OpenCode to run `git push` → OpenCode asks before running it; answer no → nothing is pushed
 - [ ] Ask OpenCode to run `git status` → it runs at once, without asking
+- [ ] Ask OpenCode to run `git status && git push` → the `git status` part runs; the `git push` part asks on its own before running; answer no → nothing is pushed
 - [ ] Ask OpenCode to call T3's `delete_scheduled_task` with a made-up task ID → OpenCode asks before calling it, by the `t3-code_*`/`t3_code_*` rule; answer no
 
 **Result:** Pass / Fail / Blocked

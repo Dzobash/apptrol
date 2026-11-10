@@ -256,7 +256,8 @@ var mustAsk = []string{
 }
 
 // TestQA15_ChangesOutsideTheCheckoutAsk: Claude Code, Codex and OpenCode ask before
-// pushing or changing GitHub, whatever else a personal settings file allows (QA-15).
+// pushing or changing GitHub, whatever else a personal settings file allows (QA-15,
+// ADR 0040).
 func TestQA15_ChangesOutsideTheCheckoutAsk(t *testing.T) {
 	claude, _, err := claudeCommands(readRepoFile(t, ".claude", "settings.json"))
 	if err != nil {
