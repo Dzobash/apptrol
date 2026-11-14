@@ -51,6 +51,18 @@ in what order.
   milestone is made as soon as its release is planned or gets an issue.
 - An issue that moves to another phase moves to that phase's milestone. A phase that
   moves to another version gets its milestone renamed.
+- A roadmap change (a new phase, a phase moved to another version, or a phase dropped)
+  updates the milestones in the same step, and its pull request lists the milestones
+  and issues it checked:
+  ```text
+  every planned phase has its milestone    0.7.0 — Multiverse of Madness
+  a moved phase's milestone is renamed     0.6.0 → 0.7.0
+  every issue planned for the phase is in  #80 → 0.7.0
+  it; a linked issue of another phase or
+  the backlog keeps its own                #211 stays 0.5.0, #64 none
+  a dropped phase's issues move            to another milestone, or to the backlog
+  a dropped phase's empty milestone        is deleted (closed reads as released)
+  ```
 - A pull request that finishes a planned issue gets the same milestone.
 - Before the release candidate, each open issue is moved or kept, with the decision in
   the issue (e.g. "stays: checked on the candidate"). Before the release, none is open
