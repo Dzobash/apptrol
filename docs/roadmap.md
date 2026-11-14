@@ -11,14 +11,15 @@ Each phase ends with a tagged release. Detailed requirements live in
 | 1.6 | These Go to Eleven | Output volume | 0.3.0 | ✅ Released 2026-11-02 |
 | 1.7 | Show Me What You Got | On-screen display and LEDs | 0.4.0 | ⚪ Planned |
 | 1.8 | We'll Do It Live! | OBS | 0.5.0 | ⚪ Planned |
-| 2 | Multiverse of Madness | Layouts | 0.6.0 | ⚪ Planned |
-| 3 | I'm In | Setup and tray | 0.7.0 | ⚪ Planned |
+| 1.9 | Put Your Foot Down | Multiple devices and foot pedals | 0.6.0 | ⚪ Planned |
+| 2 | Multiverse of Madness | Layouts | 0.7.0 | ⚪ Planned |
+| 3 | I'm In | Setup and tray | 0.8.0 | ⚪ Planned |
 | – | Soon™ | Backlog | – | ⚪ Unscheduled |
 
 `1.0.0` is released once Phases 1–3 are stable and the config format is frozen.
 
 <p align="center">
-  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by version: sliders, knobs, S and M since 0.1.0; R buttons, the transport buttons as media keys, and Marker and Record as launchers since 0.2.0; Track and Cycle for layouts planned for 0.6.0" width="800">
+  <img src="assets/photos/nanokontrol2-controls.png" alt="The controller with its controls marked by version: sliders, knobs, S and M since 0.1.0; R buttons, the transport buttons as media keys, and Marker and Record as launchers since 0.2.0; Track and Cycle for layouts planned for 0.7.0" width="800">
 </p>
 
 ---
@@ -206,9 +207,45 @@ and stop from the controller and REC shows their state against a real OBS, Apptr
 connects only to allowed hosts and keeps the OBS password out of `config.toml`, and the
 hardware checklist passes on an installed release candidate.
 
+## Phase 1.9 — Put Your Foot Down
+
+*Multiple devices and foot pedals · `0.6.0` · ⚪ Planned*
+
+**Goal:** run several input devices at the same time, e.g. the nanoKONTROL2 and a foot
+pedal next to it, so hold-to-talk, cough or play/pause work with the foot.
+
+Planned on 2026-11-14 ([#245](https://github.com/Dzobash/apptrol/issues/245)). The
+pedals reuse the actions of Phase 1.8's configurable transport buttons
+([#211](https://github.com/Dzobash/apptrol/issues/211)). New devices come before
+layouts, so that each one is tested without layouts in the way. The Elgato Stream Deck
+Pedal is a USB HID device, read in pure Go; the M-VAVE Chocolate Plus speaks MIDI. One
+PR each, in this order:
+
+```
+ADR 0047             the pedal as a HID device, multiple devices in the service
+#243 pedal reader    find the pedal, read it, apptrol test shows presses  (no behaviour)
+#242 devices         the service runs any number; each connects and disconnects on its own
+#242 guard           unplugging one device ends only its own held states  (own PR)
+#243 pedal config    pedal_left / pedal_middle / pedal_right with #211's actions
+#244 Chocolate Plus  a profile for its four switches, once the device arrives
+```
+
+- [ ] Decision record for the pedal as a HID device and multiple devices in the service, including two devices of the same kind and pedal jobs per layout or once for all (ADR 0047)
+- [ ] Multiple input devices at the same time, with no fixed limit: each connects and disconnects on its own, and the Status line and the logs name the device ([#242](https://github.com/Dzobash/apptrol/issues/242))
+- [ ] Unplugging one device ends only the held states it started; a pedal still down when its device comes back needs a fresh press (own PR, [#242](https://github.com/Dzobash/apptrol/issues/242))
+- [ ] Stream Deck Pedal: found by its USB ID, read through hidraw, presses shown in `apptrol test`; a udev rule for older systems in the install guide ([#243](https://github.com/Dzobash/apptrol/issues/243))
+- [ ] `pedal_left`, `pedal_middle` and `pedal_right` with the actions of [#211](https://github.com/Dzobash/apptrol/issues/211); a pedal does nothing until it is configured ([#243](https://github.com/Dzobash/apptrol/issues/243))
+- [ ] M-VAVE Chocolate Plus: a controller profile for its four switches, once the device is checked ([#244](https://github.com/Dzobash/apptrol/issues/244))
+- [ ] Takes the "two at once" part of [#64](https://github.com/Dzobash/apptrol/issues/64) before 1.0; other MIDI controllers, e.g. the M-VAVE SMC-Mixer, stay in Soon™
+
+**Done when:** all Phase 1.9 MUST requirements are met, the nanoKONTROL2 and the Stream
+Deck Pedal (and the Chocolate Plus) work at the same time, unplugging one device ends
+only its own held states, the pedals do what the config says and nothing when they are
+not configured, and the hardware checklist passes on an installed release candidate.
+
 ## Phase 2 — Multiverse of Madness
 
-*Layouts · `0.6.0` · ⚪ Planned*
+*Layouts · `0.7.0` · ⚪ Planned*
 
 **Goal:** several sets of assignments (e.g. *Work*, *Gaming*), switched from the
 controller.
@@ -234,7 +271,7 @@ release candidate.
 
 ## Phase 3 — I'm In
 
-*Setup and tray · `0.7.0` · ⚪ Planned*
+*Setup and tray · `0.8.0` · ⚪ Planned*
 
 **Goal:** set up Apptrol without editing a file, and see its status in the tray.
 
@@ -259,7 +296,7 @@ an installed release candidate.
 - A Home Assistant adapter ([#214](https://github.com/Dzobash/apptrol/issues/214))
 - Mute and deafen in Discord through its RPC; needs Discord's approval first ([#215](https://github.com/Dzobash/apptrol/issues/215))
 - Read the controller's LED mode over SysEx and warn only when it is "Internal" (see HW-03) ([#63](https://github.com/Dzobash/apptrol/issues/63))
-- Support for other MIDI controllers ([#64](https://github.com/Dzobash/apptrol/issues/64))
+- Support for other MIDI controllers, e.g. the M-VAVE SMC-Mixer; multiple devices at once come earlier, in Phase 1.9 ([#64](https://github.com/Dzobash/apptrol/issues/64))
 - Native journald protocol for structured log fields (Q-5) ([#65](https://github.com/Dzobash/apptrol/issues/65))
 - Man page and shell completions (bash, zsh, fish) in the packages, written without a command-line framework (ADR 0021) ([#66](https://github.com/Dzobash/apptrol/issues/66))
 
@@ -310,6 +347,8 @@ fader under your fingers.
 - Buttons for media keys and for starting apps
 - OBS from the controller: recording, streaming and its audio sources, over OBS's own
   WebSocket server
+- Foot pedals next to the controller (the Stream Deck Pedal first), and multiple
+  devices at the same time
 - Layouts: several sets of assignments, switched from the controller
 - A setup in the terminal and a tray icon
 - Any Linux desktop with PipeWire (or PulseAudio) and systemd
