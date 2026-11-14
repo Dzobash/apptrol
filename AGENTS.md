@@ -334,7 +334,10 @@ from one to another.
   every contributor checks. Agents add only this:
   - check the diff for private data ([Boundaries](#boundaries));
   - complete the local review rounds with a clean verdict on the exact commit before
-    pushing, including routine docs and tests ([Review](#review)).
+    pushing, including routine docs and tests ([Review](#review));
+  - for a roadmap change, match the milestones and their issues to the phases
+    ([CONTRIBUTING.md › Milestones](CONTRIBUTING.md#milestones)) and list them in the
+    PR.
 - For audio changes also `make test-audio` (runs against the owner's PipeWire; it adds
   a silent test output and inputs and removes them afterwards; it needs the live setup,
   see [Set up](#set-up)). CI's PipeWire is older than the owner's and behaves
