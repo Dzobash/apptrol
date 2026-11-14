@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   requires it; Ubuntu 26.04 ships it as `golang-go`. Release packages and binaries are
   unaffected (#222).
 
+### Documentation
+- Roadmap: new Phase 1.9, *Put Your Foot Down* (multiple devices and foot pedals,
+  0.6.0); layouts move to 0.7.0, setup and tray to 0.8.0 (#245).
+
 ### Fixed
 - `apptrol list apps` no longer takes its launcher example from the first desktop ID
   of the whole list. An ID can contain `=`, and the line then read like a syntax

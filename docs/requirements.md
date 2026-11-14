@@ -429,6 +429,14 @@ Sway setups) need one line in their config so started apps can open windows;
 - Before the first connection: outgoing connections only, to hosts in an allow list (#209, ADR 0041), and the OBS password kept in the keyring or a password file (#210, ADR 0042).
 - The transport buttons can be configured; media keys stay the default (#211).
 
+### Phase 1.9 — Multiple devices and foot pedals *(#245)*
+- Any number of input devices at the same time (e.g. the nanoKONTROL2, the Elgato Stream Deck Pedal and the M-VAVE Chocolate Plus); each connects and disconnects on its own, and the Status line and the logs name the device (#242, ADR 0047).
+- Unplugging one device ends only the held states that device started; a pedal still held down when its device comes back is not a new press (#242).
+- The Stream Deck Pedal is read through hidraw in pure Go, found by its USB ID, never by a fixed `hidrawN`; its serial number is never logged; `apptrol test` shows its presses (#243).
+- The pedals are named by position, `pedal_left`, `pedal_middle` and `pedal_right`, and take the actions of the configurable transport buttons (#211); a pedal does nothing until it is configured (#243).
+- The Chocolate Plus gets a controller profile for its four switches once the device is checked; Bluetooth MIDI is not part of it (#244).
+- This takes the "two at once" part of support for other MIDI controllers (#64); other controllers, e.g. the M-VAVE SMC-Mixer, stay in the backlog.
+
 ### Phase 2 — Layouts
 - Several layouts (e.g. *Work*, *Gaming*), each with its own assignments.
 - Every layout keeps its own positions, user mutes and solo state, and restores them when it becomes active. Switching layouts does not change the state of apps that are not part of the new layout.
@@ -451,7 +459,7 @@ Sway setups) need one line in their config so started apps can open windows;
 - A Home Assistant adapter (#214).
 - Mute and deafen in Discord through its RPC, once Discord approves it (#215).
 - Read the controller's LED mode over SysEx (read-only) and log a **warning** only when it is "Internal", replacing the HW-03 hint.
-- Support for other MIDI controllers.
+- Support for other MIDI controllers, e.g. the M-VAVE SMC-Mixer (#64); multiple devices at once come earlier, in Phase 1.9.
 
 ## 7. Open questions
 

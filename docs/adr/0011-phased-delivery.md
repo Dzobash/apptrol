@@ -49,3 +49,10 @@ Recording, output switching (R), bleep and Marker buttons stay in the backlog.
   backlog (#62). Layouts move to `0.6.0`, setup and tray to `0.7.0`; the phase numbers
   stay. Layouts also change: Cycle tapped alone switches to a pinned layout named in
   the config and back, and Cycle + S / M / R to jump to a layout is dropped.
+- 2026-11-14: a new Phase 1.9, *Put Your Foot Down* (`0.6.0`), runs multiple input
+  devices at once, with the Elgato Stream Deck Pedal and the M-VAVE Chocolate Plus next
+  to the nanoKONTROL2 (#245). It comes after OBS, whose configurable transport buttons
+  (#211) it reuses, and before layouts, so that each new device is tested without
+  layouts in the way. Layouts move to `0.7.0`, setup and tray to `0.8.0`; the phase
+  numbers stay. It takes the "two at once" part of #64 before 1.0; other MIDI
+  controllers stay in the backlog.
