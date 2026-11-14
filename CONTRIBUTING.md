@@ -59,7 +59,7 @@ in what order.
   a moved phase's milestone is renamed     0.6.0 → 0.7.0
   every issue the phase lists is in it     #80 → 0.7.0
   a dropped phase's issues move            to another milestone, or to the backlog
-  a dropped phase's empty milestone        is closed or deleted
+  a dropped phase's empty milestone        is deleted (closed reads as released)
   ```
 - A pull request that finishes a planned issue gets the same milestone.
 - Before the release candidate, each open issue is moved or kept, with the decision in
