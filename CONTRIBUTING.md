@@ -57,7 +57,9 @@ in what order.
   ```text
   every planned phase has its milestone    0.7.0 — Multiverse of Madness
   a moved phase's milestone is renamed     0.6.0 → 0.7.0
-  every issue the phase lists is in it     #80 → 0.7.0
+  every issue planned for the phase is in  #80 → 0.7.0
+  it; a linked issue of another phase or
+  the backlog keeps its own                #211 stays 0.5.0, #64 none
   a dropped phase's issues move            to another milestone, or to the backlog
   a dropped phase's empty milestone        is deleted (closed reads as released)
   ```
