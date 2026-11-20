@@ -693,9 +693,10 @@ unknown          work                        work                        never
 - **Lock state:** `internal/session` asks logind for the user (`GetUser`), follows the
   user's `Display` (the graphical session) and that session's `LockedHint` and `Active`
   through `PropertiesChanged`, and reads everything again when logind (re)starts
-  (`NameOwnerChanged`) or, while a read fails, every 5 seconds. It reports `unlocked`,
-  `locked`, `inactive` (another session in front) or `unknown` as `mixer.ScreenChanged`,
-  only on a change.
+  (`NameOwnerChanged`, clearing cached user, seat and session state) or, while a read
+  fails, every 5 seconds (the warning is logged once until a read succeeds or the
+  connection to the system bus is lost). It reports `unlocked`, `locked`, `inactive`
+  (another session in front) or `unknown` as `mixer.ScreenChanged`, only on a change.
 - **Fail closed:** the mixer starts in `unknown`. Without a system bus, without a
   graphical session, after a lost connection or a failed read, the state is `unknown`,
   and no launcher starts, whatever the configuration.

@@ -129,5 +129,6 @@ INFO launchers allowed: the screen is unlocked apptrol.component=session apptrol
   whatever the screen state" no longer holds for `inactive`; `locked` and `unknown` are
   unchanged. See [ADR 0030](0030-three-screen-states.md) (#60).
 - 2026-11-20: `cannot read the screen lock state; launchers are blocked` is logged at
-  `warn` once per outage until a read succeeds, matching `seat_unreadable` (SVC-12);
-  the 5-second retries stay quiet until recovery, while launchers remain blocked (#253).
+  `warn` once per outage until a read succeeds or the connection to the system bus is
+  lost, matching `seat_unreadable` (SVC-12); the 5-second retries stay quiet until
+  recovery, while launchers remain blocked (#253).

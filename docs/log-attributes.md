@@ -137,6 +137,6 @@ Apptrol's own:
 | `app_start_failed` | A launcher's app could not be started: not installed, a broken `Exec` line, a program that does not exist, or systemd refused; `exception.message` says which. |
 | `system_bus_unreachable` | No D-Bus system bus (warning). Launchers are blocked, because Apptrol cannot tell whether the screen is locked, and after the computer wakes up the LEDs are not sent again until they change; everything else works. |
 | `system_bus_lost` | The connection to the system bus broke (warning); launchers are blocked until Apptrol has reconnected by itself. |
-| `screen_state_unreadable` | logind did not say whether the screen is locked (warning); launchers are blocked, and Apptrol asks again every 5 seconds. |
-| `seat_unreadable` | logind did not say whose session is in front of the computer (warning). Apptrol holds the controller as before, and asks again every 5 seconds. |
+| `screen_state_unreadable` | logind did not say whether the screen is locked (warning, logged once until it can be read again or the system bus connection is lost); launchers are blocked, and Apptrol asks again every 5 seconds. |
+| `seat_unreadable` | logind did not say whose session is in front of the computer (warning, logged once until it can be read again or the system bus connection is lost). Apptrol holds the controller as before, and asks again every 5 seconds. |
 | `status_not_sent` | The Status line could not be sent to systemd (warning); Apptrol keeps running, and the line shows the last text that arrived. |
