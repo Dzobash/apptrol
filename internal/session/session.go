@@ -70,7 +70,7 @@ type Watcher struct {
 	uid     uint32 // the user whose graphical session is followed
 	// Wait before reconnecting: starts at retryMin, doubles up to retryMax.
 	retryMin, retryMax time.Duration
-	// Wait before re-reading an unreadable screen or seat state (LAUNCH-13, SVC-12, ADR 0024).
+	// Wait before re-reading an unreadable screen or seat state (LAUNCH-13, ADR 0024; SVC-12, ADR 0029).
 	unreadableRetry time.Duration
 	resend          []time.Duration // see defaultResend
 }
@@ -424,8 +424,8 @@ func (g *graphical) get(ctx context.Context, path dbus.ObjectPath, iface, prop s
 
 // screen remembers the last screen state reported, so that only changes are
 // logged and sent, and tracks whether the last read failed so an unreadable
-// outage warns once until recovery, matching seat (SVC-12) (LAUNCH-13,
-// ADR 0024).
+// outage warns once until recovery, matching seat (SVC-12, ADR 0029)
+// (LAUNCH-13, ADR 0024).
 type screen struct {
 	log        *slog.Logger
 	out        chan<- mixer.Event
@@ -436,8 +436,8 @@ type screen struct {
 
 // set reports a new state; err is why it could not be read. Launchers stay
 // blocked (fail closed) whenever the state is unreadable, while the warning is
-// logged once per outage until a read succeeds, matching seat (SVC-12)
-// (LAUNCH-13, ADR 0024). It returns false when ctx ends.
+// logged once per outage until a read succeeds, matching seat (SVC-12,
+// ADR 0029) (LAUNCH-13, ADR 0024). It returns false when ctx ends.
 func (s *screen) set(ctx context.Context, state mixer.ScreenState, reason, id string, err error) bool {
 	if err != nil && !s.unreadable {
 		s.log.Warn("cannot read the screen lock state; launchers are blocked",
