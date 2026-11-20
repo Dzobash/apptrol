@@ -751,7 +751,10 @@ Launcher buttons (ADR 0019, LAUNCH-*):
 
 - **Finding apps:** desktop files in `applications/` under `$XDG_DATA_HOME` and each
   `$XDG_DATA_DIRS` entry, read on every press, so an app installed later is found. Their
-  `Exec` line is parsed as the Desktop Entry specification says.
+  `Exec` line is parsed as the Desktop Entry specification says. A file whose read fails
+  (or that is over the 4 MiB read cap) is rejected and logged (`desktop file could not be
+  read; the app counts as not installed`, `error.type=desktop_file_unreadable`) and
+  counts as not installed; the first folder still wins (LAUNCH-02, #260).
 - **Starting:** the systemd user manager (`go-systemd`, over the existing session bus)
   starts each app in a transient unit `app-apptrol-<id>@<random>.service`, with
   `Type=exec` (a program that cannot run fails the start), `ExitType=cgroup` (a wrapper

@@ -7,6 +7,7 @@ package launcher
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"io/fs"
 	"log/slog"
@@ -165,15 +166,46 @@ func readDesktopFile(path string) (app App, hidden, ok bool, err error) {
 	return parseDesktopEntry(f)
 }
 
+// maxDesktopFileSize caps how much of a .desktop file Apptrol reads: past it
+// the file is rejected as unreadable, so a symlink to /dev/zero or a huge
+// one-line file cannot read on until memory runs out (LAUNCH-02, #260).
+const maxDesktopFileSize = 4 << 20 // 4 MiB, far above any real desktop file
+
+// errDesktopFileTooLarge is returned when a .desktop file exceeds
+// maxDesktopFileSize; the file is then rejected like an unreadable one
+// (#260).
+var errDesktopFileTooLarge = errors.New("desktop file is larger than 4 MiB")
+
+// sizeLimitReader reads at most n bytes from r and then fails with
+// errDesktopFileTooLarge, so an oversized file is rejected, not silently
+// truncated (LAUNCH-02, #260).
+type sizeLimitReader struct {
+	r io.Reader
+	n int64
+}
+
+func (l *sizeLimitReader) Read(p []byte) (int, error) {
+	if l.n <= 0 {
+		return 0, errDesktopFileTooLarge
+	}
+	if int64(len(p)) > l.n {
+		p = p[:l.n]
+	}
+	n, err := l.r.Read(p)
+	l.n -= int64(n)
+	return n, err
+}
+
 // parseDesktopEntry reads the [Desktop Entry] group from r. Lines of any
 // length are read with a bufio.Reader, so a long line such as MimeType= does
 // not truncate the file the way a default bufio.Scanner (64 KiB per line)
-// did; a genuine read error rejects the file instead of returning a partial
-// entry (LAUNCH-02, LAUNCH-03, ADR 0019, #260).
+// did; a genuine read error or a file over maxDesktopFileSize rejects the
+// file instead of returning a partial entry (LAUNCH-02, LAUNCH-03, ADR 0019,
+// #260).
 func parseDesktopEntry(r io.Reader) (app App, hidden, ok bool, err error) {
 	inEntry := false
 	typ := ""
-	br := bufio.NewReader(r)
+	br := bufio.NewReader(&sizeLimitReader{r: r, n: maxDesktopFileSize})
 	for {
 		line, rerr := br.ReadString('\n')
 		if rerr != nil && rerr != io.EOF {

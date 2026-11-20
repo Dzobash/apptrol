@@ -287,7 +287,7 @@ in [ADR 0029](adr/0029-controller-follows-the-user-in-front.md).
 | ID | Requirement | Level |
 |---|---|---|
 | LAUNCH-01 | Record, the Marker buttons and any R button set up as a launcher (CFG-13) MUST start their app when pressed. Without a launcher, Record and the Marker buttons do nothing (debug log). | MUST |
-| LAUNCH-02 | A desktop ID MUST be resolved as the Desktop Entry and Base Directory specifications say: `applications/` under `$XDG_DATA_HOME`, then each `$XDG_DATA_DIRS` entry; the first file found wins. A file with `Hidden=true` counts as not installed. | MUST |
+| LAUNCH-02 | A desktop ID MUST be resolved as the Desktop Entry and Base Directory specifications say: `applications/` under `$XDG_DATA_HOME`, then each `$XDG_DATA_DIRS` entry; the first file found wins. A file with `Hidden=true` counts as not installed. A file that cannot be read completely counts as not installed in the same way, and a later folder's copy does not replace it. | MUST |
 | LAUNCH-03 | `Exec` MUST be parsed as the Desktop Entry specification says: quoting and escapes, `%f %F %u %U` removed, `%c` replaced by the app's name, `%i` and `%k` dropped. A file with `DBusActivatable=true` and no `Exec` MUST be started through `org.freedesktop.Application.Activate`. | MUST |
 | LAUNCH-04 | An app MUST be started by systemd as a transient user unit (`app-apptrol-<desktop-id>@<random>.service`), never as a child process of Apptrol. It MUST keep running when Apptrol stops or restarts; its unit is removed after it exits. | MUST |
 | LAUNCH-05 | A `command` MUST be run as a list of arguments, without a shell; `~/` at the start of an argument MUST be expanded. | MUST |

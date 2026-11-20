@@ -218,10 +218,10 @@ func (r *failReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// TestQA07_LongLinesAreStillParsed: a line over bufio.Scanner's 64 KiB limit
-// (a long MimeType=) does not truncate the file; the keys before and after
-// it are read (QA-07, LAUNCH-02, LAUNCH-03, ADR 0019, #260).
-func TestQA07_LongLinesAreStillParsed(t *testing.T) {
+// TestLAUNCH02_LongLinesAreStillParsed: a line over bufio.Scanner's 64 KiB
+// limit (a long MimeType=) does not truncate the file; the keys before and
+// after it are read (LAUNCH-02, LAUNCH-03, ADR 0019, #260).
+func TestLAUNCH02_LongLinesAreStillParsed(t *testing.T) {
 	home, _, _, system := dataDirs(t)
 	long := "MimeType=" + strings.Repeat("application/x-apptrol-test;", 3000)
 	if len(long) <= 64*1024 {
@@ -238,11 +238,11 @@ func TestQA07_LongLinesAreStillParsed(t *testing.T) {
 	}
 }
 
-// TestQA07_AReadErrorRejectsTheFile: keys after a failed read were never
+// TestLAUNCH02_AReadErrorRejectsTheFile: keys after a failed read were never
 // seen, so the file is rejected even when Type=Application came before the
-// error — a partial entry must not count as valid (QA-07, LAUNCH-02,
-// LAUNCH-03, ADR 0019, #260).
-func TestQA07_AReadErrorRejectsTheFile(t *testing.T) {
+// error — a partial entry must not count as valid (LAUNCH-02, LAUNCH-03,
+// ADR 0019, #260).
+func TestLAUNCH02_AReadErrorRejectsTheFile(t *testing.T) {
 	app, hidden, ok, err := parseDesktopEntry(&failReader{data: []byte("[Desktop Entry]\nType=Application\nName=Ghost\nExec=ghost\n")})
 	if err == nil || ok || hidden || app != (App{}) {
 		t.Errorf("after a read error: app = %+v, hidden = %v, ok = %v, err = %v; want a rejected file", app, hidden, ok, err)
@@ -253,10 +253,10 @@ func TestQA07_AReadErrorRejectsTheFile(t *testing.T) {
 	}
 }
 
-// TestQA07_ARejectedFileIsLogged: a desktop file that cannot be read is
+// TestLAUNCH02_ARejectedFileIsLogged: a desktop file that cannot be read is
 // rejected and logged, so a missing app can be explained from the logs
-// (QA-07, LAUNCH-02, ADR 0019, #260).
-func TestQA07_ARejectedFileIsLogged(t *testing.T) {
+// (LAUNCH-02, ADR 0019, #260).
+func TestLAUNCH02_ARejectedFileIsLogged(t *testing.T) {
 	home, _, _, system := dataDirs(t)
 	if err := os.MkdirAll(filepath.Join(system, "applications"), 0o755); err != nil {
 		t.Fatal(err)
@@ -279,10 +279,10 @@ func TestQA07_ARejectedFileIsLogged(t *testing.T) {
 	}
 }
 
-// TestQA07_ARejectedFileKeepsFirstFolderWins: an unreadable file in the
+// TestLAUNCH02_ARejectedFileKeepsFirstFolderWins: an unreadable file in the
 // first folder still wins over a good copy in a later folder, as LAUNCH-02
-// says for Hidden=true (QA-07, LAUNCH-02, ADR 0019, #260).
-func TestQA07_ARejectedFileKeepsFirstFolderWins(t *testing.T) {
+// says for Hidden=true (LAUNCH-02, ADR 0019, #260).
+func TestLAUNCH02_ARejectedFileKeepsFirstFolderWins(t *testing.T) {
 	home, _, _, system := dataDirs(t)
 	if err := os.MkdirAll(filepath.Join(home, "applications"), 0o755); err != nil {
 		t.Fatal(err)
@@ -293,5 +293,36 @@ func TestQA07_ARejectedFileKeepsFirstFolderWins(t *testing.T) {
 	writeDesktop(t, system, "discord.desktop", entry("Discord", "discord"))
 	if _, ok := Find(nil, []string{home, system})["discord"]; ok {
 		t.Error("a later folder's file resurrected an app whose first-folder file was rejected")
+	}
+}
+
+// endlessReader never ends and always has more, like a .desktop symlink to
+// /dev/zero (#260).
+type endlessReader struct{}
+
+func (endlessReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 'a'
+	}
+	return len(p), nil
+}
+
+// TestLAUNCH02_AnOversizedFileIsRejected: the read is capped at
+// maxDesktopFileSize, so an endless or huge file is rejected as unreadable
+// instead of being read until memory runs out (LAUNCH-02, ADR 0019, #260).
+func TestLAUNCH02_AnOversizedFileIsRejected(t *testing.T) {
+	app, hidden, ok, err := parseDesktopEntry(endlessReader{})
+	if !errors.Is(err, errDesktopFileTooLarge) || ok || hidden || app != (App{}) {
+		t.Errorf("endless reader: app = %+v, hidden = %v, ok = %v, err = %v; want a rejected file with errDesktopFileTooLarge", app, hidden, ok, err)
+	}
+}
+
+// TestLAUNCH02_LastLineWithoutNewlineIsRead: a file whose last line has no
+// trailing newline is still parsed completely (LAUNCH-02, LAUNCH-03,
+// ADR 0019, #260).
+func TestLAUNCH02_LastLineWithoutNewlineIsRead(t *testing.T) {
+	app, _, ok, err := parseDesktopEntry(strings.NewReader("[Desktop Entry]\nType=Application\nExec=x"))
+	if err != nil || !ok || app.Exec != "x" {
+		t.Errorf("parseDesktopEntry without a trailing newline = %+v, ok = %v, err = %v; want Exec=x and ok", app, ok, err)
 	}
 }
