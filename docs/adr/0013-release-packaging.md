@@ -31,6 +31,13 @@ process should be repeatable and not depend on anyone's machine.
 
 ## Notes
 
+- 2026-11-20: CI's Packaging job and the release workflow install one exact GoReleaser
+  version (v2.20.2) instead of the newest v2 (`~> v2`). v2.20.3 rejects the `~` in the
+  snapshot version (`~snapshot`) and the Packaging check failed on every pull request.
+  The `~` stays: it makes a snapshot sort before the real release in apt and dnf. A
+  floating version also lets a new GoReleaser release into CI and releases unreviewed.
+  A local `make snapshot` uses the same version. The written way to update the pin stays
+  open in #194.
 - 2026-10-20: `make check` and a step in CI's existing Build job cross-compile
   `internal/mixer`, `internal/config`, `internal/state`, `internal/controller`,
   `internal/logattr` and `internal/version` for Windows with `CGO_ENABLED=0`
