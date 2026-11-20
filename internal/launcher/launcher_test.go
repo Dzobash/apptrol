@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/Dzobash/apptrol/internal/logattr"
 )
@@ -330,6 +331,11 @@ func TestLAUNCH02_TheSizeCapBoundary(t *testing.T) {
 	}
 	if _, _, ok, err := parseDesktopEntry(strings.NewReader(atCap + "a")); !errors.Is(err, errDesktopFileTooLarge) || ok {
 		t.Errorf("a file one byte over the cap: ok = %v, err = %v; want rejected with errDesktopFileTooLarge", ok, err)
+	}
+	// A reader whose last chunk arrives together with io.EOF is rejected too:
+	// the cap+1-th byte counts even when it comes with the end of the file.
+	if _, _, ok, err := parseDesktopEntry(iotest.DataErrReader(strings.NewReader(atCap + "a"))); !errors.Is(err, errDesktopFileTooLarge) || ok {
+		t.Errorf("data with io.EOF one byte over the cap: ok = %v, err = %v; want rejected with errDesktopFileTooLarge", ok, err)
 	}
 }
 

@@ -32,7 +32,7 @@ Type: Manual
 
 ### TC-LAUNCH-002 — A desktop file that cannot be read counts as not installed
 
-Covers: LAUNCH-02 · Phase 1.7
+Covers: LAUNCH-02 · Phase 1.5
 Config: minimal
 Type: Manual
 
