@@ -22,6 +22,7 @@ func (b *Backend) sourceEvent(k *conn, t *tracker, index uint32, removed bool, r
 		}
 		if err == nil {
 			wasMuted := t.devMute[index]
+			muteChanged := known && old.Name == d.Name && wasMuted != d.Muted
 			b.mu.Lock()
 			b.devChans[d.Name] = d.Channels
 			g := b.devGuard[d.Name]
@@ -53,27 +54,32 @@ func (b *Backend) sourceEvent(k *conn, t *tracker, index uint32, removed bool, r
 					g.owedMute = false
 				}
 			}
+			// Classify a held change before defense can record a new expected
+			// echo. A restore leaves that expectation for the matching change
+			// (INPUT-09, MUTE-07, ADR 0038).
+			if hold && muteChanged {
+				if w, ok := b.devMuteWant[d.Name]; ok && w.muted == d.Muted {
+					delete(b.devMuteWant, d.Name)
+				} else {
+					b.log.Debug("input mute change not taken over: the new-input guard holds the mute",
+						logattr.KeyDeviceName, d.Name, logattr.KeyMuted, d.Muted)
+				}
+			}
 			b.mu.Unlock()
 			t.devices[index], t.devMute[index] = d.Device, d.Muted
-			if !same {
-				var evs []mixer.Event
-				if known && old.Name == d.Name && wasMuted != d.Muted && !hold && b.outsideDeviceMute(d.Name, d.Muted) {
-					evs = append(evs, mixer.DeviceMuteChanged{Name: d.Name, Muted: d.Muted})
+			if same {
+				if err := b.defendDevice(k, d); err != nil {
+					return nil, err
 				}
-				return append(evs, mixer.DeviceAdded{Device: d.Device}), nil
 			}
-			if err := b.defendDevice(k, d); err != nil {
-				return nil, err
+			var evs []mixer.Event
+			if muteChanged && !hold && b.outsideDeviceMute(d.Name, d.Muted) {
+				evs = append(evs, mixer.DeviceMuteChanged{Name: d.Name, Muted: d.Muted})
 			}
-			if hold {
-				b.log.Debug("input mute change not taken over: the new-input guard holds the mute",
-					logattr.KeyDeviceName, d.Name, logattr.KeyMuted, d.Muted)
-				return nil, nil
+			if !same {
+				evs = append(evs, mixer.DeviceAdded{Device: d.Device})
 			}
-			if d.Muted != wasMuted && b.outsideDeviceMute(d.Name, d.Muted) {
-				return []mixer.Event{mixer.DeviceMuteChanged{Name: d.Name, Muted: d.Muted}}, nil
-			}
-			return nil, nil
+			return evs, nil
 		}
 	}
 	if !known {
@@ -127,16 +133,27 @@ func (b *Backend) logInputAnswer(action, name string, answer, current uint64) {
 		logattr.KeyOwnerAnswerGeneration, answer, logattr.KeyOwnerGeneration, current)
 }
 
-// setSourceMute attributes guard writes as Apptrol's echoes, too (INPUT-09,
-// MUTE-07, ADR 0038). The caller holds wire.
+// setSourceMute attributes both mixer and guard writes to Apptrol. The
+// caller holds wire, so an accepted write supersedes an earlier read and
+// settles its pending correction before the next notification (INPUT-09,
+// MUTE-07, ADR 0038).
 func (b *Backend) setSourceMute(k *conn, name string, muted bool) error {
 	b.mu.Lock()
 	if b.devMuteWant != nil {
 		b.devMuteWant[name] = muteWant{muted: muted, until: time.Now().Add(ownMute)}
 	}
 	b.mu.Unlock()
+	write := k.setSourceMute
 	if b.sourceMuteWrite != nil {
-		return b.sourceMuteWrite(name, muted)
+		write = b.sourceMuteWrite
 	}
-	return k.setSourceMute(name, muted)
+	if err := write(name, muted); err != nil {
+		return err
+	}
+	b.mu.Lock()
+	if g := b.devGuard[name]; g != nil {
+		g.readMuted, g.owedMute = &muted, false
+	}
+	b.mu.Unlock()
+	return nil
 }

@@ -395,6 +395,9 @@ They check selector errors, saved mute transfer, volume kept until a move,
 switches and snapshots, no default or a device arriving later, both overlap orders,
 held M/cough/talk-over ending and working on a fresh press, late restores, released
 guards, stale generations, and a held mute debt settled after its window.
+The adapter tests count writes before and after a distinct restore, verify that
+failed writes preserve a pending restore, and check mute echo attribution and
+held-mute logging with volume-only notifications (INPUT-09, MUTE-07, #252).
 Review regressions also check a yielding slider's dark M LED and inactive M/S
 buttons, including cough and talk-over, and one talk-over transition and app-volume
 write when a selector reload ends a held state.

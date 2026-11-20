@@ -1,7 +1,11 @@
 package pulse
 
 import (
+	"bytes"
 	"errors"
+	"log/slog"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -71,13 +75,25 @@ func TestINPUT09_GuardDefendsRestoresAndReleases(t *testing.T) {
 	}
 	apply(mixer.SetDeviceVolume{Device: r.d.Name, Volume: 0.4})
 	apply(mixer.SetDeviceMute{Device: r.d.Name, Muted: true})
-	apply(mixer.KeepDevice{Device: r.d.Name, Generation: ev.Device.Generation})
+	keep := mixer.KeepDevice{Device: r.d.Name, Generation: ev.Device.Generation}
+	apply(keep)
+	if !slices.Equal(r.volumes, []float64{0.4}) || !slices.Equal(r.mutes, []bool{true}) {
+		t.Fatalf("initial writes: volumes %v, mutes %v; want one of each", r.volumes, r.mutes)
+	}
+	r.d.Volume, r.d.Muted = 0.4, true
+	r.report(t)
+	r.d.Volume, r.d.Muted = 0.7, false
 	if evs := r.report(t); len(evs) != 0 {
 		t.Fatalf("restore reported as outside: %v", evs)
 	}
-	if len(r.volumes) < 2 || r.volumes[len(r.volumes)-1] != 0.4 || !r.mutes[len(r.mutes)-1] {
-		t.Fatal("restore not defended")
+	if !slices.Equal(r.volumes, []float64{0.4, 0.4}) || !slices.Equal(r.mutes, []bool{true, true}) {
+		t.Fatalf("writes after distinct restore: volumes %v, mutes %v; want one more of each", r.volumes, r.mutes)
 	}
+	apply(keep)
+	if len(r.volumes) != 2 || len(r.mutes) != 2 {
+		t.Fatalf("KeepDevice repeated the corrections: volumes %v, mutes %v", r.volumes, r.mutes)
+	}
+	r.d.Muted = true
 	apply(mixer.ForgetDeviceVolume{Device: r.d.Name})
 	v := len(r.volumes)
 	r.report(t)
@@ -86,7 +102,7 @@ func TestINPUT09_GuardDefendsRestoresAndReleases(t *testing.T) {
 	}
 	apply(mixer.ReleaseDevice{Device: r.d.Name, Generation: ev.Device.Generation})
 	v, m := len(r.volumes), len(r.mutes)
-	r.d.Muted = true
+	r.d.Muted = false
 	if evs := r.report(t); len(evs) != 0 {
 		t.Fatal("released restore leaked to future owner")
 	}
@@ -94,9 +110,81 @@ func TestINPUT09_GuardDefendsRestoresAndReleases(t *testing.T) {
 		t.Fatal("released guard wrote")
 	}
 	r.b.devGuard[r.d.Name].until = time.Now().Add(-time.Second)
-	r.d.Muted = false
+	r.d.Muted = true
 	if evs := r.report(t); len(evs) != 1 {
 		t.Fatal("outside change suppressed after window")
+	}
+}
+
+func TestMUTE07_HeldInputMuteConsumesEchoAndLogsOnlyChanges(t *testing.T) {
+	r := newInputRig()
+	var logs bytes.Buffer
+	r.b.log = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	const heldLog = "input mute change not taken over: the new-input guard holds the mute"
+	generation := r.report(t)[0].(mixer.DeviceAdded).Device.Generation
+	if err := r.b.Apply(mixer.SetDeviceMute{Device: r.d.Name, Muted: true}); err != nil {
+		t.Fatal(err)
+	}
+	r.d.Volume = 0.8
+	if evs := r.report(t); len(evs) != 0 || strings.Contains(logs.String(), heldLog) {
+		t.Fatalf("volume-only notification produced events %v or a held-mute log:\n%s", evs, &logs)
+	}
+	if want, ok := r.b.devMuteWant[r.d.Name]; !ok || !want.muted {
+		t.Fatal("volume-only notification used up the expected mute echo")
+	}
+	r.d.Muted = true
+	if evs := r.report(t); len(evs) != 0 || strings.Contains(logs.String(), heldLog) {
+		t.Fatalf("own echo produced events %v or a held-mute log:\n%s", evs, &logs)
+	}
+	if _, ok := r.b.devMuteWant[r.d.Name]; ok {
+		t.Fatal("own echo did not consume the expected mute")
+	}
+	if err := r.b.Apply(mixer.KeepDevice{Device: r.d.Name, Generation: generation}); err != nil {
+		t.Fatal(err)
+	}
+	r.d.Muted = false
+	if evs := r.report(t); len(evs) != 0 || strings.Count(logs.String(), heldLog) != 1 {
+		t.Fatalf("restore produced events %v or did not log exactly one held mute:\n%s", evs, &logs)
+	}
+	if want, ok := r.b.devMuteWant[r.d.Name]; !ok || !want.muted {
+		t.Fatal("restore used up the expected echo of the correction")
+	}
+}
+
+func TestINPUT09_FailedWritesPreserveAReportedRestore(t *testing.T) {
+	r := newInputRig()
+	r.report(t)
+	volume := mixer.SetDeviceVolume{Device: r.d.Name, Volume: 0.4}
+	mute := mixer.SetDeviceMute{Device: r.d.Name, Muted: true}
+	for _, a := range []mixer.Action{volume, mute} {
+		if err := r.b.Apply(a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r.d.Volume, r.d.Muted = 0.4, true
+	r.report(t)
+	r.d.Description, r.d.Volume, r.d.Muted = "Renamed test microphone", 0.7, false
+	latest := r.report(t)[0].(mixer.DeviceAdded).Device.Generation
+
+	failed := errors.New("test write failure")
+	writeVolume, writeMute := r.b.sourceWrite, r.b.sourceMuteWrite
+	r.b.sourceWrite = func(string, int, float64) error { return failed }
+	r.b.sourceMuteWrite = func(string, bool) error { return failed }
+	for _, a := range []mixer.Action{volume, mute} {
+		if err := r.b.Apply(a); !errors.Is(err, failed) {
+			t.Fatalf("Apply(%T) = %v, want write failure", a, err)
+		}
+	}
+	g := r.b.devGuard[r.d.Name]
+	if !g.owedMute || *g.readMuted || *g.read != 0.7 {
+		t.Fatalf("failed writes replaced the restore read: volume %v, muted %v, mute owed %v", *g.read, *g.readMuted, g.owedMute)
+	}
+	r.b.sourceWrite, r.b.sourceMuteWrite = writeVolume, writeMute
+	if err := r.b.Apply(mixer.KeepDevice{Device: r.d.Name, Generation: latest}); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(r.volumes, []float64{0.4, 0.4}) || !slices.Equal(r.mutes, []bool{true, true}) {
+		t.Fatalf("writes after retry: volumes %v, mutes %v; want initial writes and corrections", r.volumes, r.mutes)
 	}
 }
 

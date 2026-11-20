@@ -128,6 +128,13 @@ INFO default output is the same device as another output; the earlier control ow
 
 ## Notes
 
+- 2026-11-20: Input ownership answers now use accepted writes as well as source
+  reads, following the output guard. This lets `KeepDevice` recognize a volume or
+  mute just set by Apptrol. An unsuccessful write leaves the prior read available
+  for defense. The held-mute debug record is for actual mute changes the guard
+  suppresses. A matching mute echo instead uses up its expectation (INPUT-09,
+  MUTE-07, #252).
+
 - 2026-11-03: The same decision now covers inputs (`device = "default"`, INPUT-09,
   CFG-20, #221). `AudioSnapshot.DefaultInput` and `DefaultInputChanged` report the
   server's default capture device. The first control owns every input overlap,
