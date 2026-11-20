@@ -221,9 +221,13 @@ func TestIntegration_MEDIA01_OneConnectionWithTwoPlayerNames(t *testing.T) {
 	if ev := h.next(); ev != (mixer.PlayerRemoved{BusName: second}) {
 		t.Fatalf("released name: %v", ev)
 	}
-	first.setStatus("Paused")
-	if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: first.name, Status: "Paused"}) {
-		t.Fatalf("after pause: %v, want only %s's change; log:\n%s", ev, first.name, h.log.String())
+	// A stray change for the released name would sort after the first name's,
+	// so a second change must follow the first one directly.
+	for _, status := range []string{"Paused", "Playing"} {
+		first.setStatus(status)
+		if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: first.name, Status: status}) {
+			t.Fatalf("after %s: %v, want only %s's change; log:\n%s", status, ev, first.name, h.log.String())
+		}
 	}
 }
 
