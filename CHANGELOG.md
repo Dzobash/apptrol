@@ -46,6 +46,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer runs the pause delay or logs `pause shown on the LEDs` / `short pause not
   shown on the LEDs`: no LED ever follows an ignored player (MEDIA-09, LOG-15,
   [ADR 0033](docs/adr/0033-r-and-play-ignore-short-pauses.md), #224).
+- The log file no longer stops for good after a failed rotation. Deleting `apptrol.log`
+  by hand used to make the next rotation fail, and from then on nothing reached the file
+  until Apptrol was restarted, not even after a config reload. Now a removed file or
+  folder is simply started again; after any other failure Apptrol keeps writing to
+  `apptrol.log` and tries the rotation again later, and a reload reopens the file or
+  reports why it cannot. A record written while a reload moves the log file to another
+  path is no longer lost (LOG-07, LOG-08, ADR 0008, #250).
 
 ## [0.3.0] - 2026-11-02
 

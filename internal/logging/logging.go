@@ -134,6 +134,9 @@ func (m *Manager) apply(cfg config.Log, initial bool) error {
 		}
 	}
 
+	// The write lock waits for records still being written to the old outputs
+	// (dynamicHandler.Handle), so no record is lost when old is closed below
+	// (LOG-08, #250).
 	m.mu.Lock()
 	old := m.file
 	m.handlers = handlers
@@ -157,15 +160,24 @@ func (m *Manager) stdoutHandler(format string) (slog.Handler, error) {
 }
 
 func (m *Manager) fileHandler(fc config.FileOutput) (*rotatingFile, slog.Handler, error) {
-	// Reuse the open file when the path and limits have not changed.
+	// Reuse the open file when the path has not changed; the limits may.
 	m.mu.RLock()
 	cur := m.file
 	m.mu.RUnlock()
+	// A file whose reopen failed is opened again here, so the reload reports a
+	// file that still cannot be written; a closed one is replaced (LOG-08,
+	// ADR 0008, #250).
 	var f *rotatingFile
 	if cur != nil && cur.path == fc.Path {
-		cur.setLimits(fc.MaxSize, fc.MaxFiles)
-		f = cur
-	} else {
+		err := cur.reuse(fc.MaxSize, fc.MaxFiles)
+		switch {
+		case err == nil:
+			f = cur
+		case !errors.Is(err, os.ErrClosed):
+			return nil, nil, fmt.Errorf("log file: %w", err)
+		}
+	}
+	if f == nil {
 		var err error
 		f, err = openRotatingFile(fc.Path, fc.MaxSize, fc.MaxFiles)
 		if err != nil {
@@ -219,11 +231,16 @@ func (h *dynamicHandler) Enabled(_ context.Context, l slog.Level) bool {
 	return l >= h.m.level.Level()
 }
 
+// Handle writes r to every current output. It holds the read lock until the
+// record is written, so Reconfigure and Close, which take the write lock
+// before closing a file, wait for records already on their way to it instead
+// of making them fail (LOG-08, ADR 0008, #250). An output must therefore never
+// log through this Manager while writing a record.
 func (h *dynamicHandler) Handle(ctx context.Context, r slog.Record) error {
 	r = oneLine(r)
 	h.m.mu.RLock()
+	defer h.m.mu.RUnlock()
 	outputs := h.m.handlers
-	h.m.mu.RUnlock()
 
 	var errs []error
 	for _, out := range outputs {

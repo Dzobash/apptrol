@@ -510,3 +510,147 @@ func TestTerminalHandlerOnNonTerminalFile(t *testing.T) {
 		t.Errorf("pipe output = %q: want the message without color codes", got)
 	}
 }
+
+// fileConfig logs only to the file at path, rotating after maxSize bytes.
+func fileConfig(path string, maxSize int64) config.Log {
+	cfg := baseConfig()
+	cfg.Outputs = []string{config.OutputFile}
+	cfg.File.Path = path
+	cfg.File.Format = "text"
+	cfg.File.MaxSize = maxSize
+	return cfg
+}
+
+// A reload with the same path checks the open file: one that could not be
+// reopened is reported while the cause lasts and opened again once it is gone
+// (LOG-08, ADR 0008, #250).
+func TestLOG08_ReloadReopensFileAfterFailedReopen(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "apptrol")
+	path := filepath.Join(dir, "apptrol.log")
+	cfg := fileConfig(path, 1) // every record rotates
+	m, out := newManager(t, cfg, true)
+	l := m.Logger()
+	l.Info("first")
+
+	// The log folder becomes a file: rotation and reopen fail.
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	l.Info("lost")
+	if m.file.f != nil {
+		t.Fatal("test setup: the file is still open")
+	}
+	err := m.Reconfigure(cfg)
+	if err == nil || !strings.Contains(err.Error(), "log file") {
+		t.Errorf("Reconfigure while the file cannot be opened = %v, want a log file error", err)
+	}
+	l.Info("to the journal")
+	if !strings.Contains(out.String(), "to the journal") {
+		t.Error("nothing logged to the journal while the file output is unavailable")
+	}
+
+	if err := os.Remove(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Reconfigure(cfg); err != nil {
+		t.Fatalf("Reconfigure after the cause was removed = %v", err)
+	}
+	l.Info("back")
+	if !strings.Contains(readFile(t, path), "back") {
+		t.Error("file output did not come back after the reload")
+	}
+}
+
+// A reload with the same path keeps a file whose reopen failed but now
+// works, and replaces a file that was closed (LOG-08, #250).
+func TestLOG08_ReloadRevivesOrReplacesTheSameFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	cfg := fileConfig(path, 10<<20)
+	m, _ := newManager(t, cfg, true)
+	first := m.file
+
+	// As after a failed reopen.
+	first.mu.Lock()
+	_ = first.f.Close()
+	first.f = nil
+	first.mu.Unlock()
+	if err := m.Reconfigure(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if m.file != first || first.f == nil {
+		t.Error("reload did not reopen the file it keeps")
+	}
+
+	_ = first.Close()
+	if err := m.Reconfigure(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if m.file == first {
+		t.Error("reload kept a closed file")
+	}
+	m.Logger().Info("after close")
+	if !strings.Contains(readFile(t, path), "after close") {
+		t.Error("record lost after the closed file was replaced")
+	}
+}
+
+// blockingValue stops in the middle of writing a record: String runs inside
+// the file output's Handle, after dynamicHandler has picked its outputs.
+type blockingValue struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (b *blockingValue) String() string {
+	b.once.Do(func() { close(b.entered) })
+	<-b.release
+	return "slow"
+}
+
+// A record already being written when Reconfigure moves the file elsewhere
+// still reaches the old file: Reconfigure waits for it before closing that
+// file (LOG-08, ADR 0008, #250).
+func TestLOG08_ReconfigureKeepsRecordsBeingWritten(t *testing.T) {
+	dir := t.TempDir()
+	oldPath := filepath.Join(dir, "old.log")
+	m, _ := newManager(t, fileConfig(oldPath, 10<<20), true)
+
+	v := &blockingValue{entered: make(chan struct{}), release: make(chan struct{})}
+	logged := make(chan struct{})
+	go func() {
+		defer close(logged)
+		m.Logger().Info("in flight", "value", v)
+	}()
+	<-v.entered
+
+	reconfigured := make(chan error, 1)
+	go func() { reconfigured <- m.Reconfigure(fileConfig(filepath.Join(dir, "new.log"), 10<<20)) }()
+	// Without the wait, Reconfigure closes old.log now; give it the chance.
+	var err error
+	finished := false
+	select {
+	case err = <-reconfigured:
+		finished = true
+		t.Error("Reconfigure finished while a record was still being written")
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(v.release)
+	<-logged
+	if !finished {
+		select {
+		case err = <-reconfigured:
+		case <-time.After(5 * time.Second):
+			t.Fatal("Reconfigure did not finish after the record was written")
+		}
+	}
+	if err != nil {
+		t.Errorf("Reconfigure = %v", err)
+	}
+	if !strings.Contains(readFile(t, oldPath), "in flight") {
+		t.Error("record being written during Reconfigure was lost")
+	}
+}
