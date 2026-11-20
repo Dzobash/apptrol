@@ -98,7 +98,8 @@ type Options struct {
 	Desktop       Desktop // may be nil: no media players
 	Session       Session // may be nil: LEDs are not sent again after sleep
 	// InstalledApps lists the installed apps, for the launchers' warnings
-	// (LAUNCH-10); nil means launcher.Installed.
+	// (LAUNCH-10); nil means launcher.InstalledLogged with the launcher
+	// component's logger, so a rejected desktop file is logged (LAUNCH-02, #260).
 	InstalledApps func() launcher.Apps
 	Launcher      Launcher // may be nil: launcher buttons do nothing
 	Status        Status   // may be nil: no Status line
