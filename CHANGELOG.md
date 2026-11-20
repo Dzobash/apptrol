@@ -36,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0.6.0); layouts move to 0.7.0, setup and tray to 0.8.0 (#245).
 
 ### Fixed
+- Apptrol skips redundant volume and mute writes when a control takes ownership
+  of a new microphone. The held-mute debug message identifies actual mute
+  changes suppressed by the guard (INPUT-09, MUTE-07, #252).
 - `apptrol list apps` no longer takes its launcher example from the first desktop ID
   of the whole list. An ID can contain `=`, and the line then read like a syntax
   error. With a search word the example is the first match; without one it is
