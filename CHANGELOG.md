@@ -40,16 +40,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or its shutdown: every LED write is bounded by a 100 ms write deadline, so a stalled
   controller fails fast, and the failure is logged once per outage instead of once per
   LED (SVC-05, LED-08, HW-02, #258).
+- A `config.toml` that existed at startup but could not be read (e.g. `chmod 000`)
+  is now watched for fixed permissions like one that breaks later: Apptrol
+  reloads it once `chmod` lets the file be read again, without a restart.
+  Before, it never reloaded, because the size, modification time and inode do
+  not change with the permissions (CFG-06, CFG-07, ADR 0025, #120, #251).
+- Apptrol skips redundant volume and mute writes when a control takes ownership
+  of a new microphone. The held-mute debug message identifies actual mute
+  changes suppressed by the guard (INPUT-09, MUTE-07, #252).
 - `apptrol list apps` no longer takes its launcher example from the first desktop ID
   of the whole list. An ID can contain `=`, and the line then read like a syntax
   error. With a search word the example is the first match; without one it is
   `record = { app = "<desktop ID>" }`. Two lines above the table say the IDs are for
   launchers (`app = "<desktop ID>"`) and that a `match` name can differ, so run
   `apptrol list` while the app plays (LAUNCH-09, #225).
+- A state file with a negative version is no longer read as valid state: Apptrol
+  rejects it with a clear error, as it already did for a missing version, and starts
+  with an empty state. Warnings about invalid entries now always come out in the same
+  order, sorted by control, instead of a random one (STATE-05, #257).
 - An ignored media player's pause (MEDIA-02, e.g. a phone's player through KDE Connect)
   no longer runs the pause delay or logs `pause shown on the LEDs` / `short pause not
   shown on the LEDs`: no LED ever follows an ignored player (MEDIA-09, LOG-15,
   [ADR 0033](docs/adr/0033-r-and-play-ignore-short-pauses.md), #224).
+- Launcher presses time out if the systemd connection stalls. If the connection breaks
+  between presses, the next press opens a new one before starting the app. A failed
+  app start keeps a healthy connection available for later presses (LAUNCH-04, LAUNCH-11, #249).
 
 ## [0.3.0] - 2026-11-02
 

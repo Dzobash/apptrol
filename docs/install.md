@@ -169,7 +169,8 @@ To update, pull the new code, run `make build` and both `install` lines and the 
 (the unit changes between releases; 0.3.0 added `NotifyAccess=main`, without which
 systemd ignores the Status line), then `systemctl --user daemon-reload` and
 `systemctl --user restart apptrol`. To build your own `.deb` and `.rpm` packages instead,
-run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/)); they end up in
+run `make snapshot` (needs [GoReleaser](https://goreleaser.com/install/) in the version CI
+pins, see [releasing](releasing.md#trying-it-locally-first)); they end up in
 `dist/`. For changing the code, see [CONTRIBUTING.md](https://github.com/Dzobash/apptrol/blob/main/CONTRIBUTING.md).
 
 ## First start
