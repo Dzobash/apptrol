@@ -72,9 +72,11 @@ func Decode(data []byte) (mixer.State, []string, error) {
 		return emptyState(), nil, fmt.Errorf("the state file is damaged: %w", err)
 	}
 	switch {
-	case f.Version < 1:
-		// Version 0 means the file was not written by Apptrol at all; a
-		// negative version is just as invalid (STATE-05).
+	case f.Version == 0:
+		return emptyState(), nil, errors.New("the state file has no version; it was not written by Apptrol")
+	case f.Version < 0:
+		// A negative version is as invalid as no version: the file was
+		// not written by Apptrol (STATE-05).
 		return emptyState(), nil, fmt.Errorf("the state file has version %d; it was not written by Apptrol (versions start at 1)", f.Version)
 	case f.Version > formatVersion:
 		return emptyState(), nil, fmt.Errorf("the state file has version %d; it was written by a newer Apptrol", f.Version)
