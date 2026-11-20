@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -180,6 +181,49 @@ func TestIntegration_MEDIA01_PlayersAreFoundAndFollowed(t *testing.T) {
 		if !strings.Contains(h.log.String(), msg) {
 			t.Errorf("log lacks %q:\n%s", msg, h.log.String())
 		}
+	}
+}
+
+// One connection owns two player names, as a daemon serving several players
+// does. Both share one object, so a change reaches both, and when one name
+// goes the other is still followed (MEDIA-01, ADR 0018, #254).
+func TestIntegration_MEDIA01_OneConnectionWithTwoPlayerNames(t *testing.T) {
+	requireBus(t)
+	first := newPlayer(t, "apptroltest_multi_a", "Multi", "", "Paused")
+	h := runBus(t, "")
+	if _, ok := find(h.snapshot().Players, first.name); !ok {
+		t.Fatalf("snapshot lacks %s; log:\n%s", first.name, h.log.String())
+	}
+
+	// A second name on the same connection.
+	second := mprisPrefix + "apptroltest_multi_b"
+	if reply, err := first.conn.RequestName(second, dbus.NameFlagDoNotQueue); err != nil || reply != dbus.RequestNameReplyPrimaryOwner {
+		t.Fatalf("RequestName(%s) = %v, %v", second, reply, err)
+	}
+	want := mixer.Player{BusName: second, Identity: "Multi", Status: "Paused"}
+	if ev := h.next(); ev != (mixer.PlayerAdded{Player: want}) {
+		t.Fatalf("second name: %v, want PlayerAdded %+v", ev, want)
+	}
+
+	// One change on the shared object reaches both names.
+	first.setStatus("Playing")
+	got := []mixer.Event{h.next(), h.next()}
+	for _, name := range []string{first.name, second} {
+		if ev := (mixer.PlayerStatusChanged{BusName: name, Status: "Playing"}); !slices.Contains(got, mixer.Event(ev)) {
+			t.Errorf("after play: %v, want %+v among them", got, ev)
+		}
+	}
+
+	// The second name goes; the first is still followed.
+	if _, err := first.conn.ReleaseName(second); err != nil {
+		t.Fatal(err)
+	}
+	if ev := h.next(); ev != (mixer.PlayerRemoved{BusName: second}) {
+		t.Fatalf("released name: %v", ev)
+	}
+	first.setStatus("Paused")
+	if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: first.name, Status: "Paused"}) {
+		t.Fatalf("after pause: %v, want only %s's change; log:\n%s", ev, first.name, h.log.String())
 	}
 }
 

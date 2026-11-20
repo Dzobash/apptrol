@@ -651,6 +651,10 @@ The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
   them; the mixer ignores players on other devices, proxies and duplicates, and matches
   the rest to controls through the apps' `match` lists and the outputs' `player` lists
   (MEDIA-02, MEDIA-03, MEDIA-12).
+  `PropertiesChanged` names only the sending connection, not the player, and one
+  connection can own several player names on the same object: the adapter keeps every
+  name per connection, so a change reaches all of them and one name going leaves the
+  others followed (MEDIA-01, #254).
   At connect, the players already running are listed (`ListNames`, then `GetNameOwner`
   and their properties for each). Every call has its own 2-second timeout, so a player
   that does not answer is left out (a warning) without using up the time of the players
