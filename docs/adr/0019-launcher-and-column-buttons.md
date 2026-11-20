@@ -176,5 +176,11 @@ Measured on the reference system (Kubuntu, KDE Plasma) on 2026-10-02:
 - 2026-11-20: The launcher press's timeout covers systemd bus setup, including
   registration for job completion signals. Presses share one setup attempt, each
   with its own deadline. The cached connection outlives the press and is closed
-  if its transport fails. A failed start job keeps the connection available
-  (LAUNCH-04, LAUNCH-11, #249).
+  if its transport fails. A press that finds the cached connection already closed
+  connects again before asking systemd to start an app. A failed start job keeps
+  a healthy connection available (LAUNCH-04, LAUNCH-11, #249).
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | debug | `connected to the systemd user manager` | `apptrol.component=launcher` |
+  | debug | `dropped the systemd user manager connection` | `apptrol.component=launcher`, `error.type=desktop_bus_lost`, `exception.message` |

@@ -37,9 +37,11 @@ Config: none (fake manager and private sockets)
 Type: Automated
 
 Test: `TestLAUNCH04_TransportFailureClosesOnlyFailedConnection`,
-`TestLAUNCH11_JobFailureKeepsConnection` in `internal/launcher/start_test.go`,
+`TestLAUNCH04_ReconnectsAfterDisconnectBetweenPresses`, `TestLAUNCH11_JobFailureKeepsConnection`,
+and `TestLAUNCH11_LostJobSignalConnectionIsClosed` in `internal/launcher/start_test.go`,
 `TestLAUNCH04_WaitingPressHasItsOwnDeadline`, `TestLAUNCH04_SetupCancellation`,
-`TestLAUNCH04_ConnectionOutlivesSetupContext`, `TestLAUNCH04_SystemdBusAddressTransports`
+`TestLAUNCH04_ConnectionOutlivesSetupContext`, `TestLAUNCH04_SystemdBusAddressTransports`,
+and `TestLAUNCH04_InvalidSystemdBusAddresses`
 in `internal/launcher/systemd_test.go`, and `TestLAUNCH07_OnlyTransportFailureClosesConnection`
 in `internal/launcher/running_test.go`.
 

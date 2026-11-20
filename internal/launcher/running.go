@@ -147,7 +147,7 @@ func (s *Starter) checkRunning(ctx context.Context, id string, argv []string) ru
 	switch {
 	case err != nil:
 		if sys != nil && systemdTransportError(sys, err) {
-			s.dropConn(sys)
+			s.dropConn(sys, err)
 		}
 		c.checked += " (could not ask systemd: " + err.Error() + ")"
 	case len(names) > 0:

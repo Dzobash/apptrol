@@ -192,7 +192,7 @@ func (s *Starter) startUnit(ctx context.Context, unitName, desc string, argv []s
 	}
 	err = startJob(ctx, sys, unitName, "Apptrol: "+desc, argv)
 	if systemdTransportError(sys, err) {
-		s.dropConn(sys)
+		s.dropConn(sys, err)
 	}
 	return err
 }

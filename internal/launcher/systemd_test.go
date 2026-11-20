@@ -144,6 +144,20 @@ func TestLAUNCH04_SystemdBusAddressTransports(t *testing.T) {
 	}
 }
 
+func TestLAUNCH04_InvalidSystemdBusAddresses(t *testing.T) {
+	for _, address := range []string{
+		"unix:path=/example/bus,abstract=example",
+		"tcp:host=localhost",
+		"tcp:host=localhost,port=1234,family=invalid",
+		"nonce-tcp:host=localhost,port=1234",
+		"invalid:host=localhost,port=1234",
+	} {
+		if _, _, _, err := systemdBusEndpoint(address); err == nil {
+			t.Errorf("invalid D-Bus address %q was accepted", address)
+		}
+	}
+}
+
 type systemdSetupResult struct {
 	sys systemd
 	err error

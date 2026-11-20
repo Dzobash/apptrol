@@ -13,6 +13,7 @@ import (
 	"github.com/godbus/dbus/v5"
 
 	"github.com/Dzobash/apptrol/internal/desktop"
+	"github.com/Dzobash/apptrol/internal/logattr"
 )
 
 // systemd is the user manager connection the Starter shares between presses
@@ -31,7 +32,11 @@ func (s *Starter) conn(ctx context.Context) (systemd, error) {
 		s.mu.Lock()
 		if sys := s.systemd; sys != nil {
 			s.mu.Unlock()
-			return sys, nil
+			if sys.Connected() {
+				return sys, nil
+			}
+			s.dropConn(sys, dbus.ErrClosed)
+			continue
 		}
 		if wait := s.connecting; wait != nil {
 			s.mu.Unlock()
@@ -56,6 +61,7 @@ func (s *Starter) conn(ctx context.Context) (systemd, error) {
 		if err != nil {
 			return nil, fmt.Errorf("cannot reach the systemd user manager: %w", err)
 		}
+		s.log.Debug("connected to the systemd user manager")
 		return sys, nil
 	}
 	return nil, fmt.Errorf("cannot reach the systemd user manager: %w", ctx.Err())
@@ -63,7 +69,7 @@ func (s *Starter) conn(ctx context.Context) (systemd, error) {
 
 // dropConn closes only the connection used by the failing call. Another
 // press may already have opened a replacement (LAUNCH-04, LAUNCH-11, ADR 0019).
-func (s *Starter) dropConn(sys systemd) {
+func (s *Starter) dropConn(sys systemd, err error) {
 	s.mu.Lock()
 	if s.systemd != sys {
 		s.mu.Unlock()
@@ -72,6 +78,7 @@ func (s *Starter) dropConn(sys systemd) {
 	s.systemd = nil
 	s.mu.Unlock()
 	sys.Close()
+	s.log.Debug("dropped the systemd user manager connection", logattr.Error(logattr.ErrDesktopLost, err))
 }
 
 // systemdTransportError identifies a broken transport. A job result, a bus

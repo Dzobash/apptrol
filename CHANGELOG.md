@@ -36,9 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0.6.0); layouts move to 0.7.0, setup and tray to 0.8.0 (#245).
 
 ### Fixed
-- Launcher presses time out if the systemd connection stalls. Apptrol closes broken
-  connections and reconnects on the next press. A failed app start keeps a healthy
-  connection available for later presses (LAUNCH-04, LAUNCH-11, #249).
+- Launcher presses time out if the systemd connection stalls. If the connection breaks
+  between presses, the next press opens a new one before starting the app. A failed
+  app start keeps a healthy connection available for later presses (LAUNCH-04, LAUNCH-11, #249).
 - `apptrol list apps` no longer takes its launcher example from the first desktop ID
   of the whole list. An ID can contain `=`, and the line then read like a syntax
   error. With a search word the example is the first match; without one it is

@@ -766,13 +766,16 @@ Launcher buttons (ADR 0019, LAUNCH-*):
 - **The connection** to the systemd user manager is opened on the first press. The
   10-second press timeout includes dialing, authenticating, saying `Hello` and registering
   for job signals. Other presses share the setup attempt and can stop waiting when
-  their own deadlines pass. A broken connection is closed and the next press reconnects
+  their own deadlines pass. A press replaces a connection that broke while idle before
+  using it. If it breaks during a call, Apptrol closes it and connects the next time it
+  needs systemd. Debug records show connections opening and why they are dropped
   (LAUNCH-04, LAUNCH-11).
 
   ```text
-  first press → open both bus sockets → cache connection → start job
-                       │                                  ├─ app fails → keep connection
-                       └─ deadline → close setup sockets  └─ transport fails → close connection
+  first press or idle disconnect → open both bus sockets → cache connection
+                                         └─ deadline → close setup sockets
+  start job ─┬─ app fails → keep healthy connection
+             └─ transport fails → close connection
   ```
 
 ## Safety of launcher commands
