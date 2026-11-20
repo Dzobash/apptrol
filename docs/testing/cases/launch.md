@@ -40,8 +40,8 @@ Type: Manual
 - [ ] The `minimal` fixture is applied and Apptrol runs (test tone A plays on slider 1)
 - [ ] The configuration has `record = { app = "ghost" }` under `[layouts.default.buttons]`
   (added to the fixture's config.toml and saved, so Apptrol reloads it)
-- [ ] Run `ln -s "$XDG_DATA_HOME/applications/gone.desktop" "$XDG_DATA_HOME/applications/ghost.desktop"`
-  (a dangling symlink; `$XDG_DATA_HOME` defaults to `~/.local/share` when unset)
+- [ ] Create a dangling symlink in the user applications folder:
+  `mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/applications" && ln -s "${XDG_DATA_HOME:-$HOME/.local/share}/applications/gone.desktop" "${XDG_DATA_HOME:-$HOME/.local/share}/applications/ghost.desktop"`
 
 **Steps**
 - [ ] Run `apptrol check` → a warning that `layouts.default.buttons.record: desktop ID
@@ -52,18 +52,20 @@ Type: Manual
   the restart>`) → one record with the message `desktop file could not be read; the app
   counts as not installed`, a `file.path` ending in `ghost.desktop` and
   `error.type=desktop_file_unreadable`
-- [ ] Create a valid `ghost.desktop` (`Type=Application`, `Name=Ghost`, `Exec=/bin/true`)
-  in a second data folder: `mkdir -p /tmp/apptrol-test-share/applications && printf … >
-  /tmp/apptrol-test-share/applications/ghost.desktop`
-- [ ] Run `XDG_DATA_DIRS=/tmp/apptrol-test-share:$XDG_DATA_DIRS apptrol list apps ghost` →
+- [ ] Create a valid `ghost.desktop` in a second data folder:
+  `mkdir -p /tmp/apptrol-test-share/applications && printf '[Desktop Entry]\nType=Application\nName=Ghost\nExec=/bin/true\n' > /tmp/apptrol-test-share/applications/ghost.desktop`
+  → `/tmp/apptrol-test-share/applications/ghost.desktop` exists
+- [ ] Run `XDG_DATA_DIRS="/tmp/apptrol-test-share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" apptrol list apps ghost` →
   still no app listed: the first folder's rejected file wins (LAUNCH-02)
-- [ ] Replace the symlink with that valid file: `rm "$XDG_DATA_HOME/applications/ghost.desktop"
-  && cp /tmp/apptrol-test-share/applications/ghost.desktop "$XDG_DATA_HOME/applications/"`
+- [ ] Replace the symlink with that valid file:
+  `rm "${XDG_DATA_HOME:-$HOME/.local/share}/applications/ghost.desktop" && cp /tmp/apptrol-test-share/applications/ghost.desktop "${XDG_DATA_HOME:-$HOME/.local/share}/applications/"`
+  → `ghost.desktop` in the user applications folder is now a regular file
 - [ ] Run `systemctl --user restart apptrol` → Apptrol is active again
 - [ ] Read the journal since that restart → no `desktop file could not be read` record
 - [ ] Run `apptrol list apps ghost` → `ghost` is listed
-- [ ] Remove `"$XDG_DATA_HOME/applications/ghost.desktop"` and `/tmp/apptrol-test-share`
-  (clean up what the case created)
+- [ ] Clean up what the case created:
+  `rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/applications/ghost.desktop" /tmp/apptrol-test-share`
+  → both paths are removed
 - [ ] Run `apptrol list apps ghost` → no app is listed
 
 **Result:** Pass / Fail / Blocked

@@ -113,7 +113,7 @@ func Find(log *slog.Logger, dataDirs []string) Apps {
 	return apps
 }
 
-// Installed finds the installed apps in the usual folders.
+// Installed finds the installed apps in the usual folders (LAUNCH-02, ADR 0019).
 func Installed() Apps { return Find(nil, DataDirs()) }
 
 // InstalledLogged is Installed, logging rejected desktop files to log
@@ -168,17 +168,19 @@ func readDesktopFile(path string) (app App, hidden, ok bool, err error) {
 
 // maxDesktopFileSize caps how much of a .desktop file Apptrol reads: a file
 // larger than this is rejected as unreadable, so a symlink to /dev/zero or a
-// huge one-line file cannot read on until memory runs out (LAUNCH-02, #260).
+// huge one-line file cannot read on until memory runs out (LAUNCH-02, ADR 0019,
+// #260).
 const maxDesktopFileSize = 4 << 20 // 4 MiB, far above any real desktop file
 
 // errDesktopFileTooLarge is returned when a .desktop file is larger than
-// maxDesktopFileSize; the file is then rejected like an unreadable one (#260).
+// maxDesktopFileSize; the file is then rejected like an unreadable one
+// (LAUNCH-02, ADR 0019, #260).
 var errDesktopFileTooLarge = errors.New("desktop file is larger than 4 MiB")
 
 // sizeLimitReader reads at most maxDesktopFileSize+1 bytes from r: the one
 // byte past the cap proves the file is over it, and the read then fails with
 // errDesktopFileTooLarge, so an oversized file is rejected, not silently
-// truncated (LAUNCH-02, #260).
+// truncated (LAUNCH-02, ADR 0019, #260).
 type sizeLimitReader struct {
 	r io.Reader
 	n int64 // bytes still allowed, starting at maxDesktopFileSize+1

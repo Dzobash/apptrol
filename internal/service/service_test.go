@@ -219,7 +219,7 @@ type env struct {
 	session      fakeSession
 	desktop      *fakeDesktop // nil: no media players
 	status       *fakeStatus  // nil: no Status line
-	realApps     bool         // leave Options.InstalledApps nil: use the real discovery (LAUNCH-02, #260)
+	realApps     bool         // leave Options.InstalledApps nil: use the real discovery (LAUNCH-02, ADR 0019, #260)
 }
 
 // fakeStatus records the Status lines the service sends (SVC-13).

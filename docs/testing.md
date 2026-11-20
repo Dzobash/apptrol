@@ -385,9 +385,10 @@ whole listing keeps its sections and headings (LAUNCH-16).
 
 Desktop files are read without a line-length limit, and a file whose read fails or that
 is over the 4 MiB cap is rejected and logged: `TestLAUNCH02_…` in
-`internal/launcher/launcher_test.go` covers a line over 64 KiB with keys before and after
-it, read errors, the log record, first-folder-wins over a rejected file, the cap's
-boundary and a last line without a trailing newline (LAUNCH-02, LAUNCH-03).
+`internal/launcher/launcher_test.go` and `internal/service/service_test.go` cover a line
+over 64 KiB with keys before and after it, read errors, the warning and debug log
+records, startup logging in the service, first-folder-wins over a rejected file, the
+cap's boundary and a last line without a trailing newline (LAUNCH-02, LAUNCH-03).
 [TC-LAUNCH-002](testing/cases/launch.md#tc-launch-002--a-desktop-file-that-cannot-be-read-counts-as-not-installed)
 runs the same rejection on an installed Apptrol.
 

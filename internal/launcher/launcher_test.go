@@ -205,7 +205,7 @@ func TestLAUNCH10_MissingLaunchers(t *testing.T) {
 }
 
 // failReader serves its data and then fails, like a read error in the middle
-// of a file (#260).
+// of a file (LAUNCH-02, LAUNCH-03, ADR 0019, #260).
 type failReader struct {
 	data []byte
 }
@@ -221,7 +221,8 @@ func (r *failReader) Read(p []byte) (int, error) {
 
 // TestLAUNCH02_LongLinesAreStillParsed: a line over bufio.Scanner's 64 KiB
 // limit (a long MimeType=) does not truncate the file; the keys before and
-// after it are read (LAUNCH-02, LAUNCH-03, ADR 0019, #260).
+// after it are read, including Hidden=true (LAUNCH-02, LAUNCH-03, ADR 0019,
+// #260).
 func TestLAUNCH02_LongLinesAreStillParsed(t *testing.T) {
 	home, _, _, system := dataDirs(t)
 	long := "MimeType=" + strings.Repeat("application/x-apptrol-test;", 3000)
@@ -230,12 +231,18 @@ func TestLAUNCH02_LongLinesAreStillParsed(t *testing.T) {
 	}
 	writeDesktop(t, system, "big.desktop",
 		"[Desktop Entry]\nType=Application\nName=Big\n"+long+"\nExec=big %U\nDBusActivatable=true\nHidden=false\n")
-	app, ok := Find(nil, []string{home, system})["big"]
+	writeDesktop(t, system, "hidden-after-long.desktop",
+		"[Desktop Entry]\nType=Application\nName=Hidden\n"+long+"\nExec=hidden\nHidden=true\n")
+	apps := Find(nil, []string{home, system})
+	app, ok := apps["big"]
 	if !ok {
 		t.Fatal("an app whose file has a line over 64 KiB is missing")
 	}
 	if app.Name != "Big" || app.Exec != "big %U" || !app.DBusActivatable {
 		t.Errorf("big = %+v, want the keys before and after the long line", app)
+	}
+	if _, ok := apps["hidden-after-long"]; ok {
+		t.Error("Hidden=true after a line over 64 KiB was ignored and resurrected the app")
 	}
 }
 
@@ -298,7 +305,7 @@ func TestLAUNCH02_ARejectedFileKeepsFirstFolderWins(t *testing.T) {
 }
 
 // endlessReader never ends and always has more, like a .desktop symlink to
-// /dev/zero (#260).
+// /dev/zero (LAUNCH-02, ADR 0019, #260).
 type endlessReader struct{}
 
 func (endlessReader) Read(p []byte) (int, error) {
@@ -319,7 +326,7 @@ func TestLAUNCH02_AnOversizedFileIsRejected(t *testing.T) {
 }
 
 // TestLAUNCH02_TheSizeCapBoundary: a file of exactly maxDesktopFileSize is
-// still read; one byte more is rejected (LAUNCH-02, #260).
+// still read; one byte more is rejected (LAUNCH-02, ADR 0019, #260).
 func TestLAUNCH02_TheSizeCapBoundary(t *testing.T) {
 	header := "[Desktop Entry]\nType=Application\nExec=x\n"
 	atCap := header + strings.Repeat("#", maxDesktopFileSize-len(header))
@@ -346,5 +353,32 @@ func TestLAUNCH02_LastLineWithoutNewlineIsRead(t *testing.T) {
 	app, _, ok, err := parseDesktopEntry(strings.NewReader("[Desktop Entry]\nType=Application\nExec=x"))
 	if err != nil || !ok || app.Exec != "x" {
 		t.Errorf("parseDesktopEntry without a trailing newline = %+v, ok = %v, err = %v; want Exec=x and ok", app, ok, err)
+	}
+}
+
+// TestLAUNCH02_IgnoredAndHiddenFilesAreLoggedAtDebug: non-application and
+// Hidden=true desktop files are skipped and logged at debug level, so
+// level = "debug" shows every file Find saw (LAUNCH-02, ADR 0019, #260).
+func TestLAUNCH02_IgnoredAndHiddenFilesAreLoggedAtDebug(t *testing.T) {
+	home, _, _, system := dataDirs(t)
+	writeDesktop(t, system, "link.desktop", "[Desktop Entry]\nType=Link\nName=A link\nURL=https://example.org\n")
+	writeDesktop(t, home, "steam.desktop", entry("Steam", "steam", "Hidden=true"))
+	var buf bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})).With(logattr.Component(logattr.Launcher))
+	apps := Find(log, []string{home, system})
+	if len(apps) != 0 {
+		t.Errorf("apps = %v, want none installed", apps)
+	}
+	out := buf.String()
+	for _, want := range []string{
+		"desktop file is not an application; ignored",
+		"link.desktop",
+		"desktop file is hidden; the app counts as not installed",
+		"steam.desktop",
+		"apptrol.component=launcher",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("debug log does not contain %q: %s", want, out)
+		}
 	}
 }
