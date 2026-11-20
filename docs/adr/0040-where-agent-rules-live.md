@@ -257,19 +257,21 @@ unnoticed (QA-15).
 The owner added Gemini 4 Neon (Antigravity, in T3 Code) as a provider with the same
 standing as GPT-6.2-Sol, for building and for reviewing. Codex now writes code with
 GPT-6.2-Sol instead of GPT-6.1-Sol; its default reasoning level stays `xhigh`, and
-Gemini 4 Neon keeps its own default, `high` (Antigravity's `thought_level`). The
-shared rules in AGENTS.md changed with it: the `Co-Authored-By` line for Gemini, and
-the reviewers. A provider never reviews its own work (GPT never reviews Codex, Gemini
-never reviews Gemini).
+the project sets Gemini 4 Neon to `high` (Antigravity's `thought_level`). The shared
+rules in AGENTS.md changed with it: the `Co-Authored-By` line for Gemini, and the
+reviewers. A provider never reviews its own work (GPT never reviews Codex, Gemini
+never reviews Gemini), except Claude's last resort, a fresh Claude agent when GPT,
+Gemini and Mistral Vibe are all unavailable.
 
 ```
-builder                routine review          complex review          no Claude available
+builder                primary, routine        primary, complex        no Claude available
 Gemini (Antigravity)   Sonnet 5.5 or GPT-6.2   Opus 5.5 or GPT-6.2     GPT-6.2-Sol
 Claude Code            GPT-6.2 or Gemini       GPT-6.2 or Gemini       (n/a)
 Codex, Mistral Vibe    Sonnet 5.5              Opus 5.5                Gemini 4 Neon
 ```
 
-When that reviewer is missing too, the owner names one, as before.
+The fallbacks when a primary reviewer is missing, and when the owner names one, are in
+[AGENTS.md › Review](https://github.com/Dzobash/apptrol/blob/main/AGENTS.md#review).
 
 No permission file was added for Gemini: the four command lists cover Claude Code
 (and Grok through it), Codex, Mistral Vibe and OpenCode, and QA-15 tests only those.

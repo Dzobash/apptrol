@@ -356,24 +356,31 @@ from one to another.
   (Mistral Vibe, in T3 Code) and Gemini (Antigravity, in T3 Code); for a PR from any
   other tool (e.g. Grok), ask the owner which model reviews. GPT-6.2-Sol and Gemini
   4 Neon have the same standing, as builders and as reviewers; neither reviews its
-  own provider's work (GPT never reviews Codex, Gemini never reviews Gemini). Review
-  against the requirements and this file, not only the diff.
+  own provider's work (GPT never reviews Codex, Gemini never reviews Gemini), except
+  Claude's last resort below. Review against the requirements and this file, not only
+  the diff.
 - **When the table's reviewer is not available,** the author's provider decides who
   reviews instead:
   ```
   Claude implements,
-  no GPT and no Gemini:           Mistral Vibe, as the table's "without it" says
+  no GPT and no Gemini:           Mistral Vibe, as the Claude Code row's "without
+                                  them" says (GLM-5.3 routine, Mistral Large 4 complex)
   Claude implements, no GPT,
   no Gemini and no Mistral:       routine → Claude Sonnet 5.5
                                   complex or important → a new Claude Opus 5.5 agent
   Codex or Mistral implements,
   no Claude:                      Gemini 4 Neon
+  Codex or Mistral implements,
+  no Claude and no Gemini:        ask the owner which model reviews
   Gemini implements, no Claude:   GPT-6.2-Sol
-  that one missing too:           ask the owner which model reviews
+  Gemini implements,
+  no Claude and no GPT:           ask the owner which model reviews
   ```
-  A fresh agent of the author's own provider (only Claude's last two rows) gets an
-  independent brief (see below: no chat history, no earlier findings). The PR says which review route was used (e.g.
-  "Reviewed by Claude Sonnet 5.5, Codex, Gemini and Mistral not available").
+  The only case where a provider reviews its own work is Claude's last resort: GPT,
+  Gemini and Mistral Vibe are all unavailable, so a fresh Claude agent reviews, with an
+  independent brief (see below: no chat history, no earlier findings). The PR says
+  which review route was used (e.g. "Reviewed by Claude Sonnet 5.5, Codex, Gemini and
+  Mistral not available").
 - **Split the work by provider.** When the owner hands a release's issues to several
   providers, each gets some, and each PR is reviewed as the table says. Codex writes
   code with GPT-6.2-Sol (GPT-6-Astra used up its tokens too fast and ran out in the
