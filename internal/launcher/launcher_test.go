@@ -1,11 +1,16 @@
 package launcher
 
 import (
+	"bytes"
+	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/Dzobash/apptrol/internal/logattr"
 )
 
 // writeDesktop writes a desktop file below dir/applications.
@@ -45,7 +50,7 @@ func TestLAUNCH02_DesktopFilesAreFound(t *testing.T) {
 	writeDesktop(t, system, "readme.txt", "not a desktop file")
 	writeDesktop(t, system, "link.desktop", "[Desktop Entry]\nType=Link\nName=A link\nURL=https://example.org\n")
 
-	apps := Find([]string{home, flatpak, snap, system})
+	apps := Find(nil, []string{home, flatpak, snap, system})
 	want := map[string]string{
 		"com.obsproject.Studio": SourceFlatpak,
 		"firefox_firefox":       SourceSnap,
@@ -69,7 +74,7 @@ func TestLAUNCH02_TheFirstFolderWins(t *testing.T) {
 	home, _, _, system := dataDirs(t)
 	writeDesktop(t, home, "discord.desktop", entry("My Discord", "discord --start-minimized"))
 	writeDesktop(t, system, "discord.desktop", entry("Discord", "discord"))
-	apps := Find([]string{home, system})
+	apps := Find(nil, []string{home, system})
 	if got := apps["discord"]; got.Name != "My Discord" || got.Source != SourceUser {
 		t.Errorf("discord = %+v, want the user's own file", got)
 	}
@@ -79,7 +84,7 @@ func TestLAUNCH02_HiddenMeansNotInstalled(t *testing.T) {
 	home, _, _, system := dataDirs(t)
 	writeDesktop(t, home, "steam.desktop", entry("Steam", "steam", "Hidden=true")) // the user "deleted" it
 	writeDesktop(t, system, "steam.desktop", entry("Steam", "steam"))
-	if _, ok := Find([]string{home, system})["steam"]; ok {
+	if _, ok := Find(nil, []string{home, system})["steam"]; ok {
 		t.Error("an app hidden in the first folder counts as installed")
 	}
 }
@@ -89,7 +94,7 @@ func TestLAUNCH09_SearchListsVisibleAppsByIDOrName(t *testing.T) {
 	writeDesktop(t, system, "com.obsproject.Studio.desktop", entry("OBS Studio", "obs"))
 	writeDesktop(t, system, "vlc.desktop", entry("VLC media player", "vlc %U"))
 	writeDesktop(t, system, "obs-helper.desktop", entry("Helper", "helper", "NoDisplay=true"))
-	apps := Find([]string{system})
+	apps := Find(nil, []string{system})
 	ids := func(list []App) []string {
 		var out []string
 		for _, a := range list {
@@ -195,5 +200,98 @@ func TestLAUNCH10_MissingLaunchers(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Missing = %+v, want %+v", got, want)
+	}
+}
+
+// failReader serves its data and then fails, like a read error in the middle
+// of a file (#260).
+type failReader struct {
+	data []byte
+}
+
+func (r *failReader) Read(p []byte) (int, error) {
+	if len(r.data) == 0 {
+		return 0, errors.New("read error")
+	}
+	n := copy(p, r.data)
+	r.data = r.data[n:]
+	return n, nil
+}
+
+// TestQA07_LongLinesAreStillParsed: a line over bufio.Scanner's 64 KiB limit
+// (a long MimeType=) does not truncate the file; the keys before and after
+// it are read (QA-07, LAUNCH-02, LAUNCH-03, ADR 0019, #260).
+func TestQA07_LongLinesAreStillParsed(t *testing.T) {
+	home, _, _, system := dataDirs(t)
+	long := "MimeType=" + strings.Repeat("application/x-apptrol-test;", 3000)
+	if len(long) <= 64*1024 {
+		t.Fatalf("test line is only %d bytes", len(long))
+	}
+	writeDesktop(t, system, "big.desktop",
+		"[Desktop Entry]\nType=Application\nName=Big\n"+long+"\nExec=big %U\nDBusActivatable=true\nHidden=false\n")
+	app, ok := Find(nil, []string{home, system})["big"]
+	if !ok {
+		t.Fatal("an app whose file has a line over 64 KiB is missing")
+	}
+	if app.Name != "Big" || app.Exec != "big %U" || !app.DBusActivatable {
+		t.Errorf("big = %+v, want the keys before and after the long line", app)
+	}
+}
+
+// TestQA07_AReadErrorRejectsTheFile: keys after a failed read were never
+// seen, so the file is rejected even when Type=Application came before the
+// error — a partial entry must not count as valid (QA-07, LAUNCH-02,
+// LAUNCH-03, ADR 0019, #260).
+func TestQA07_AReadErrorRejectsTheFile(t *testing.T) {
+	app, hidden, ok, err := parseDesktopEntry(&failReader{data: []byte("[Desktop Entry]\nType=Application\nName=Ghost\nExec=ghost\n")})
+	if err == nil || ok || hidden || app != (App{}) {
+		t.Errorf("after a read error: app = %+v, hidden = %v, ok = %v, err = %v; want a rejected file", app, hidden, ok, err)
+	}
+	_, _, ok, err = parseDesktopEntry(&failReader{data: []byte("[Desktop Entry]\nType=Appli")})
+	if err == nil || ok {
+		t.Errorf("early read error: ok = %v, err = %v; want a rejected file", ok, err)
+	}
+}
+
+// TestQA07_ARejectedFileIsLogged: a desktop file that cannot be read is
+// rejected and logged, so a missing app can be explained from the logs
+// (QA-07, LAUNCH-02, ADR 0019, #260).
+func TestQA07_ARejectedFileIsLogged(t *testing.T) {
+	home, _, _, system := dataDirs(t)
+	if err := os.MkdirAll(filepath.Join(system, "applications"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A dangling symlink: the walk finds it, but it cannot be opened.
+	link := filepath.Join(system, "applications", "ghost.desktop")
+	if err := os.Symlink(filepath.Join(system, "applications", "gone.desktop"), link); err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&buf, nil)).With(logattr.Component(logattr.Launcher))
+	if _, ok := Find(log, []string{home, system})["ghost"]; ok {
+		t.Error("an unreadable desktop file counts as installed")
+	}
+	out := buf.String()
+	for _, want := range []string{"desktop file could not be read", "ghost.desktop", "desktop_file_unreadable", "apptrol.component=launcher"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("log does not contain %q: %s", want, out)
+		}
+	}
+}
+
+// TestQA07_ARejectedFileKeepsFirstFolderWins: an unreadable file in the
+// first folder still wins over a good copy in a later folder, as LAUNCH-02
+// says for Hidden=true (QA-07, LAUNCH-02, ADR 0019, #260).
+func TestQA07_ARejectedFileKeepsFirstFolderWins(t *testing.T) {
+	home, _, _, system := dataDirs(t)
+	if err := os.MkdirAll(filepath.Join(home, "applications"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(home, "applications", "gone.desktop"), filepath.Join(home, "applications", "discord.desktop")); err != nil {
+		t.Fatal(err)
+	}
+	writeDesktop(t, system, "discord.desktop", entry("Discord", "discord"))
+	if _, ok := Find(nil, []string{home, system})["discord"]; ok {
+		t.Error("a later folder's file resurrected an app whose first-folder file was rejected")
 	}
 }

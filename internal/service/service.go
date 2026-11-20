@@ -365,10 +365,13 @@ func (s *service) configWarnings(path string, warnings []config.Warning) {
 
 // launcherWarnings warns about launchers whose desktop ID is not installed;
 // the configuration stays valid, as the app may be installed later (LAUNCH-10).
+// The installed apps are found with the launcher component's logger, so a
+// desktop file rejected as unreadable is logged and a missing app can be
+// explained from the logs (LAUNCH-02, #260).
 func (s *service) launcherWarnings(cfg *config.Config) {
 	installed := s.o.InstalledApps
 	if installed == nil {
-		installed = launcher.Installed
+		installed = func() launcher.Apps { return launcher.InstalledLogged(s.logFor(logattr.Launcher)) }
 	}
 	for _, m := range installed().Missing(cfg.LauncherApps()) {
 		s.logFor(logattr.Config).Warn("desktop ID not installed; the button will not start anything (`apptrol list apps` shows the installed ones)",
