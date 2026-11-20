@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0.6.0); layouts move to 0.7.0, setup and tray to 0.8.0 (#245).
 
 ### Fixed
+- An unreadable screen lock state now logs `cannot read the screen lock state; launchers
+  are blocked` at `WARN` once per outage until recovery instead of repeating every 5
+  seconds, while launchers stay blocked. Restarting logind also clears the cached
+  graphical session path and ID alongside the user and seat paths (LAUNCH-13, SVC-12,
+  [ADR 0024](docs/adr/0024-launchers-only-when-unlocked.md), #253).
 - `apptrol list apps` no longer takes its launcher example from the first desktop ID
   of the whole list. An ID can contain `=`, and the line then read like a syntax
   error. With a search word the example is the first match; without one it is
