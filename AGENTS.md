@@ -369,12 +369,10 @@ from one to another.
   no Gemini and no Mistral:       routine → Claude Sonnet 5.5
                                   complex or important → a new Claude Opus 5.5 agent
   Codex or Mistral implements,
-  no Claude:                      Gemini 4 Neon
-  Codex or Mistral implements,
-  no Claude and no Gemini:        ask the owner which model reviews
-  Gemini implements, no Claude:   GPT-6.2-Sol
-  Gemini implements,
-  no Claude and no GPT:           ask the owner which model reviews
+  no Claude:                      Gemini 4 Neon; if it is missing too, ask the
+                                  owner which model reviews
+  Gemini implements, no Claude:   GPT-6.2-Sol; if it is missing too, ask the
+                                  owner which model reviews
   ```
   The only case where a provider reviews its own work is Claude's last resort: GPT,
   Gemini and Mistral Vibe are all unavailable, so a fresh Claude agent reviews, with an
