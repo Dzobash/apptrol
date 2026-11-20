@@ -3,6 +3,7 @@ package config
 import (
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -39,7 +40,6 @@ var (
 				"-i", "--ignore-environment",
 				"-0", "--null",
 				"-v", "--debug",
-				"-S", "--split-string",
 				"--list-signal-handling",
 				"--block-signal", "--default-signal", "--ignore-signal",
 			),
@@ -140,6 +140,10 @@ const (
 	flagUnknown                  // unknown option: may consume zero or one word
 )
 
+// maxScanDepth bounds nested split-string and shell-word expansions so odd
+// inputs cannot trigger deep recursion (LAUNCH-12, QA-08, ADR 0022).
+const maxScanDepth = 8
+
 // scanState tracks all possible parser positions at the current word so an
 // unknown wrapper flag can be explored as both zero-arg and one-arg without
 // letting a blocked program slip past (LAUNCH-12, ADR 0022).
@@ -148,6 +152,7 @@ type scanState struct {
 	inArgs        bool            // already past a non-wrapper program
 	wrapperOpt    map[string]bool // active wrappers currently reading options
 	wrapperArg    map[string]bool // active wrappers expecting an option value
+	wrapperSplit  map[string]bool // active wrappers expecting a split-string value (-S / --split-string)
 }
 
 // addOpt records wrap as accepting further options on the next word (LAUNCH-12, ADR 0022).
@@ -164,6 +169,31 @@ func (s *scanState) addArg(wrap string) {
 		s.wrapperArg = map[string]bool{}
 	}
 	s.wrapperArg[wrap] = true
+}
+
+// addSplit records wrap as consuming the next word as a whitespace-split
+// argument string, e.g. env -S / --split-string (LAUNCH-12, ADR 0022).
+func (s *scanState) addSplit(wrap string) {
+	if s.wrapperSplit == nil {
+		s.wrapperSplit = map[string]bool{}
+	}
+	s.wrapperSplit[wrap] = true
+}
+
+// merge combines another scanState into s so expanding a split-string value
+// feeds its resulting states back into the outer word scan (LAUNCH-12, ADR 0022).
+func (s *scanState) merge(other scanState) {
+	s.expectProgram = s.expectProgram || other.expectProgram
+	s.inArgs = s.inArgs || other.inArgs
+	for wrap := range other.wrapperOpt {
+		s.addOpt(wrap)
+	}
+	for wrap := range other.wrapperArg {
+		s.addArg(wrap)
+	}
+	for wrap := range other.wrapperSplit {
+		s.addSplit(wrap)
+	}
 }
 
 // setOf builds a lookup set from a list of flag names (LAUNCH-12, ADR 0022).
@@ -193,6 +223,18 @@ func isASCIIUnsigned(s string) bool {
 		}
 	}
 	return true
+}
+
+// joinRest returns a followed by b without allocating when either slice is
+// empty (LAUNCH-12, ADR 0022).
+func joinRest(a, b []string) []string {
+	if len(b) == 0 {
+		return a
+	}
+	if len(a) == 0 {
+		return b
+	}
+	return append(slices.Clone(a), b...)
 }
 
 // blockedCommand returns why a launcher command is refused, or "" (LAUNCH-12, ADR 0022).
@@ -227,28 +269,46 @@ func blockedCommand(args []string) string {
 // checkWords scans one command word list, tracking program position, wrapper
 // options and wrapper option arguments (LAUNCH-12, ADR 0022).
 func checkWords(words []string) string {
-	cur := scanState{expectProgram: true}
+	_, reason := scanWords(words, nil, scanState{expectProgram: true}, 0)
+	return reason
+}
+
+// scanWords advances start across words, returning the resulting state or the
+// first refusal reason. trailing holds any outer arguments that follow words
+// when expanding a split-string value (LAUNCH-12, ADR 0022).
+func scanWords(words, trailing []string, start scanState, depth int) (scanState, string) {
+	cur := start
 	for i, w := range words {
-		rest := words[i+1:]
+		rest := joinRest(words[i+1:], trailing)
 		var next scanState
 
 		if cur.expectProgram {
-			if reason := checkProgramWord(w, rest, &next); reason != "" {
-				return reason
+			if reason := checkProgramWord(w, rest, &next, depth); reason != "" {
+				return scanState{}, reason
 			}
 		}
 		for wrap := range cur.wrapperArg {
 			next.addOpt(wrap)
 		}
+		for wrap := range cur.wrapperSplit {
+			if reason := expandSplitString(wrap, w, rest, &next, depth); reason != "" {
+				return scanState{}, reason
+			}
+		}
 		for wrap := range cur.wrapperOpt {
 			spec := wrapperSpecs[wrap]
-			if inner, ok := extractSplitString(w, spec); ok {
-				if inner == "" {
-					next.addOpt(wrap)
+			if payload, hasPayload, exact, ok := extractSplitString(w, spec); ok {
+				if hasPayload {
+					if reason := expandSplitString(wrap, payload, rest, &next, depth); reason != "" {
+						return scanState{}, reason
+					}
 					continue
 				}
-				if reason := applyWrapperWord(wrap, spec, inner, rest, &next); reason != "" {
-					return reason
+				next.addSplit(wrap)
+				if !exact {
+					// Abbreviated --s… without "=" could also match a future
+					// zero-arg flag, so keep wrapperOpt alive too (LAUNCH-12, ADR 0022).
+					next.addOpt(wrap)
 				}
 				continue
 			}
@@ -257,33 +317,57 @@ func checkWords(words []string) string {
 					next.expectProgram = true
 					continue
 				}
-				if reason := checkProgramWord(cmd, rest, &next); reason != "" {
-					return reason
+				if reason := checkProgramWord(cmd, rest, &next, depth); reason != "" {
+					return scanState{}, reason
 				}
 				continue
 			}
-			if reason := applyWrapperWord(wrap, spec, w, rest, &next); reason != "" {
-				return reason
+			if reason := applyWrapperWord(wrap, spec, w, rest, &next, depth); reason != "" {
+				return scanState{}, reason
 			}
 		}
 		if cur.inArgs {
-			// After "-c" (sh -c, bash -c), the next word is a program again
-			// (LAUNCH-12, ADR 0022).
+			// After "-c" (sh -c, bash -c), the next word is a program again.
+			// Keep main's behavior for wrapper names inside arguments
+			// (e.g. flatpak-spawn --host pkexec …, konsole -e pkexec …) so
+			// nested launchers still get checked (LAUNCH-12, ADR 0022).
 			if w == "-c" {
 				next.expectProgram = true
 			} else {
 				next.inArgs = true
+				if name := filepath.Base(w); !strings.ContainsAny(w, " \t\n\r\v\f") {
+					if _, ok := wrapperSpecs[name]; ok {
+						next.addOpt(name)
+					}
+				}
 			}
 		}
 		cur = next
 	}
+	return cur, ""
+}
+
+// expandSplitString splits an env -S / --split-string value into words, scans
+// them as further options and command words for wrap, and merges the resulting
+// state into next (LAUNCH-12, ADR 0022).
+func expandSplitString(wrap, payload string, trailing []string, next *scanState, depth int) string {
+	if depth >= maxScanDepth {
+		next.addOpt(wrap)
+		return ""
+	}
+	start := scanState{wrapperOpt: map[string]bool{wrap: true}}
+	end, reason := scanWords(strings.Fields(payload), trailing, start, depth+1)
+	if reason != "" {
+		return reason
+	}
+	next.merge(end)
 	return ""
 }
 
 // applyWrapperWord advances a wrapperOpt branch by one word w, skipping
 // wrapper flags and option values until the wrapped program or "--"
 // (LAUNCH-12, ADR 0022).
-func applyWrapperWord(wrap string, spec wrapperSpec, w string, rest []string, next *scanState) string {
+func applyWrapperWord(wrap string, spec wrapperSpec, w string, rest []string, next *scanState, depth int) string {
 	switch {
 	case w == "--":
 		next.expectProgram = true
@@ -306,7 +390,7 @@ func applyWrapperWord(wrap string, spec wrapperSpec, w string, rest []string, ne
 		}
 		return ""
 	default:
-		return checkProgramWord(w, rest, next)
+		return checkProgramWord(w, rest, next, depth)
 	}
 }
 
@@ -345,30 +429,39 @@ func classifyWrapperFlag(w string, spec wrapperSpec) flagArity {
 	return flagNoArg
 }
 
-// extractSplitString extracts an inline word attached to env's
-// --split-string=<word> or -S<word> / -<noArg>S<word> (LAUNCH-12, ADR 0022).
-func extractSplitString(w string, spec wrapperSpec) (string, bool) {
+// extractSplitString recognizes env's -S and --split-string (including GNU
+// getopt_long prefixes such as --s=…), with either an attached payload or a
+// following payload word (LAUNCH-12, ADR 0022).
+func extractSplitString(w string, spec wrapperSpec) (payload string, hasPayload, exact, ok bool) {
 	if !spec.splitString {
-		return "", false
+		return "", false, false, false
 	}
-	if inner, ok := strings.CutPrefix(w, "--split-string="); ok {
-		return inner, true
+	if strings.HasPrefix(w, "--") && len(w) > 2 {
+		const splitStringOpt = "split-string"
+		opt, val, hasEq := strings.Cut(w[2:], "=")
+		if opt != "" && len(opt) <= len(splitStringOpt) && splitStringOpt[:len(opt)] == opt {
+			if hasEq {
+				return val, true, true, true
+			}
+			return "", false, opt == "split-string", true
+		}
+		return "", false, false, false
 	}
-	if !strings.HasPrefix(w, "-") || strings.HasPrefix(w, "--") || len(w) <= 2 {
-		return "", false
+	if !strings.HasPrefix(w, "-") || strings.HasPrefix(w, "--") || len(w) < 2 {
+		return "", false, false, false
 	}
 	for j := 1; j < len(w); j++ {
 		if w[j] == 'S' {
 			if j+1 < len(w) {
-				return w[j+1:], true
+				return w[j+1:], true, true, true
 			}
-			return "", false
+			return "", false, true, true
 		}
 		if !spec.noArg["-"+w[j:j+1]] {
-			return "", false
+			return "", false, false, false
 		}
 	}
-	return "", false
+	return "", false, false, false
 }
 
 // extractCommandFlag recognizes kdesu's -c (alone, clustered after no-arg
@@ -393,8 +486,22 @@ func extractCommandFlag(w string, spec wrapperSpec) (cmd string, hasCmd, ok bool
 }
 
 // checkProgramWord checks a word in program position and records the next
-// state for assignments, nested wrappers or ordinary arguments (LAUNCH-12, ADR 0022).
-func checkProgramWord(w string, rest []string, next *scanState) string {
+// state for assignments, nested wrappers or ordinary arguments. A word
+// containing whitespace or shell separators (e.g. the command string passed to
+// "sh -c") is split into segments and words instead of passing the whole string
+// to filepath.Base (LAUNCH-12, ADR 0022).
+func checkProgramWord(w string, rest []string, next *scanState, depth int) string {
+	if strings.ContainsAny(w, " \t\n\r\v\f") || separators.MatchString(w) {
+		if depth < maxScanDepth {
+			for _, segment := range separators.Split(w, -1) {
+				if _, reason := scanWords(strings.Fields(segment), nil, scanState{expectProgram: true}, depth+1); reason != "" {
+					return reason
+				}
+			}
+		}
+		next.inArgs = true
+		return ""
+	}
 	if isAssignment(w) {
 		next.expectProgram = true
 		return ""

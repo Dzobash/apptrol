@@ -82,6 +82,10 @@ func TestLAUNCH12_WrapperFlagsStillBlockDangerousCommands(t *testing.T) {
 		{"env legacy dash", []string{"env", "-", "sudo", "apt", "update"}, `"sudo" asks for the password`},
 		{"env -S split string", []string{"env", "-S", "sudo apt update"}, `"sudo" asks for the password`},
 		{"env --split-string=", []string{"env", "--split-string=rm -rf /"}, "deletes all your files"},
+		{"env abbreviated --s=", []string{"env", "--s=sudo x"}, `"sudo" asks for the password`},
+		{"env abbreviated --s separate arg", []string{"env", "--s", "sudo x"}, `"sudo" asks for the password`},
+		{"systemd-run multi-word description then env -S", []string{"systemd-run", "--user", "--description", "my job", "env", "-S", "sudo x"}, `"sudo" asks for the password`},
+		{"systemd-run multi-word description then env -S with flag", []string{"systemd-run", "--user", "--description", "my job", "env", "-S", "-i sudo x"}, `"sudo" asks for the password`},
 		{"env --", []string{"env", "--", "sudo", "apt", "update"}, `"sudo" asks for the password`},
 		{"env -i --", []string{"env", "-i", "--", "rm", "-rf", "/"}, "deletes all your files"},
 		{"nice -n 10", []string{"nice", "-n", "10", "rm", "-rf", "/"}, "deletes all your files"},
@@ -112,6 +116,11 @@ func TestLAUNCH12_WrapperFlagsStillBlockDangerousCommands(t *testing.T) {
 		{"setsid -f -w", []string{"setsid", "-f", "-w", "rm", "-rf", "/"}, "deletes all your files"},
 		{"time -o file", []string{"time", "-o", "/tmp/t.log", "rm", "-rf", "/"}, "deletes all your files"},
 		{"chained wrappers", []string{"env", "-i", "nice", "-n", "10", "systemd-run", "--user", "rm", "-rf", "/"}, "deletes all your files"},
+		{"wrapper inside flatpak-spawn args", []string{"flatpak-spawn", "--host", "pkexec", "wipefs", "-a", "/dev/sdb"}, `"wipefs" wipes a disk`},
+		{"wrapper with flag inside flatpak-spawn args", []string{"flatpak-spawn", "--host", "pkexec", "--user", "root", "wipefs", "-a", "/dev/sdb"}, `"wipefs" wipes a disk`},
+		{"wrapper inside konsole -e args", []string{"konsole", "--hold", "-e", "pkexec", "mkfs.ext4", "/dev/sdb1"}, `"mkfs.ext4" wipes a disk`},
+		{"wrapper inside sh -c args", []string{"sh", "-c", "foo nice rm -rf /"}, "deletes all your files"},
+		{"wrapper with flag inside sh -c args", []string{"sh", "-c", "foo nice -n 10 rm -rf /"}, "deletes all your files"},
 		{"shell text with wrapper flags", []string{"sh", "-c", "env -i sudo apt update"}, `"sudo" asks for the password`},
 		{"path-qualified wrapper", []string{"/usr/bin/env", "-u", "HOME", "/usr/bin/sudo", "x"}, `"sudo" asks for the password`},
 		{"unknown long flag without value", []string{"systemd-run", "--unknown-bool", "rm", "-rf", "/"}, "deletes all your files"},
@@ -161,6 +170,9 @@ func TestLAUNCH12_WrapperFlagsAllowNormalCommands(t *testing.T) {
 		{"non-wrapper --user and rm -rf / arg", []string{"echo", "--user", "rm", "-rf", "/"}},
 		{"non-wrapper unknown flag and sudo arg", []string{"mytool", "--unknown-flag", "val", "sudo"}},
 		{"shell echo -- sudo", []string{"sh", "-c", "echo -- sudo"}},
+		{"shell ls path ending in mkfs.ext4", []string{"sh", "-c", "ls -l /usr/sbin/mkfs.ext4"}},
+		{"shell xdg-open path ending in su", []string{"sh", "-c", "xdg-open ~/Notes/su"}},
+		{"env -S normal app", []string{"env", "-S", "notify-send su"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := blockedCommand(tc.cmd); got != "" {
