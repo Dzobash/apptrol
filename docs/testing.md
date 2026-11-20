@@ -10,8 +10,8 @@ of [requirements.md](requirements.md#51-quality-assurance).
 |---|---|
 | `make check` | Format check, `go vet`, `golangci-lint`, race tests, AppStream metadata and the portable Windows build (NFR-11) |
 | `make check-portable` | Cross-compile `internal/mixer`, `internal/config`, `internal/state`, `internal/controller`, `internal/logattr` and `internal/version` for Windows with `CGO_ENABLED=0`; builds packages without running Windows code (NFR-11) |
-| `make release-check` | Validate GoReleaser packaging configuration (needs GoReleaser) |
-| `make snapshot` | Build release packages locally without publishing (needs GoReleaser) |
+| `make release-check` | Validate GoReleaser packaging configuration (needs GoReleaser, the version CI pins: [releasing](releasing.md#trying-it-locally-first)) |
+| `make snapshot` | Build release packages locally without publishing (needs GoReleaser, the version CI pins) |
 | `lintian --info --display-info dist/*.deb` | Check built Debian packages, including description hints (NFR-10) and the DEP-5 copyright file (needs lintian; see [package checks](releasing.md#trying-it-locally-first)) |
 | `make test` | Tests with the race detector |
 | `make test-audio` | Integration tests against your running PipeWire (they add a silent test output and inputs and remove them afterwards) |
