@@ -293,11 +293,13 @@ jobs:
         with:
           go-version: stable   # as release.yml: release binaries are built with the latest stable Go
       # Same GoReleaser as release.yml; only installed here, then run through make so
-      # CI and a developer's machine run the same commands.
+      # CI and a developer's machine run the same commands. Pinned to one exact
+      # version, not "~> v2": v2.20.3 rejected the "~snapshot" version that apt and dnf
+      # need, and "~> v2" took it without anyone reviewing it (#194).
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
-          version: "~> v2"
+          version: v2.20.2
           install-only: true
       - name: Check .goreleaser.yaml
         run: make release-check
