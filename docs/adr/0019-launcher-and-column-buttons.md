@@ -173,3 +173,8 @@ Measured on the reference system (Kubuntu, KDE Plasma) on 2026-10-02:
   closing example uses the first ID only when a search word narrowed the list;
   otherwise it is `record = { app = "<desktop ID>" }`, so an odd first ID is not the
   example (LAUNCH-09, #225).
+- 2026-11-20: The launcher press's timeout covers systemd bus setup, including
+  registration for job completion signals. Presses share one setup attempt, each
+  with its own deadline. The cached connection outlives the press and is closed
+  if its transport fails. A failed start job keeps the connection available
+  (LAUNCH-04, LAUNCH-11, #249).

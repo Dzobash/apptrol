@@ -29,3 +29,13 @@ Type: Manual
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
+
+### TC-LAUNCH-002 — Launcher presses share a healthy systemd connection
+
+Covers: LAUNCH-04, LAUNCH-07, LAUNCH-11 · Phase 1.5
+Config: none (fake manager and private sockets)
+Type: Automated
+Test: `TestLAUNCH04_TransportFailureClosesOnlyFailedConnection`,
+`TestLAUNCH04_WaitingPressHasItsOwnDeadline`, `TestLAUNCH04_SetupCancellation`,
+`TestLAUNCH04_ConnectionOutlivesSetupContext`, `TestLAUNCH04_SystemdBusAddressTransports`,
+`TestLAUNCH07_OnlyTransportFailureClosesConnection`, `TestLAUNCH11_JobFailureKeepsConnection`

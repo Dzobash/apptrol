@@ -11,9 +11,11 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	sd "github.com/coreos/go-systemd/v22/dbus"
+	"github.com/godbus/dbus/v5"
 
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
@@ -26,11 +28,16 @@ type fakeSystemd struct {
 	result  string // the start job's result; "" = "done"
 	refuse  string // a property name it does not know, like systemd < 250
 	callErr error
+	listErr error
 	active  []string // names of active units, for the running check
+	closed  atomic.Int32
 }
 
 // ListUnitsByPatternsContext matches like systemd: globs, "\" escapes.
 func (f *fakeSystemd) ListUnitsByPatternsContext(_ context.Context, _, patterns []string) ([]sd.UnitStatus, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
 	var out []sd.UnitStatus
 	for _, name := range f.active {
 		for _, p := range patterns {
@@ -63,6 +70,9 @@ func (f *fakeSystemd) StartTransientUnitContext(_ context.Context, name, _ strin
 	ch <- result
 	return 1, nil
 }
+
+func (f *fakeSystemd) Connected() bool { return f.closed.Load() == 0 }
+func (f *fakeSystemd) Close()          { f.closed.Add(1) }
 
 func (f *fakeSystemd) prop(i int, name string) any {
 	for _, p := range f.props[i] {
@@ -193,5 +203,49 @@ func TestLAUNCH04_OldSystemdWithoutExitType(t *testing.T) {
 	}
 	if strings.Contains(log.String(), "could not be started") {
 		t.Errorf("the second try failed:\n%s", log.String())
+	}
+}
+
+func TestLAUNCH11_JobFailureKeepsConnection(t *testing.T) {
+	sys := &fakeSystemd{result: "failed"}
+	s, log, _ := newTestStarter(testApps, sys)
+	dials := 0
+	s.connect = func(context.Context) (systemd, error) {
+		dials++
+		return sys, nil
+	}
+
+	s.start(launchOf("", "missing-apptrol-test-program"))
+	sys.result = "done"
+	s.start(launchOf("", "true"))
+	if dials != 1 || sys.closed.Load() != 0 || len(sys.units) != 2 {
+		t.Fatalf("dials = %d, closes = %d, starts = %d; want 1, 0, 2", dials, sys.closed.Load(), len(sys.units))
+	}
+	if failures := strings.Count(log.String(), "app could not be started"); failures != 1 {
+		t.Errorf("want exactly one failed start, got log:\n%s", log.String())
+	}
+}
+
+func TestLAUNCH04_TransportFailureClosesOnlyFailedConnection(t *testing.T) {
+	ctx := t.Context()
+	failed := &fakeSystemd{callErr: dbus.ErrClosed}
+	replacement := &fakeSystemd{}
+	s, _, _ := newTestStarter(testApps, failed)
+
+	if err := s.startUnit(ctx, "app-example.service", "example", []string{"true"}); !errors.Is(err, dbus.ErrClosed) {
+		t.Fatalf("failed start = %v, want a closed connection error", err)
+	}
+	if n := failed.closed.Load(); n != 1 {
+		t.Fatalf("closes of failed connection = %d, want 1", n)
+	}
+	s.connect = func(context.Context) (systemd, error) { return replacement, nil }
+	if err := s.startUnit(ctx, "app-example.service", "example", []string{"true"}); err != nil {
+		t.Fatalf("start with replacement: %v", err)
+	}
+	s.dropConn(failed) // a second call on the old connection reports its failure late
+	got, err := s.conn(ctx)
+	if got != replacement || err != nil || failed.closed.Load() != 1 || replacement.closed.Load() != 0 {
+		t.Fatalf("cached = %v, error = %v, closes = %d (old) / %d (new)",
+			got, err, failed.closed.Load(), replacement.closed.Load())
 	}
 }

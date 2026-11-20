@@ -22,15 +22,8 @@ import (
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
-// startTimeout bounds asking systemd to start an app.
+// startTimeout bounds the systemd connection and start job (LAUNCH-04, LAUNCH-11, ADR 0019).
 const startTimeout = 10 * time.Second
-
-// systemd is the part of the systemd user manager the Starter uses; a fake
-// replaces it in tests (QA-06).
-type systemd interface {
-	StartTransientUnitContext(ctx context.Context, name, mode string, properties []sd.Property, ch chan<- string) (int, error)
-	ListUnitsByPatternsContext(ctx context.Context, states, patterns []string) ([]sd.UnitStatus, error)
-}
 
 // Starter starts the apps of launcher buttons. systemd starts each one in a
 // transient unit of its own, so it is never a child of Apptrol and keeps
@@ -39,10 +32,10 @@ type Starter struct {
 	log  *slog.Logger
 	apps func() Apps // the installed apps, read on every press: an app may be installed later
 
-	mu      sync.Mutex
-	systemd systemd // connected on first use, again after an error
-	// connect returns a connection to the systemd user manager.
-	connect func(ctx context.Context) (systemd, error)
+	mu         sync.Mutex
+	systemd    systemd       // shared by presses until the transport fails (LAUNCH-04, ADR 0019)
+	connecting chan struct{} // closed when the in-flight connection attempt finishes
+	connect    func(ctx context.Context) (systemd, error)
 	// activate starts a DBusActivatable app without Exec (LAUNCH-03).
 	activate func(ctx context.Context, desktopID string) error
 	procDir  string // where the running processes are listed: /proc
@@ -190,27 +183,29 @@ func unitProperties(desc string, argv []string, modern bool) []sd.Property {
 	return props
 }
 
-// startUnit asks systemd to start the unit and waits for the start job.
-// systemd older than 250 does not know ExitType: the start is tried again
-// without the newer properties.
+// startUnit asks systemd to start the unit and waits for the job to report
+// whether the app could run (LAUNCH-04, LAUNCH-11, ADR 0019).
 func (s *Starter) startUnit(ctx context.Context, unitName, desc string, argv []string) error {
 	sys, err := s.conn(ctx)
 	if err != nil {
 		return err
 	}
-	err = startJob(ctx, sys, unitName, unitProperties("Apptrol: "+desc, argv, true))
-	if err != nil && strings.Contains(err.Error(), "ExitType") {
-		err = startJob(ctx, sys, unitName, unitProperties("Apptrol: "+desc, argv, false))
-	}
-	if err != nil {
-		s.dropConn() // connect again next time
+	err = startJob(ctx, sys, unitName, "Apptrol: "+desc, argv)
+	if systemdTransportError(sys, err) {
+		s.dropConn(sys)
 	}
 	return err
 }
 
-func startJob(ctx context.Context, sys systemd, unitName string, props []sd.Property) error {
+func startJob(ctx context.Context, sys systemd, unitName, desc string, argv []string) error {
 	done := make(chan string, 1)
-	if _, err := sys.StartTransientUnitContext(ctx, unitName, "fail", props, done); err != nil {
+	_, err := sys.StartTransientUnitContext(ctx, unitName, "fail", unitProperties(desc, argv, true), done)
+	// systemd older than 250 rejects ExitType. Retry the request without the
+	// newer properties only when the request itself was rejected (LAUNCH-04, ADR 0019).
+	if err != nil && strings.Contains(err.Error(), "ExitType") && !systemdTransportError(sys, err) {
+		_, err = sys.StartTransientUnitContext(ctx, unitName, "fail", unitProperties(desc, argv, false), done)
+	}
+	if err != nil {
 		return err
 	}
 	select {
@@ -222,53 +217,6 @@ func startJob(ctx context.Context, sys systemd, unitName string, props []sd.Prop
 	case <-ctx.Done():
 		return fmt.Errorf("systemd did not start %s in time", unitName)
 	}
-}
-
-func (s *Starter) conn(ctx context.Context) (systemd, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.systemd != nil {
-		return s.systemd, nil
-	}
-	sys, err := s.connect(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("cannot reach the systemd user manager: %w", err)
-	}
-	s.systemd = sys
-	return sys, nil
-}
-
-func (s *Starter) dropConn() {
-	s.mu.Lock()
-	s.systemd = nil
-	s.mu.Unlock()
-}
-
-// connectSystemd connects to the systemd user manager over the existing
-// session bus; unlike go-systemd's NewUserConnectionContext it never starts
-// a bus (ADR 0017). The connection is kept for later presses, so it must not
-// be tied to the context of the press that opened it: that context ends with
-// the press and would close the connection.
-func connectSystemd(context.Context) (systemd, error) {
-	addr, err := desktop.SessionBusAddress()
-	if err != nil {
-		return nil, err
-	}
-	return sd.NewConnection(func() (*dbus.Conn, error) {
-		c, err := dbus.Dial(addr)
-		if err != nil {
-			return nil, err
-		}
-		if err := c.Auth(nil); err != nil {
-			_ = c.Close()
-			return nil, err
-		}
-		if err := c.Hello(); err != nil {
-			_ = c.Close()
-			return nil, err
-		}
-		return c, nil
-	})
 }
 
 // activateDBus starts an app through org.freedesktop.Application.Activate:
