@@ -120,14 +120,17 @@ func TestMUTE07_HeldInputMuteConsumesEchoAndLogsOnlyChanges(t *testing.T) {
 	r := newInputRig()
 	var logs bytes.Buffer
 	r.b.log = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	const heldLog = "input mute change not taken over: the new-input guard holds the mute"
+	const (
+		heldLog = "input mute change not taken over: the new-input guard holds the mute"
+		echoLog = "input mute echo ignored: matches Apptrol's write"
+	)
 	generation := r.report(t)[0].(mixer.DeviceAdded).Device.Generation
 	if err := r.b.Apply(mixer.SetDeviceMute{Device: r.d.Name, Muted: true}); err != nil {
 		t.Fatal(err)
 	}
 	r.d.Volume = 0.8
-	if evs := r.report(t); len(evs) != 0 || strings.Contains(logs.String(), heldLog) {
-		t.Fatalf("volume-only notification produced events %v or a held-mute log:\n%s", evs, &logs)
+	if evs := r.report(t); len(evs) != 0 || strings.Contains(logs.String(), heldLog) || strings.Contains(logs.String(), echoLog) {
+		t.Fatalf("volume-only notification produced events %v or a mute log:\n%s", evs, &logs)
 	}
 	if want, ok := r.b.devMuteWant[r.d.Name]; !ok || !want.muted {
 		t.Fatal("volume-only notification used up the expected mute echo")
@@ -135,6 +138,9 @@ func TestMUTE07_HeldInputMuteConsumesEchoAndLogsOnlyChanges(t *testing.T) {
 	r.d.Muted = true
 	if evs := r.report(t); len(evs) != 0 || strings.Contains(logs.String(), heldLog) {
 		t.Fatalf("own echo produced events %v or a held-mute log:\n%s", evs, &logs)
+	}
+	if strings.Count(logs.String(), echoLog) != 1 {
+		t.Fatalf("want exactly one mute echo log:\n%s", &logs)
 	}
 	if _, ok := r.b.devMuteWant[r.d.Name]; ok {
 		t.Fatal("own echo did not consume the expected mute")
@@ -145,6 +151,9 @@ func TestMUTE07_HeldInputMuteConsumesEchoAndLogsOnlyChanges(t *testing.T) {
 	r.d.Muted = false
 	if evs := r.report(t); len(evs) != 0 || strings.Count(logs.String(), heldLog) != 1 {
 		t.Fatalf("restore produced events %v or did not log exactly one held mute:\n%s", evs, &logs)
+	}
+	if strings.Count(logs.String(), echoLog) != 1 {
+		t.Fatalf("restore logged a mute echo:\n%s", &logs)
 	}
 	if want, ok := r.b.devMuteWant[r.d.Name]; !ok || !want.muted {
 		t.Fatal("restore used up the expected echo of the correction")

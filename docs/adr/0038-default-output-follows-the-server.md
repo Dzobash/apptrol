@@ -132,8 +132,12 @@ INFO default output is the same device as another output; the earlier control ow
   reads, following the output guard. This lets `KeepDevice` recognize a volume or
   mute just set by Apptrol. An unsuccessful write leaves the prior read available
   for defense. The held-mute debug record is for actual mute changes the guard
-  suppresses. A matching mute echo instead uses up its expectation (INPUT-09,
+  suppresses. A matching mute echo uses up its expectation (INPUT-09,
   MUTE-07, #252).
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | debug | `input mute echo ignored: matches Apptrol's write` | device name, mute |
 
 - 2026-11-03: The same decision now covers inputs (`device = "default"`, INPUT-09,
   CFG-20, #221). `AudioSnapshot.DefaultInput` and `DefaultInputChanged` report the

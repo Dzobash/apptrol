@@ -60,6 +60,8 @@ func (b *Backend) sourceEvent(k *conn, t *tracker, index uint32, removed bool, r
 			if hold && muteChanged {
 				if w, ok := b.devMuteWant[d.Name]; ok && w.muted == d.Muted {
 					delete(b.devMuteWant, d.Name)
+					b.log.Debug("input mute echo ignored: matches Apptrol's write",
+						logattr.KeyDeviceName, d.Name, logattr.KeyMuted, d.Muted)
 				} else {
 					b.log.Debug("input mute change not taken over: the new-input guard holds the mute",
 						logattr.KeyDeviceName, d.Name, logattr.KeyMuted, d.Muted)
