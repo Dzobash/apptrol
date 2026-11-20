@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0.6.0); layouts move to 0.7.0, setup and tray to 0.8.0 (#245).
 
 ### Fixed
+- A controller that stops accepting LED writes no longer blocks Apptrol's event loop
+  or its shutdown: every LED write is bounded by a 100 ms write deadline, so a stalled
+  controller fails fast, and the failure is logged once per outage instead of once per
+  LED (SVC-05, LED-08, HW-02, #258).
 - A `config.toml` that existed at startup but could not be read (e.g. `chmod 000`)
   is now watched for fixed permissions like one that breaks later: Apptrol
   reloads it once `chmod` lets the file be read again, without a restart.
