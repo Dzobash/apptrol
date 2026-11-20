@@ -118,10 +118,14 @@ func TestOpenRotatingFileNeedsPath(t *testing.T) {
 }
 
 // A log file removed by hand must not stop the rotation: there is nothing to
-// keep, and the next file is simply opened (LOG-07, #250).
+// keep, so the archive stays, and the next file is simply opened
+// (LOG-07, ADR 0008, #250).
 func TestLOG07_RotatesAfterLogFileWasRemoved(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "apptrol.log")
-	r, err := openRotatingFile(path, 10, 2)
+	if err := os.WriteFile(path+".1", []byte("archive"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := openRotatingFile(path, 10, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,6 +139,9 @@ func TestLOG07_RotatesAfterLogFileWasRemoved(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(path); string(got) != "after\n" {
 		t.Errorf("new file = %q, want the record written after the removal", got)
+	}
+	if got, _ := os.ReadFile(path + ".1"); string(got) != "archive" {
+		t.Errorf(".1 = %q, want the archive kept: the removed file had nothing to keep", got)
 	}
 	if _, err := r.Write([]byte("more\n")); err != nil {
 		t.Errorf("later Write = %v", err)
@@ -318,6 +325,34 @@ func TestLOG07_FailedRetriesKeepTheArchives(t *testing.T) {
 		t.Errorf(".1 after the rotation = %q, want the full file", got)
 	}
 	if got, _ := os.ReadFile(path); string(got) != "new" {
+		t.Errorf("file = %q", got)
+	}
+}
+
+// When the files cannot be renamed and no new file can be opened (e.g. the
+// folder lost its permissions), the open file keeps the records: the rotation
+// gives up the open file only after it moved it away (LOG-07, ADR 0008, #250).
+func TestLOG07_FailedShiftKeepsTheOpenFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	r, err := openRotatingFile(path, 10, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	_, _ = r.Write([]byte("0123456789"))
+
+	failOn(t, &rename, func(string, string) error { return errors.New("rename failed") })
+	failOn(t, &openFile, func(string, int, os.FileMode) (*os.File, error) {
+		return nil, errors.New("open failed")
+	})
+	n, err := r.Write([]byte("kept\n"))
+	if err == nil {
+		t.Error("want the rotation error")
+	}
+	if n != 5 {
+		t.Errorf("Write = %d bytes, want the record written to the open file", n)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "0123456789kept\n" {
 		t.Errorf("file = %q", got)
 	}
 }

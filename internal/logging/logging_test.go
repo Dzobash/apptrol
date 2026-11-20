@@ -601,7 +601,8 @@ func TestLOG08_ReloadRevivesOrReplacesTheSameFile(t *testing.T) {
 }
 
 // blockingValue stops in the middle of writing a record: String runs inside
-// the file output's Handle, after dynamicHandler has picked its outputs.
+// the file output's Handle, after dynamicHandler has picked its outputs
+// (LOG-08, ADR 0008, #250).
 type blockingValue struct {
 	entered chan struct{}
 	release chan struct{}
@@ -666,7 +667,8 @@ func TestLOG08_ReconfigureKeepsRecordsBeingWritten(t *testing.T) {
 	}
 }
 
-// reloadingValue reloads and logs while its record is being formatted.
+// reloadingValue reloads and logs while its record is being formatted
+// (LOG-08, ADR 0008, #250).
 type reloadingValue struct {
 	m    *Manager
 	cfg  config.Log
@@ -709,5 +711,155 @@ func TestLOG08_ReloadFromAFormattedValueDoesNotBlock(t *testing.T) {
 	}
 	if !strings.Contains(readFile(t, newPath), "nested") {
 		t.Error("record logged after the reload did not reach the new file")
+	}
+}
+
+// pauseRecord starts logging a record to m that stops while it is being
+// written, and returns once it has stopped; closing the returned channel lets
+// it finish, and done is closed when it has (LOG-08, ADR 0008, #250).
+func pauseRecord(t *testing.T, m *Manager, msg string) (release, done chan struct{}) {
+	t.Helper()
+	v := &blockingValue{entered: make(chan struct{}), release: make(chan struct{})}
+	done = make(chan struct{})
+	go func() {
+		defer close(done)
+		m.Logger().Info(msg, "value", v)
+	}()
+	<-v.entered
+	return v.release, done
+}
+
+// reconfigureWithin fails the test if Reconfigure takes longer than a few
+// seconds, instead of hanging.
+func reconfigureWithin(t *testing.T, m *Manager, cfg config.Log) {
+	t.Helper()
+	res := make(chan error, 1)
+	go func() { res <- m.Reconfigure(cfg) }()
+	select {
+	case err := <-res:
+		if err != nil {
+			t.Errorf("Reconfigure = %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Reconfigure blocked")
+	}
+}
+
+// A reload back to a path whose file is still finishing a record takes that
+// file again instead of opening a second one, so one file rotates the path and
+// no record goes to a file the other one moved away (LOG-07, LOG-08,
+// ADR 0008, #250).
+func TestLOG08_ReloadBackToAPathTakesItsFileAgain(t *testing.T) {
+	dir := t.TempDir()
+	pathA, pathB := filepath.Join(dir, "a.log"), filepath.Join(dir, "b.log")
+	m, _ := newManager(t, fileConfig(pathA, 10<<20), true)
+	first := m.file
+
+	release, done := pauseRecord(t, m, "paused on a")
+	reconfigureWithin(t, m, fileConfig(pathB, 10<<20))
+	reconfigureWithin(t, m, fileConfig(pathA, 10<<20))
+	if m.file != first {
+		t.Error("reload back to a.log opened a second file for it")
+	}
+	close(release)
+	<-done
+
+	first.mu.Lock()
+	closed := first.closed
+	first.mu.Unlock()
+	if closed {
+		t.Fatal("the file in use was closed when its earlier record finished")
+	}
+	m.Logger().Info("later on a")
+	got := readFile(t, pathA)
+	if !strings.Contains(got, "paused on a") || !strings.Contains(got, "later on a") {
+		t.Errorf("a.log = %q, want both records", got)
+	}
+}
+
+// Reloads that run at the same time never leave a closed file in use: the
+// last one wins and its file still writes (LOG-08, ADR 0008, #250).
+func TestLOG08_ConcurrentReloadsKeepAWorkingFile(t *testing.T) {
+	dir := t.TempDir()
+	pathA, pathB := filepath.Join(dir, "a.log"), filepath.Join(dir, "b.log")
+	m, _ := newManager(t, fileConfig(pathA, 10<<20), true)
+	var wg sync.WaitGroup
+	for g := 0; g < 8; g++ {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			for i := 0; i < 50; i++ {
+				path := pathA
+				if (g+i)%2 == 0 {
+					path = pathB
+				}
+				if err := m.Reconfigure(fileConfig(path, 10<<20)); err != nil {
+					t.Error(err)
+				}
+				m.Logger().Info("tick")
+			}
+		}(g)
+	}
+	wg.Wait()
+	f := m.file
+	f.mu.Lock()
+	closed := f.closed
+	f.mu.Unlock()
+	if closed {
+		t.Fatal("a reload left a closed file in use")
+	}
+	m.Logger().Info("last")
+	if !strings.Contains(readFile(t, f.path), "last") {
+		t.Error("record after the reloads lost")
+	}
+}
+
+// A write that is stuck (here: in a rotation's rename) blocks no reload to
+// another path; the old file is closed once that write is done
+// (LOG-08, ADR 0008, #250).
+func TestLOG08_StuckWriteDoesNotBlockReload(t *testing.T) {
+	dir := t.TempDir()
+	pathA := filepath.Join(dir, "a.log")
+	m, _ := newManager(t, fileConfig(pathA, 1), true) // every record rotates
+	m.Logger().Info("first")
+	old := m.file
+
+	entered, unblock := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	failOn(t, &rename, func(from, to string) error {
+		if from == pathA {
+			once.Do(func() { close(entered) })
+			<-unblock
+		}
+		return os.Rename(from, to)
+	})
+	logged := make(chan struct{})
+	go func() {
+		defer close(logged)
+		m.Logger().Info("stuck")
+	}()
+	<-entered
+
+	res := make(chan error, 1)
+	go func() { res <- m.Reconfigure(fileConfig(filepath.Join(dir, "b.log"), 10<<20)) }()
+	select {
+	case err := <-res:
+		if err != nil {
+			t.Errorf("Reconfigure = %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		close(unblock)
+		t.Fatal("Reconfigure blocked behind a stuck write")
+	}
+	close(unblock)
+	<-logged
+	old.mu.Lock()
+	closed := old.closed
+	old.mu.Unlock()
+	if !closed {
+		t.Error("old file left open after its stuck write finished")
+	}
+	if !strings.Contains(readFile(t, pathA), "stuck") {
+		t.Error("stuck record lost")
 	}
 }

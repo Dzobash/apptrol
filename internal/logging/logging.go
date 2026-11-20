@@ -43,6 +43,15 @@ type Manager struct {
 	journal bool
 	level   slog.LevelVar
 
+	// applyMu serializes Reconfigure and Close from picking the file to
+	// retiring the old one, so two reloads never install a file the other
+	// retired (LOG-08, ADR 0008, #250).
+	applyMu sync.Mutex
+	// draining holds files a reload replaced while records were still being
+	// written to them, by path, so a reload back to that path takes the same
+	// file again: one file at a time rotates a path. Guarded by applyMu.
+	draining map[string]*rotatingFile
+
 	mu       sync.RWMutex
 	handlers []slog.Handler
 	file     *rotatingFile
@@ -80,6 +89,8 @@ func (m *Manager) Reconfigure(cfg config.Log) error { return m.apply(cfg, false)
 // Close flushes and closes the log file, if any; a record still being written
 // finishes first (LOG-08, ADR 0008, #250).
 func (m *Manager) Close() error {
+	m.applyMu.Lock()
+	defer m.applyMu.Unlock()
 	m.mu.Lock()
 	file := m.file
 	m.handlers = nil
@@ -92,6 +103,8 @@ func (m *Manager) Close() error {
 }
 
 func (m *Manager) apply(cfg config.Log, initial bool) error {
+	m.applyMu.Lock()
+	defer m.applyMu.Unlock()
 	level, err := effectiveLevel(cfg.Level, m.opts.Level)
 	if err != nil {
 		return err
@@ -158,7 +171,24 @@ func (m *Manager) apply(cfg config.Log, initial bool) error {
 			errs = append(errs, fmt.Errorf("closing previous log file: %w", err))
 		}
 	}
+	m.trackDraining(old, file)
 	return errors.Join(errs...)
+}
+
+// trackDraining forgets closed and reused files and remembers old while its
+// last records are still being written (LOG-08, ADR 0008, #250).
+func (m *Manager) trackDraining(old, current *rotatingFile) {
+	for path, f := range m.draining {
+		if f == current || !f.draining() {
+			delete(m.draining, path)
+		}
+	}
+	if old != nil && old != current && old.draining() {
+		if m.draining == nil {
+			m.draining = map[string]*rotatingFile{}
+		}
+		m.draining[old.path] = old
+	}
 }
 
 func (m *Manager) stdoutHandler(format string) (slog.Handler, error) {
@@ -173,6 +203,13 @@ func (m *Manager) fileHandler(fc config.FileOutput) (*rotatingFile, slog.Handler
 	m.mu.RLock()
 	cur := m.file
 	m.mu.RUnlock()
+	if cur == nil || cur.path != fc.Path {
+		// A file for this path still finishing its records from an earlier
+		// reload is taken back instead of opening a second one (#250).
+		if d := m.draining[fc.Path]; d != nil && d.revive() {
+			cur = d
+		}
+	}
 	// A file whose reopen failed is opened again here. If that still fails,
 	// the file is returned with its handler and the error: the reload reports
 	// it and falls back to the journal, and the next record tries to reopen the
@@ -203,6 +240,8 @@ func (m *Manager) fileHandler(fc config.FileOutput) (*rotatingFile, slog.Handler
 	if err != nil {
 		if f != cur {
 			_ = f.Close()
+		} else if f != m.file {
+			_ = f.retire() // revived above, but not used after all
 		}
 		return nil, nil, err
 	}

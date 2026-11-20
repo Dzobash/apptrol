@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 )
 
 // rotatingFile is an io.Writer that rotates the file by size (LOG-07):
@@ -28,10 +29,16 @@ type rotatingFile struct {
 	// again, so a rotation that keeps failing is not repeated on every record
 	// (0: no failed rotation pending).
 	retryAt int64
+
+	// refMu guards the reference count apart from mu, which is held during
+	// file I/O, so a slow write never blocks a reload (LOG-08, ADR 0008, #250).
+	refMu sync.Mutex
 	// refs counts records being written right now (acquire, release); retired
-	// marks a file a reload replaced, closed when the last of them is done.
+	// marks a file a reload replaced, closed when the last of them is done;
+	// done marks that close as decided, after which revive fails.
 	refs    int
 	retired bool
+	done    bool
 }
 
 // maxKept is the highest rotated file number ever cleaned up (config allows 100).
@@ -133,24 +140,31 @@ func (r *rotatingFile) Write(p []byte) (int, error) {
 }
 
 // rotate shifts the files and opens a new one. moved tells whether the full
-// file was moved out of the way. Whatever step fails, it ends with the current
-// path open again (r.f nil only if that open failed too), so one failure does
-// not end file logging (LOG-07, ADR 0008, #250).
+// file was moved out of the way. If the shift fails, the open file stays in
+// use, so records keep going to it even when its folder cannot be changed;
+// after a move, r.f is nil only if the new file cannot be opened. One failure
+// does not end file logging (LOG-07, ADR 0008, #250).
 func (r *rotatingFile) rotate() (moved bool, err error) {
+	if moved, err := r.shift(); !moved {
+		return false, err
+	}
 	// Close releases the file even when it reports an error, so the rotation
 	// goes on; the error is still returned.
 	closeErr := r.f.Close()
 	r.f = nil
-	moved, shiftErr := r.shift()
-	return moved, errors.Join(closeErr, shiftErr, r.open())
+	return true, errors.Join(closeErr, r.open())
 }
 
 // shift removes the files beyond the limit and moves the others up by one,
 // only as far as the first free number: a rotation that failed after moving
-// .1 to .2 left .1 free, so the retry does not remove another file
-// (LOG-07, ADR 0008, #250). moved reports whether the current file was moved
-// or removed.
+// .1 to .2 left .1 free, so the retry does not remove another file. A current
+// file that is gone (removed by hand, or its folder) has nothing to keep, so no
+// archive is removed for it (LOG-07, ADR 0008, #250). moved reports whether the
+// current file is out of the way: moved, removed or already gone.
 func (r *rotatingFile) shift() (moved bool, err error) {
+	if _, err := os.Lstat(r.path); os.IsNotExist(err) || errors.Is(err, syscall.ENOTDIR) {
+		return true, nil
+	}
 	if r.maxFiles <= 0 {
 		for i := maxKept; i >= 1; i-- {
 			if err := os.Remove(r.numbered(i)); err != nil && !os.IsNotExist(err) {
@@ -187,8 +201,8 @@ func (r *rotatingFile) shift() (moved bool, err error) {
 			return false, err
 		}
 	}
-	// The current file may be gone (removed by hand): then there is nothing to
-	// keep, and the open after the shift starts a new one.
+	// The current file may have gone since the check above: then there is
+	// nothing to keep, and the open after the shift starts a new one.
 	if err := rename(r.path, r.numbered(1)); err != nil && !os.IsNotExist(err) {
 		return false, err
 	}
@@ -200,32 +214,60 @@ func (r *rotatingFile) numbered(i int) string { return fmt.Sprintf("%s.%d", r.pa
 // acquire marks a record as being written to the file, so that a reload
 // replacing the file closes it only after that record (LOG-08, ADR 0008, #250).
 func (r *rotatingFile) acquire() {
-	r.mu.Lock()
+	r.refMu.Lock()
 	r.refs++
-	r.mu.Unlock()
+	r.refMu.Unlock()
 }
 
 // release ends acquire, and closes a retired file after its last record
 // (LOG-08, ADR 0008, #250).
 func (r *rotatingFile) release() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.refMu.Lock()
 	r.refs--
-	if r.refs == 0 && r.retired {
-		_ = r.closeLocked()
+	last := r.refs == 0 && r.retired
+	if last {
+		r.done = true
+	}
+	r.refMu.Unlock()
+	if last {
+		_ = r.Close()
 	}
 }
 
 // retire closes the file once no record is being written to it any more: at
-// once, with the error, or after the last one (LOG-08, ADR 0008, #250).
+// once, with the error, or after the last one. It does not wait for a write in
+// progress (LOG-08, ADR 0008, #250).
 func (r *rotatingFile) retire() error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.refMu.Lock()
 	r.retired = true
 	if r.refs > 0 {
+		r.refMu.Unlock()
 		return nil
 	}
-	return r.closeLocked()
+	r.done = true
+	r.refMu.Unlock()
+	return r.Close()
+}
+
+// revive takes back a retired file whose records are still being written,
+// when a reload returns to its path, so that one file at a time rotates a
+// path (LOG-07, LOG-08, ADR 0008, #250). It fails once the file is closed or
+// about to be.
+func (r *rotatingFile) revive() bool {
+	r.refMu.Lock()
+	defer r.refMu.Unlock()
+	if r.done {
+		return false
+	}
+	r.retired = false
+	return true
+}
+
+// draining reports whether the file is retired but not closed yet.
+func (r *rotatingFile) draining() bool {
+	r.refMu.Lock()
+	defer r.refMu.Unlock()
+	return r.retired && !r.done
 }
 
 // Close closes the file; every later Write fails with os.ErrClosed

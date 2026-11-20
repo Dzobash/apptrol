@@ -983,6 +983,7 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   buffers; rotation by size, also after the log file or its folder was removed and
   after a rotation that failed (retried once the file has grown by another `max_size`,
   without removing archives on each try); reloads that keep, reopen or replace the file;
-  a record that is still being written while a reload moves the file, and a value that
-  reloads while it is formatted (LOG-06, LOG-07, LOG-08, #250). See
+  a record that is still being written while a reload moves the file and back, a stuck
+  write, reloads at the same time, and a value that reloads while it is formatted
+  (LOG-06, LOG-07, LOG-08, #250). See
   [logging cases](testing/cases/log.md).
