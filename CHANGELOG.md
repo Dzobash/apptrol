@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0.6.0); layouts move to 0.7.0, setup and tray to 0.8.0 (#245).
 
 ### Fixed
+- A `config.toml` that existed at startup but could not be read (e.g. `chmod 000`)
+  is now watched for fixed permissions like one that breaks later: Apptrol
+  reloads it once `chmod` lets the file be read again, without a restart.
+  Before, it never reloaded, because the size, modification time and inode do
+  not change with the permissions (CFG-06, CFG-07, ADR 0025, #120, #251).
 - Apptrol skips redundant volume and mute writes when a control takes ownership
   of a new microphone. The held-mute debug message identifies actual mute
   changes suppressed by the guard (INPUT-09, MUTE-07, #252).

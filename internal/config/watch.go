@@ -50,14 +50,20 @@ func metadataStamp(fi os.FileInfo) stamp {
 // stamp stays the same, because fixing the permissions (chmod, an ACL, the
 // directory) changes none of its fields. The error is reported once; the
 // first successful read is reported even if the contents are unchanged, so the
-// recovery shows in the log (CFG-06, #120).
+// recovery shows in the log. A file that was already unreadable at startup
+// (given as nil contents) failed its first read the same way, so it is
+// retried too (CFG-06, CFG-07, ADR 0025, #120).
 //
 // current is the contents already in use (nil if there is no file).
 func Watch(ctx context.Context, path string, current []byte, interval, settle time.Duration, out chan<- Change) {
 	last := statFile(path)
 	lastData := current
 	lastRemoved := current == nil && !last.exists
-	unreadable := false // the last read failed and was reported (CFG-06, #120)
+	// A startup read that failed reports nil contents while os.Stat still
+	// sees the file, and the error was logged at start, so Watch retries the
+	// read without reporting it again: fixing the permissions changes no
+	// stamp field (CFG-06, CFG-07, ADR 0025, #120).
+	unreadable := current == nil && last.exists
 	tick := time.NewTicker(interval)
 	defer tick.Stop()
 	for {
