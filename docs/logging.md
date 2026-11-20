@@ -23,7 +23,8 @@ until then, lines go to the deleted file. If a rotation fails (for example, `app
 cannot be replaced), Apptrol keeps writing to `apptrol.log`, past `max_size`, and tries
 again each time the file has grown by another `max_size`. After a config reload it tries
 again with the next line; a file that cannot be opened at all is then reported in the
-journal as `could not apply the log settings` (`error.type=log_setup_failed`).
+journal as `could not apply the log settings` (`error.type=log_setup_failed`). Lines then
+go to the journal too, and to the file again as soon as it can be opened.
 
 ```text
 apptrol.log at max_size ─► rotation fails ─► keep writing to apptrol.log

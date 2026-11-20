@@ -63,7 +63,7 @@ leave audio muted or too loud come first.
 | LED | `led.md` | What the LEDs show |
 | STATE | `state.md` | What is kept across restarts |
 | CFG | `cfg.md` | The configuration: reload, invalid files, `apptrol check` |
-| LOG | `log.md` | Log outputs, levels and records |
+| LOG | [log.md](log.md) | Log outputs, levels and records; so far the log file's recovery after a failed rotation or a reload *(Phase 1.7)* |
 | SVC | [svc.md](svc.md) | The service: start, stop, crash, several users; the Status line *(Phase 1.6)* |
 | MEDIA | [media.md](media.md) | R on app columns and on outputs with `player`, and the media keys *(Phase 1.5)* |
 | LAUNCH | [launch.md](launch.md) | Launcher buttons and the lock screen *(Phase 1.5)* |

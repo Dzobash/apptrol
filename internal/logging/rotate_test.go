@@ -231,3 +231,93 @@ func TestLOG07_ReopensAfterFailedReopen(t *testing.T) {
 		t.Errorf("file = %q", got)
 	}
 }
+
+// failOn replaces a file system call for one test.
+func failOn[F any](t *testing.T, call *F, replacement F) {
+	t.Helper()
+	orig := *call
+	*call = replacement
+	t.Cleanup(func() { *call = orig })
+}
+
+// When the full file was moved away but the new one could not be opened, the
+// next file rotates at max_size as usual: the back-off is only for a full
+// file that stayed in place (LOG-07, ADR 0008, #250).
+func TestLOG07_ReopenedFileAfterMoveRotatesAtMaxSize(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	r, err := openRotatingFile(path, 10, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	_, _ = r.Write([]byte("0123456789"))
+
+	broken := true
+	failOn(t, &openFile, func(name string, flag int, perm os.FileMode) (*os.File, error) {
+		if broken {
+			return nil, errors.New("open failed")
+		}
+		return os.OpenFile(name, flag, perm)
+	})
+	if _, err := r.Write([]byte("lost\n")); err == nil {
+		t.Fatal("Write succeeded although the new file could not be opened")
+	}
+	broken = false
+	_, _ = r.Write([]byte("ab"))
+	_, _ = r.Write([]byte("cdefghijk")) // 2 + 9 > 10: rotates
+	if got, _ := os.ReadFile(path); string(got) != "cdefghijk" {
+		t.Errorf("file = %q, want a rotation at max_size", got)
+	}
+	if got, _ := os.ReadFile(path + ".1"); string(got) != "ab" {
+		t.Errorf(".1 = %q", got)
+	}
+}
+
+// A rotation that keeps failing after moving .1 to .2 does not remove .2 on
+// every retry: the retry only fills the free number (LOG-07, ADR 0008, #250).
+func TestLOG07_FailedRetriesKeepTheArchives(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	for n, text := range map[string]string{".1": "one", ".2": "two"} {
+		if err := os.WriteFile(path+n, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r, err := openRotatingFile(path, 10, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	_, _ = r.Write([]byte("0123456789"))
+
+	broken := true
+	failOn(t, &rename, func(from, to string) error {
+		if broken && from == path {
+			return errors.New("rename failed")
+		}
+		return os.Rename(from, to)
+	})
+	// First try: .2 ("two") is the oldest and goes, .1 moves to .2, then the
+	// current file cannot be moved.
+	if _, err := r.Write([]byte("a")); err == nil {
+		t.Fatal("want the rotation error")
+	}
+	// Retries after another max_size each, still failing.
+	for i := 0; i < 3; i++ {
+		_, _ = r.Write([]byte("0123456789"))
+	}
+	if got, _ := os.ReadFile(path + ".2"); string(got) != "one" {
+		t.Errorf(".2 = %q, want the archive kept across failed retries", got)
+	}
+
+	broken = false
+	_, _ = r.Write([]byte("new")) // the file has reached the next retry point
+	if got, _ := os.ReadFile(path + ".2"); string(got) != "one" {
+		t.Errorf(".2 after the rotation = %q, want %q", got, "one")
+	}
+	if got, _ := os.ReadFile(path + ".1"); !strings.HasPrefix(string(got), "0123456789a") {
+		t.Errorf(".1 after the rotation = %q, want the full file", got)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "new" {
+		t.Errorf("file = %q", got)
+	}
+}

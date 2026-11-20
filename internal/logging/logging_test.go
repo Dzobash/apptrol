@@ -521,16 +521,18 @@ func fileConfig(path string, maxSize int64) config.Log {
 	return cfg
 }
 
-// A reload with the same path checks the open file: one that could not be
-// reopened is reported while the cause lasts and opened again once it is gone
+// A reload with the same path while the file cannot be opened reports it and
+// logs to the journal, but keeps the file: restoring its folder brings file
+// logging back with the next record, without another reload
 // (LOG-08, ADR 0008, #250).
-func TestLOG08_ReloadReopensFileAfterFailedReopen(t *testing.T) {
+func TestLOG08_ReloadKeepsUnavailableFileForRecovery(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "apptrol")
 	path := filepath.Join(dir, "apptrol.log")
 	cfg := fileConfig(path, 1) // every record rotates
 	m, out := newManager(t, cfg, true)
 	l := m.Logger()
 	l.Info("first")
+	first := m.file
 
 	// The log folder becomes a file: rotation and reopen fail.
 	if err := os.RemoveAll(dir); err != nil {
@@ -540,12 +542,16 @@ func TestLOG08_ReloadReopensFileAfterFailedReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	l.Info("lost")
-	if m.file.f != nil {
+	if first.f != nil {
 		t.Fatal("test setup: the file is still open")
 	}
 	err := m.Reconfigure(cfg)
-	if err == nil || !strings.Contains(err.Error(), "log file") {
-		t.Errorf("Reconfigure while the file cannot be opened = %v, want a log file error", err)
+	if err == nil || !strings.Contains(err.Error(), "log file") ||
+		!strings.Contains(err.Error(), "logging to the journal/terminal instead") {
+		t.Errorf("Reconfigure while the file cannot be opened = %v, want a log file error and the fallback", err)
+	}
+	if m.file != first {
+		t.Error("reload dropped the file it can still reopen")
 	}
 	l.Info("to the journal")
 	if !strings.Contains(out.String(), "to the journal") {
@@ -555,12 +561,9 @@ func TestLOG08_ReloadReopensFileAfterFailedReopen(t *testing.T) {
 	if err := os.Remove(dir); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Reconfigure(cfg); err != nil {
-		t.Fatalf("Reconfigure after the cause was removed = %v", err)
-	}
 	l.Info("back")
 	if !strings.Contains(readFile(t, path), "back") {
-		t.Error("file output did not come back after the reload")
+		t.Error("file output did not come back after the folder was restored")
 	}
 }
 
@@ -612,12 +615,13 @@ func (b *blockingValue) String() string {
 }
 
 // A record already being written when Reconfigure moves the file elsewhere
-// still reaches the old file: Reconfigure waits for it before closing that
-// file (LOG-08, ADR 0008, #250).
+// still reaches the old file, which is closed only after it; Reconfigure does
+// not wait for it (LOG-08, ADR 0008, #250).
 func TestLOG08_ReconfigureKeepsRecordsBeingWritten(t *testing.T) {
 	dir := t.TempDir()
 	oldPath := filepath.Join(dir, "old.log")
 	m, _ := newManager(t, fileConfig(oldPath, 10<<20), true)
+	old := m.file
 
 	v := &blockingValue{entered: make(chan struct{}), release: make(chan struct{})}
 	logged := make(chan struct{})
@@ -627,30 +631,83 @@ func TestLOG08_ReconfigureKeepsRecordsBeingWritten(t *testing.T) {
 	}()
 	<-v.entered
 
+	// The record stays paused until the new file is in place.
 	reconfigured := make(chan error, 1)
 	go func() { reconfigured <- m.Reconfigure(fileConfig(filepath.Join(dir, "new.log"), 10<<20)) }()
-	// Without the wait, Reconfigure closes old.log now; give it the chance.
-	var err error
-	finished := false
 	select {
-	case err = <-reconfigured:
-		finished = true
-		t.Error("Reconfigure finished while a record was still being written")
-	case <-time.After(100 * time.Millisecond):
+	case err := <-reconfigured:
+		if err != nil {
+			t.Errorf("Reconfigure = %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		close(v.release)
+		t.Fatal("Reconfigure waits for a record that is being written")
 	}
+	if m.file == old {
+		t.Fatal("Reconfigure did not move the file")
+	}
+	old.mu.Lock()
+	closedEarly := old.closed
+	old.mu.Unlock()
+	if closedEarly {
+		t.Error("old file closed while a record was still being written to it")
+	}
+
 	close(v.release)
 	<-logged
-	if !finished {
-		select {
-		case err = <-reconfigured:
-		case <-time.After(5 * time.Second):
-			t.Fatal("Reconfigure did not finish after the record was written")
-		}
-	}
-	if err != nil {
-		t.Errorf("Reconfigure = %v", err)
-	}
 	if !strings.Contains(readFile(t, oldPath), "in flight") {
 		t.Error("record being written during Reconfigure was lost")
+	}
+	old.mu.Lock()
+	closed := old.closed
+	old.mu.Unlock()
+	if !closed {
+		t.Error("old file left open after its last record")
+	}
+}
+
+// reloadingValue reloads and logs while its record is being formatted.
+type reloadingValue struct {
+	m    *Manager
+	cfg  config.Log
+	once sync.Once
+	err  error
+}
+
+func (v *reloadingValue) String() string {
+	v.once.Do(func() {
+		v.err = v.m.Reconfigure(v.cfg)
+		v.m.Logger().Info("nested")
+	})
+	return "outer"
+}
+
+// A value that reloads the logging and logs while its own record is being
+// written does not deadlock: no lock is held while outputs write
+// (LOG-08, ADR 0008, #250).
+func TestLOG08_ReloadFromAFormattedValueDoesNotBlock(t *testing.T) {
+	dir := t.TempDir()
+	oldPath, newPath := filepath.Join(dir, "old.log"), filepath.Join(dir, "new.log")
+	m, _ := newManager(t, fileConfig(oldPath, 10<<20), true)
+	v := &reloadingValue{m: m, cfg: fileConfig(newPath, 10<<20)}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		m.Logger().Info("outer record", "value", v)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("logging deadlocked when a value reloaded while it was formatted")
+	}
+	if v.err != nil {
+		t.Errorf("Reconfigure = %v", v.err)
+	}
+	if !strings.Contains(readFile(t, oldPath), "outer record") {
+		t.Error("outer record lost")
+	}
+	if !strings.Contains(readFile(t, newPath), "nested") {
+		t.Error("record logged after the reload did not reach the new file")
 	}
 }
