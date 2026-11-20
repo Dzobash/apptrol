@@ -363,10 +363,11 @@ from one to another.
   reviews instead:
   ```
   Claude implements,
-  no GPT and no Gemini:           Mistral Vibe, as the Claude Code row's "without
-                                  them" says (GLM-5.3 routine, Mistral Large 4 complex);
-                                  if it is missing too: routine → Claude Sonnet 5.5,
-                                  complex or important → a new Claude Opus 5.5 agent
+  no GPT and no Gemini:           the Claude Code row's "without them" model, in
+                                  Mistral Vibe: routine → GLM-5.3, complex or
+                                  important → Mistral Large 4; if that model is
+                                  missing too: routine → Claude Sonnet 5.5, complex
+                                  or important → a new Claude Opus 5.5 agent
   Codex or Mistral implements,
   no Claude:                      Gemini 4 Neon; if it is missing too, ask the
                                   owner which model reviews
@@ -374,10 +375,10 @@ from one to another.
                                   owner which model reviews
   ```
   The only case where a provider reviews its own work is Claude's last resort: GPT,
-  Gemini and Mistral Vibe are all unavailable, so a fresh Claude agent reviews, with an
-  independent brief (see below: no chat history, no earlier findings). The PR says
-  which review route was used (e.g. "Reviewed by Claude Sonnet 5.5, Codex, Gemini and
-  Mistral not available").
+  Gemini and the Vibe model for that review are all unavailable, so a fresh Claude
+  agent reviews, with an independent brief (see below: no chat history, no earlier
+  findings). The PR says which review route was used (e.g. "Reviewed by Claude Sonnet
+  5.5, Codex, Gemini and Mistral not available").
 - **Split the work by provider.** When the owner hands a release's issues to several
   providers, each gets some, and each PR is reviewed as the table says. Codex writes
   code with GPT-6.2-Sol (GPT-6-Astra used up its tokens too fast and ran out in the

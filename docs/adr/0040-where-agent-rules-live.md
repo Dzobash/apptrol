@@ -261,7 +261,8 @@ the project sets Gemini 4 Neon to `high` (Antigravity's `thought_level`). The sh
 rules in AGENTS.md changed with it: the `Co-Authored-By` line for Gemini, and the
 reviewers. A provider never reviews its own work (GPT never reviews Codex, Gemini
 never reviews Gemini), except Claude's last resort, a fresh Claude agent when GPT,
-Gemini and Mistral Vibe are all unavailable.
+Gemini and the Mistral Vibe model for that review (GLM-5.3 routine, Mistral Large 4
+complex) are all unavailable.
 
 ```
 builder                primary, routine        primary, complex        no Claude: first
