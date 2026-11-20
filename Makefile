@@ -125,10 +125,10 @@ third-party-licenses: ## Write THIRD_PARTY_LICENSES: every bundled library's lic
 		cat packaging/licenses/go.LICENSE; } >> THIRD_PARTY_LICENSES
 	@echo "THIRD_PARTY_LICENSES: $$(grep -c '^License:' THIRD_PARTY_LICENSES) components"
 
-snapshot: ## Trial release build into dist/, publishes nothing (needs goreleaser)
+snapshot: ## Trial release build into dist/, publishes nothing (needs the goreleaser version CI pins, docs/releasing.md)
 	goreleaser release --snapshot --clean
 
-release-check: ## Validate .goreleaser.yaml (needs goreleaser)
+release-check: ## Validate .goreleaser.yaml (needs the goreleaser version CI pins, docs/releasing.md)
 	goreleaser check
 
 clean: ## Remove build and coverage output

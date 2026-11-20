@@ -36,9 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0.6.0); layouts move to 0.7.0, setup and tray to 0.8.0 (#245).
 
 ### Fixed
-- Launcher presses time out if the systemd connection stalls. If the connection breaks
-  between presses, the next press opens a new one before starting the app. A failed
-  app start keeps a healthy connection available for later presses (LAUNCH-04, LAUNCH-11, #249).
+- Apptrol skips redundant volume and mute writes when a control takes ownership
+  of a new microphone. The held-mute debug message identifies actual mute
+  changes suppressed by the guard (INPUT-09, MUTE-07, #252).
 - `apptrol list apps` no longer takes its launcher example from the first desktop ID
   of the whole list. An ID can contain `=`, and the line then read like a syntax
   error. With a search word the example is the first match; without one it is
@@ -49,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer runs the pause delay or logs `pause shown on the LEDs` / `short pause not
   shown on the LEDs`: no LED ever follows an ignored player (MEDIA-09, LOG-15,
   [ADR 0033](docs/adr/0033-r-and-play-ignore-short-pauses.md), #224).
+- Launcher presses time out if the systemd connection stalls. If the connection breaks
+  between presses, the next press opens a new one before starting the app. A failed
+  app start keeps a healthy connection available for later presses (LAUNCH-04, LAUNCH-11, #249).
 
 ## [0.3.0] - 2026-11-02
 

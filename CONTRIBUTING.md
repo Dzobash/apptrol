@@ -152,7 +152,7 @@ make test-audio  # integration tests against your running PipeWire
 make test-desktop  # D-Bus integration tests in a private session bus
 make test-launcher # starts harmless test units in your systemd user manager
 make test-systemd # Status line in rootless Ubuntu and Fedora containers
-make snapshot     # release packages into dist/ (needs GoReleaser)
+make snapshot     # release packages into dist/ (needs the GoReleaser version CI pins, docs/releasing.md)
 make test-install # install those packages with apt and dnf in the containers
 make container-run RECIPE=sample # audited recipe, fixed mounts and limits
 make test-clean   # remove the folders and logs that failed container runs keep

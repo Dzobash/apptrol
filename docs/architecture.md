@@ -608,6 +608,17 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   generations. Pending and released new-input mute restores are held away from the
   mixer, and a pending mute debt is settled after the window when ownership is
   answered. Input guard writes go through the same `wire` then `mu` lock order.
+  An accepted input write updates the value `KeepDevice` checks. A failed write
+  leaves the previous read and any pending mute correction available for defense.
+  A later notification supplies a fresh read. A mute change matching Apptrol's
+  expected echo uses up that expectation. The held-mute message in the debug log
+  records other mute changes that the guard holds (INPUT-09, MUTE-07, ADR 0038).
+
+  ```text
+  appears ─ accepted volume/mute writes ─ KeepDevice ─► no repeat
+  later notification ─ reports restored volume/mute ─► correct them
+  ```
+
   `ForgetDeviceVolume` clears an earlier owner's volume defense on a default
   takeover. Input read-back for silently lost writes remains #174; reported
   restores are defended here (INPUT-09, ADR 0038).
