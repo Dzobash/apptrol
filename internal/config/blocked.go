@@ -72,7 +72,7 @@ var (
 			withArg: setOf("--user"),
 		},
 		"run0": {
-			noArg: setOf("--no-ask-password", "--pty", "--pipe", "--slice-inherit", "--empower", "--via-shell", "--lightweight"),
+			noArg: setOf("--no-ask-password", "--pty", "--pipe", "--slice-inherit", "--empower", "--via-shell"),
 			withArg: setOf(
 				"-u", "--user", "-g", "--group", "-p", "--property", "-D",
 				"--unit", "--description", "--slice", "--setenv",
