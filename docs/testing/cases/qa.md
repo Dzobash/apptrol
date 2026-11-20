@@ -46,7 +46,7 @@ Test: `TestQA17_InstallNeedsBothPackages`, `TestQA17_InstallUsesTheSameSandboxAs
 
 **Setup**
 - [ ] Rootless Podman is installed, with delegated memory and pids cgroup controllers
-- [ ] GoReleaser is installed (`make snapshot` needs it)
+- [ ] GoReleaser is installed in the version CI pins (`make snapshot` needs it; see [releasing](../../releasing.md#trying-it-locally-first))
 
 **Steps**
 - [ ] Run `make test-install` without `dist/` → refused with "run make snapshot", no container starts, no audit line

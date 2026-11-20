@@ -9,7 +9,7 @@ require (
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/jfreymuth/pulse v0.1.3
 	github.com/muesli/termenv v0.16.0
-	golang.org/x/sys v0.49.0
+	golang.org/x/sys v0.50.0
 )
 
 require (

@@ -10,8 +10,8 @@ of [requirements.md](requirements.md#51-quality-assurance).
 |---|---|
 | `make check` | Format check, `go vet`, `golangci-lint`, race tests, AppStream metadata and the portable Windows build (NFR-11) |
 | `make check-portable` | Cross-compile `internal/mixer`, `internal/config`, `internal/state`, `internal/controller`, `internal/logattr` and `internal/version` for Windows with `CGO_ENABLED=0`; builds packages without running Windows code (NFR-11) |
-| `make release-check` | Validate GoReleaser packaging configuration (needs GoReleaser) |
-| `make snapshot` | Build release packages locally without publishing (needs GoReleaser) |
+| `make release-check` | Validate GoReleaser packaging configuration (needs GoReleaser, the version CI pins: [releasing](releasing.md#trying-it-locally-first)) |
+| `make snapshot` | Build release packages locally without publishing (needs GoReleaser, the version CI pins) |
 | `lintian --info --display-info dist/*.deb` | Check built Debian packages, including description hints (NFR-10) and the DEP-5 copyright file (needs lintian; see [package checks](releasing.md#trying-it-locally-first)) |
 | `make test` | Tests with the race detector |
 | `make test-audio` | Integration tests against your running PipeWire (they add a silent test output and inputs and remove them afterwards) |
@@ -383,6 +383,15 @@ The list command's sections are also covered by Go tests: `TestLAUNCH16_…` in
 `apptrol list`, that an unknown word after `list` names the valid ones, and that the
 whole listing keeps its sections and headings (LAUNCH-16).
 
+## Launcher connections
+
+[TC-LAUNCH-002](testing/cases/launch.md#tc-launch-002--launcher-presses-share-a-healthy-systemd-connection)
+exercises the shared systemd connection with a fake manager and private Unix sockets.
+It checks that a failed app start keeps a healthy connection, a transport failure closes
+the failed connection, and a press reconnects if the connection broke while idle. The
+first press's context can cancel stalled setup and a completed connection serves later
+presses (LAUNCH-04, LAUNCH-11).
+
 ## Default input
 
 INPUT-09 and CFG-20 are covered without real audio by
@@ -395,6 +404,9 @@ They check selector errors, saved mute transfer, volume kept until a move,
 switches and snapshots, no default or a device arriving later, both overlap orders,
 held M/cough/talk-over ending and working on a fresh press, late restores, released
 guards, stale generations, and a held mute debt settled after its window.
+The adapter tests count writes before and after a distinct restore, verify that
+failed writes preserve a pending restore, and check mute echo attribution and
+held-mute logging with volume-only notifications (INPUT-09, MUTE-07, #252).
 Review regressions also check a yielding slider's dark M LED and inactive M/S
 buttons, including cough and talk-over, and one talk-over transition and app-volume
 write when a selector reload ends a held state.

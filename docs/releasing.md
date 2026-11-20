@@ -145,6 +145,12 @@ Before a new version, publish a release candidate and test the installed package
 results in `dist/`. It needs [GoReleaser](https://goreleaser.com/install/) installed.
 `make release-check` only validates `.goreleaser.yaml`.
 
+CI and releases use one pinned GoReleaser version (`version:` in
+[`ci.yml`](https://github.com/Dzobash/apptrol/blob/main/.github/workflows/ci.yml) and
+[`release.yml`](https://github.com/Dzobash/apptrol/blob/main/.github/workflows/release.yml),
+currently v2.20.2; #194). Install the same version for `make snapshot`: a newer GoReleaser
+may build something CI never tried, or reject the `~snapshot` version.
+
 CI's *Packaging* job already does this on every pull request: `goreleaser check`, a
 snapshot build and `lintian` on the .deb, where errors fail and warnings and informational tags are printed
 ([testing.md](testing.md#what-runs-in-ci)). It cannot test installing the package, so the
