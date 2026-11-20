@@ -317,6 +317,22 @@ func TestLAUNCH02_AnOversizedFileIsRejected(t *testing.T) {
 	}
 }
 
+// TestLAUNCH02_TheSizeCapBoundary: a file of exactly maxDesktopFileSize is
+// still read; one byte more is rejected (LAUNCH-02, #260).
+func TestLAUNCH02_TheSizeCapBoundary(t *testing.T) {
+	header := "[Desktop Entry]\nType=Application\nExec=x\n"
+	atCap := header + strings.Repeat("#", maxDesktopFileSize-len(header))
+	if len(atCap) != maxDesktopFileSize {
+		t.Fatalf("test setup: %d bytes, want %d", len(atCap), maxDesktopFileSize)
+	}
+	if _, _, ok, err := parseDesktopEntry(strings.NewReader(atCap)); err != nil || !ok {
+		t.Errorf("a file of exactly the cap: ok = %v, err = %v; want accepted", ok, err)
+	}
+	if _, _, ok, err := parseDesktopEntry(strings.NewReader(atCap + "a")); !errors.Is(err, errDesktopFileTooLarge) || ok {
+		t.Errorf("a file one byte over the cap: ok = %v, err = %v; want rejected with errDesktopFileTooLarge", ok, err)
+	}
+}
+
 // TestLAUNCH02_LastLineWithoutNewlineIsRead: a file whose last line has no
 // trailing newline is still parsed completely (LAUNCH-02, LAUNCH-03,
 // ADR 0019, #260).

@@ -166,22 +166,22 @@ func readDesktopFile(path string) (app App, hidden, ok bool, err error) {
 	return parseDesktopEntry(f)
 }
 
-// maxDesktopFileSize caps how much of a .desktop file Apptrol reads: past it
-// the file is rejected as unreadable, so a symlink to /dev/zero or a huge
-// one-line file cannot read on until memory runs out (LAUNCH-02, #260).
+// maxDesktopFileSize caps how much of a .desktop file Apptrol reads: a file
+// larger than this is rejected as unreadable, so a symlink to /dev/zero or a
+// huge one-line file cannot read on until memory runs out (LAUNCH-02, #260).
 const maxDesktopFileSize = 4 << 20 // 4 MiB, far above any real desktop file
 
-// errDesktopFileTooLarge is returned when a .desktop file exceeds
-// maxDesktopFileSize; the file is then rejected like an unreadable one
-// (#260).
+// errDesktopFileTooLarge is returned when a .desktop file is larger than
+// maxDesktopFileSize; the file is then rejected like an unreadable one (#260).
 var errDesktopFileTooLarge = errors.New("desktop file is larger than 4 MiB")
 
-// sizeLimitReader reads at most n bytes from r and then fails with
+// sizeLimitReader reads at most maxDesktopFileSize+1 bytes from r: the one
+// byte past the cap proves the file is over it, and the read then fails with
 // errDesktopFileTooLarge, so an oversized file is rejected, not silently
 // truncated (LAUNCH-02, #260).
 type sizeLimitReader struct {
 	r io.Reader
-	n int64
+	n int64 // bytes still allowed, starting at maxDesktopFileSize+1
 }
 
 func (l *sizeLimitReader) Read(p []byte) (int, error) {
@@ -193,6 +193,10 @@ func (l *sizeLimitReader) Read(p []byte) (int, error) {
 	}
 	n, err := l.r.Read(p)
 	l.n -= int64(n)
+	if l.n <= 0 {
+		// the byte past the cap was read: the file is larger than the cap
+		return 0, errDesktopFileTooLarge
+	}
 	return n, err
 }
 
@@ -205,7 +209,7 @@ func (l *sizeLimitReader) Read(p []byte) (int, error) {
 func parseDesktopEntry(r io.Reader) (app App, hidden, ok bool, err error) {
 	inEntry := false
 	typ := ""
-	br := bufio.NewReader(&sizeLimitReader{r: r, n: maxDesktopFileSize})
+	br := bufio.NewReader(&sizeLimitReader{r: r, n: maxDesktopFileSize + 1})
 	for {
 		line, rerr := br.ReadString('\n')
 		if rerr != nil && rerr != io.EOF {

@@ -29,3 +29,31 @@ Type: Manual
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
+
+### TC-LAUNCH-002 — A desktop file that cannot be read counts as not installed
+
+Covers: LAUNCH-02 · Phase 1.7
+Config: minimal
+Type: Manual
+
+**Setup**
+- [ ] The `minimal` fixture is applied and Apptrol runs (test tone A plays on slider 1)
+- [ ] The active layout has `record = { app = "ghost" }`
+- [ ] `$XDG_DATA_HOME/applications/ghost.desktop` is a dangling symlink (its target does
+  not exist)
+
+**Steps**
+- [ ] Run `apptrol check` → a warning that `layouts.<layout>.buttons.record: desktop ID
+  "ghost" is not installed …`, and the rest of the configuration is valid
+- [ ] Run `apptrol list apps ghost` → no app is listed
+- [ ] Run `systemctl --user restart apptrol` → the journal (`journalctl --user -u apptrol`)
+  has one record with the message `desktop file could not be read; the app counts as not
+  installed`, a `file.path` ending in `ghost.desktop` and `error.type=desktop_file_unreadable`
+- [ ] Put a valid `ghost.desktop` (`Type=Application`, `Name=Ghost`, `Exec=/bin/true`)
+  under `/usr/share/applications/` → after `systemctl --user restart apptrol` the app is
+  still not installed: the first folder's rejected file wins (LAUNCH-02)
+- [ ] Replace the symlink in `$XDG_DATA_HOME/applications/` with the same valid file →
+  after a restart the warn record is gone and `apptrol list apps ghost` lists `ghost`
+
+**Result:** Pass / Fail / Blocked
+**Notes:**
