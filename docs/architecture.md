@@ -929,7 +929,7 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   repeats, a signal from another program, lock, unlock, another session in front, no
   graphical session, an unknown user, an unreadable session (warned once across retries
   and again only after recovery), logind starting late and restarting (clearing cached
-  session state), a bus restart; without a bus, a missing bus, unreadable-screen
+  session state), a bus restart. Without a bus: a missing bus, unreadable-screen
   deduplication and recovery, and resetting cached session state. The mixer's fuzz test
   checks that no launcher ever starts in a state that does not allow it.
 - `launcher`: desktop files and `Exec` parsing against temporary folders, with fuzzing;
