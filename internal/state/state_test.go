@@ -2,9 +2,11 @@ package state
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -137,6 +139,7 @@ func TestSTATE05_DamagedFile(t *testing.T) {
 		"not json":   "{{{",
 		"truncated":  `{"version": 1, "layouts": {"default": {"slider1": {"posi`,
 		"no version": `{"layouts": {}}`,
+		"negative":   `{"version": -1, "layouts": {}}`,
 		"newer":      `{"version": 2, "layouts": {}}`,
 		"wrong type": `{"version": 1, "layouts": {"default": {"slider1": {"position": "high"}}}}`,
 	} {
@@ -153,6 +156,61 @@ func TestSTATE05_DamagedFile(t *testing.T) {
 				t.Errorf("want an empty, usable state, got %+v", st)
 			}
 		})
+	}
+}
+
+// A negative version is as invalid as no version: the file was not written by
+// Apptrol and must not be read as state (STATE-05).
+func TestSTATE05_NegativeVersionIsRejected(t *testing.T) {
+	for _, version := range []int{-1, -42} {
+		t.Run(strconv.Itoa(version), func(t *testing.T) {
+			data := fmt.Sprintf(`{"version": %d, "layouts": {"default": {"slider1": {"position": 64}}}}`, version)
+			st, warnings, err := Decode([]byte(data))
+			if err == nil || IsFirstStart(err) {
+				t.Fatalf("err = %v, want a version error", err)
+			}
+			if !strings.Contains(err.Error(), fmt.Sprintf("version %d", version)) {
+				t.Errorf("error should name the version: %v", err)
+			}
+			if len(st.Positions) != 0 || st.Positions == nil || len(warnings) != 0 {
+				t.Errorf("want an empty, usable state and no warnings, got %+v %q", st, warnings)
+			}
+		})
+	}
+}
+
+// A map's iteration order is random, but the warnings must come out in the
+// same order every time they are logged, so bad entries are reported in
+// sorted control order (STATE-05).
+func TestSTATE05_WarningsComeInSortedOrder(t *testing.T) {
+	const content = `{
+	  "version": 1,
+	  "layouts": {
+	    "default": {
+	      "slider9": {"position": 10},
+	      "alpha":   {"position": 1},
+	      "slider2": {"position": 200},
+	      "knob2":   {"solo": true, "position": 5}
+	    }
+	  }
+	}`
+	want := []string{
+		`state: ignoring unknown control "alpha"`,
+		"state: ignoring solo of knob2 (only slider columns can be soloed)",
+		"state: ignoring position 200 of slider2 (must be 0–127)",
+		`state: ignoring unknown control "slider9"`,
+	}
+	for range 50 { // repeat: a random order shows up on some runs
+		st, warnings, err := Decode([]byte(content))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(warnings, want) {
+			t.Fatalf("warnings = %q, want %q", warnings, want)
+		}
+		if len(st.Positions) != 1 || st.Positions[ctl("knob2")] != 5 {
+			t.Errorf("want only knob2 kept, got %+v", st)
+		}
 	}
 }
 
