@@ -45,9 +45,10 @@ const greeterClass = "greeter"
 // callTimeout bounds every call to logind.
 const callTimeout = 2 * time.Second
 
-// unreadableRetry is how long after a failed read of the screen state it is
-// read again; launchers stay blocked meanwhile (ADR 0024).
-const unreadableRetry = 5 * time.Second
+// defaultUnreadableRetry is how long after a failed read of the screen or seat
+// state it is read again; launchers stay blocked meanwhile (LAUNCH-13,
+// ADR 0024; SVC-12, ADR 0029).
+const defaultUnreadableRetry = 5 * time.Second
 
 // Why the screen state is unknown (apptrol.screen.reason, ADR 0024).
 const (
@@ -80,7 +81,7 @@ type Watcher struct {
 func New(log *slog.Logger, address string) *Watcher {
 	return &Watcher{log: log.With(logattr.Component(logattr.Session)), address: address,
 		uid: uint32(os.Getuid()), retryMin: 500 * time.Millisecond, retryMax: 30 * time.Second,
-		unreadableRetry: unreadableRetry, resend: defaultResend}
+		unreadableRetry: defaultUnreadableRetry, resend: defaultResend}
 }
 
 // SystemBusAddress returns DBUS_SYSTEM_BUS_ADDRESS, or the standard socket.
