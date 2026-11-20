@@ -251,6 +251,13 @@ DEBU button ignored: output belongs to an earlier control apptrol.component=mixe
 DEBU position saved without changing volume: output belongs to an earlier control apptrol.component=mixer … apptrol.control=slider8 … apptrol.device.name=<output>
 ```
 
+The new-input guard logs a mute change that matches Apptrol's write as an echo
+(INPUT-09, MUTE-07, [ADR 0038](adr/0038-default-output-follows-the-server.md)):
+
+```text
+DEBU input mute echo ignored: matches Apptrol's write apptrol.component=audio apptrol.device.name=<input> apptrol.muted=true
+```
+
 Outputs have no solo (ADR 0036). A press on S says so at debug:
 
 ```text
