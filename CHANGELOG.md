@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0.6.0); layouts move to 0.7.0, setup and tray to 0.8.0 (#245).
 
 ### Fixed
+- Blocked-command validation for launcher `command` entries now skips wrapper options
+  and their arguments (such as `env -i`, `env -u VAR`, `nice -n 10`,
+  `systemd-run --user` and `--`) before checking the wrapped program, while leaning
+  toward blocking on unknown wrapper flags and leaving ordinary arguments of
+  non-wrapper commands allowed (LAUNCH-12,
+  [ADR 0022](docs/adr/0022-launcher-command-safety.md), #259).
 - `apptrol list apps` no longer takes its launcher example from the first desktop ID
   of the whole list. An ID can contain `=`, and the line then read like a syntax
   error. With a search word the example is the first match; without one it is
