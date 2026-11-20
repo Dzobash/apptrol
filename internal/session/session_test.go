@@ -329,7 +329,7 @@ func TestLAUNCH13_ErrorName(t *testing.T) {
 	}
 }
 
-func TestLAUNCH13_SVC12_UnreadableScreenWarnsOnceAndRecovers(t *testing.T) {
+func TestLAUNCH13_UnreadableScreenWarnsOnceAndRecovers(t *testing.T) {
 	const warnMsg = "cannot read the screen lock state; launchers are blocked"
 	var buf syncBuffer
 	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})).
@@ -359,7 +359,7 @@ func TestLAUNCH13_SVC12_UnreadableScreenWarnsOnceAndRecovers(t *testing.T) {
 	}
 
 	// Outage 1: multiple failed reads warn once and keep launchers blocked
-	// (LAUNCH-13, SVC-12, ADR 0024).
+	// (LAUNCH-13, ADR 0024).
 	for _, msg := range []string{"read failed 1", "read failed 2", "read failed 3"} {
 		if !scr.set(ctx, mixer.ScreenUnknown, reasonUnreadable, "", errors.New(msg)) {
 			t.Fatal("scr.set returned false")
@@ -453,9 +453,9 @@ func TestLAUNCH13_SVC12_UnreadableScreenWarnsOnceAndRecovers(t *testing.T) {
 	}
 }
 
-func TestLAUNCH13_SVC12_ResetClearsCachedSession(t *testing.T) {
+func TestLAUNCH13_ResetClearsCachedSession(t *testing.T) {
 	// On logind restart (NameOwnerChanged), reset must clear cached session
-	// path and ID alongside user and seat (LAUNCH-13, SVC-12, ADR 0024).
+	// path and ID alongside user and seat (LAUNCH-13, ADR 0024).
 	g := &graphical{
 		user:    fakeUser,
 		seat:    fakeSeat,
@@ -666,18 +666,17 @@ func TestIntegration_LAUNCH13_UnreadableStateBlocksLaunchers(t *testing.T) {
 	}
 }
 
-func TestIntegration_LAUNCH13_SVC12_UnreadableScreenWarnsOnceAcrossRetriesAndRecovers(t *testing.T) {
+func TestIntegration_LAUNCH13_UnreadableScreenWarnsOnceAcrossRetriesAndRecovers(t *testing.T) {
 	addr := requireBus(t)
 	logind := newLogind(t, addr, true)
 	logind.display(display{"c2", bobSession}) // lacks LockedHint/Active: unreadable
 	h := run(t, addr)
 	h.waitScreen(mixer.ScreenUnknown)
 
-	// Let several unreadableRetry ticks and a signal-triggered reread run while
-	// the state stays unreadable; WARN must appear only once (LAUNCH-13,
-	// SVC-12, ADR 0024).
+	// Let several unreadableRetry ticks and a seat change run while the state
+	// stays unreadable; WARN must appear only once (LAUNCH-13, ADR 0024).
 	time.Sleep(100 * time.Millisecond)
-	logind.front(display{"c3", greeter}) // PropertiesChanged on seat triggers reread()
+	logind.front(display{"c3", greeter}) // PropertiesChanged on seat also triggers reread()
 	h.waitSeat(mixer.SeatChanged{Front: mixer.FrontLoginScreen, SessionID: "c3"})
 	time.Sleep(60 * time.Millisecond)
 
@@ -702,7 +701,7 @@ func TestIntegration_LAUNCH13_SVC12_UnreadableScreenWarnsOnceAcrossRetriesAndRec
 	}
 }
 
-func TestIntegration_LAUNCH13_SVC12_LogindRestartClearsCachedSession(t *testing.T) {
+func TestIntegration_LAUNCH13_LogindRestartClearsCachedSession(t *testing.T) {
 	requireBus(t)
 	addr := "unix:path=" + filepath.Join(t.TempDir(), "bus")
 	startDaemon(t, addr)
@@ -712,7 +711,7 @@ func TestIntegration_LAUNCH13_SVC12_LogindRestartClearsCachedSession(t *testing.
 
 	// Stopping logind emits NameOwnerChanged; cached session path and ID are
 	// cleared so a failed reread cannot reuse them, and retries warn once
-	// (LAUNCH-13, SVC-12, ADR 0024).
+	// (LAUNCH-13, ADR 0024).
 	_ = logind.conn.Close()
 	h.waitScreen(mixer.ScreenUnknown)
 	time.Sleep(100 * time.Millisecond)

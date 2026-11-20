@@ -212,7 +212,7 @@ func (w *Watcher) session(ctx context.Context, conn *dbus.Conn, addr string, scr
 			if sig.Name == "org.freedesktop.DBus.NameOwnerChanged" {
 				// logind's objects may have changed; clear the cached session
 				// path and ID too so concerns and scr.set never see stale ones
-				// if the next read fails partway (LAUNCH-13, SVC-12, ADR 0024).
+				// if the next read fails partway (LAUNCH-13, ADR 0024).
 				g.reset()
 				if !reread() {
 					return ctx.Err()
@@ -341,7 +341,7 @@ func (g *graphical) forget() { g.session, g.id = "", "" }
 
 // reset drops every cached logind path and session ID on a logind restart so
 // concerns and scr.set never act on stale objects if the next read fails
-// partway (LAUNCH-13, SVC-12, ADR 0024).
+// partway (LAUNCH-13, ADR 0024).
 func (g *graphical) reset() {
 	g.user, g.seat = "", ""
 	g.forget()
@@ -424,19 +424,20 @@ func (g *graphical) get(ctx context.Context, path dbus.ObjectPath, iface, prop s
 
 // screen remembers the last screen state reported, so that only changes are
 // logged and sent, and tracks whether the last read failed so an unreadable
-// outage warns once until recovery, matching seat (LAUNCH-13, SVC-12, ADR 0024).
+// outage warns once until recovery, matching seat (SVC-12) (LAUNCH-13,
+// ADR 0024).
 type screen struct {
 	log        *slog.Logger
 	out        chan<- mixer.Event
 	state      mixer.ScreenState // "" until the first report
 	reason     string
-	unreadable bool // the last read failed; warned once until it succeeds (LAUNCH-13, SVC-12, ADR 0024)
+	unreadable bool // the last read failed; warned once until it succeeds (LAUNCH-13, ADR 0024)
 }
 
 // set reports a new state; err is why it could not be read. Launchers stay
 // blocked (fail closed) whenever the state is unreadable, while the warning is
-// logged once per outage until a read succeeds (LAUNCH-13, SVC-12, ADR 0024).
-// It returns false when ctx ends.
+// logged once per outage until a read succeeds, matching seat (SVC-12)
+// (LAUNCH-13, ADR 0024). It returns false when ctx ends.
 func (s *screen) set(ctx context.Context, state mixer.ScreenState, reason, id string, err error) bool {
 	if err != nil && !s.unreadable {
 		s.log.Warn("cannot read the screen lock state; launchers are blocked",
