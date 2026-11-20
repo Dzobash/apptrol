@@ -356,3 +356,34 @@ func TestLOG07_FailedShiftKeepsTheOpenFile(t *testing.T) {
 		t.Errorf("file = %q", got)
 	}
 }
+
+// A log file deleted and created again by hand before the rotation is not
+// archived over the real .1: the rotation takes the new file as the current
+// one and keeps the archive (LOG-07, ADR 0008, #250).
+func TestLOG07_ReplacedLogFileKeepsTheArchive(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	if err := os.WriteFile(path+".1", []byte("archive"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := openRotatingFile(path, 10, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	_, _ = r.Write([]byte("0123456789"))
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("new\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Write([]byte("x")); err != nil {
+		t.Fatalf("Write = %v", err)
+	}
+	if got, _ := os.ReadFile(path + ".1"); string(got) != "archive" {
+		t.Errorf(".1 = %q, want the archive kept", got)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "new\nx" {
+		t.Errorf("file = %q, want the record appended to the new file", got)
+	}
+}

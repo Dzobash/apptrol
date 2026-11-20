@@ -157,12 +157,14 @@ func (r *rotatingFile) rotate() (moved bool, err error) {
 
 // shift removes the files beyond the limit and moves the others up by one,
 // only as far as the first free number: a rotation that failed after moving
-// .1 to .2 left .1 free, so the retry does not remove another file. A current
-// file that is gone (removed by hand, or its folder) has nothing to keep, so no
-// archive is removed for it (LOG-07, ADR 0008, #250). moved reports whether the
-// current file is out of the way: moved, removed or already gone.
+// .1 to .2 left .1 free, so the retry does not remove another file. When the
+// path no longer names the open file (removed by hand, with its folder, or
+// replaced by another file), there is nothing to keep, so no archive is
+// removed for it and the open after the shift takes whatever is at the path
+// (LOG-07, ADR 0008, #250). moved reports whether the open file is out of the
+// way: moved, removed or already gone from the path.
 func (r *rotatingFile) shift() (moved bool, err error) {
-	if _, err := os.Lstat(r.path); os.IsNotExist(err) || errors.Is(err, syscall.ENOTDIR) {
+	if !r.atPath() {
 		return true, nil
 	}
 	if r.maxFiles <= 0 {
@@ -207,6 +209,24 @@ func (r *rotatingFile) shift() (moved bool, err error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// atPath reports whether r.path still names the open file. When that cannot
+// be told (e.g. no permission to look), it assumes so, and the shift reports
+// the problem (LOG-07, ADR 0008, #250).
+func (r *rotatingFile) atPath() bool {
+	st, err := os.Stat(r.path)
+	if os.IsNotExist(err) || errors.Is(err, syscall.ENOTDIR) {
+		return false
+	}
+	if err != nil {
+		return true
+	}
+	open, err := r.f.Stat()
+	if err != nil {
+		return true
+	}
+	return os.SameFile(st, open)
 }
 
 func (r *rotatingFile) numbered(i int) string { return fmt.Sprintf("%s.%d", r.path, i) }

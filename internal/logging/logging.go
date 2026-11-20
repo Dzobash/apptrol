@@ -96,10 +96,12 @@ func (m *Manager) Close() error {
 	m.handlers = nil
 	m.file = nil
 	m.mu.Unlock()
-	if file != nil {
-		return file.retire()
+	if file == nil {
+		return nil
 	}
-	return nil
+	err := file.retire()
+	m.trackDraining(file, nil)
+	return err
 }
 
 func (m *Manager) apply(cfg config.Log, initial bool) error {

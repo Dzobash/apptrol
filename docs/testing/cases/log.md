@@ -3,19 +3,20 @@
 ### TC-LOG-001 — The log file keeps going after it was deleted or a rotation failed
 
 Covers: LOG-06, LOG-07 · Phase 1.7
-Config: minimal
+Config: none (Go test)
 Type: Automated
 
 Test: in `internal/logging/rotate_test.go`: `TestLOG07_RotatesAfterLogFileWasRemoved`,
 `TestLOG07_FailedRotationKeepsLoggingAndRetriesLater`, `TestLOG07_ReopensAfterFailedReopen`,
 `TestLOG07_ReopenedFileAfterMoveRotatesAtMaxSize`, `TestLOG07_FailedRetriesKeepTheArchives`,
-`TestLOG07_FailedShiftKeepsTheOpenFile`.
+`TestLOG07_FailedShiftKeepsTheOpenFile`, `TestLOG07_ReplacedLogFileKeepsTheArchive`.
 
 A deleted `apptrol.log`, or its deleted folder, is started again at the next rotation,
-and the archives stay. After any other failure the record is still written to
-`apptrol.log` (the open file, if the files cannot be renamed), and the rotation is tried
-again once the file has grown by another `max_size`; failed tries do not remove the
-remaining archives. Only an explicit close stops writing ([ADR 0008](../../adr/0008-logging.md), #250).
+and the archives stay; so does a file created in its place. When the old file cannot be
+moved, the record is still written to it, and the rotation is tried again once the
+file has grown by another `max_size`; failed tries do not remove the remaining
+archives. When the old file was moved but the new one cannot be created, that record is
+lost and each next record tries to create the file again. Only an explicit close stops writing ([ADR 0008](../../adr/0008-logging.md), #250).
 
 ```text
 apptrol.log full ─► rotation fails ─► record kept in apptrol.log
@@ -29,7 +30,7 @@ apptrol.log full ─► rotation fails ─► record kept in apptrol.log
 ### TC-LOG-002 — A reload keeps file logging and every record
 
 Covers: LOG-08 · Phase 1.7
-Config: minimal
+Config: none (Go test)
 Type: Automated
 
 Test: in `internal/logging/logging_test.go`:
@@ -39,7 +40,8 @@ Test: in `internal/logging/logging_test.go`:
 `TestLOG08_ReloadFromAFormattedValueDoesNotBlock`,
 `TestLOG08_ReloadBackToAPathTakesItsFileAgain`,
 `TestLOG08_ConcurrentReloadsKeepAWorkingFile`,
-`TestLOG08_StuckWriteDoesNotBlockReload`.
+`TestLOG08_StuckWriteDoesNotBlockReload`,
+`TestLOG08_ReloadAfterCloseTakesTheDrainingFile`.
 
 A reload with the same path reopens a file that could not be reopened. If it still
 cannot be opened, the reload reports it (`could not apply the log settings`), logs to the

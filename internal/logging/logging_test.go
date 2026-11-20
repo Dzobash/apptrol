@@ -715,18 +715,26 @@ func TestLOG08_ReloadFromAFormattedValueDoesNotBlock(t *testing.T) {
 }
 
 // pauseRecord starts logging a record to m that stops while it is being
-// written, and returns once it has stopped; closing the returned channel lets
-// it finish, and done is closed when it has (LOG-08, ADR 0008, #250).
-func pauseRecord(t *testing.T, m *Manager, msg string) (release, done chan struct{}) {
+// written, and returns once it has stopped; release lets it finish, and done
+// is closed when it has. A failing test releases it before the Manager is
+// closed, so the test fails instead of hanging (LOG-08, ADR 0008, #250).
+func pauseRecord(t *testing.T, m *Manager, msg string) (release func(), done chan struct{}) {
 	t.Helper()
 	v := &blockingValue{entered: make(chan struct{}), release: make(chan struct{})}
+	var once sync.Once
+	release = func() { once.Do(func() { close(v.release) }) }
+	t.Cleanup(release) // runs before newManager's Close: cleanups run last-in first-out
 	done = make(chan struct{})
 	go func() {
 		defer close(done)
 		m.Logger().Info(msg, "value", v)
 	}()
-	<-v.entered
-	return v.release, done
+	select {
+	case <-v.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("record did not reach its pause")
+	}
+	return release, done
 }
 
 // reconfigureWithin fails the test if Reconfigure takes longer than a few
@@ -761,7 +769,7 @@ func TestLOG08_ReloadBackToAPathTakesItsFileAgain(t *testing.T) {
 	if m.file != first {
 		t.Error("reload back to a.log opened a second file for it")
 	}
-	close(release)
+	release()
 	<-done
 
 	first.mu.Lock()
@@ -861,5 +869,30 @@ func TestLOG08_StuckWriteDoesNotBlockReload(t *testing.T) {
 	}
 	if !strings.Contains(readFile(t, pathA), "stuck") {
 		t.Error("stuck record lost")
+	}
+}
+
+// A reload to the same path after Close takes back the file still finishing a
+// record, instead of opening a second one (LOG-08, ADR 0008, #250).
+func TestLOG08_ReloadAfterCloseTakesTheDrainingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	cfg := fileConfig(path, 10<<20)
+	m, _ := newManager(t, cfg, true)
+	first := m.file
+
+	release, done := pauseRecord(t, m, "paused")
+	if err := m.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reconfigureWithin(t, m, cfg)
+	if m.file != first {
+		t.Error("reload after Close opened a second file for the same path")
+	}
+	release()
+	<-done
+	m.Logger().Info("after")
+	got := readFile(t, path)
+	if !strings.Contains(got, "paused") || !strings.Contains(got, "after") {
+		t.Errorf("file = %q, want both records", got)
 	}
 }

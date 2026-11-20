@@ -18,11 +18,13 @@ If you turned on the file output, the log is also in `~/.local/state/apptrol/app
 (JSON by default). Started by hand in a terminal (`apptrol`), Apptrol prints the same
 lines, in colour and with timestamps.
 
-If the log file is deleted, or its folder, Apptrol starts a new one at the next rotation;
-until then, lines go to the deleted file. If a rotation fails (for example, `apptrol.log.1`
-cannot be replaced), Apptrol keeps writing to `apptrol.log`, past `max_size`, and tries
-again each time the file has grown by another `max_size`. After a config reload it tries
-again with the next line. If the log file cannot be opened at all, the reload reports it
+If the log file is deleted, or its folder, Apptrol starts a new one at the next rotation
+(or takes the file created in its place) and keeps the old files; until then, lines go
+to the deleted file. If a rotation fails (for example, `apptrol.log.1` cannot be
+replaced), Apptrol keeps writing to `apptrol.log`, past `max_size`, and tries again each
+time the file has grown by another `max_size`. After a config reload it tries again with
+the next line. If the file was moved away but the new `apptrol.log` cannot be created,
+that line is lost, and each next line tries to create the file again. If the log file cannot be opened at all, the reload reports it
 in the journal as `could not apply the log settings` (`error.type=log_setup_failed`).
 For the file Apptrol was already writing, lines then go to the journal too, and to the
 file again as soon as it can be opened. A new `path` that cannot be opened stays off
