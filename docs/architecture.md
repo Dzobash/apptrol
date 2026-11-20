@@ -774,8 +774,20 @@ Launcher buttons (ADR 0019, LAUNCH-*):
   the desktop ID in their name, in both spellings (as written and escaped), then the
   user's processes in `/proc` by program name. Steam games are passed to Steam
   unchecked; wrappers (`flatpak`, shells, …) are looked for only by unit.
-- **The connection** to the systemd user manager is opened on the first press and kept;
-  it is not tied to that press, and after an error the next press connects again.
+- **The connection** to the systemd user manager is opened on the first press. The
+  10-second press timeout includes dialing, authenticating, saying `Hello` and registering
+  for job signals. Other presses share the setup attempt and can stop waiting when
+  their own deadlines pass. A press replaces a connection that broke while idle before
+  using it. If it breaks during a call, Apptrol closes it and connects the next time it
+  needs systemd. Debug records show connections opening and why they are dropped
+  (LAUNCH-04, LAUNCH-11).
+
+  ```text
+  first press or idle disconnect → open both bus sockets → cache connection
+                                         └─ deadline → close setup sockets
+  start job ─┬─ app fails → keep healthy connection
+             └─ transport fails → close connection
+  ```
 
 ## Safety of launcher commands
 
@@ -941,8 +953,9 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   restart; a missing bus without one. The mixer's fuzz test checks that no launcher ever
   starts in a state that does not allow it.
 - `launcher`: desktop files and `Exec` parsing against temporary folders, with fuzzing;
-  starting apps against a fake systemd, and against the real user manager with harmless
-  units (`make test-launcher`, not exercised by CI's Status-line container check).
+  starting apps against a fake systemd, and private sockets for setup cancellation and
+  reuse after the press ends. The real user manager tests start harmless units
+  (`make test-launcher`, outside CI's Status-line container check).
 - `packaging`: a test keeps the MIT text of the .deb's DEP-5 copyright file equal to
   `LICENSE` (NFR-09), and the unit's `Description=` equal to the AppStream summary, with
   `Type=simple` and `NotifyAccess=main` kept (SVC-13). CI's Packaging job builds the release as a snapshot and runs

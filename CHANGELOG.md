@@ -58,6 +58,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer runs the pause delay or logs `pause shown on the LEDs` / `short pause not
   shown on the LEDs`: no LED ever follows an ignored player (MEDIA-09, LOG-15,
   [ADR 0033](docs/adr/0033-r-and-play-ignore-short-pauses.md), #224).
+- Launcher presses time out if the systemd connection stalls. If the connection breaks
+  between presses, the next press opens a new one before starting the app. A failed
+  app start keeps a healthy connection available for later presses (LAUNCH-04, LAUNCH-11, #249).
 
 ## [0.3.0] - 2026-11-02
 

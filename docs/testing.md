@@ -383,6 +383,15 @@ The list command's sections are also covered by Go tests: `TestLAUNCH16_…` in
 `apptrol list`, that an unknown word after `list` names the valid ones, and that the
 whole listing keeps its sections and headings (LAUNCH-16).
 
+## Launcher connections
+
+[TC-LAUNCH-002](testing/cases/launch.md#tc-launch-002--launcher-presses-share-a-healthy-systemd-connection)
+exercises the shared systemd connection with a fake manager and private Unix sockets.
+It checks that a failed app start keeps a healthy connection, a transport failure closes
+the failed connection, and a press reconnects if the connection broke while idle. The
+first press's context can cancel stalled setup and a completed connection serves later
+presses (LAUNCH-04, LAUNCH-11).
+
 ## Default input
 
 INPUT-09 and CFG-20 are covered without real audio by
