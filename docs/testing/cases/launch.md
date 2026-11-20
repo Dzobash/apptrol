@@ -40,8 +40,8 @@ Type: Manual
 - [ ] The `minimal` fixture is applied and Apptrol runs (test tone A plays on slider 1)
 - [ ] The configuration has `record = { app = "ghost" }` under `[layouts.default.buttons]`
   (added to the fixture's config.toml and saved, so Apptrol reloads it)
-- [ ] `$XDG_DATA_HOME/applications/ghost.desktop` is a dangling symlink (its target does
-  not exist)
+- [ ] Run `ln -s "$XDG_DATA_HOME/applications/gone.desktop" "$XDG_DATA_HOME/applications/ghost.desktop"`
+  (a dangling symlink; `$XDG_DATA_HOME` defaults to `~/.local/share` when unset)
 
 **Steps**
 - [ ] Run `apptrol check` → a warning that `layouts.default.buttons.record: desktop ID
@@ -53,13 +53,18 @@ Type: Manual
   counts as not installed`, a `file.path` ending in `ghost.desktop` and
   `error.type=desktop_file_unreadable`
 - [ ] Create a valid `ghost.desktop` (`Type=Application`, `Name=Ghost`, `Exec=/bin/true`)
-  in a second data folder, e.g. `/tmp/apptrol-test-share/applications/ghost.desktop`
+  in a second data folder: `mkdir -p /tmp/apptrol-test-share/applications && printf … >
+  /tmp/apptrol-test-share/applications/ghost.desktop`
 - [ ] Run `XDG_DATA_DIRS=/tmp/apptrol-test-share:$XDG_DATA_DIRS apptrol list apps ghost` →
   still no app listed: the first folder's rejected file wins (LAUNCH-02)
-- [ ] Replace the symlink in `$XDG_DATA_HOME/applications/` with that valid file
+- [ ] Replace the symlink with that valid file: `rm "$XDG_DATA_HOME/applications/ghost.desktop"
+  && cp /tmp/apptrol-test-share/applications/ghost.desktop "$XDG_DATA_HOME/applications/"`
 - [ ] Run `systemctl --user restart apptrol` → Apptrol is active again
 - [ ] Read the journal since that restart → no `desktop file could not be read` record
 - [ ] Run `apptrol list apps ghost` → `ghost` is listed
+- [ ] Remove `"$XDG_DATA_HOME/applications/ghost.desktop"` and `/tmp/apptrol-test-share`
+  (clean up what the case created)
+- [ ] Run `apptrol list apps ghost` → no app is listed
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
