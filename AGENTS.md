@@ -369,9 +369,11 @@ from one to another.
                                   missing too: routine → Claude Sonnet 5.5, complex
                                   or important → a new Claude Opus 5.5 agent
   Codex or Mistral implements,
-  no Claude:                      Gemini 4 Neon; if it is missing too, ask the
+  the table's Claude model
+  for this review is missing:     Gemini 4 Neon; if it is missing too, ask the
                                   owner which model reviews
-  Gemini implements, no Claude:   GPT-6.2-Sol; if it is missing too, ask the
+  Gemini implements, the table's
+  Claude model is missing:        GPT-6.2-Sol; if it is missing too, ask the
                                   owner which model reviews
   ```
   The only case where a provider reviews its own work is Claude's last resort: GPT,

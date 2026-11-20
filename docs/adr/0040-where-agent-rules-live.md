@@ -265,13 +265,15 @@ Gemini and the Mistral Vibe model for that review (GLM-5.3 routine, Mistral Larg
 complex) are all unavailable.
 
 ```
-builder                primary, routine        primary, complex        no Claude: first
+builder                primary, routine        primary, complex        Claude model missing: first
 Gemini (Antigravity)   Sonnet 5.5 or GPT-6.2   Opus 5.5 or GPT-6.2     GPT-6.2-Sol
 Claude Code            GPT-6.2 or Gemini       GPT-6.2 or Gemini       (n/a)
 Codex, Mistral Vibe    Sonnet 5.5              Opus 5.5                Gemini 4 Neon
 ```
 
-In the last column, if that model is missing too, the owner names the reviewer.
+The last column applies when the Claude model named for that review is unavailable
+(another Claude model being available does not matter); if the model in the column is
+missing too, the owner names the reviewer.
 
 The fallbacks when a primary reviewer is missing, and when the owner names one, are in
 [AGENTS.md › Review](https://github.com/Dzobash/apptrol/blob/main/AGENTS.md#review).
