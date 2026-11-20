@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -196,7 +197,14 @@ type testBusPeer struct {
 
 func privateSystemdBus(t *testing.T) (*net.UnixListener, string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "bus,socket")
+	// t.TempDir includes the test name, which can push a Unix socket path
+	// past the kernel limit (LAUNCH-04, ADR 0019).
+	dir, err := os.MkdirTemp("", "apptrol")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	path := filepath.Join(dir, "bus,socket")
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if err != nil {
 		t.Fatal(err)
