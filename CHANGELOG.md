@@ -41,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reloads it once `chmod` lets the file be read again, without a restart.
   Before, it never reloaded, because the size, modification time and inode do
   not change with the permissions (CFG-06, CFG-07, ADR 0025, #120, #251).
+- Apptrol skips redundant volume and mute writes when a control takes ownership
+  of a new microphone. The held-mute debug message identifies actual mute
+  changes suppressed by the guard (INPUT-09, MUTE-07, #252).
 - `apptrol list apps` no longer takes its launcher example from the first desktop ID
   of the whole list. An ID can contain `=`, and the line then read like a syntax
   error. With a search word the example is the first match; without one it is

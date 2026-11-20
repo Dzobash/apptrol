@@ -127,8 +127,9 @@ func TestOUT12_ListShowsOutputDevices(t *testing.T) {
 	}
 }
 
-// The CONTROL column names the control each output device is on, both
-// controls when two fixed outputs match one device (OUT-12, OUT-04).
+// The CONTROL column names the control each output device is on: its one
+// owner, also when another output matched the same device before yielding;
+// the yielding control is not shown (OUT-12, OUT-04, ADR 0035, ADR 0038).
 func TestOUT12_ListShowsOutputControl(t *testing.T) {
 	path := writeConfig(t, `
 [outputs.speakers]

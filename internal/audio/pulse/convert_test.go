@@ -835,7 +835,11 @@ func TestMUTE07_OutsideMuteWithinOwnWindowIsReported(t *testing.T) {
 			b.muteWant, b.devMuteWant = map[uint32]muteWant{}, map[string]muteWant{}
 			if tt.set != nil {
 				_ = b.Apply(mixer.SetStreamMute{StreamID: 7, Muted: *tt.set})
-				_ = b.Apply(mixer.SetDeviceMute{Device: "mic", Muted: *tt.set})
+				b.cur = &conn{}
+				b.sourceMuteWrite = func(string, bool) error { return nil }
+				if err := b.Apply(mixer.SetDeviceMute{Device: "mic", Muted: *tt.set}); err != nil {
+					t.Fatal(err)
+				}
 				w := b.muteWant[7]
 				w.until = w.until.Add(-tt.age)
 				b.muteWant[7] = w

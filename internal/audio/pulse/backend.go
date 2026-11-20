@@ -36,13 +36,13 @@ type guard struct {
 	volume *float64
 	muted  *bool
 
-	// read is an output's volume last read, for KeepOutput: a read that saw a
-	// new name or description waits for the mixer before it is defended
-	// (OUT-05, ADR 0027). Inputs use it for KeepDevice (INPUT-09, ADR 0038);
-	// streams leave it nil.
+	// read is the device's latest volume read or accepted write. A new name
+	// or description waits for the mixer before defense resumes, so KeepOutput
+	// and KeepDevice need the latest value (OUT-05, ADR 0027, INPUT-09,
+	// ADR 0038). Streams leave it nil.
 	read *float64
-	// readMuted is an output's mute last read or written, for KeepOutput as
-	// read is for its volume (OUT-05, ADR 0027, #177).
+	// readMuted is the corresponding device mute (OUT-05, ADR 0027, #177,
+	// INPUT-09, MUTE-07, ADR 0038).
 	readMuted *bool
 	// owedMute says the guard held a read within its window (heldMute) and
 	// has not settled it yet: the change is hidden from the mixer, so the
@@ -1173,9 +1173,6 @@ func (b *Backend) Apply(a mixer.Action) error {
 			g.muted = &m
 			g.released = false
 		}
-		if b.devMuteWant != nil {
-			b.devMuteWant[a.Device] = muteWant{muted: a.Muted, until: time.Now().Add(ownMute)}
-		}
 	case mixer.SetOutputMute:
 		// The guard defends the newest mute, so an M press within its window
 		// is never undone by a restore of an older one (OUT-05, OUT-06, #177).
@@ -1333,13 +1330,24 @@ func (b *Backend) setStreamVolume(k *conn, id uint32, channels int, v float64) e
 	return k.setStreamVolume(id, channels, v)
 }
 
-// setSourceVolume writes an input's volume, through sourceWrite in tests
-// (CTRL-05, #158).
+// setSourceVolume writes an input's volume while holding wire (CTRL-05, #158).
+// Recording an accepted write prevents KeepDevice from defending the read
+// that came before it. A later notification supplies a fresh read; a failed
+// write leaves the previous read available for defense (INPUT-09, ADR 0038).
 func (b *Backend) setSourceVolume(k *conn, name string, channels int, v float64) error {
+	write := k.setSourceVolume
 	if b.sourceWrite != nil {
-		return b.sourceWrite(name, channels, v)
+		write = b.sourceWrite
 	}
-	return k.setSourceVolume(name, channels, v)
+	if err := write(name, channels, v); err != nil {
+		return err
+	}
+	b.mu.Lock()
+	if g := b.devGuard[name]; g != nil {
+		g.read = &v
+	}
+	b.mu.Unlock()
+	return nil
 }
 
 func (b *Backend) setConn(k *conn) {
