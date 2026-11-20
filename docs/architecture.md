@@ -477,6 +477,9 @@ Raw MIDI (`/dev/snd/midiC<card>D<device>`), in pure Go:
 - **Output:** Control Change messages to set LEDs (LED mode *External*), on the MIDI
   channel the controller sends on. Track ◀ ▶ and the three Marker buttons have no LED.
   LED messages are sent at least 2 ms apart: the controller drops some of a burst.
+  Each write is bounded by a 100 ms write deadline, so a controller that stops
+  accepting writes fails fast instead of blocking the event loop or the shutdown; the
+  failure is logged once per outage, not once per LED (SVC-05, LED-08, HW-02, #258).
 - **After a connect** the controller is still starting up for a moment and ignores LED
   messages. The full LED state is therefore sent at once, and again after 0.5 s and 2 s
   (LED-07).
