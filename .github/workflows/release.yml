@@ -26,7 +26,8 @@ jobs:
       - name: Test before releasing
         run: go test -race ./...
       # Pinned to the same exact version as ci.yml's Packaging job, so a release is
-      # built by the GoReleaser that CI tried; "~> v2" took every new release unseen (#194).
+      # built by the GoReleaser that CI tried; "~> v2" took every new release unseen
+      # (NFR-05, ADR 0013, #194).
       - name: GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:

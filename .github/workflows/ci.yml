@@ -295,7 +295,7 @@ jobs:
       # Same GoReleaser as release.yml; only installed here, then run through make so
       # CI and a developer's machine run the same commands. Pinned to one exact
       # version, not "~> v2": v2.20.3 rejected the "~snapshot" version that apt and dnf
-      # need, and "~> v2" took it without anyone reviewing it (#194).
+      # need, and "~> v2" took it without anyone reviewing it (QA-01, ADR 0013, #194).
       - uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
