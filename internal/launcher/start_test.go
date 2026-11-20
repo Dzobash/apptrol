@@ -277,6 +277,9 @@ func TestLAUNCH04_ReconnectsAfterDisconnectBetweenPresses(t *testing.T) {
 		strings.Count(log.String(), "connected to the systemd user manager") != 2 {
 		t.Errorf("want both presses to start after connecting, got log:\n%s", log.String())
 	}
+	if !strings.Contains(log.String(), `exception.message="cached systemd connection is already closed"`) {
+		t.Errorf("want the drop record to report the closed cached connection, got log:\n%s", log.String())
+	}
 }
 
 func TestLAUNCH11_LostJobSignalConnectionIsClosed(t *testing.T) {

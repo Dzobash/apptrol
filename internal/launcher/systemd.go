@@ -35,7 +35,7 @@ func (s *Starter) conn(ctx context.Context) (systemd, error) {
 			if sys.Connected() {
 				return sys, nil
 			}
-			s.dropConn(sys, dbus.ErrClosed)
+			s.dropConn(sys, errors.New("cached systemd connection is already closed"))
 			continue
 		}
 		if wait := s.connecting; wait != nil {
@@ -67,7 +67,7 @@ func (s *Starter) conn(ctx context.Context) (systemd, error) {
 	return nil, fmt.Errorf("cannot reach the systemd user manager: %w", ctx.Err())
 }
 
-// dropConn closes only the connection used by the failing call. Another
+// dropConn closes a broken connection only if it is still cached. Another
 // press may already have opened a replacement (LAUNCH-04, LAUNCH-11, ADR 0019).
 func (s *Starter) dropConn(sys systemd, err error) {
 	s.mu.Lock()
@@ -127,7 +127,7 @@ func openSystemd(ctx context.Context, addr string) (systemd, error) {
 	}
 	if !sys.Connected() {
 		sys.Close()
-		return nil, dbus.ErrClosed
+		return nil, errors.New("systemd connection closed during setup")
 	}
 	return sys, nil
 }
