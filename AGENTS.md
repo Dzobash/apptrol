@@ -257,9 +257,10 @@ from one to another.
   ([Hand over and end](#hand-over-and-end)).
 - **Start another agent only when the owner asks** (a child task or a new thread; an
   OK'd plan that names the builder counts, see [Plan](#plan)), and say which tool and
-  model it runs on. The project's default reasoning level is `xhigh` for GPT-6.1-Sol,
-  `high` for Claude Opus 5.5, `high` for Mistral Large 4 and GLM-5.3 (Mistral Vibe's
-  `thinking`), and the model's own default for other models.
+  model it runs on. The project's default reasoning level is `xhigh` for GPT-6.2-Sol,
+  `high` for Claude Opus 5.5, `high` for Gemini 4 Neon (Antigravity's `thought_level`),
+  `high` for Mistral Large 4 and GLM-5.3 (Mistral Vibe's `thinking`), and the model's
+  own default for other models.
   Agents run at that level or lower; a lower level needs no OK. Anything above the
   project's default, another model than the table in [Review](#review) names, or wider
   permissions need the owner's OK first: ask, with the reason and what it costs.
@@ -296,9 +297,10 @@ from one to another.
   tool wrote it, so it is clear which agent did what:
   ```
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-  Co-Authored-By: GPT-6.1-Sol <noreply@openai.com>
+  Co-Authored-By: GPT-6.2-Sol <noreply@openai.com>
   Co-Authored-By: Mistral Large 4 <noreply@mistral.ai>
   Co-Authored-By: GLM-5.3 <noreply@z.ai>
+  Co-Authored-By: Gemini 4 Neon <noreply@google.com>
   ```
 - Every behaviour has a requirement ID in [docs/requirements.md](docs/requirements.md);
   tests are named after it (QA-07), e.g. `TestSOLO05_PressingSoloAgainTurnsItOff`.
@@ -350,34 +352,41 @@ from one to another.
 
 - **Another provider reviews.** Every change is reviewed locally by a provider other
   than the one that wrote it, before pushing: a different model finds different bugs.
-  The table below names the reviewers for Claude (Claude Code), GPT (Codex) and Mistral
-  (Mistral Vibe, in T3 Code); for a PR from any other tool (e.g. Grok), ask the owner
-  which model reviews. Review against the requirements and this file, not only the
-  diff.
+  The table below names the reviewers for Claude (Claude Code), GPT (Codex), Mistral
+  (Mistral Vibe, in T3 Code) and Gemini (Antigravity, in T3 Code); for a PR from any
+  other tool (e.g. Grok), ask the owner which model reviews. GPT-6.2-Sol and Gemini
+  4 Neon have the same standing, as builders and as reviewers; neither reviews its
+  own provider's work (GPT never reviews Codex, Gemini never reviews Gemini). Review
+  against the requirements and this file, not only the diff.
 - **When the table's reviewer is not available,** the author's provider decides who
   reviews instead:
   ```
-  Claude implements, no GPT:      Mistral Vibe, as the table's "without it" says
-  Claude implements, no GPT       routine → Claude Sonnet 5.5
-  and no Mistral:                 complex or important → a new Claude Opus 5.5 agent
+  Claude implements,
+  no GPT and no Gemini:           Mistral Vibe, as the table's "without it" says
+  Claude implements, no GPT,
+  no Gemini and no Mistral:       routine → Claude Sonnet 5.5
+                                  complex or important → a new Claude Opus 5.5 agent
   Codex or Mistral implements,
-  no Claude:                      ask the owner which model reviews
+  no Claude:                      Gemini 4 Neon
+  Gemini implements, no Claude:   GPT-6.2-Sol
+  that one missing too:           ask the owner which model reviews
   ```
-  A fresh agent of the author's own provider gets an independent brief (see below: no
-  chat history, no earlier findings). The PR says which review route was used (e.g.
-  "Reviewed by Claude Sonnet 5.5, Codex and Mistral not available").
+  A fresh agent of the author's own provider (only Claude's last two rows) gets an
+  independent brief (see below: no chat history, no earlier findings). The PR says which review route was used (e.g.
+  "Reviewed by Claude Sonnet 5.5, Codex, Gemini and Mistral not available").
 - **Split the work by provider.** When the owner hands a release's issues to several
   providers, each gets some, and each PR is reviewed as the table says. Codex writes
-  code with GPT-6.1-Sol (GPT-6-Astra used up its tokens too fast and ran out in the
-  middle of tasks); Mistral Vibe writes code with Mistral Large 4. The reviewer's
-  model depends on the PR (as of 2026-11; the owner names newer models when they
-  come):
+  code with GPT-6.2-Sol (GPT-6-Astra used up its tokens too fast and ran out in the
+  middle of tasks); Gemini 4 Neon (Antigravity, in T3 Code) builds and reviews
+  alongside it; Mistral Vibe writes code with Mistral Large 4. The reviewer's model
+  depends on the PR (as of 2026-11; the owner names newer models when they come):
 
   | Implementation | Routine PR review | Complex or important PR review |
   |---|---|---|
   | **GPT / Codex implements** | Claude **Sonnet 5.5** | Claude **Opus 5.5** |
   | **Mistral Vibe implements** | Claude **Sonnet 5.5** | Claude **Opus 5.5** |
-  | **Claude Code implements** | GPT **6.1-Sol**; without it, **GLM-5.3** | GPT **6.1-Sol**; without it, **Mistral Large 4** |
+  | **Gemini (Antigravity) implements** | Claude **Sonnet 5.5** or GPT **6.2-Sol** | Claude **Opus 5.5** or GPT **6.2-Sol** |
+  | **Claude Code implements** | GPT **6.2-Sol** or Gemini **4 Neon**; without them, **GLM-5.3** | GPT **6.2-Sol** or Gemini **4 Neon**; without them, **Mistral Large 4** |
 
   **Routine:** docs, tests, small fixes. **Complex or important:** a change of
   behaviour, a release, anything touching audio, the controller, privacy or security.

@@ -251,3 +251,28 @@ applied_migrations                          written by Vibe, not by us
 has written so far (`bash_read_only_defaults_v1`). A different one fails the test
 until someone has read what that migration changed, so it cannot loosen a safeguard
 unnoticed (QA-15).
+
+## Gemini 4 Neon joins, Codex moves to GPT-6.2-Sol — 2026-11-20
+
+The owner added Gemini 4 Neon (Antigravity, in T3 Code) as a provider with the same
+standing as GPT-6.2-Sol, for building and for reviewing. Codex now writes code with
+GPT-6.2-Sol instead of GPT-6.1-Sol; its default reasoning level stays `xhigh`, and
+Gemini 4 Neon keeps its own default, `high` (Antigravity's `thought_level`). The
+shared rules in AGENTS.md changed with it: the `Co-Authored-By` line for Gemini, and
+the reviewers. A provider never reviews its own work (GPT never reviews Codex, Gemini
+never reviews Gemini).
+
+```
+builder                routine review          complex review          no Claude available
+Gemini (Antigravity)   Sonnet 5.5 or GPT-6.2   Opus 5.5 or GPT-6.2     GPT-6.2-Sol
+Claude Code            GPT-6.2 or Gemini       GPT-6.2 or Gemini       (n/a)
+Codex, Mistral Vibe    Sonnet 5.5              Opus 5.5                Gemini 4 Neon
+```
+
+When that reviewer is missing too, the owner names one, as before.
+
+No permission file was added for Gemini: the four command lists cover Claude Code
+(and Grok through it), Codex, Mistral Vibe and OpenCode, and QA-15 tests only those.
+Whether Antigravity reads a project permission file is not checked; if it does, a
+file for it follows the same rule as the others (the shared commands in AGENTS.md ›
+Boundaries, checked by QA-15), in its own change.
