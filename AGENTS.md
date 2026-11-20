@@ -352,21 +352,20 @@ from one to another.
 
 - **Another provider reviews.** Every change is reviewed locally by a provider other
   than the one that wrote it, before pushing: a different model finds different bugs.
+  The one exception is Claude's last resort below (a fresh Claude agent).
   The table below names the reviewers for Claude (Claude Code), GPT (Codex), Mistral
   (Mistral Vibe, in T3 Code) and Gemini (Antigravity, in T3 Code); for a PR from any
   other tool (e.g. Grok), ask the owner which model reviews. GPT-6.2-Sol and Gemini
   4 Neon have the same standing, as builders and as reviewers; neither reviews its
-  own provider's work (GPT never reviews Codex, Gemini never reviews Gemini), except
-  Claude's last resort below. Review against the requirements and this file, not only
-  the diff.
+  own provider's work (GPT never reviews Codex, Gemini never reviews Gemini). Review
+  against the requirements and this file, not only the diff.
 - **When the table's reviewer is not available,** the author's provider decides who
   reviews instead:
   ```
   Claude implements,
   no GPT and no Gemini:           Mistral Vibe, as the Claude Code row's "without
-                                  them" says (GLM-5.3 routine, Mistral Large 4 complex)
-  Claude implements, no GPT,
-  no Gemini and no Mistral:       routine → Claude Sonnet 5.5
+                                  them" says (GLM-5.3 routine, Mistral Large 4 complex);
+                                  if it is missing too: routine → Claude Sonnet 5.5,
                                   complex or important → a new Claude Opus 5.5 agent
   Codex or Mistral implements,
   no Claude:                      Gemini 4 Neon; if it is missing too, ask the
