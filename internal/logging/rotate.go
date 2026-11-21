@@ -93,7 +93,8 @@ func (r *rotatingFile) open() error {
 	return nil
 }
 
-// setFile sets the open file and its mirror isOpen; r.mu must be held.
+// setFile sets the open file and its mirror isOpen; r.mu must be held
+// (LOG-08, ADR 0008, #250).
 func (r *rotatingFile) setFile(f *os.File) {
 	r.f = f
 	r.isOpen.Store(f != nil)
@@ -195,9 +196,14 @@ func (r *rotatingFile) rotate() (moved bool, err error) {
 	}
 	// Close releases the file even when it reports an error, so the rotation
 	// goes on; the error is still returned.
+	// isOpen stays set while the next file is opened, so a reload meanwhile
+	// sees a file that is only unavailable if this open fails.
 	closeErr := r.f.Close()
-	r.setFile(nil)
-	return true, errors.Join(closeErr, r.open())
+	openErr := r.open()
+	if openErr != nil {
+		r.setFile(nil)
+	}
+	return true, errors.Join(closeErr, openErr)
 }
 
 // shift removes the files beyond the limit and moves the others up by one,

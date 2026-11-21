@@ -9,7 +9,8 @@ Type: Automated
 Test: in `internal/logging/rotate_test.go`: `TestLOG07_RotatesAfterLogFileWasRemoved`,
 `TestLOG07_FailedRotationKeepsLoggingAndRetriesLater`, `TestLOG07_ReopensAfterFailedReopen`,
 `TestLOG07_ReopenedFileAfterMoveRotatesAtMaxSize`, `TestLOG07_FailedRetriesKeepTheArchives`,
-`TestLOG07_FailedShiftKeepsTheOpenFile`, `TestLOG07_ReplacedLogFileKeepsTheArchive`.
+`TestLOG07_FailedShiftKeepsTheOpenFile`, `TestLOG07_ReplacedLogFileKeepsTheArchive`,
+`TestLOG07_FileGoneDuringShiftKeepsTheArchive`.
 
 A deleted `apptrol.log`, or its deleted folder, is started again at the next rotation,
 and the archives stay; so does a file created in its place. When the old file cannot be
@@ -43,7 +44,9 @@ Test: in `internal/logging/logging_test.go`:
 `TestLOG08_StuckWriteDoesNotBlockReload`,
 `TestLOG08_ReloadAfterCloseTakesTheDrainingFile`,
 `TestLOG08_StuckRotationBlocksNoReload`,
-`TestLOG08_ReloadHandsLimitsToAWriteInProgress`.
+`TestLOG08_ReloadHandsLimitsToAWriteInProgress`,
+`TestLOG08_ReloadDuringAFailedReopenFallsBack`,
+`TestLOG08_ReloadDuringARotationReportsNoError`.
 
 A reload with the same path reopens a file that could not be reopened. If it still
 cannot be opened, or a record is just retrying to open it, the reload reports it

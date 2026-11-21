@@ -512,7 +512,7 @@ func TestTerminalHandlerOnNonTerminalFile(t *testing.T) {
 }
 
 // fileConfig logs only to the file at path, rotating after maxSize bytes
-// (LOG-06, LOG-07).
+// (LOG-06, LOG-07, ADR 0008).
 func fileConfig(path string, maxSize int64) config.Log {
 	cfg := baseConfig()
 	cfg.Outputs = []string{config.OutputFile}
@@ -625,13 +625,7 @@ func TestLOG08_ReconfigureKeepsRecordsBeingWritten(t *testing.T) {
 	m, _ := newManager(t, fileConfig(oldPath, 10<<20), true)
 	old := m.file
 
-	v := &blockingValue{entered: make(chan struct{}), release: make(chan struct{})}
-	logged := make(chan struct{})
-	go func() {
-		defer close(logged)
-		m.Logger().Info("in flight", "value", v)
-	}()
-	<-v.entered
+	release, logged := pauseRecord(t, m, "in flight")
 
 	// The record stays paused until the new file is in place.
 	reconfigured := make(chan error, 1)
@@ -642,7 +636,7 @@ func TestLOG08_ReconfigureKeepsRecordsBeingWritten(t *testing.T) {
 			t.Errorf("Reconfigure = %v", err)
 		}
 	case <-time.After(5 * time.Second):
-		close(v.release)
+		release()
 		t.Fatal("Reconfigure waits for a record that is being written")
 	}
 	if m.file == old {
@@ -655,8 +649,8 @@ func TestLOG08_ReconfigureKeepsRecordsBeingWritten(t *testing.T) {
 		t.Error("old file closed while a record was still being written to it")
 	}
 
-	close(v.release)
-	<-logged
+	release()
+	waitFor(t, logged, "the record to be written")
 	if !strings.Contains(readFile(t, oldPath), "in flight") {
 		t.Error("record being written during Reconfigure was lost")
 	}
@@ -743,6 +737,17 @@ func pauseRecord(t *testing.T, m *Manager, msg string) (release func(), done cha
 	return release, done
 }
 
+// waitFor fails the test if ch is not closed within a few seconds, instead of
+// hanging (LOG-08, ADR 0008, #250).
+func waitFor(t *testing.T, ch <-chan struct{}, what string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for %s", what)
+	}
+}
+
 // reconfigureWithin fails the test if Reconfigure takes longer than a few
 // seconds, instead of hanging (LOG-08, ADR 0008, #250).
 func reconfigureWithin(t *testing.T, m *Manager, cfg config.Log) {
@@ -776,7 +781,7 @@ func TestLOG08_ReloadBackToAPathTakesItsFileAgain(t *testing.T) {
 		t.Error("reload back to a.log opened a second file for it")
 	}
 	release()
-	<-done
+	waitFor(t, done, "the record to be written")
 
 	first.mu.Lock()
 	closed := first.closed
@@ -839,7 +844,9 @@ func TestLOG08_StuckWriteDoesNotBlockReload(t *testing.T) {
 	old := m.file
 
 	entered, unblock := make(chan struct{}), make(chan struct{})
-	var once sync.Once
+	var once, unblockOnce sync.Once
+	release := func() { unblockOnce.Do(func() { close(unblock) }) }
+	t.Cleanup(release) // before newManager's Close
 	failOn(t, &rename, func(from, to string) error {
 		if from == pathA {
 			once.Do(func() { close(entered) })
@@ -852,7 +859,7 @@ func TestLOG08_StuckWriteDoesNotBlockReload(t *testing.T) {
 		defer close(logged)
 		m.Logger().Info("stuck")
 	}()
-	<-entered
+	waitFor(t, entered, "the rotation to reach the rename")
 
 	res := make(chan error, 1)
 	go func() { res <- m.Reconfigure(fileConfig(filepath.Join(dir, "b.log"), 10<<20)) }()
@@ -862,11 +869,11 @@ func TestLOG08_StuckWriteDoesNotBlockReload(t *testing.T) {
 			t.Errorf("Reconfigure = %v", err)
 		}
 	case <-time.After(5 * time.Second):
-		close(unblock)
+		release()
 		t.Fatal("Reconfigure blocked behind a stuck write")
 	}
-	close(unblock)
-	<-logged
+	release()
+	waitFor(t, logged, "the stuck record to be written")
 	old.mu.Lock()
 	closed := old.closed
 	old.mu.Unlock()
@@ -887,15 +894,22 @@ func TestLOG08_ReloadAfterCloseTakesTheDrainingFile(t *testing.T) {
 	first := m.file
 
 	release, done := pauseRecord(t, m, "paused")
-	if err := m.Close(); err != nil {
-		t.Fatal(err)
+	closed := make(chan error, 1)
+	go func() { closed <- m.Close() }()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close waited for the record being written")
 	}
 	reconfigureWithin(t, m, cfg)
 	if m.file != first {
 		t.Error("reload after Close opened a second file for the same path")
 	}
 	release()
-	<-done
+	waitFor(t, done, "the record to be written")
 	m.Logger().Info("after")
 	got := readFile(t, path)
 	if !strings.Contains(got, "paused") || !strings.Contains(got, "after") {
@@ -945,7 +959,7 @@ func TestLOG08_StuckRotationBlocksNoReload(t *testing.T) {
 	reconfigureWithin(t, m, fileConfig(filepath.Join(dir, "c.log"), 10<<20))
 
 	release()
-	<-logged
+	waitFor(t, logged, "the stuck record to be written")
 	if !strings.Contains(readFile(t, pathA), "stuck") && !strings.Contains(readFile(t, pathA+".1"), "stuck") {
 		t.Error("stuck record lost")
 	}
@@ -1017,5 +1031,49 @@ func TestLOG08_ReloadDuringAFailedReopenFallsBack(t *testing.T) {
 	m.Logger().Info("both")
 	if !strings.Contains(out.String(), "both") || !strings.Contains(readFile(t, path), "both") {
 		t.Error("record did not reach the journal and the reopened file")
+	}
+}
+
+// A same-path reload while a rotation is opening the next file, which works,
+// reports no error: only a failed open makes the file unavailable
+// (LOG-08, ADR 0008, #250).
+func TestLOG08_ReloadDuringARotationReportsNoError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	cfg := fileConfig(path, 1) // every record rotates
+	m, _ := newManager(t, cfg, true)
+	m.Logger().Info("first")
+
+	entered, unblock := make(chan struct{}), make(chan struct{})
+	var once, unblockOnce sync.Once
+	release := func() { unblockOnce.Do(func() { close(unblock) }) }
+	t.Cleanup(release) // before newManager's Close
+	failOn(t, &openFile, func(name string, flag int, perm os.FileMode) (*os.File, error) {
+		once.Do(func() {
+			close(entered)
+			<-unblock
+		})
+		return os.OpenFile(name, flag, perm)
+	})
+	logged := make(chan struct{})
+	go func() {
+		defer close(logged)
+		m.Logger().Info("rotating")
+	}()
+	waitFor(t, entered, "the rotation to open the next file")
+
+	res := make(chan error, 1)
+	go func() { res <- m.Reconfigure(cfg) }()
+	select {
+	case err := <-res:
+		if err != nil {
+			t.Errorf("Reconfigure during a working rotation = %v, want no error", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Reconfigure waited for the rotation")
+	}
+	release()
+	waitFor(t, logged, "the record to be written")
+	if !strings.Contains(readFile(t, path), "rotating") {
+		t.Error("record lost")
 	}
 }
