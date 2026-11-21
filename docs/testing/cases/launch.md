@@ -48,7 +48,22 @@ in `internal/launcher/running_test.go`.
 **Result:** Pass / Fail / Blocked
 **Notes:**
 
-### TC-LAUNCH-003 — A desktop file that cannot be read counts as not installed
+### TC-LAUNCH-003 — An unreadable screen lock state warns once per outage and a logind restart is followed from scratch
+
+Covers: LAUNCH-13 · Phase 1.5
+Config: none (unit tests and private D-Bus with fake logind)
+Type: Automated
+
+Test: `TestLAUNCH13_UnreadableScreenWarnsOnceAndRecovers`,
+`TestLAUNCH13_ResetClearsCachedSession`,
+`TestIntegration_LAUNCH13_UnreadableScreenWarnsOnceAcrossRetriesAndRecovers`,
+and `TestIntegration_LAUNCH13_LogindRestartClearsCachedSession` in
+`internal/session/session_test.go` (`TestIntegration_*` run under `make test-desktop` and CI).
+
+**Result:** Pass / Fail / Blocked
+**Notes:**
+
+### TC-LAUNCH-004 — A desktop file that cannot be read counts as not installed
 
 Covers: LAUNCH-02 · Phase 1.5
 Config: minimal
