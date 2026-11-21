@@ -118,9 +118,16 @@ if [[ $1 == --restore ]]; then
 	stop_mic
 	restore "$config"
 	restore "$state"
-	# The test log files of the full-layout and log-file fixtures. Their path is fixed
-	# in the fixtures (~ is expanded, $XDG_STATE_HOME is not), so clean both places.
-	rm -f -- "$state_dir"/apptrol-test.log* "$HOME"/.local/state/apptrol/apptrol-test.log*
+	# The test log files of the full-layout and log-file fixtures (max_files = 2), by
+	# name. Their path is fixed in the fixtures (~ is expanded, $XDG_STATE_HOME is not),
+	# so clean both places; a file that cannot be removed does not stop the restore.
+	for dir in "$state_dir" "$HOME/.local/state/apptrol"; do
+		for name in apptrol-test.log apptrol-test.log.1 apptrol-test.log.2; do
+			if [[ -f $dir/$name ]] && ! rm -f -- "$dir/$name"; then
+				say "could not remove $dir/$name; remove it by hand"
+			fi
+		done
+	done
 	systemctl --user start apptrol
 	say "done: Apptrol runs with your own configuration again"
 	exit 0
