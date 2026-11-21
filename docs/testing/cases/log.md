@@ -7,7 +7,8 @@ Config: none (Go test)
 Type: Automated
 
 Test: in `internal/logging/rotate_test.go`: `TestLOG07_RotatesAfterLogFileWasRemoved`,
-`TestLOG07_FailedRotationKeepsLoggingAndRetriesLater`, `TestLOG07_ReopensAfterFailedReopen`,
+`TestLOG07_FailedRotationKeepsLoggingAndRetriesLater`,
+`TestLOG07_ReloadRetriesAFailedRotationAtOnce`, `TestLOG07_ReopensAfterFailedReopen`,
 `TestLOG07_ReopenedFileAfterMoveRotatesAtMaxSize`, `TestLOG07_FailedRetriesKeepTheArchives`,
 `TestLOG07_FailedShiftKeepsTheOpenFile`, `TestLOG07_ReplacedLogFileKeepsTheArchive`,
 `TestLOG07_FileGoneDuringShiftKeepsTheArchive`,
@@ -16,14 +17,14 @@ Test: in `internal/logging/rotate_test.go`: `TestLOG07_RotatesAfterLogFileWasRem
 A deleted `apptrol.log`, or its deleted folder, is started again at the next rotation,
 and the archives stay; so does a file created in its place. When the old file cannot be
 moved, the record is still written to it, and the rotation is tried again once the
-file has grown by another `max_size`; failed tries do not remove the remaining
-archives. When the old file was moved but the new one cannot be created, that record is
-lost and each next record tries to create the file again. Only an explicit close stops writing ([ADR 0008](../../adr/0008-logging.md), #250).
+file has grown by another `max_size`, or with the next record after a reload; failed
+tries do not remove the remaining archives. When the old file was moved but the new one
+cannot be created, that record is lost and each next record tries to create the file again. Only an explicit close stops writing ([ADR 0008](../../adr/0008-logging.md), #250).
 
 ```text
 apptrol.log full ─► rotation fails ─► record kept in apptrol.log
                                       │
-                 grown by another max_size ─► rotate again
+     grown by another max_size, or a reload ─► rotate again
 ```
 
 **Result:** Pass / Fail / Blocked
@@ -81,7 +82,7 @@ Type: Manual
 - [ ] Move slider 1 a little, then run `grep "volume changed" apptrol-test.log | tail -n 1` → a line with the time of that move
 - [ ] Run `systemctl --user show -p InvocationID --value apptrol` → the same ID as noted: Apptrol was not restarted
 - [ ] Run `journalctl --user -u apptrol --after-cursor "<noted cursor>" | grep -E "Apptrol starting|configuration reloaded"` → no output: no start and no reload since the log was deleted
-- [ ] Run `journalctl --user -u apptrol --after-cursor "<noted cursor>" | grep -E ': (WARN|ERRO) '` → no warning or error about the log file (no `-p warning` here: with `--after-cursor`, some systemd versions skip the first match)
+- [ ] Run `journalctl --user -u apptrol --after-cursor "<noted cursor>" | grep -E ': (WARN|ERRO) '` → no output: no warning or error since the log was deleted; a line about something else (e.g. the controller) does not fail the case, note it (no `-p warning` here: with `--after-cursor`, some systemd versions skip the first match)
 
 **Result:** Pass / Fail / Blocked
 **Notes:**

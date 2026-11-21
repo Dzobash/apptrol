@@ -171,8 +171,8 @@ func (r *rotatingFile) Write(p []byte) (int, error) {
 		if err != nil {
 			rotErr = fmt.Errorf("rotating %s: %w", r.path, err)
 			if !moved {
-				// r.size is still the full file's size, even if the
-				// reopen failed: it is the same file.
+				// The full file stayed open in place, so r.size is
+				// still its size.
 				r.retryAt = r.size + r.maxSize
 			}
 		}
@@ -211,7 +211,9 @@ func (r *rotatingFile) rotate() (moved bool, err error) {
 // only as far as the first free number: a rotation that failed after moving
 // .1 to .2 left .1 free, so the retry does not remove another file. The oldest
 // archive is not removed first but replaced by the rename onto it, so a
-// current file that disappears during the shift costs no archive. When the
+// current file that disappears during the shift loses no archive a rotation
+// would keep: with max_files = 1 the archive stays, with a full set of more
+// the oldest goes, as in any rotation. When the
 // path no longer names the open file (removed by hand, with its folder, or
 // replaced by another file), there is nothing to keep, so no archive is
 // removed for it and the open after the shift takes whatever is at the path

@@ -205,6 +205,43 @@ func TestLOG07_FailedRotationKeepsLoggingAndRetriesLater(t *testing.T) {
 	}
 }
 
+// A reload makes the next record try a failed rotation again, without waiting
+// until the file has grown by another max_size (LOG-07, LOG-08, ADR 0008, #250).
+func TestLOG07_ReloadRetriesAFailedRotationAtOnce(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	blocker := path + ".1"
+	if err := os.MkdirAll(filepath.Join(blocker, "keep"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	r, err := openRotatingFile(path, 10, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	_, _ = r.Write([]byte("0123456789"))
+	if _, err := r.Write([]byte("kept\n")); err == nil {
+		t.Fatal("Write = nil error, want the rotation to fail")
+	}
+
+	// Cause gone, then a reload with the same path: the next record, still
+	// below the retry point, rotates.
+	if err := os.RemoveAll(blocker); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.reuse(10, 1); err != nil {
+		t.Fatalf("reuse = %v", err)
+	}
+	if _, err := r.Write([]byte("new\n")); err != nil {
+		t.Errorf("Write after the reload = %v", err)
+	}
+	if got, _ := os.ReadFile(blocker); string(got) != "0123456789kept\n" {
+		t.Errorf("%s = %q, want the old file", filepath.Base(blocker), got)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "new\n" {
+		t.Errorf("file after the reload = %q, want only the new record", got)
+	}
+}
+
 // When even the reopen fails (the log folder was replaced by a file), records
 // fail, but the next one after the cause is gone opens the file again
 // (LOG-06, LOG-07, ADR 0008, #250).
@@ -422,8 +459,10 @@ func TestLOG07_ReplacedLogFileKeepsTheArchive(t *testing.T) {
 }
 
 // A current file that disappears during the shift, after the check that it is
-// there, costs no archive: the oldest one is replaced only by a rename onto it
-// (LOG-07, ADR 0008, #250).
+// there, loses no archive a rotation would keep: the oldest one is replaced
+// only by a rename onto it. With max_files = 1, as here, the archive stays;
+// with a full set of more, the oldest goes, as in any rotation (LOG-07,
+// ADR 0008, #250).
 func TestLOG07_FileGoneDuringShiftKeepsTheArchive(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "apptrol.log")
 	if err := os.WriteFile(path+".1", []byte("archive"), 0o600); err != nil {
