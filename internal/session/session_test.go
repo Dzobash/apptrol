@@ -3,6 +3,7 @@ package session
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/prop"
 
+	"github.com/Dzobash/apptrol/internal/logattr"
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
@@ -63,7 +65,7 @@ func run(t *testing.T, address string, resend ...time.Duration) *harness {
 	t.Helper()
 	h := &harness{t: t, events: make(chan mixer.Event, 64), log: &syncBuffer{}}
 	w := New(slog.New(slog.NewTextHandler(h.log, &slog.HandlerOptions{Level: slog.LevelDebug})), address)
-	w.retryMin, w.retryMax, w.resend = 20*time.Millisecond, 50*time.Millisecond, resend
+	w.retryMin, w.retryMax, w.unreadableRetry, w.resend = 20*time.Millisecond, 50*time.Millisecond, 20*time.Millisecond, resend
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { _ = w.Run(ctx, h.events); close(done) }()
@@ -327,6 +329,161 @@ func TestLAUNCH13_ErrorName(t *testing.T) {
 	}
 }
 
+func TestLAUNCH13_UnreadableScreenWarnsOnceAndRecovers(t *testing.T) {
+	const warnMsg = "cannot read the screen lock state; launchers are blocked"
+	var buf syncBuffer
+	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})).
+		With(logattr.Component(logattr.Session))
+	events := make(chan mixer.Event, 16)
+	scr := &screen{log: log, out: events}
+	ctx := context.Background()
+
+	expectEvent := func(want mixer.ScreenState) {
+		t.Helper()
+		select {
+		case ev := <-events:
+			if ev != (mixer.ScreenChanged{State: want}) {
+				t.Fatalf("got event %#v, want ScreenChanged{%q}", ev, want)
+			}
+		default:
+			t.Fatalf("expected ScreenChanged{%q}, got no event", want)
+		}
+	}
+	expectNoEvent := func() {
+		t.Helper()
+		select {
+		case ev := <-events:
+			t.Fatalf("unexpected event %#v", ev)
+		default:
+		}
+	}
+
+	// Outage 1: multiple failed reads warn once and keep launchers blocked
+	// (LAUNCH-13, ADR 0024).
+	for _, msg := range []string{"read failed 1", "read failed 2", "read failed 3"} {
+		if !scr.set(ctx, mixer.ScreenUnknown, reasonUnreadable, "", errors.New(msg)) {
+			t.Fatal("scr.set returned false")
+		}
+	}
+	expectEvent(mixer.ScreenUnknown)
+	expectNoEvent()
+	if !scr.unreadable {
+		t.Fatal("scr.unreadable = false, want true")
+	}
+	out := buf.String()
+	if got := strings.Count(out, warnMsg); got != 1 {
+		t.Fatalf("warning logged %d times during outage 1, want 1:\n%s", got, out)
+	}
+	for _, want := range []string{
+		"level=WARN",
+		"error.type=screen_state_unreadable",
+		"apptrol.component=session",
+		`msg="launchers blocked: the screen is not known to be unlocked" apptrol.component=session apptrol.screen.state=unknown apptrol.screen.reason=unreadable`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("log lacks %q:\n%s", want, out)
+		}
+	}
+
+	// Recovery to unlocked clears unreadable and logs recovery.
+	if !scr.set(ctx, mixer.ScreenUnlocked, "", "c1", nil) {
+		t.Fatal("scr.set returned false on recovery")
+	}
+	expectEvent(mixer.ScreenUnlocked)
+	if scr.unreadable {
+		t.Fatal("scr.unreadable = true after recovery, want false")
+	}
+	if !strings.Contains(buf.String(), `msg="launchers allowed: the screen is unlocked" apptrol.component=session apptrol.session.id=c1`) {
+		t.Errorf("recovery to unlocked not logged:\n%s", buf.String())
+	}
+
+	// Outage 2 after recovery warns once again and deduplicates retries.
+	for _, msg := range []string{"read failed 4", "read failed 5"} {
+		if !scr.set(ctx, mixer.ScreenUnknown, reasonUnreadable, "", errors.New(msg)) {
+			t.Fatal("scr.set returned false")
+		}
+	}
+	expectEvent(mixer.ScreenUnknown)
+	expectNoEvent()
+	if got := strings.Count(buf.String(), warnMsg); got != 2 {
+		t.Fatalf("warning logged %d times after outage 2, want 2:\n%s", got, buf.String())
+	}
+
+	// Recovery to locked also clears unreadable and logs the new state.
+	if !scr.set(ctx, mixer.ScreenLocked, "", "c1", nil) {
+		t.Fatal("scr.set returned false on recovery to locked")
+	}
+	expectEvent(mixer.ScreenLocked)
+	if scr.unreadable {
+		t.Fatal("scr.unreadable = true after recovery to locked, want false")
+	}
+	if !strings.Contains(buf.String(), `msg="launchers blocked: the screen is not known to be unlocked" apptrol.component=session apptrol.screen.state=locked`) {
+		t.Errorf("recovery to locked not logged:\n%s", buf.String())
+	}
+
+	// Outage 3 warns again; bus loss clears unreadable without a screen warning.
+	if !scr.set(ctx, mixer.ScreenUnknown, reasonUnreadable, "", errors.New("read failed 6")) {
+		t.Fatal("scr.set returned false")
+	}
+	expectEvent(mixer.ScreenUnknown)
+	if got := strings.Count(buf.String(), warnMsg); got != 3 {
+		t.Fatalf("warning logged %d times after outage 3, want 3:\n%s", got, buf.String())
+	}
+	if !scr.set(ctx, mixer.ScreenUnknown, reasonBusLost, "", nil) {
+		t.Fatal("scr.set returned false on bus loss")
+	}
+	expectEvent(mixer.ScreenUnknown)
+	if scr.unreadable {
+		t.Fatal("scr.unreadable = true after bus loss, want false")
+	}
+	if got := strings.Count(buf.String(), warnMsg); got != 3 {
+		t.Fatalf("bus loss logged extra screen warning (%d total, want 3):\n%s", got, buf.String())
+	}
+	if !strings.Contains(buf.String(), "apptrol.screen.reason=system_bus_lost") {
+		t.Errorf("bus loss reason not logged:\n%s", buf.String())
+	}
+
+	// Outage 4 after bus reconnect warns once again.
+	if !scr.set(ctx, mixer.ScreenUnknown, reasonUnreadable, "", errors.New("read failed 7")) {
+		t.Fatal("scr.set returned false")
+	}
+	expectEvent(mixer.ScreenUnknown)
+	if got := strings.Count(buf.String(), warnMsg); got != 4 {
+		t.Fatalf("warning logged %d times after outage 4, want 4:\n%s", got, buf.String())
+	}
+}
+
+func TestLAUNCH13_ResetClearsCachedSession(t *testing.T) {
+	// On logind restart (NameOwnerChanged), reset must clear cached session
+	// path and ID alongside user and seat (LAUNCH-13, ADR 0024).
+	g := &graphical{
+		user:    fakeUser,
+		seat:    fakeSeat,
+		session: fakeSession,
+		id:      "c1",
+	}
+	propSig := func(p dbus.ObjectPath) *dbus.Signal {
+		return &dbus.Signal{Name: propsIface + ".PropertiesChanged", Path: p}
+	}
+	for _, p := range []dbus.ObjectPath{fakeUser, fakeSeat, fakeSession} {
+		if !g.concerns(propSig(p)) {
+			t.Fatalf("concerns(%q) = false before reset, want true", p)
+		}
+	}
+
+	g.reset()
+
+	if g.user != "" || g.seat != "" || g.session != "" || g.id != "" {
+		t.Fatalf("reset left cached values: user=%q seat=%q session=%q id=%q",
+			g.user, g.seat, g.session, g.id)
+	}
+	for _, p := range []dbus.ObjectPath{fakeUser, fakeSeat, fakeSession} {
+		if g.concerns(propSig(p)) {
+			t.Errorf("concerns(%q) = true after reset, want false", p)
+		}
+	}
+}
+
 // ---- wake-ups, against a private bus -------------------------------------------
 
 func TestIntegration_LED09_WakeUpIsReportedAndRepeated(t *testing.T) {
@@ -506,6 +663,74 @@ func TestIntegration_LAUNCH13_UnreadableStateBlocksLaunchers(t *testing.T) {
 		if !strings.Contains(h.log.String(), want) {
 			t.Errorf("log lacks %q:\n%s", want, h.log.String())
 		}
+	}
+}
+
+func TestIntegration_LAUNCH13_UnreadableScreenWarnsOnceAcrossRetriesAndRecovers(t *testing.T) {
+	addr := requireBus(t)
+	logind := newLogind(t, addr, true)
+	logind.display(display{"c2", bobSession}) // lacks LockedHint/Active: unreadable
+	h := run(t, addr)
+	h.waitScreen(mixer.ScreenUnknown)
+
+	// Let several unreadableRetry ticks and a seat change run while the state
+	// stays unreadable; WARN must appear only once (LAUNCH-13, ADR 0024).
+	time.Sleep(100 * time.Millisecond)
+	logind.front(display{"c3", greeter}) // PropertiesChanged on seat also triggers reread()
+	h.waitSeat(mixer.SeatChanged{Front: mixer.FrontLoginScreen, SessionID: "c3"})
+	time.Sleep(60 * time.Millisecond)
+
+	const warnMsg = "cannot read the screen lock state; launchers are blocked"
+	if got := strings.Count(h.log.String(), warnMsg); got != 1 {
+		t.Fatalf("warning logged %d times during first outage, want 1:\n%s", got, h.log.String())
+	}
+
+	// Recovery logs the new state and unlocks launchers.
+	logind.display(display{"c1", fakeSession})
+	h.waitScreen(mixer.ScreenUnlocked)
+	if !strings.Contains(h.log.String(), `msg="launchers allowed: the screen is unlocked" apptrol.component=session apptrol.session.id=c1`) {
+		t.Errorf("recovery not logged:\n%s", h.log.String())
+	}
+
+	// A second outage after recovery warns once again and deduplicates retries.
+	logind.display(display{"c2", bobSession})
+	h.waitScreen(mixer.ScreenUnknown)
+	time.Sleep(100 * time.Millisecond)
+	if got := strings.Count(h.log.String(), warnMsg); got != 2 {
+		t.Errorf("warning logged %d times across two outages, want 2:\n%s", got, h.log.String())
+	}
+}
+
+func TestIntegration_LAUNCH13_LogindRestartClearsCachedSession(t *testing.T) {
+	requireBus(t)
+	addr := "unix:path=" + filepath.Join(t.TempDir(), "bus")
+	startDaemon(t, addr)
+	logind := newLogind(t, addr, true)
+	h := run(t, addr)
+	h.waitScreen(mixer.ScreenUnlocked)
+
+	// Stopping logind emits NameOwnerChanged; cached session path and ID are
+	// cleared so a failed reread cannot reuse them, and retries warn once
+	// (LAUNCH-13, ADR 0024).
+	_ = logind.conn.Close()
+	h.waitScreen(mixer.ScreenUnknown)
+	time.Sleep(100 * time.Millisecond)
+
+	const warnMsg = "cannot read the screen lock state; launchers are blocked"
+	if got := strings.Count(h.log.String(), warnMsg); got != 1 {
+		t.Fatalf("warning logged %d times while logind is down, want 1:\n%s", got, h.log.String())
+	}
+
+	// Restarting logind rediscovers the graphical session (logging "graphical
+	// session found" again because g.id was cleared) and logs recovery.
+	newLogind(t, addr, true)
+	h.waitScreen(mixer.ScreenUnlocked)
+	log := h.log.String()
+	if got := strings.Count(log, `msg="graphical session found" apptrol.component=session apptrol.session.id=c1`); got < 2 {
+		t.Errorf("graphical session found logged %d times across logind restart, want at least 2:\n%s", got, log)
+	}
+	if got := strings.Count(log, `msg="launchers allowed: the screen is unlocked" apptrol.component=session apptrol.session.id=c1`); got != 2 {
+		t.Errorf("recovery logged %d times, want 2:\n%s", got, log)
 	}
 }
 

@@ -65,6 +65,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Launcher presses time out if the systemd connection stalls. If the connection breaks
   between presses, the next press opens a new one before starting the app. A failed
   app start keeps a healthy connection available for later presses (LAUNCH-04, LAUNCH-11, #249).
+- An unreadable screen lock state now logs `cannot read the screen lock state; launchers
+  are blocked` at `WARN` once per outage until recovery instead of repeating every 5
+  seconds, while launchers stay blocked. After logind restarts, Apptrol looks up the
+  graphical session from scratch instead of keeping the old session reference (LAUNCH-13,
+  [ADR 0024](docs/adr/0024-launchers-only-when-unlocked.md), #253).
 
 ## [0.3.0] - 2026-11-02
 

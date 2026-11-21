@@ -707,9 +707,10 @@ unknown          work                        work                        never
 - **Lock state:** `internal/session` asks logind for the user (`GetUser`), follows the
   user's `Display` (the graphical session) and that session's `LockedHint` and `Active`
   through `PropertiesChanged`, and reads everything again when logind (re)starts
-  (`NameOwnerChanged`) or, while a read fails, every 5 seconds. It reports `unlocked`,
-  `locked`, `inactive` (another session in front) or `unknown` as `mixer.ScreenChanged`,
-  only on a change.
+  (`NameOwnerChanged`, clearing cached user, seat and session state) or, while a read
+  fails, every 5 seconds (the warning is logged once until a read succeeds or the
+  connection to the system bus is lost). It reports `unlocked`, `locked`, `inactive`
+  (another session in front) or `unknown` as `mixer.ScreenChanged`, only on a change.
 - **Fail closed:** the mixer starts in `unknown`. Without a system bus, without a
   graphical session, after a lost connection or a failed read, the state is `unknown`,
   and no launcher starts, whatever the configuration.
@@ -952,9 +953,11 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
 - `session`: the same private bus stands in for the system bus, with a fake logind that
   sends the sleep signal and offers a user and a graphical session: wake-ups and their
   repeats, a signal from another program, lock, unlock, another session in front, no
-  graphical session, an unknown user, an unreadable session, logind starting late, a bus
-  restart; a missing bus without one. The mixer's fuzz test checks that no launcher ever
-  starts in a state that does not allow it.
+  graphical session, an unknown user, an unreadable session (warned once across retries
+  and again only after recovery), logind starting late and restarting (clearing cached
+  session state), a bus restart. Without a bus: a missing bus, unreadable-screen
+  deduplication and recovery, and resetting cached session state. The mixer's fuzz test
+  checks that no launcher ever starts in a state that does not allow it.
 - `launcher`: desktop files and `Exec` parsing against temporary folders, with fuzzing;
   starting apps against a fake systemd, and private sockets for setup cancellation and
   reuse after the press ends. The real user manager tests start harmless units
