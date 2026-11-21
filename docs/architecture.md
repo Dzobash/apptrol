@@ -656,6 +656,13 @@ The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
   name per connection, so a change reaches all of them and one name going leaves the
   others followed. Signals reach the session in the order they arrive, also when it
   falls behind (godbus's sequential signal handler) (MEDIA-01, ADR 0018, #254).
+
+  ```
+  connection :1.7 owns  org.mpris.MediaPlayer2.a  and  org.mpris.MediaPlayer2.b
+  PropertiesChanged from :1.7 (Playing)  →  a: Playing,  b: Playing
+  b released (NameOwnerChanged b, :1.7 → "")  →  b removed; a still followed
+  PropertiesChanged from :1.7 (Paused)   →  a: Paused
+  ```
   At connect, the players already running are listed (`ListNames`, then `GetNameOwner`
   and their properties for each). Every call has its own 2-second timeout, so a player
   that does not answer is left out (a warning) without using up the time of the players
@@ -957,7 +964,9 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   ending before the guard's defense or during its write, and an ownership answer
   after the window (#177).
 - `desktop`: integration tests in a private session bus with fake media players, locally
-  (`make test-desktop`) and in CI; a bus restart and a missing bus included.
+  (`make test-desktop`) and in CI; a bus restart and a missing bus included, one
+  connection with two player names, and a backlog of changes that must keep its order
+  ([TC-MEDIA-004](testing/cases/media.md#tc-media-004--a-program-with-several-player-names-is-followed-under-each)).
 - `session`: the same private bus stands in for the system bus, with a fake logind that
   sends the sleep signal and offers a user and a graphical session: wake-ups and their
   repeats, a signal from another program, lock, unlock, another session in front, no

@@ -423,6 +423,9 @@ func TestIntegration_MEDIA01_ABacklogOfChangesKeepsItsOrder(t *testing.T) {
 		p.setStatus([]string{"Playing", "Paused"}[i%2])
 	}
 	p.setStatus("Stopped")
+	// Let the bus deliver every signal first, so they queue up past the
+	// session's channel before anything is read.
+	time.Sleep(300 * time.Millisecond)
 	for i := range 301 {
 		status := "Stopped"
 		if i < 300 {
