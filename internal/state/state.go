@@ -23,8 +23,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
@@ -72,6 +74,10 @@ func Decode(data []byte) (mixer.State, []string, error) {
 	switch {
 	case f.Version == 0:
 		return emptyState(), nil, errors.New("the state file has no version; it was not written by Apptrol")
+	case f.Version < 0:
+		// A negative version is as invalid as no version: the file was
+		// not written by Apptrol (STATE-05).
+		return emptyState(), nil, fmt.Errorf("the state file has version %d; it was not written by Apptrol (versions start at 1)", f.Version)
 	case f.Version > formatVersion:
 		return emptyState(), nil, fmt.Errorf("the state file has version %d; it was written by a newer Apptrol", f.Version)
 	}
@@ -79,7 +85,11 @@ func Decode(data []byte) (mixer.State, []string, error) {
 	st := emptyState()
 	var warnings []string
 	soloCount := 0
-	for name, c := range f.Layouts[Layout] {
+	// A map's iteration order is random, but the warnings must come out in
+	// the same order every time they are logged, so the controls are read
+	// in sorted order (STATE-05).
+	for _, name := range slices.Sorted(maps.Keys(f.Layouts[Layout])) {
+		c := f.Layouts[Layout][name]
 		ctl, ok := mixer.ParseControl(name)
 		if !ok {
 			warnings = append(warnings, fmt.Sprintf("state: ignoring unknown control %q", name))
