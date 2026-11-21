@@ -239,6 +239,38 @@ func TestLOG07_ReopensAfterFailedReopen(t *testing.T) {
 	}
 }
 
+// Lowering max_files and then deleting the log file still trims the archives
+// beyond the new limit at the next rotation (LOG-07, ADR 0008, #250).
+func TestLOG07_RemovedFileStillTrimsArchivesBeyondTheLimit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	for _, n := range []string{".1", ".2"} {
+		if err := os.WriteFile(path+n, []byte("old"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r, err := openRotatingFile(path, 10, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if err := r.reuse(10, 1); err != nil { // max_files lowered to 1 by a reload
+		t.Fatal(err)
+	}
+	_, _ = r.Write([]byte("0123456789"))
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.Write([]byte("new\n")); err != nil {
+		t.Fatalf("Write = %v", err)
+	}
+	if exists(path + ".2") {
+		t.Error(".2 kept although max_files is now 1")
+	}
+	if !exists(path + ".1") {
+		t.Error(".1 removed; it is within the limit")
+	}
+}
+
 // failOn replaces a file system call for one test, to make one step of a
 // rotation fail (LOG-07, ADR 0008, #250).
 func failOn[F any](t *testing.T, call *F, replacement F) {

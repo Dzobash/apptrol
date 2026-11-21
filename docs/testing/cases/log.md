@@ -10,7 +10,8 @@ Test: in `internal/logging/rotate_test.go`: `TestLOG07_RotatesAfterLogFileWasRem
 `TestLOG07_FailedRotationKeepsLoggingAndRetriesLater`, `TestLOG07_ReopensAfterFailedReopen`,
 `TestLOG07_ReopenedFileAfterMoveRotatesAtMaxSize`, `TestLOG07_FailedRetriesKeepTheArchives`,
 `TestLOG07_FailedShiftKeepsTheOpenFile`, `TestLOG07_ReplacedLogFileKeepsTheArchive`,
-`TestLOG07_FileGoneDuringShiftKeepsTheArchive`.
+`TestLOG07_FileGoneDuringShiftKeepsTheArchive`,
+`TestLOG07_RemovedFileStillTrimsArchivesBeyondTheLimit`.
 
 A deleted `apptrol.log`, or its deleted folder, is started again at the next rotation,
 and the archives stay; so does a file created in its place. When the old file cannot be
@@ -73,13 +74,14 @@ Type: Manual
 **Steps**
 - [ ] Run `date +%T` → note the time
 - [ ] Move slider 1 slowly from the bottom to the top and back, again and again, for up to a minute, until `ls -l --time-style=+%T apptrol-test.log.1` shows a time after the noted one → the log has rotated; `apptrol-test.log` has `volume changed` lines with `apptrol.control=slider1`
-- [ ] Run `systemctl --user show -p InvocationID --value apptrol` → note the ID of the running service
+- [ ] Run `systemctl --user show -p InvocationID --value apptrol` → an ID (not empty); note it
+- [ ] Run `journalctl --user -u apptrol -n 1 --show-cursor` → the last line is `-- cursor: …`; note the cursor
 - [ ] Run `rm apptrol-test.log` → `ls apptrol-test.log` says it does not exist
 - [ ] Move slider 1 slowly up and down again, for up to a minute, until `ls apptrol-test.log` finds the file → it is back
 - [ ] Move slider 1 a little, then run `grep "volume changed" apptrol-test.log | tail -n 1` → a line with the time of that move
 - [ ] Run `systemctl --user show -p InvocationID --value apptrol` → the same ID as noted: Apptrol was not restarted
-- [ ] Run `journalctl --user -u apptrol --since "<noted time>" | grep -E "Apptrol starting|configuration reloaded"` → no output: no start and no reload since the case began
-- [ ] Run `journalctl --user -u apptrol --since "<noted time>" -p warning` → no warning or error about the log file
+- [ ] Run `journalctl --user -u apptrol --after-cursor "<noted cursor>" | grep -E "Apptrol starting|configuration reloaded"` → no output: no start and no reload since the log was deleted
+- [ ] Run `journalctl --user -u apptrol --after-cursor "<noted cursor>" -p warning` → no warning or error about the log file
 
 **Result:** Pass / Fail / Blocked
 **Notes:**

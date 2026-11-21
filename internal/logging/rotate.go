@@ -191,8 +191,9 @@ func (r *rotatingFile) Write(p []byte) (int, error) {
 // after a move, r.f is nil only if the new file cannot be opened. One failure
 // does not end file logging (LOG-07, ADR 0008, #250).
 func (r *rotatingFile) rotate() (moved bool, err error) {
-	if moved, err := r.shift(); !moved {
-		return false, err
+	moved, shiftErr := r.shift()
+	if !moved {
+		return false, shiftErr
 	}
 	// Close releases the file even when it reports an error, so the rotation
 	// goes on; the error is still returned.
@@ -203,7 +204,7 @@ func (r *rotatingFile) rotate() (moved bool, err error) {
 	if openErr != nil {
 		r.setFile(nil)
 	}
-	return true, errors.Join(closeErr, openErr)
+	return true, errors.Join(shiftErr, closeErr, openErr)
 }
 
 // shift removes the files beyond the limit and moves the others up by one,
@@ -217,25 +218,26 @@ func (r *rotatingFile) rotate() (moved bool, err error) {
 // (LOG-07, ADR 0008, #250). moved reports whether the open file is out of the
 // way: moved, removed or already gone from the path.
 func (r *rotatingFile) shift() (moved bool, err error) {
+	// Remove files beyond the limit (also after max_files was lowered), also
+	// when the current file is gone and nothing else is shifted.
+	var trimErr error
+	for i := maxKept; i > max(r.maxFiles, 0); i-- {
+		if err := os.Remove(r.numbered(i)); err != nil && !os.IsNotExist(err) {
+			trimErr = err
+			break
+		}
+	}
 	if !r.atPath() {
-		return true, nil
+		return true, trimErr
+	}
+	if trimErr != nil {
+		return false, trimErr
 	}
 	if r.maxFiles <= 0 {
-		for i := maxKept; i >= 1; i-- {
-			if err := os.Remove(r.numbered(i)); err != nil && !os.IsNotExist(err) {
-				return false, err
-			}
-		}
 		if err := os.Remove(r.path); err != nil && !os.IsNotExist(err) {
 			return false, err
 		}
 		return true, nil
-	}
-	// Remove files beyond the limit (also after max_files was lowered).
-	for i := maxKept; i > r.maxFiles; i-- {
-		if err := os.Remove(r.numbered(i)); err != nil && !os.IsNotExist(err) {
-			return false, err
-		}
 	}
 	// The first free number; with none free, the rename onto the oldest file
 	// replaces it.
