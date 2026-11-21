@@ -511,7 +511,8 @@ func TestTerminalHandlerOnNonTerminalFile(t *testing.T) {
 	}
 }
 
-// fileConfig logs only to the file at path, rotating after maxSize bytes.
+// fileConfig logs only to the file at path, rotating after maxSize bytes
+// (LOG-06, LOG-07).
 func fileConfig(path string, maxSize int64) config.Log {
 	cfg := baseConfig()
 	cfg.Outputs = []string{config.OutputFile}
@@ -690,7 +691,11 @@ func (v *reloadingValue) String() string {
 func TestLOG08_ReloadFromAFormattedValueDoesNotBlock(t *testing.T) {
 	dir := t.TempDir()
 	oldPath, newPath := filepath.Join(dir, "old.log"), filepath.Join(dir, "new.log")
-	m, _ := newManager(t, fileConfig(oldPath, 10<<20), true)
+	// No Close in a cleanup: after a deadlock it would hang the test too.
+	m, err := New(fileConfig(oldPath, 10<<20), Options{Stdout: &syncBuffer{}, Journal: boolPtr(true)})
+	if err != nil {
+		t.Fatal(err)
+	}
 	v := &reloadingValue{m: m, cfg: fileConfig(newPath, 10<<20)}
 
 	done := make(chan struct{})
@@ -712,6 +717,7 @@ func TestLOG08_ReloadFromAFormattedValueDoesNotBlock(t *testing.T) {
 	if !strings.Contains(readFile(t, newPath), "nested") {
 		t.Error("record logged after the reload did not reach the new file")
 	}
+	_ = m.Close()
 }
 
 // pauseRecord starts logging a record to m that stops while it is being
@@ -738,7 +744,7 @@ func pauseRecord(t *testing.T, m *Manager, msg string) (release func(), done cha
 }
 
 // reconfigureWithin fails the test if Reconfigure takes longer than a few
-// seconds, instead of hanging.
+// seconds, instead of hanging (LOG-08, ADR 0008, #250).
 func reconfigureWithin(t *testing.T, m *Manager, cfg config.Log) {
 	t.Helper()
 	res := make(chan error, 1)
@@ -977,5 +983,39 @@ func TestLOG08_ReloadHandsLimitsToAWriteInProgress(t *testing.T) {
 	r.mu.Unlock()
 	if size != 100 || files != 2 {
 		t.Errorf("limits = %d, %d; want 100, 2 from the reload", size, files)
+	}
+}
+
+// A same-path reload while a record is retrying a failed reopen does not wait
+// for it, and still reports the file as unavailable and falls back to the
+// journal (LOG-08, ADR 0008, #250).
+func TestLOG08_ReloadDuringAFailedReopenFallsBack(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	cfg := fileConfig(path, 10<<20)
+	m, out := newManager(t, cfg, true)
+	r := m.file
+
+	r.mu.Lock() // as a write retrying the reopen
+	_ = r.f.Close()
+	r.setFile(nil)
+	res := make(chan error, 1)
+	go func() { res <- m.Reconfigure(cfg) }()
+	var err error
+	select {
+	case err = <-res:
+	case <-time.After(5 * time.Second):
+		r.mu.Unlock()
+		t.Fatal("Reconfigure waited for the write in progress")
+	}
+	r.mu.Unlock()
+	if err == nil || !strings.Contains(err.Error(), "logging to the journal/terminal instead") {
+		t.Errorf("Reconfigure = %v, want the file reported unavailable and the fallback", err)
+	}
+	if m.file != r {
+		t.Error("reload dropped the file it can still reopen")
+	}
+	m.Logger().Info("both")
+	if !strings.Contains(out.String(), "both") || !strings.Contains(readFile(t, path), "both") {
+		t.Error("record did not reach the journal and the reopened file")
 	}
 }

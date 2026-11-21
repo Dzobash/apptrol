@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -19,9 +20,12 @@ import (
 type rotatingFile struct {
 	path string
 
-	mu       sync.Mutex
-	f        *os.File // nil after a failed reopen; the next Write opens it again
-	closed   bool     // set by Close only: writes fail from then on
+	mu sync.Mutex
+	f  *os.File // nil after a failed reopen; the next Write opens it again
+	// isOpen mirrors f != nil, so a reload can tell an unavailable file without
+	// waiting for a write in progress (LOG-08, ADR 0008, #250).
+	isOpen   atomic.Bool
+	closed   bool // set by Close only: writes fail from then on
 	size     int64
 	maxSize  int64
 	maxFiles int
@@ -84,8 +88,15 @@ func (r *rotatingFile) open() error {
 		_ = f.Close()
 		return err
 	}
-	r.f, r.size = f, st.Size()
+	r.setFile(f)
+	r.size = st.Size()
 	return nil
+}
+
+// setFile sets the open file and its mirror isOpen; r.mu must be held.
+func (r *rotatingFile) setFile(f *os.File) {
+	r.f = f
+	r.isOpen.Store(f != nil)
 }
 
 // reuse prepares the file for another configuration with the same path
@@ -105,6 +116,11 @@ func (r *rotatingFile) reuse(maxSize int64, maxFiles int) error {
 	r.pending, r.pendingSize, r.pendingFiles = true, maxSize, maxFiles
 	r.refMu.Unlock()
 	if !r.mu.TryLock() {
+		// The write in progress may be retrying a failed reopen: report the
+		// file as unavailable until it is open, so the reload falls back.
+		if !r.isOpen.Load() {
+			return fmt.Errorf("%s is not open", r.path)
+		}
 		return nil
 	}
 	defer r.mu.Unlock()
@@ -180,13 +196,15 @@ func (r *rotatingFile) rotate() (moved bool, err error) {
 	// Close releases the file even when it reports an error, so the rotation
 	// goes on; the error is still returned.
 	closeErr := r.f.Close()
-	r.f = nil
+	r.setFile(nil)
 	return true, errors.Join(closeErr, r.open())
 }
 
 // shift removes the files beyond the limit and moves the others up by one,
 // only as far as the first free number: a rotation that failed after moving
-// .1 to .2 left .1 free, so the retry does not remove another file. When the
+// .1 to .2 left .1 free, so the retry does not remove another file. The oldest
+// archive is not removed first but replaced by the rename onto it, so a
+// current file that disappears during the shift costs no archive. When the
 // path no longer names the open file (removed by hand, with its folder, or
 // replaced by another file), there is nothing to keep, so no archive is
 // removed for it and the open after the shift takes whatever is at the path
@@ -213,17 +231,13 @@ func (r *rotatingFile) shift() (moved bool, err error) {
 			return false, err
 		}
 	}
-	// The first free number; with none free, the oldest file goes.
+	// The first free number; with none free, the rename onto the oldest file
+	// replaces it.
 	free := r.maxFiles
 	for i := 1; i <= r.maxFiles; i++ {
 		if _, err := os.Lstat(r.numbered(i)); os.IsNotExist(err) {
 			free = i
 			break
-		}
-	}
-	if free == r.maxFiles {
-		if err := os.Remove(r.numbered(free)); err != nil && !os.IsNotExist(err) {
-			return false, err
 		}
 	}
 	// Shift: .free-1 → .free, …, .1 → .2, current → .1
@@ -312,7 +326,8 @@ func (r *rotatingFile) revive() bool {
 	return true
 }
 
-// draining reports whether the file is retired but not closed yet.
+// draining reports whether the file is retired but not closed yet
+// (LOG-08, ADR 0008, #250).
 func (r *rotatingFile) draining() bool {
 	r.refMu.Lock()
 	defer r.refMu.Unlock()
@@ -336,6 +351,6 @@ func (r *rotatingFile) closeLocked() error {
 		return nil
 	}
 	err := r.f.Close()
-	r.f = nil
+	r.setFile(nil)
 	return err
 }

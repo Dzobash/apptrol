@@ -46,8 +46,9 @@ Test: in `internal/logging/logging_test.go`:
 `TestLOG08_ReloadHandsLimitsToAWriteInProgress`.
 
 A reload with the same path reopens a file that could not be reopened. If it still
-cannot be opened, the reload reports it (`could not apply the log settings`), logs to the
-journal meanwhile, and the file comes back with the next record once it can be opened.
+cannot be opened, or a record is just retrying to open it, the reload reports it
+(`could not apply the log settings`) and also logs to the journal until the next reload;
+the file comes back with the next record once it can be opened.
 A record being written while a reload moves the file still reaches the old file, which
 is closed after it; the reload does not wait for it, nor for a write that is stuck,
 also when it returns to that file. A reload back to that path takes the same file

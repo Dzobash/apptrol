@@ -239,7 +239,8 @@ func TestLOG07_ReopensAfterFailedReopen(t *testing.T) {
 	}
 }
 
-// failOn replaces a file system call for one test.
+// failOn replaces a file system call for one test, to make one step of a
+// rotation fail (LOG-07, ADR 0008, #250).
 func failOn[F any](t *testing.T, call *F, replacement F) {
 	t.Helper()
 	orig := *call
@@ -385,5 +386,37 @@ func TestLOG07_ReplacedLogFileKeepsTheArchive(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(path); string(got) != "new\nx" {
 		t.Errorf("file = %q, want the record appended to the new file", got)
+	}
+}
+
+// A current file that disappears during the shift, after the check that it is
+// there, costs no archive: the oldest one is replaced only by a rename onto it
+// (LOG-07, ADR 0008, #250).
+func TestLOG07_FileGoneDuringShiftKeepsTheArchive(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	if err := os.WriteFile(path+".1", []byte("archive"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, err := openRotatingFile(path, 10, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	_, _ = r.Write([]byte("0123456789"))
+
+	failOn(t, &rename, func(from, to string) error {
+		if from == path {
+			_ = os.Remove(path) // removed by hand at this moment
+		}
+		return os.Rename(from, to)
+	})
+	if _, err := r.Write([]byte("new\n")); err != nil {
+		t.Fatalf("Write = %v", err)
+	}
+	if got, _ := os.ReadFile(path + ".1"); string(got) != "archive" {
+		t.Errorf(".1 = %q, want the archive kept", got)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "new\n" {
+		t.Errorf("file = %q", got)
 	}
 }
