@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -179,6 +180,53 @@ func TestIntegration_MEDIA01_PlayersAreFoundAndFollowed(t *testing.T) {
 	for _, msg := range []string{"connected to the session bus", "media player found", "playback status changed", "media player gone", "apptrol.component=desktop"} {
 		if !strings.Contains(h.log.String(), msg) {
 			t.Errorf("log lacks %q:\n%s", msg, h.log.String())
+		}
+	}
+}
+
+// One connection owns two player names, as a daemon serving several players
+// does. Both share one object, so a change reaches both, and when one name
+// goes the other is still followed (MEDIA-01, ADR 0018, #254).
+func TestIntegration_MEDIA01_OneConnectionWithTwoPlayerNames(t *testing.T) {
+	requireBus(t)
+	first := newPlayer(t, "apptroltest_multi_a", "Multi", "", "Paused")
+	h := runBus(t, "")
+	if _, ok := find(h.snapshot().Players, first.name); !ok {
+		t.Fatalf("snapshot lacks %s; log:\n%s", first.name, h.log.String())
+	}
+
+	// A second name on the same connection.
+	second := mprisPrefix + "apptroltest_multi_b"
+	if reply, err := first.conn.RequestName(second, dbus.NameFlagDoNotQueue); err != nil || reply != dbus.RequestNameReplyPrimaryOwner {
+		t.Fatalf("RequestName(%s) = %v, %v", second, reply, err)
+	}
+	want := mixer.Player{BusName: second, Identity: "Multi", Status: "Paused"}
+	if ev := h.next(); ev != (mixer.PlayerAdded{Player: want}) {
+		t.Fatalf("second name: %v, want PlayerAdded %+v", ev, want)
+	}
+
+	// One change on the shared object reaches both names.
+	first.setStatus("Playing")
+	got := []mixer.Event{h.next(), h.next()}
+	for _, name := range []string{first.name, second} {
+		if ev := (mixer.PlayerStatusChanged{BusName: name, Status: "Playing"}); !slices.Contains(got, mixer.Event(ev)) {
+			t.Errorf("after play: %v, want %+v among them", got, ev)
+		}
+	}
+
+	// The second name goes; the first is still followed.
+	if _, err := first.conn.ReleaseName(second); err != nil {
+		t.Fatal(err)
+	}
+	if ev := h.next(); ev != (mixer.PlayerRemoved{BusName: second}) {
+		t.Fatalf("released name: %v", ev)
+	}
+	// A stray change for the released name would sort after the first name's,
+	// so a second change must follow the first one directly.
+	for _, status := range []string{"Paused", "Playing"} {
+		first.setStatus(status)
+		if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: first.name, Status: status}) {
+			t.Fatalf("after %s: %v, want only %s's change; log:\n%s", status, ev, first.name, h.log.String())
 		}
 	}
 }
@@ -358,5 +406,33 @@ func TestDESK02_ApplyWithoutBus(t *testing.T) {
 	b := New(slog.New(slog.DiscardHandler), "")
 	if err := b.Apply(mixer.PlayerCommand{BusName: "x", Command: mixer.CommandPlay}); !errors.Is(err, ErrNotConnected) {
 		t.Errorf("Apply without a connection = %v, want ErrNotConnected", err)
+	}
+}
+
+// More status changes than the session's signal channel holds still arrive
+// in order, so every change is followed and the last one is what the player
+// reports in the end (MEDIA-01, ADR 0018, #254).
+func TestIntegration_MEDIA01_ABacklogOfChangesKeepsItsOrder(t *testing.T) {
+	requireBus(t)
+	p := newPlayer(t, "apptroltest_backlog", "Backlog", "", "Paused")
+	h := runBus(t, "")
+	h.snapshot()
+	// The events are not read meanwhile, so the session blocks and the
+	// signals pile up behind it.
+	for i := range 300 {
+		p.setStatus([]string{"Playing", "Paused"}[i%2])
+	}
+	p.setStatus("Stopped")
+	// Let the bus deliver every signal first, so they queue up past the
+	// session's channel before anything is read.
+	time.Sleep(300 * time.Millisecond)
+	for i := range 301 {
+		status := "Stopped"
+		if i < 300 {
+			status = []string{"Playing", "Paused"}[i%2]
+		}
+		if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: p.name, Status: status}) {
+			t.Fatalf("change %d: %v, want %s", i, ev, status)
+		}
 	}
 }

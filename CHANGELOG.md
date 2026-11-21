@@ -83,6 +83,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   half-parsed: an app can no longer vanish or come back without its `Exec` or with
   `Hidden=true` unread. The first folder still wins over a rejected file (LAUNCH-02,
   LAUNCH-03, [ADR 0019](docs/adr/0019-launcher-and-column-buttons.md), #260).
+- A program that owns several media player names on one D-Bus connection keeps all
+  of them followed: a playback change now reaches every name, and when one name goes
+  the others still get their changes. Before, only the last name found was followed,
+  and after it went none of them was (MEDIA-01, #254).
+- Playback changes that arrive while Apptrol is busy are handled in the order the
+  players sent them; before, a burst could leave an older status last (MEDIA-01, #254).
 
 ## [0.3.0] - 2026-11-02
 
