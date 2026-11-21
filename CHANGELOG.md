@@ -70,6 +70,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   seconds, while launchers stay blocked. After logind restarts, Apptrol looks up the
   graphical session from scratch instead of keeping the old session reference (LAUNCH-13,
   [ADR 0024](docs/adr/0024-launchers-only-when-unlocked.md), #253).
+- A `.desktop` file is now read line by line, with lines of any length and a 4 MiB cap
+  per file, so a long line such as `MimeType=` no longer truncates the read, and a file
+  whose read fails is rejected and logged (`desktop file could not be read; the app
+  counts as not installed`, `error.type=desktop_file_unreadable`) instead of being
+  half-parsed: an app can no longer vanish or come back without its `Exec` or with
+  `Hidden=true` unread. The first folder still wins over a rejected file (LAUNCH-02,
+  LAUNCH-03, [ADR 0019](docs/adr/0019-launcher-and-column-buttons.md), #260).
 
 ## [0.3.0] - 2026-11-02
 

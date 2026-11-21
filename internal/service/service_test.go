@@ -219,6 +219,7 @@ type env struct {
 	session      fakeSession
 	desktop      *fakeDesktop // nil: no media players
 	status       *fakeStatus  // nil: no Status line
+	realApps     bool         // leave Options.InstalledApps nil: use the real discovery (LAUNCH-02, ADR 0019, #260)
 }
 
 // fakeStatus records the Status lines the service sends (SVC-13).
@@ -392,10 +393,12 @@ func (e *env) start() *env {
 		SaveDelay:     10 * time.Millisecond,
 		LEDResync:     20 * time.Millisecond,
 		PauseDelay:    150 * time.Millisecond,
-		// Only Discord is installed in the tests, whatever the machine has.
-		InstalledApps: func() launcher.Apps { return launcher.Apps{"discord": {ID: "discord", Name: "Discord"}} },
 		Launcher:      &e.launcher,
 		Session:       &e.session,
+	}
+	if !e.realApps {
+		// Only Discord is installed in the tests, whatever the machine has.
+		o.InstalledApps = func() launcher.Apps { return launcher.Apps{"discord": {ID: "discord", Name: "Discord"}} }
 	}
 	if e.desktop != nil {
 		o.Desktop = e.desktop
@@ -686,6 +689,35 @@ r1         = { command = ["konsole"] }
 	if n := strings.Count(e.out.String(), "desktop ID not installed"); n != 1 {
 		t.Errorf("warned %d times, want once (Discord is installed, commands are not checked)", n)
 	}
+}
+
+// TestLAUNCH02_ARejectedDesktopFileIsLoggedOnStart: with the default
+// discovery (Options.InstalledApps nil), a desktop file that cannot be read
+// is logged by the launcher component, so a missing app can be explained from
+// the logs (LAUNCH-02, ADR 0019, #260).
+func TestLAUNCH02_ARejectedDesktopFileIsLoggedOnStart(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "data-home")
+	if err := os.MkdirAll(filepath.Join(home, "applications"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A dangling symlink: the walk finds it, but it cannot be opened.
+	link := filepath.Join(home, "applications", "ghost.desktop")
+	if err := os.Symlink(filepath.Join(home, "applications", "gone.desktop"), link); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_DATA_HOME", home)
+	t.Setenv("XDG_DATA_DIRS", filepath.Join(t.TempDir(), "empty-share")) // keep the real system folders out
+	e := newEnv(t, testConfig+`
+[layouts.default.buttons]
+record = { app = "ghost" }
+`)
+	e.realApps = true
+	e.start()
+	e.waitLog("desktop file could not be read")
+	for _, want := range []string{"apptrol.component=launcher", "error.type=desktop_file_unreadable", "ghost.desktop"} {
+		e.waitLog(want)
+	}
+	e.waitLog("desktop ID not installed") // and the launcher still warns about the missing app (LAUNCH-10)
 }
 
 // The old form of an input is logged with its own message and attributes, at

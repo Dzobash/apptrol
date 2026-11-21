@@ -7,11 +7,16 @@ package launcher
 
 import (
 	"bufio"
+	"errors"
+	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/Dzobash/apptrol/internal/logattr"
 )
 
 // Sources of an app, for `apptrol list apps` (LAUNCH-09).
@@ -65,8 +70,14 @@ func DataDirs() []string {
 // Find reads the desktop files under applications/ in the given folders
 // (LAUNCH-02). For each desktop ID the file in the first folder wins, as
 // the specification says; a file with Hidden=true there means the app
-// counts as not installed, even if a later folder has it.
-func Find(dataDirs []string) Apps {
+// counts as not installed, even if a later folder has it. A file that
+// cannot be read completely is rejected the same way, and logged to log
+// when log is not nil, so a missing app can be explained from the logs
+// (LAUNCH-02, LAUNCH-03, ADR 0019, #260).
+func Find(log *slog.Logger, dataDirs []string) Apps {
+	if log == nil {
+		log = slog.New(slog.DiscardHandler)
+	}
 	apps := Apps{}
 	seen := map[string]bool{}
 	for i, dir := range dataDirs {
@@ -80,21 +91,34 @@ func Find(dataDirs []string) Apps {
 			if seen[id] {
 				return nil
 			}
+			// The first folder wins even when its file is rejected: a
+			// later folder's copy must not resurrect the app (LAUNCH-02).
 			seen[id] = true
-			app, hidden, ok := readDesktopFile(path)
-			if !ok || hidden {
-				return nil
+			app, hidden, ok, rerr := readDesktopFile(path)
+			switch {
+			case rerr != nil:
+				log.Warn("desktop file could not be read; the app counts as not installed",
+					logattr.KeyFilePath, path, logattr.Error(logattr.ErrDesktopFileUnreadable, rerr))
+			case !ok:
+				log.Debug("desktop file is not an application; ignored", logattr.KeyFilePath, path)
+			case hidden:
+				log.Debug("desktop file is hidden; the app counts as not installed", logattr.KeyFilePath, path)
+			default:
+				app.ID, app.Source, app.Path = id, source, path
+				apps[id] = app
 			}
-			app.ID, app.Source, app.Path = id, source, path
-			apps[id] = app
 			return nil
 		})
 	}
 	return apps
 }
 
-// Installed finds the installed apps in the usual folders.
-func Installed() Apps { return Find(DataDirs()) }
+// Installed finds the installed apps in the usual folders (LAUNCH-02, ADR 0019).
+func Installed() Apps { return Find(nil, DataDirs()) }
+
+// InstalledLogged is Installed, logging rejected desktop files to log
+// (LAUNCH-02, ADR 0019, #260).
+func InstalledLogged(log *slog.Logger) Apps { return Find(log, DataDirs()) }
 
 // desktopID is the file's path below applications/, with "/" turned into
 // "-" and without ".desktop": applications/kde/org.kde.foo.desktop is
@@ -129,46 +153,96 @@ func sourceOf(dir string, dataHome bool) string {
 }
 
 // readDesktopFile reads the keys Apptrol needs from the [Desktop Entry]
-// group. ok is false for files that are not applications.
-func readDesktopFile(path string) (app App, hidden, ok bool) {
+// group (LAUNCH-02, LAUNCH-03, ADR 0019). ok is false for files that are not
+// applications; err is not nil when the file could not be read completely,
+// in which case ok is false too: the keys after the failed read were never
+// seen, so a partial entry must not count as valid (#260).
+func readDesktopFile(path string) (app App, hidden, ok bool, err error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return App{}, false, false
+		return App{}, false, false, err
 	}
 	defer f.Close()
+	return parseDesktopEntry(f)
+}
+
+// maxDesktopFileSize caps how much of a .desktop file Apptrol reads: a file
+// larger than this is rejected as unreadable, so a symlink to /dev/zero or a
+// huge one-line file cannot read on until memory runs out (LAUNCH-02, ADR 0019,
+// #260).
+const maxDesktopFileSize = 4 << 20 // 4 MiB, far above any real desktop file
+
+// errDesktopFileTooLarge is returned when a .desktop file is larger than
+// maxDesktopFileSize; the file is then rejected like an unreadable one
+// (LAUNCH-02, ADR 0019, #260).
+var errDesktopFileTooLarge = errors.New("desktop file is larger than 4 MiB")
+
+// sizeLimitReader reads at most maxDesktopFileSize+1 bytes from r: the one
+// byte past the cap proves the file is over it, and the read then fails with
+// errDesktopFileTooLarge, so an oversized file is rejected, not silently
+// truncated (LAUNCH-02, ADR 0019, #260).
+type sizeLimitReader struct {
+	r io.Reader
+	n int64 // bytes still allowed, starting at maxDesktopFileSize+1
+}
+
+func (l *sizeLimitReader) Read(p []byte) (int, error) {
+	if l.n <= 0 {
+		return 0, errDesktopFileTooLarge
+	}
+	if int64(len(p)) > l.n {
+		p = p[:l.n]
+	}
+	n, err := l.r.Read(p)
+	l.n -= int64(n)
+	if l.n <= 0 {
+		// the byte past the cap was read: the file is larger than the cap
+		return 0, errDesktopFileTooLarge
+	}
+	return n, err
+}
+
+// parseDesktopEntry reads the [Desktop Entry] group from r. Lines of any
+// length are read with a bufio.Reader, so a long line such as MimeType= does
+// not truncate the file the way a default bufio.Scanner (64 KiB per line)
+// did; a genuine read error or a file over maxDesktopFileSize rejects the
+// file instead of returning a partial entry (LAUNCH-02, LAUNCH-03, ADR 0019,
+// #260).
+func parseDesktopEntry(r io.Reader) (app App, hidden, ok bool, err error) {
 	inEntry := false
 	typ := ""
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+	br := bufio.NewReader(&sizeLimitReader{r: r, n: maxDesktopFileSize + 1})
+	for {
+		line, rerr := br.ReadString('\n')
+		if rerr != nil && rerr != io.EOF {
+			return App{}, false, false, rerr
 		}
-		if strings.HasPrefix(line, "[") {
-			inEntry = line == "[Desktop Entry]"
-			continue
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			if strings.HasPrefix(line, "[") {
+				inEntry = line == "[Desktop Entry]"
+			} else if key, value, found := strings.Cut(line, "="); inEntry && found {
+				key, value = strings.TrimSpace(key), strings.TrimSpace(value)
+				switch key {
+				case "Type":
+					typ = value
+				case "Name":
+					app.Name = unescape(value)
+				case "Exec":
+					app.Exec = value
+				case "Hidden":
+					hidden = value == "true"
+				case "NoDisplay":
+					app.NoDisplay = value == "true"
+				case "DBusActivatable":
+					app.DBusActivatable = value == "true"
+				}
+			}
 		}
-		key, value, found := strings.Cut(line, "=")
-		if !inEntry || !found {
-			continue
-		}
-		key, value = strings.TrimSpace(key), strings.TrimSpace(value)
-		switch key {
-		case "Type":
-			typ = value
-		case "Name":
-			app.Name = unescape(value)
-		case "Exec":
-			app.Exec = value
-		case "Hidden":
-			hidden = value == "true"
-		case "NoDisplay":
-			app.NoDisplay = value == "true"
-		case "DBusActivatable":
-			app.DBusActivatable = value == "true"
+		if rerr == io.EOF {
+			return app, hidden, typ == "Application", nil
 		}
 	}
-	return app, hidden, typ == "Application"
 }
 
 // Search returns the apps shown by `apptrol list apps [search]`: without
