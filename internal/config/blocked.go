@@ -249,16 +249,18 @@ func blockedCommand(args []string) string {
 		return "blocked: writing to a disk device destroys its data" + blockedSuffix
 	}
 	// First check the raw argv list so multi-word wrapper option arguments
-	// (e.g. systemd-run --description "my job" rm -rf /) keep their boundaries
+	// (e.g. systemd-run --description "my job" rm -rf /, or
+	// systemd-run --description "Run su" app) keep their exact boundaries
 	// (LAUNCH-12, ADR 0022).
 	if reason := checkWords(args); reason != "" {
 		return reason
 	}
-	// Then check the words of any shell text in them, split into segments at
-	// ; | & ` and $( so "a; rm -rf /" is seen as two commands. Only a word in
-	// program position counts, so a message that merely contains "su" passes
-	// (LAUNCH-12, ADR 0022).
-	for _, segment := range separators.Split(text, -1) {
+	// Then check any segments that follow a shell separator (; | & ` or $()
+	// anywhere in the arguments, so "a; rm -rf /" is still caught even when
+	// placed inside an ordinary argument. Segment 0 was already checked with
+	// intact argv boundaries above (LAUNCH-12, ADR 0022).
+	segments := separators.Split(text, -1)
+	for _, segment := range segments[1:] {
 		if reason := checkWords(strings.Fields(segment)); reason != "" {
 			return reason
 		}
@@ -331,14 +333,23 @@ func scanWords(words, trailing []string, start scanState, depth int) (scanState,
 			// Keep main's behavior for wrapper names inside arguments
 			// (e.g. flatpak-spawn --host pkexec …, konsole -e pkexec …) so
 			// nested launchers still get checked (LAUNCH-12, ADR 0022).
-			if w == "-c" {
+			switch {
+			case w == "-c":
 				next.expectProgram = true
-			} else {
+			case strings.ContainsAny(w, " \t\n\r\v\f"):
 				next.inArgs = true
-				if name := filepath.Base(w); !strings.ContainsAny(w, " \t\n\r\v\f") {
-					if _, ok := wrapperSpecs[name]; ok {
-						next.addOpt(name)
+				if depth < maxScanDepth {
+					end, reason := scanWords(strings.Fields(w), rest, scanState{inArgs: true}, depth+1)
+					if reason != "" {
+						return scanState{}, reason
 					}
+					next.merge(end)
+				}
+			default:
+				next.inArgs = true
+				name := filepath.Base(w)
+				if _, ok := wrapperSpecs[name]; ok {
+					next.addOpt(name)
 				}
 			}
 		}
@@ -464,11 +475,20 @@ func extractSplitString(w string, spec wrapperSpec) (payload string, hasPayload,
 	return "", false, false, false
 }
 
-// extractCommandFlag recognizes kdesu's -c (alone, clustered after no-arg
-// flags, or with an attached command word) so the command after it is checked
-// in program position (LAUNCH-12, ADR 0022).
+// extractCommandFlag recognizes kdesu's -c and --c / --c=<cmd> (alone,
+// clustered after no-arg flags, or with an attached command word) so the
+// command after it is checked in program position (LAUNCH-12, ADR 0022).
 func extractCommandFlag(w string, spec wrapperSpec) (cmd string, hasCmd, ok bool) {
-	if !spec.commandFlag || !strings.HasPrefix(w, "-") || strings.HasPrefix(w, "--") || len(w) < 2 {
+	if !spec.commandFlag {
+		return "", false, false
+	}
+	if w == "--c" {
+		return "", false, true
+	}
+	if attached, found := strings.CutPrefix(w, "--c="); found {
+		return attached, true, true
+	}
+	if !strings.HasPrefix(w, "-") || strings.HasPrefix(w, "--") || len(w) < 2 {
 		return "", false, false
 	}
 	for j := 1; j < len(w); j++ {
@@ -493,13 +513,23 @@ func extractCommandFlag(w string, spec wrapperSpec) (cmd string, hasCmd, ok bool
 func checkProgramWord(w string, rest []string, next *scanState, depth int) string {
 	if strings.ContainsAny(w, " \t\n\r\v\f") || separators.MatchString(w) {
 		if depth < maxScanDepth {
-			for _, segment := range separators.Split(w, -1) {
-				if _, reason := scanWords(strings.Fields(segment), nil, scanState{expectProgram: true}, depth+1); reason != "" {
+			segments := separators.Split(w, -1)
+			for idx, segment := range segments {
+				var trailing []string
+				if idx == len(segments)-1 {
+					trailing = rest
+				}
+				end, reason := scanWords(strings.Fields(segment), trailing, scanState{expectProgram: true}, depth+1)
+				if reason != "" {
 					return reason
 				}
+				if idx == len(segments)-1 {
+					next.merge(end)
+				}
 			}
+		} else {
+			next.inArgs = true
 		}
-		next.inArgs = true
 		return ""
 	}
 	if isAssignment(w) {
