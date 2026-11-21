@@ -45,9 +45,10 @@ const greeterClass = "greeter"
 // callTimeout bounds every call to logind.
 const callTimeout = 2 * time.Second
 
-// unreadableRetry is how long after a failed read of the screen state it is
-// read again; launchers stay blocked meanwhile (ADR 0024).
-const unreadableRetry = 5 * time.Second
+// defaultUnreadableRetry is how long after a failed read of the screen or seat
+// state it is read again; launchers stay blocked meanwhile (LAUNCH-13,
+// ADR 0024; SVC-12, ADR 0029).
+const defaultUnreadableRetry = 5 * time.Second
 
 // Why the screen state is unknown (apptrol.screen.reason, ADR 0024).
 const (
@@ -70,7 +71,9 @@ type Watcher struct {
 	uid     uint32 // the user whose graphical session is followed
 	// Wait before reconnecting: starts at retryMin, doubles up to retryMax.
 	retryMin, retryMax time.Duration
-	resend             []time.Duration // see defaultResend
+	// Wait before re-reading an unreadable screen or seat state (LAUNCH-13, ADR 0024; SVC-12, ADR 0029).
+	unreadableRetry time.Duration
+	resend          []time.Duration // see defaultResend
 }
 
 // New returns a Watcher for the user running Apptrol. address is the system
@@ -78,7 +81,7 @@ type Watcher struct {
 func New(log *slog.Logger, address string) *Watcher {
 	return &Watcher{log: log.With(logattr.Component(logattr.Session)), address: address,
 		uid: uint32(os.Getuid()), retryMin: 500 * time.Millisecond, retryMax: 30 * time.Second,
-		resend: defaultResend}
+		unreadableRetry: defaultUnreadableRetry, resend: defaultResend}
 }
 
 // SystemBusAddress returns DBUS_SYSTEM_BUS_ADDRESS, or the standard socket.
@@ -123,7 +126,7 @@ func (w *Watcher) Run(ctx context.Context, out chan<- mixer.Event) error {
 				w.log.Debug("system bus still unreachable", logattr.Error(logattr.ErrSystemBusUnreachable, err),
 					logattr.KeyRetryDelay, wait.Seconds())
 			}
-			if !scr.set(ctx, mixer.ScreenUnknown, reasonNoBus, "") || !st.set(ctx, mixer.FrontUnknown, "", nil) {
+			if !scr.set(ctx, mixer.ScreenUnknown, reasonNoBus, "", nil) || !st.set(ctx, mixer.FrontUnknown, "", nil) {
 				return ctx.Err()
 			}
 		} else {
@@ -135,7 +138,7 @@ func (w *Watcher) Run(ctx context.Context, out chan<- mixer.Event) error {
 			}
 			w.log.Warn("lost the connection to the system bus; reconnecting", logattr.Error(logattr.ErrSystemBusLost, err))
 			failed = true // already reported; retries are logged at debug level
-			if !scr.set(ctx, mixer.ScreenUnknown, reasonBusLost, "") || !st.set(ctx, mixer.FrontUnknown, "", nil) {
+			if !scr.set(ctx, mixer.ScreenUnknown, reasonBusLost, "", nil) || !st.set(ctx, mixer.FrontUnknown, "", nil) {
 				return ctx.Err()
 			}
 		}
@@ -185,8 +188,8 @@ func (w *Watcher) session(ctx context.Context, conn *dbus.Conn, addr string, scr
 		if !g.update(scr) || !g.updateSeat(st) {
 			return false
 		}
-		if scr.reason == reasonUnreadable || st.unreadable {
-			retry = time.After(unreadableRetry)
+		if scr.unreadable || st.unreadable {
+			retry = time.After(w.unreadableRetry)
 		}
 		return true
 	}
@@ -208,7 +211,10 @@ func (w *Watcher) session(ctx context.Context, conn *dbus.Conn, addr string, scr
 				return errors.New("the system bus closed the connection")
 			}
 			if sig.Name == "org.freedesktop.DBus.NameOwnerChanged" {
-				g.user, g.seat = "", "" // logind's objects may have changed
+				// logind's objects may have changed; clear the cached session
+				// path and ID too so concerns and scr.set never see stale ones
+				// if the next read fails partway (LAUNCH-13, ADR 0024).
+				g.reset()
 				if !reread() {
 					return ctx.Err()
 				}
@@ -275,15 +281,12 @@ func (g *graphical) concerns(sig *dbus.Signal) bool {
 		(sig.Path == g.user || sig.Path == g.session || sig.Path == g.seat)
 }
 
-// update reads the screen state again and reports it. It returns false when
-// ctx ends.
+// update reads the screen state again and reports it. Launchers stay blocked
+// whenever the state cannot be read (LAUNCH-13, ADR 0024). It returns false
+// when ctx ends.
 func (g *graphical) update(scr *screen) bool {
 	state, reason, err := g.read()
-	if err != nil {
-		g.w.log.Warn("cannot read the screen lock state; launchers are blocked",
-			logattr.Error(logattr.ErrScreenUnreadable, err))
-	}
-	return scr.set(g.ctx, state, reason, g.id)
+	return scr.set(g.ctx, state, reason, g.id, err)
 }
 
 // read finds the user's graphical session (the user's Display) and reads its
@@ -336,6 +339,14 @@ func (g *graphical) read() (mixer.ScreenState, string, error) {
 
 // forget drops the graphical session, keeping the user's object.
 func (g *graphical) forget() { g.session, g.id = "", "" }
+
+// reset drops every cached logind path and session ID on a logind restart so
+// concerns and scr.set never act on stale objects if the next read fails
+// partway (LAUNCH-13, ADR 0024).
+func (g *graphical) reset() {
+	g.user, g.seat = "", ""
+	g.forget()
+}
 
 // updateSeat reads whose session is in front and reports it. It returns false
 // when ctx ends.
@@ -413,16 +424,27 @@ func (g *graphical) get(ctx context.Context, path dbus.ObjectPath, iface, prop s
 }
 
 // screen remembers the last screen state reported, so that only changes are
-// logged and sent.
+// logged and sent, and tracks whether the last read failed so an unreadable
+// outage warns once until recovery, matching seat (SVC-12, ADR 0029)
+// (LAUNCH-13, ADR 0024).
 type screen struct {
-	log    *slog.Logger
-	out    chan<- mixer.Event
-	state  mixer.ScreenState // "" until the first report
-	reason string
+	log        *slog.Logger
+	out        chan<- mixer.Event
+	state      mixer.ScreenState // "" until the first report
+	reason     string
+	unreadable bool // the last read failed; warned once until it succeeds (LAUNCH-13, ADR 0024)
 }
 
-// set reports a new state. It returns false when ctx ends.
-func (s *screen) set(ctx context.Context, state mixer.ScreenState, reason, id string) bool {
+// set reports a new state; err is why it could not be read. Launchers stay
+// blocked (fail closed) whenever the state is unreadable, while the warning is
+// logged once per outage until a read succeeds, matching seat (SVC-12,
+// ADR 0029) (LAUNCH-13, ADR 0024). It returns false when ctx ends.
+func (s *screen) set(ctx context.Context, state mixer.ScreenState, reason, id string, err error) bool {
+	if err != nil && !s.unreadable {
+		s.log.Warn("cannot read the screen lock state; launchers are blocked",
+			logattr.Error(logattr.ErrScreenUnreadable, err))
+	}
+	s.unreadable = err != nil
 	if state == s.state && reason == s.reason {
 		return true
 	}

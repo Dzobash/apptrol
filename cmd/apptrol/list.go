@@ -81,7 +81,7 @@ func cmdListSection(configPath string, stdout io.Writer, list func() (*pulse.Lis
 func printListing(w io.Writer, l *pulse.Listing, setup *mixer.Setup, note string, section listSection) error {
 	streamControl := func(uint32) string { return "-" }
 	inputControl := map[string]string{}
-	outputControl := map[string]string{} // an output device on two controls lists both (OUT-04)
+	outputControl := map[string]string{} // each output device's one owning control (OUT-04, ADR 0035, ADR 0038)
 	if setup != nil {
 		m := mixer.New(*setup, mixer.State{})
 		m.Handle(pulse.Snapshot(l.Streams, l.Sources, l.Sinks, l.DefaultSink, l.DefaultSource))
@@ -105,7 +105,10 @@ func printListing(w io.Writer, l *pulse.Listing, setup *mixer.Setup, note string
 				inputControl[dev] = label(id)
 			}
 		}
-		// In control order, so a device on two controls lists them as the log does.
+		// In control order, as ownership is decided: the first control owns
+		// a device that fixed or default outputs share, and a later control
+		// gets no device, so each device is listed with its one owner
+		// (OUT-04, ADR 0035, ADR 0038).
 		for _, k := range []mixer.ControlKind{mixer.Slider, mixer.Knob} {
 			for col := 1; col <= mixer.NumColumns; col++ {
 				id, ok := setup.Assignments[mixer.Control{Kind: k, Column: col}]
@@ -113,10 +116,7 @@ func printListing(w io.Writer, l *pulse.Listing, setup *mixer.Setup, note string
 				if !ok || dev == "" {
 					continue
 				}
-				if outputControl[dev] != "" {
-					outputControl[dev] += ", "
-				}
-				outputControl[dev] += label(id)
+				outputControl[dev] = label(id)
 			}
 		}
 	}

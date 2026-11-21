@@ -477,6 +477,9 @@ Raw MIDI (`/dev/snd/midiC<card>D<device>`), in pure Go:
 - **Output:** Control Change messages to set LEDs (LED mode *External*), on the MIDI
   channel the controller sends on. Track ◀ ▶ and the three Marker buttons have no LED.
   LED messages are sent at least 2 ms apart: the controller drops some of a burst.
+  Each write is bounded by a 100 ms write deadline, so a controller that stops
+  accepting writes fails fast instead of blocking the event loop or the shutdown; the
+  failure is logged once per outage, not once per LED (SVC-05, LED-08, HW-02, #258).
 - **After a connect** the controller is still starting up for a moment and ignores LED
   messages. The full LED state is therefore sent at once, and again after 0.5 s and 2 s
   (LED-07).
@@ -608,6 +611,17 @@ The PulseAudio protocol, served by `pipewire-pulse` (ADR 0003), through a pure-G
   generations. Pending and released new-input mute restores are held away from the
   mixer, and a pending mute debt is settled after the window when ownership is
   answered. Input guard writes go through the same `wire` then `mu` lock order.
+  An accepted input write updates the value `KeepDevice` checks. A failed write
+  leaves the previous read and any pending mute correction available for defense.
+  A later notification supplies a fresh read. A mute change matching Apptrol's
+  expected echo uses up that expectation. The held-mute message in the debug log
+  records other mute changes that the guard holds (INPUT-09, MUTE-07, ADR 0038).
+
+  ```text
+  appears ─ accepted volume/mute writes ─ KeepDevice ─► no repeat
+  later notification ─ reports restored volume/mute ─► correct them
+  ```
+
   `ForgetDeviceVolume` clears an earlier owner's volume defense on a default
   takeover. Input read-back for silently lost writes remains #174; reported
   restores are defended here (INPUT-09, ADR 0038).
@@ -693,9 +707,10 @@ unknown          work                        work                        never
 - **Lock state:** `internal/session` asks logind for the user (`GetUser`), follows the
   user's `Display` (the graphical session) and that session's `LockedHint` and `Active`
   through `PropertiesChanged`, and reads everything again when logind (re)starts
-  (`NameOwnerChanged`) or, while a read fails, every 5 seconds. It reports `unlocked`,
-  `locked`, `inactive` (another session in front) or `unknown` as `mixer.ScreenChanged`,
-  only on a change.
+  (`NameOwnerChanged`, clearing cached user, seat and session state) or, while a read
+  fails, every 5 seconds (the warning is logged once until a read succeeds or the
+  connection to the system bus is lost). It reports `unlocked`, `locked`, `inactive`
+  (another session in front) or `unknown` as `mixer.ScreenChanged`, only on a change.
 - **Fail closed:** the mixer starts in `unknown`. Without a system bus, without a
   graphical session, after a lost connection or a failed read, the state is `unknown`,
   and no launcher starts, whatever the configuration.
@@ -751,7 +766,10 @@ Launcher buttons (ADR 0019, LAUNCH-*):
 
 - **Finding apps:** desktop files in `applications/` under `$XDG_DATA_HOME` and each
   `$XDG_DATA_DIRS` entry, read on every press, so an app installed later is found. Their
-  `Exec` line is parsed as the Desktop Entry specification says.
+  `Exec` line is parsed as the Desktop Entry specification says. A file whose read fails
+  (or that is over the 4 MiB read cap) is rejected and logged (`desktop file could not be
+  read; the app counts as not installed`, `error.type=desktop_file_unreadable`) and
+  counts as not installed; the first folder still wins (LAUNCH-02, #260).
 - **Starting:** the systemd user manager (`go-systemd`, over the existing session bus)
   starts each app in a transient unit `app-apptrol-<id>@<random>.service`, with
   `Type=exec` (a program that cannot run fails the start), `ExitType=cgroup` (a wrapper
@@ -763,8 +781,20 @@ Launcher buttons (ADR 0019, LAUNCH-*):
   the desktop ID in their name, in both spellings (as written and escaped), then the
   user's processes in `/proc` by program name. Steam games are passed to Steam
   unchecked; wrappers (`flatpak`, shells, …) are looked for only by unit.
-- **The connection** to the systemd user manager is opened on the first press and kept;
-  it is not tied to that press, and after an error the next press connects again.
+- **The connection** to the systemd user manager is opened on the first press. The
+  10-second press timeout includes dialing, authenticating, saying `Hello` and registering
+  for job signals. Other presses share the setup attempt and can stop waiting when
+  their own deadlines pass. A press replaces a connection that broke while idle before
+  using it. If it breaks during a call, Apptrol closes it and connects the next time it
+  needs systemd. Debug records show connections opening and why they are dropped
+  (LAUNCH-04, LAUNCH-11).
+
+  ```text
+  first press or idle disconnect → open both bus sockets → cache connection
+                                         └─ deadline → close setup sockets
+  start job ─┬─ app fails → keep healthy connection
+             └─ transport fails → close connection
+  ```
 
 ## Safety of launcher commands
 
@@ -926,12 +956,15 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
 - `session`: the same private bus stands in for the system bus, with a fake logind that
   sends the sleep signal and offers a user and a graphical session: wake-ups and their
   repeats, a signal from another program, lock, unlock, another session in front, no
-  graphical session, an unknown user, an unreadable session, logind starting late, a bus
-  restart; a missing bus without one. The mixer's fuzz test checks that no launcher ever
-  starts in a state that does not allow it.
+  graphical session, an unknown user, an unreadable session (warned once across retries
+  and again only after recovery), logind starting late and restarting (clearing cached
+  session state), a bus restart. Without a bus: a missing bus, unreadable-screen
+  deduplication and recovery, and resetting cached session state. The mixer's fuzz test
+  checks that no launcher ever starts in a state that does not allow it.
 - `launcher`: desktop files and `Exec` parsing against temporary folders, with fuzzing;
-  starting apps against a fake systemd, and against the real user manager with harmless
-  units (`make test-launcher`, not exercised by CI's Status-line container check).
+  starting apps against a fake systemd, and private sockets for setup cancellation and
+  reuse after the press ends. The real user manager tests start harmless units
+  (`make test-launcher`, outside CI's Status-line container check).
 - `packaging`: a test keeps the MIT text of the .deb's DEP-5 copyright file equal to
   `LICENSE` (NFR-09), and the unit's `Description=` equal to the AppStream summary, with
   `Type=simple` and `NotifyAccess=main` kept (SVC-13). CI's Packaging job builds the release as a snapshot and runs

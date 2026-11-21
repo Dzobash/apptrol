@@ -29,3 +29,81 @@ Type: Manual
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
+
+### TC-LAUNCH-002 — Launcher presses share a healthy systemd connection
+
+Covers: LAUNCH-04, LAUNCH-07, LAUNCH-11 · Phase 1.5
+Config: none (fake manager and private sockets)
+Type: Automated
+
+Test: `TestLAUNCH04_TransportFailureClosesOnlyFailedConnection`,
+`TestLAUNCH04_ReconnectsAfterDisconnectBetweenPresses`, `TestLAUNCH11_JobFailureKeepsConnection`,
+and `TestLAUNCH11_LostJobSignalConnectionIsClosed` in `internal/launcher/start_test.go`,
+`TestLAUNCH04_WaitingPressHasItsOwnDeadline`, `TestLAUNCH04_SetupCancellation`,
+`TestLAUNCH04_ConnectionOutlivesSetupContext`, `TestLAUNCH04_SystemdBusAddressTransports`,
+and `TestLAUNCH04_InvalidSystemdBusAddresses`
+in `internal/launcher/systemd_test.go`, and `TestLAUNCH07_OnlyTransportFailureClosesConnection`
+in `internal/launcher/running_test.go`.
+
+**Result:** Pass / Fail / Blocked
+**Notes:**
+
+### TC-LAUNCH-003 — An unreadable screen lock state warns once per outage and a logind restart is followed from scratch
+
+Covers: LAUNCH-13 · Phase 1.5
+Config: none (unit tests and private D-Bus with fake logind)
+Type: Automated
+
+Test: `TestLAUNCH13_UnreadableScreenWarnsOnceAndRecovers`,
+`TestLAUNCH13_ResetClearsCachedSession`,
+`TestIntegration_LAUNCH13_UnreadableScreenWarnsOnceAcrossRetriesAndRecovers`,
+and `TestIntegration_LAUNCH13_LogindRestartClearsCachedSession` in
+`internal/session/session_test.go` (`TestIntegration_*` run under `make test-desktop` and CI).
+
+**Result:** Pass / Fail / Blocked
+**Notes:**
+
+### TC-LAUNCH-004 — A desktop file that cannot be read counts as not installed
+
+Covers: LAUNCH-02 · Phase 1.5
+Config: minimal
+Type: Manual
+
+**Setup**
+- [ ] The `minimal` fixture is applied and Apptrol runs (test tone A plays on slider 1)
+- [ ] The configuration has `record = { app = "ghost" }` under `[layouts.default.buttons]`
+  (added to the fixture's config.toml and saved, so Apptrol reloads it)
+- [ ] Ensure the user applications folder exists:
+  `mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/applications"`
+- [ ] Create a dangling symlink there:
+  `ln -s "${XDG_DATA_HOME:-$HOME/.local/share}/applications/gone.desktop" "${XDG_DATA_HOME:-$HOME/.local/share}/applications/ghost.desktop"`
+
+**Steps**
+- [ ] Run `apptrol check` → a warning that `layouts.default.buttons.record: desktop ID
+  "ghost" is not installed …`, and the rest of the configuration is valid
+- [ ] Run `apptrol list apps ghost` → no app is listed
+- [ ] Run `systemctl --user restart apptrol` → Apptrol is active again
+- [ ] Read the journal since that restart (`journalctl --user -u apptrol --since <time of
+  the restart>`) → one record with the message `desktop file could not be read; the app
+  counts as not installed`, a `file.path` ending in `ghost.desktop` and
+  `error.type=desktop_file_unreadable`
+- [ ] Run `mkdir -p /tmp/apptrol-test-share/applications` → `/tmp/apptrol-test-share/applications`
+  exists
+- [ ] Run `printf '[Desktop Entry]\nType=Application\nName=Ghost\nExec=/bin/true\n' > /tmp/apptrol-test-share/applications/ghost.desktop` →
+  `/tmp/apptrol-test-share/applications/ghost.desktop` exists
+- [ ] Run `XDG_DATA_DIRS="/tmp/apptrol-test-share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" apptrol list apps ghost` →
+  still no app listed: the first folder's rejected file wins (LAUNCH-02)
+- [ ] Run `rm "${XDG_DATA_HOME:-$HOME/.local/share}/applications/ghost.desktop"` → the
+  dangling symlink is removed
+- [ ] Run `cp /tmp/apptrol-test-share/applications/ghost.desktop "${XDG_DATA_HOME:-$HOME/.local/share}/applications/"` →
+  `ghost.desktop` in the user applications folder is now a regular file
+- [ ] Run `systemctl --user restart apptrol` → Apptrol is active again
+- [ ] Read the journal since that restart → no `desktop file could not be read` record
+- [ ] Run `apptrol list apps ghost` → `ghost` is listed
+- [ ] Clean up what the case created:
+  `rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/applications/ghost.desktop" /tmp/apptrol-test-share`
+  → both paths are removed
+- [ ] Run `apptrol list apps ghost` → no app is listed
+
+**Result:** Pass / Fail / Blocked
+**Notes:**

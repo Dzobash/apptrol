@@ -129,14 +129,15 @@ Apptrol's own:
 | `controller_busy` | Another program holds the controller; `fuser <device>` names it. |
 | `controller_permission_denied` | You may not open the controller (see [Permissions](install.md#permissions)). |
 | `controller_open_failed` | The controller could not be opened for another reason. |
-| `led_failed` | An LED could not be set (debug level). |
+| `led_failed` | An LED could not be set: warned once per outage by the controller adapter when writes to the controller fail (SVC-05, #258), and logged per LED at debug level by the service. |
 | `desktop_bus_unreachable` | No D-Bus session bus (is a desktop session running?); media players are not available, everything else works. |
-| `desktop_bus_lost` | The connection to the session bus broke; Apptrol reconnects by itself. |
+| `desktop_bus_lost` | A connection to the session bus broke. The desktop adapter reconnects by itself. The launcher reconnects when it needs systemd. |
 | `media_player_unreadable` | A media player did not answer when asked for its name; it is ignored. At debug: the bus could not say who owns a player's name, usually because the player just closed; it is skipped. |
 | `media_command_failed` | A media player refused *Play* or *Pause*, or did not answer in time. |
 | `app_start_failed` | A launcher's app could not be started: not installed, a broken `Exec` line, a program that does not exist, or systemd refused; `exception.message` says which. |
+| `desktop_file_unreadable` | A `.desktop` file could not be read completely (a read error, or more than the 4 MiB read cap; lines of any length are read); the app counts as not installed and a later folder's copy does not replace it (LAUNCH-02, #260). |
 | `system_bus_unreachable` | No D-Bus system bus (warning). Launchers are blocked, because Apptrol cannot tell whether the screen is locked, and after the computer wakes up the LEDs are not sent again until they change; everything else works. |
 | `system_bus_lost` | The connection to the system bus broke (warning); launchers are blocked until Apptrol has reconnected by itself. |
-| `screen_state_unreadable` | logind did not say whether the screen is locked (warning); launchers are blocked, and Apptrol asks again every 5 seconds. |
-| `seat_unreadable` | logind did not say whose session is in front of the computer (warning). Apptrol holds the controller as before, and asks again every 5 seconds. |
+| `screen_state_unreadable` | logind did not say whether the screen is locked (warning, logged once until it can be read again or the system bus connection is lost); launchers are blocked, and Apptrol asks again every 5 seconds. |
+| `seat_unreadable` | logind did not say whose session is in front of the computer (warning, logged once until it can be read again or the system bus connection is lost). Apptrol holds the controller as before, and asks again every 5 seconds. |
 | `status_not_sent` | The Status line could not be sent to systemd (warning); Apptrol keeps running, and the line shows the last text that arrived. |
