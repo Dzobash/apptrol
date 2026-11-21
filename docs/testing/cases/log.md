@@ -59,3 +59,22 @@ again, and reloads at the same time never leave a closed file in use ([ADR 0008]
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
+
+### TC-LOG-003 — A deleted log file comes back without a restart
+
+Covers: LOG-06, LOG-07 · Phase 1.7
+Config: log-file
+Type: Manual
+
+**Setup**
+- [ ] Test tone A plays; a terminal is open in `~/.local/state/apptrol/`
+
+**Steps**
+- [ ] Move slider 1 from the bottom to the top → `ls apptrol-test.log*` shows `apptrol-test.log` and at least `apptrol-test.log.1`; `apptrol-test.log` has `volume changed` lines with `apptrol.control=slider1`
+- [ ] Run `rm apptrol-test.log` → `ls apptrol-test.log*` shows only the rotated files
+- [ ] Move slider 1 from the top to the bottom and back to the top → `ls apptrol-test.log*` shows `apptrol-test.log` again, without a restart or a reload
+- [ ] Move slider 1 a little and run `tail -n 5 apptrol-test.log` → among the last lines are `volume changed` lines with the time of the move
+- [ ] Run `journalctl --user -u apptrol --since "5 minutes ago" -p warning` → no warning or error about the log file
+
+**Result:** Pass / Fail / Blocked
+**Notes:**
