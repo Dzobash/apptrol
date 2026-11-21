@@ -146,8 +146,9 @@ func (s *Starter) checkRunning(ctx context.Context, id string, argv []string) ru
 	}
 	switch {
 	case err != nil:
-		// Not knowing is not "not running": say so, and connect again next time.
-		s.dropConn()
+		if sys != nil && systemdTransportError(sys, err) {
+			s.dropConn(sys, err)
+		}
 		c.checked += " (could not ask systemd: " + err.Error() + ")"
 	case len(names) > 0:
 		return runningCheck{running: true, foundBy: foundByUnit, what: names[0].Name}

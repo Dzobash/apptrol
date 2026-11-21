@@ -149,3 +149,29 @@ func TestCFG06_WatchRecoversAfterPermissionsAreFixed(t *testing.T) {
 		t.Errorf("got %+v, want the new data", c)
 	}
 }
+
+// A file that could not be read at start (loadConfig passes nil contents; the
+// error itself is already logged there) must be retried even though the stamp
+// never changes, so fixing the permissions recovers without a restart
+// (CFG-06, CFG-07, ADR 0025, #120).
+func TestCFG06_WatchRecoversAfterUnreadableStart(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read every file")
+	}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("x"), 0o000); err != nil {
+		t.Fatal(err)
+	}
+	// Start as after a failed startup read: the file exists, the contents
+	// are nil. The error was reported at startup, so Watch reports nothing
+	// until the file can be read.
+	out := startWatch(t, path, nil)
+	noChange(t, out)
+
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if c := nextChange(t, out); string(c.Data) != "x" || c.Err != nil || c.Removed {
+		t.Errorf("got %+v, want the data", c)
+	}
+}

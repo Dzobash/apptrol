@@ -173,6 +173,17 @@ Measured on the reference system (Kubuntu, KDE Plasma) on 2026-10-02:
   closing example uses the first ID only when a search word narrowed the list;
   otherwise it is `record = { app = "<desktop ID>" }`, so an odd first ID is not the
   example (LAUNCH-09, #225).
+- 2026-11-20: The launcher press's timeout covers systemd bus setup, including
+  registration for job completion signals. Presses share one setup attempt, each
+  with its own deadline. The cached connection outlives the press and is closed
+  if its transport fails. A press that finds the cached connection already closed
+  connects again before asking systemd to start an app. A failed start job keeps
+  a healthy connection available (LAUNCH-04, LAUNCH-11, #249).
+
+  | Level | Message | Attributes |
+  |---|---|---|
+  | debug | `connected to the systemd user manager` | `apptrol.component=launcher` |
+  | debug | `dropped the systemd user manager connection` | `apptrol.component=launcher`, `error.type=desktop_bus_lost`, `exception.message` |
 - 2026-11-20: Desktop files are read with a `bufio.Reader` and a 4 MiB cap per file, so
   a long line such as `MimeType=` no longer truncates the read the way a default
   `bufio.Scanner` (64 KiB per line) did, and an endless file (a symlink to `/dev/zero`)

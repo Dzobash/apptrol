@@ -129,9 +129,9 @@ Apptrol's own:
 | `controller_busy` | Another program holds the controller; `fuser <device>` names it. |
 | `controller_permission_denied` | You may not open the controller (see [Permissions](install.md#permissions)). |
 | `controller_open_failed` | The controller could not be opened for another reason. |
-| `led_failed` | An LED could not be set (debug level). |
+| `led_failed` | An LED could not be set: warned once per outage by the controller adapter when writes to the controller fail (SVC-05, #258), and logged per LED at debug level by the service. |
 | `desktop_bus_unreachable` | No D-Bus session bus (is a desktop session running?); media players are not available, everything else works. |
-| `desktop_bus_lost` | The connection to the session bus broke; Apptrol reconnects by itself. |
+| `desktop_bus_lost` | A connection to the session bus broke. The desktop adapter reconnects by itself. The launcher reconnects when it needs systemd. |
 | `media_player_unreadable` | A media player did not answer when asked for its name; it is ignored. At debug: the bus could not say who owns a player's name, usually because the player just closed; it is skipped. |
 | `media_command_failed` | A media player refused *Play* or *Pause*, or did not answer in time. |
 | `app_start_failed` | A launcher's app could not be started: not installed, a broken `Exec` line, a program that does not exist, or systemd refused; `exception.message` says which. |

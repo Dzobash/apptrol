@@ -1,11 +1,15 @@
 package launcher
 
 import (
+	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/godbus/dbus/v5"
 
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
@@ -143,5 +147,30 @@ func TestLAUNCH07_UnitPatterns(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("patterns lack %q: %s", want, got)
 		}
+	}
+}
+
+func TestLAUNCH07_OnlyTransportFailureClosesConnection(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		err       error
+		wantClose int32
+	}{
+		{"connection lost", io.EOF, 1},
+		{"method refused", dbus.NewError("org.freedesktop.DBus.Error.AccessDenied", []any{"denied"}), 0},
+		{"deadline exceeded", context.DeadlineExceeded, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sys := &fakeSystemd{listErr: tc.err}
+			s, _, _ := newTestStarter(skipApps, sys)
+			s.procDir = fakeProc(t, "/usr/bin/example")
+			check := s.checkRunning(t.Context(), "org.example.App", []string{"example"})
+			if !check.running || check.foundBy != foundByProcess {
+				t.Errorf("process check did not find the app after listing units failed: %+v", check)
+			}
+			if n := sys.closed.Load(); n != tc.wantClose {
+				t.Errorf("closes = %d, want %d", n, tc.wantClose)
+			}
+		})
 	}
 }

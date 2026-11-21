@@ -53,8 +53,10 @@ Automated: `TestCFG20_InputsAcceptEitherSelector`, `TestCFG20_InputsRejectInvali
 `TestCFG20_CheckShowsDefaultInput`, `TestINPUT09_DefaultFollowsSwitchAndSnapshot`,
 `TestINPUT09_NoDefaultAndDeviceArrivesLater`, `TestINPUT09_FirstControlOwnsOverlap`,
 `TestINPUT09_GuardDefendsRestoresAndReleases`,
+`TestINPUT09_FailedWritesPreserveAReportedRestore`,
 `TestINPUT09_GuardWaitsForNewestIdentityAndSettlesMuteDebt`,
 `TestINPUT09_RestoreReadBeforeDefaultTakeoverDoesNotChangeSavedMute`,
+`TestMUTE07_HeldInputMuteConsumesEchoAndLogsOnlyChanges`,
 `TestINPUT09_DefaultInputFollowedThroughTheService`, and
 `TestIntegration_INPUT09_DefaultInputFollowsASwitch`.
 

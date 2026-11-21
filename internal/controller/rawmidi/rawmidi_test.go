@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
@@ -494,6 +496,105 @@ func TestLED07_LEDMessagesArePaced(t *testing.T) {
 	}
 	if got := len(h.port().out()); got != 9 {
 		t.Errorf("%d bytes written, want 9", got)
+	}
+}
+
+// A full pipe with nobody reading stands in for a wedged controller that never
+// accepts writes: without a write deadline, SetLED would block in the write
+// forever (SVC-05, #258). The pipe is made the way openRaw makes the device:
+// non-blocking, wrapped with os.NewFile, so it supports SetWriteDeadline.
+func TestSVC05_SetLEDReturnsOnWriteDeadline(t *testing.T) {
+	var p [2]int
+	must(t, syscall.Pipe2(p[:], syscall.O_CLOEXEC|syscall.O_NONBLOCK))
+	r := os.NewFile(uintptr(p[0]), "|0")
+	w := os.NewFile(uintptr(p[1]), "|1")
+	defer func() { _ = r.Close(); _ = w.Close() }()
+	pipeCap, err := unix.FcntlInt(uintptr(p[1]), unix.F_GETPIPE_SZ, 0)
+	if err != nil || pipeCap <= 0 {
+		pipeCap = 64 * 1024
+	}
+	// Fill the pipe exactly: every one of these writes fits, so none blocks,
+	// and the next write has no room left.
+	chunk := make([]byte, 4096)
+	for filled := 0; filled < pipeCap; {
+		n, err := w.Write(chunk[:min(pipeCap-filled, len(chunk))])
+		if err != nil {
+			t.Fatal(err)
+		}
+		filled += n
+	}
+
+	log := &logBuf{}
+	d := New(slog.New(slog.NewTextHandler(log, &slog.HandlerOptions{Level: slog.LevelDebug})), "nanoKONTROL2")
+	d.ledGap = 0
+	d.ledWriteTimeout = 100 * time.Millisecond
+	d.mu.Lock()
+	d.cur, d.curPath = w, "/dev/snd/midiC1D0"
+	d.mu.Unlock()
+
+	start := time.Now()
+	err = d.SetLED(mixer.LED{Button: mixer.ButtonS, Column: 1}, true)
+	if !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatalf("SetLED = %v, want os.ErrDeadlineExceeded", err)
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Errorf("SetLED returned after %v, want it bounded by the write deadline", elapsed)
+	}
+	// The failure is warned once per outage, not once per LED.
+	_ = d.SetLED(mixer.LED{Button: mixer.ButtonM, Column: 1}, true)
+	_ = d.SetLED(mixer.LED{Button: mixer.ButtonR, Column: 1}, true)
+	if n := log.count("LED write failed"); n != 1 {
+		t.Errorf("LED write failure logged %d times, want once per outage:\n%s", n, log.String())
+	}
+	if !strings.Contains(log.String(), "level=WARN") || !strings.Contains(log.String(), "error.type=led_failed") {
+		t.Errorf("the warning does not carry level and error type:\n%s", log.String())
+	}
+}
+
+var errStalled = errors.New("controller stalled")
+
+// stallPort is a controller whose writes fail until it is told otherwise. It
+// has no SetWriteDeadline, so its writes fail at once, as a device that
+// errors does.
+type stallPort struct{ fail bool }
+
+func (p *stallPort) Read([]byte) (int, error) { return 0, io.EOF }
+func (p *stallPort) Write(b []byte) (int, error) {
+	if p.fail {
+		return 0, errStalled
+	}
+	return len(b), nil
+}
+func (p *stallPort) Close() error { return nil }
+
+func TestSVC05_LEDWriteFailureIsLoggedOncePerOutage(t *testing.T) {
+	log := &logBuf{}
+	d := New(slog.New(slog.NewTextHandler(log, &slog.HandlerOptions{Level: slog.LevelDebug})), "nanoKONTROL2")
+	d.ledGap = 0
+	p := &stallPort{fail: true}
+	d.mu.Lock()
+	d.cur, d.curPath = p, "/dev/snd/midiC1D0"
+	d.mu.Unlock()
+
+	for col := 1; col <= 3; col++ {
+		if err := d.SetLED(mixer.LED{Button: mixer.ButtonS, Column: col}, true); !errors.Is(err, errStalled) {
+			t.Fatalf("SetLED = %v, want errStalled", err)
+		}
+	}
+	if n := log.count("LED write failed"); n != 1 {
+		t.Errorf("failure logged %d times during one outage, want once:\n%s", n, log.String())
+	}
+	p.fail = false // the controller accepts writes again
+	if err := d.SetLED(mixer.LED{Button: mixer.ButtonS, Column: 1}, true); err != nil {
+		t.Fatal(err)
+	}
+	if n := log.count("LED write failed"); n != 1 {
+		t.Errorf("a successful write was logged as a failure:\n%s", log.String())
+	}
+	p.fail = true // a new outage
+	_ = d.SetLED(mixer.LED{Button: mixer.ButtonS, Column: 1}, true)
+	if n := log.count("LED write failed"); n != 2 {
+		t.Errorf("a new outage was not logged again: %d warnings:\n%s", n, log.String())
 	}
 }
 

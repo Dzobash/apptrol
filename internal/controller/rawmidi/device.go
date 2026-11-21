@@ -34,6 +34,25 @@ var defaultResync = []time.Duration{500 * time.Millisecond, 2 * time.Second}
 // the controller drops some of a burst of LED messages.
 const defaultLEDGap = 2 * time.Millisecond
 
+// defaultLEDWriteTimeout bounds one LED write to the controller (SVC-05,
+// LED-08, HW-02). A 3-byte Control Change message crosses USB full-speed in
+// well under a millisecond, so 100 ms is about a hundred times what a healthy
+// write needs; yet it also bounds the worst case, every LED off at shutdown
+// (LED-08: 8 columns times 3 buttons plus the transport LEDs, about 30
+// writes), to roughly 3 seconds, instead of blocking the service's event loop
+// or the shutdown forever when a wedged controller never accepts the write
+// (SVC-05, #258). The LED feedback this protects is the one that needs the
+// controller's LED mode "External" (HW-02).
+const defaultLEDWriteTimeout = 100 * time.Millisecond
+
+// writeDeadliner is what *os.File implements, and so does the raw MIDI device
+// opened by openRaw and a pipe. Without a deadline, a stalled writer blocks
+// forever: the device is opened O_NONBLOCK, but Go's poller then waits for
+// writability on backpressure (SVC-05, #258).
+type writeDeadliner interface {
+	SetWriteDeadline(time.Time) error
+}
+
 // Right after the controller is plugged in, its device file exists before the
 // system grants the user at the screen access to it (udev's uaccess). Within
 // defaultAccessGrace of the file appearing, "permission denied" means "not
@@ -61,16 +80,20 @@ type Device struct {
 	resync []time.Duration // see defaultResync
 	ledGap time.Duration   // see defaultLEDGap
 
+	ledWriteTimeout time.Duration // see defaultLEDWriteTimeout
+
 	accessGrace time.Duration // see defaultAccessGrace
 	accessPoll  time.Duration // see defaultAccessPoll
 
 	find func() (string, error)
 	open func(path string) (io.ReadWriteCloser, error)
 
-	mu      sync.Mutex
-	cur     io.ReadWriteCloser
-	lastLED time.Time     // when the last LED message was written
-	channel atomic.Uint32 // MIDI channel the controller sends on; LEDs use it too
+	mu           sync.Mutex
+	cur          io.ReadWriteCloser
+	curPath      string        // cur's path, for log records
+	lastLED      time.Time     // when the last LED message was written
+	lastWriteErr string        // the write error already logged; "" while writes succeed (warn once per outage)
+	channel      atomic.Uint32 // MIDI channel the controller sends on; LEDs use it too
 
 	// released is set by Release while another user is in front, and cleared
 	// by Take (SVC-09, ADR 0029); wake tells Run about either at once.
@@ -92,6 +115,8 @@ func New(log *slog.Logger, port string) *Device {
 		procDir: DefaultProcDir,
 		resync:  defaultResync,
 		ledGap:  defaultLEDGap,
+
+		ledWriteTimeout: defaultLEDWriteTimeout,
 
 		accessGrace: defaultAccessGrace,
 		accessPoll:  defaultAccessPoll,
@@ -304,10 +329,13 @@ func (d *Device) session(ctx context.Context, path string, f io.ReadWriteCloser,
 		return errReleased
 	}
 	d.cur = f
+	d.curPath = path
+	d.lastWriteErr = "" // a new session ends the last outage's logging
 	d.mu.Unlock()
 	defer func() {
 		d.mu.Lock()
 		d.cur = nil
+		d.curPath = ""
 		d.mu.Unlock()
 		_ = f.Close()
 	}()
@@ -378,6 +406,9 @@ func (d *Device) session(ctx context.Context, path string, f io.ReadWriteCloser,
 func (d *Device) HasLED(l mixer.LED) bool { return d.m.HasLED(l) }
 
 // SetLED turns one LED on or off. LEDs the controller does not have are ignored.
+// The write is bounded by ledWriteTimeout (SVC-05, LED-08, HW-02): a controller
+// that stops accepting writes fails fast instead of blocking the event loop or
+// the shutdown, and the failure is logged once per outage, not once per LED.
 func (d *Device) SetLED(l mixer.LED, on bool) error {
 	cc, ok := d.m.LED(l, on, byte(d.channel.Load()))
 	if !ok {
@@ -391,7 +422,26 @@ func (d *Device) SetLED(l mixer.LED, on bool) error {
 	if wait := d.ledGap - time.Since(d.lastLED); wait > 0 {
 		time.Sleep(wait)
 	}
+	wd, canDeadline := d.cur.(writeDeadliner)
+	if canDeadline {
+		_ = wd.SetWriteDeadline(time.Now().Add(d.ledWriteTimeout))
+	}
 	_, err := d.cur.Write(cc.Encode())
+	if canDeadline {
+		_ = wd.SetWriteDeadline(time.Time{}) // leave no deadline set on the device
+	}
 	d.lastLED = time.Now()
+	if err != nil {
+		// Warn once per outage, not once per LED: while writes keep failing
+		// with the same error, only the first failure is logged
+		// (CONTRIBUTING.md › Log messages).
+		if key := logattr.OneLine(err.Error()); key != d.lastWriteErr {
+			d.log.Warn("LED write failed; the controller is not accepting writes",
+				logattr.KeyMIDIDevice, d.curPath, logattr.Error(logattr.ErrLEDFailed, err))
+			d.lastWriteErr = key
+		}
+	} else {
+		d.lastWriteErr = ""
+	}
 	return err
 }

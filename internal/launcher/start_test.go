@@ -11,26 +11,35 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	sd "github.com/coreos/go-systemd/v22/dbus"
+	"github.com/godbus/dbus/v5"
 
 	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
 // fakeSystemd records the units it is asked to start.
 type fakeSystemd struct {
-	mu      sync.Mutex
-	units   []string
-	props   [][]sd.Property
-	result  string // the start job's result; "" = "done"
-	refuse  string // a property name it does not know, like systemd < 250
-	callErr error
-	active  []string // names of active units, for the running check
+	mu                 sync.Mutex
+	units              []string
+	props              [][]sd.Property
+	result             string // the start job's result; "" = "done"
+	refuse             string // a property name it does not know, like systemd < 250
+	callErr            error
+	listErr            error
+	active             []string // names of active units, for the running check
+	startWithoutResult func()   // accept the start request without delivering a job result
+	disconnected       atomic.Bool
+	closed             atomic.Int32
 }
 
 // ListUnitsByPatternsContext matches like systemd: globs, "\" escapes.
 func (f *fakeSystemd) ListUnitsByPatternsContext(_ context.Context, _, patterns []string) ([]sd.UnitStatus, error) {
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
 	var out []sd.UnitStatus
 	for _, name := range f.active {
 		for _, p := range patterns {
@@ -56,6 +65,10 @@ func (f *fakeSystemd) StartTransientUnitContext(_ context.Context, name, _ strin
 			return 0, errors.New("Cannot set property " + f.refuse + ", or unknown property.")
 		}
 	}
+	if f.startWithoutResult != nil {
+		f.startWithoutResult()
+		return 1, nil
+	}
 	result := f.result
 	if result == "" {
 		result = "done"
@@ -63,6 +76,9 @@ func (f *fakeSystemd) StartTransientUnitContext(_ context.Context, name, _ strin
 	ch <- result
 	return 1, nil
 }
+
+func (f *fakeSystemd) Connected() bool { return !f.disconnected.Load() && f.closed.Load() == 0 }
+func (f *fakeSystemd) Close()          { f.closed.Add(1) }
 
 func (f *fakeSystemd) prop(i int, name string) any {
 	for _, p := range f.props[i] {
@@ -193,5 +209,98 @@ func TestLAUNCH04_OldSystemdWithoutExitType(t *testing.T) {
 	}
 	if strings.Contains(log.String(), "could not be started") {
 		t.Errorf("the second try failed:\n%s", log.String())
+	}
+}
+
+func TestLAUNCH11_JobFailureKeepsConnection(t *testing.T) {
+	sys := &fakeSystemd{result: "failed"}
+	s, log, _ := newTestStarter(testApps, sys)
+	dials := 0
+	s.connect = func(context.Context) (systemd, error) {
+		dials++
+		return sys, nil
+	}
+
+	s.start(launchOf("", "missing-apptrol-test-program"))
+	sys.result = "done"
+	s.start(launchOf("", "true"))
+	if dials != 1 || sys.closed.Load() != 0 || len(sys.units) != 2 {
+		t.Fatalf("dials = %d, closes = %d, starts = %d; want 1, 0, 2", dials, sys.closed.Load(), len(sys.units))
+	}
+	if failures := strings.Count(log.String(), "app could not be started"); failures != 1 {
+		t.Errorf("want exactly one failed start, got log:\n%s", log.String())
+	}
+}
+
+func TestLAUNCH04_TransportFailureClosesOnlyFailedConnection(t *testing.T) {
+	ctx := t.Context()
+	failed := &fakeSystemd{callErr: dbus.ErrClosed}
+	replacement := &fakeSystemd{}
+	s, log, _ := newTestStarter(testApps, failed)
+
+	if err := s.startUnit(ctx, "app-example.service", "example", []string{"true"}); !errors.Is(err, dbus.ErrClosed) {
+		t.Fatalf("failed start = %v, want a closed connection error", err)
+	}
+	if n := failed.closed.Load(); n != 1 {
+		t.Fatalf("closes of failed connection = %d, want 1", n)
+	}
+	s.connect = func(context.Context) (systemd, error) { return replacement, nil }
+	if err := s.startUnit(ctx, "app-example.service", "example", []string{"true"}); err != nil {
+		t.Fatalf("start with replacement: %v", err)
+	}
+	s.dropConn(failed, dbus.ErrClosed) // a second call on the old connection reports its failure late
+	got, err := s.conn(ctx)
+	if got != replacement || err != nil || failed.closed.Load() != 1 || replacement.closed.Load() != 0 {
+		t.Fatalf("cached = %v, error = %v, closes = %d (old) / %d (new)",
+			got, err, failed.closed.Load(), replacement.closed.Load())
+	}
+	if n := strings.Count(log.String(), "dropped the systemd user manager connection"); n != 1 ||
+		!strings.Contains(log.String(), "error.type=desktop_bus_lost") ||
+		!strings.Contains(log.String(), dbus.ErrClosed.Error()) {
+		t.Errorf("want one drop record with its cause, got log:\n%s", log.String())
+	}
+}
+
+func TestLAUNCH04_ReconnectsAfterDisconnectBetweenPresses(t *testing.T) {
+	first := &fakeSystemd{}
+	replacement := &fakeSystemd{}
+	s, log, _ := newTestStarter(testApps, first)
+	s.start(launchOf("", "true"))
+	first.disconnected.Store(true)
+	s.connect = func(context.Context) (systemd, error) { return replacement, nil }
+	s.start(launchOf("", "true"))
+	if n := first.closed.Load(); n != 1 || len(first.units) != 1 || len(replacement.units) != 1 {
+		t.Fatalf("old closes = %d, starts = %d (old) / %d (new); want 1, 1, 1",
+			n, len(first.units), len(replacement.units))
+	}
+	if strings.Contains(log.String(), "app could not be started") ||
+		strings.Count(log.String(), "connected to the systemd user manager") != 2 {
+		t.Errorf("want both presses to start after connecting, got log:\n%s", log.String())
+	}
+	if !strings.Contains(log.String(), `exception.message="cached systemd connection is already closed"`) {
+		t.Errorf("want the drop record to report the closed cached connection, got log:\n%s", log.String())
+	}
+}
+
+func TestLAUNCH11_LostJobSignalConnectionIsClosed(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	failed := &fakeSystemd{}
+	failed.startWithoutResult = func() {
+		failed.disconnected.Store(true)
+		cancel()
+	}
+	s, _, _ := newTestStarter(testApps, failed)
+	err := s.startUnit(ctx, "app-example.service", "example", []string{"true"})
+	if err == nil || !strings.Contains(err.Error(), "did not start app-example.service in time") {
+		t.Fatalf("start error = %v, want a job wait error", err)
+	}
+	if n := failed.closed.Load(); n != 1 {
+		t.Fatalf("closes after the signal connection was lost = %d, want 1", n)
+	}
+	replacement := &fakeSystemd{}
+	s.connect = func(context.Context) (systemd, error) { return replacement, nil }
+	if err := s.startUnit(t.Context(), "app-example.service", "example", []string{"true"}); err != nil {
+		t.Fatalf("start with replacement: %v", err)
 	}
 }
