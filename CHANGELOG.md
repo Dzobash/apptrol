@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0.6.0); layouts move to 0.7.0, setup and tray to 0.8.0 (#245).
 
 ### Fixed
+- Blocked-command validation for launcher `command` entries now skips wrapper options
+  and their arguments (such as `env -i`, `env -u VAR`, `nice -n 10`,
+  `systemd-run --user` and `--`) before checking the wrapped program, while leaning
+  toward blocking on unknown wrapper flags and leaving ordinary arguments of
+  non-wrapper commands allowed (LAUNCH-12,
+  [ADR 0022](docs/adr/0022-launcher-command-safety.md), #259).
 - A controller that stops accepting LED writes no longer blocks Apptrol's event loop
   or its shutdown: every LED write is bounded by a 100 ms write deadline, so a stalled
   controller fails fast, and the failure is logged once per outage instead of once per
