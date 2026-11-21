@@ -654,7 +654,8 @@ The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
   `PropertiesChanged` names only the sending connection, not the player, and one
   connection can own several player names on the same object: the adapter keeps every
   name per connection, so a change reaches all of them and one name going leaves the
-  others followed (MEDIA-01, #254).
+  others followed. Signals reach the session in the order they arrive, also when it
+  falls behind (godbus's sequential signal handler) (MEDIA-01, ADR 0018, #254).
   At connect, the players already running are listed (`ListNames`, then `GetNameOwner`
   and their properties for each). Every call has its own 2-second timeout, so a player
   that does not answer is left out (a warning) without using up the time of the players

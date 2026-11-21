@@ -408,3 +408,28 @@ func TestDESK02_ApplyWithoutBus(t *testing.T) {
 		t.Errorf("Apply without a connection = %v, want ErrNotConnected", err)
 	}
 }
+
+// More status changes than the session's signal channel holds still arrive
+// in order, so every change is followed and the last one is what the player
+// reports in the end (MEDIA-01, ADR 0018, #254).
+func TestIntegration_MEDIA01_ABacklogOfChangesKeepsItsOrder(t *testing.T) {
+	requireBus(t)
+	p := newPlayer(t, "apptroltest_backlog", "Backlog", "", "Paused")
+	h := runBus(t, "")
+	h.snapshot()
+	// The events are not read meanwhile, so the session blocks and the
+	// signals pile up behind it.
+	for i := range 300 {
+		p.setStatus([]string{"Playing", "Paused"}[i%2])
+	}
+	p.setStatus("Stopped")
+	for i := range 301 {
+		status := "Stopped"
+		if i < 300 {
+			status = []string{"Playing", "Paused"}[i%2]
+		}
+		if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: p.name, Status: status}) {
+			t.Fatalf("change %d: %v, want %s", i, ev, status)
+		}
+	}
+}

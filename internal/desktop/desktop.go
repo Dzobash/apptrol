@@ -127,7 +127,11 @@ func (b *Bus) Run(ctx context.Context, out chan<- mixer.Event) error {
 		addr, err := b.busAddress()
 		var conn *dbus.Conn
 		if err == nil {
-			conn, err = dbus.Connect(addr, dbus.WithContext(ctx))
+			// Signals in the order they arrive, also when the session's
+			// channel is full: godbus's default handler then delivers from
+			// goroutines, and a newer status could come before an older one
+			// (MEDIA-01, ADR 0018, #254).
+			conn, err = dbus.Connect(addr, dbus.WithContext(ctx), dbus.WithSignalHandler(dbus.NewSequentialSignalHandler()))
 		}
 		if err != nil {
 			if ctx.Err() != nil {

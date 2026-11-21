@@ -133,3 +133,11 @@ Measured on the reference system (Kubuntu, KDE Plasma, PipeWire) on 2026-10-02:
   list, in the same first-control order; R on its column acts as point 5 says, and
   `[media] player` may name such an output (point 6). "No extra configuration" (point 3)
   still holds for apps.
+- 2026-11-21: One connection, several names (point 1, MEDIA-01, #254). A program can
+  own several `org.mpris.MediaPlayer2.*` names on one D-Bus connection, all on the same
+  object. `PropertiesChanged` names only the connection, so the adapter keeps every
+  name per connection and a change reaches all of them; a name that goes leaves the
+  others followed. Signals are delivered in the order they arrive (godbus's sequential
+  signal handler), also when Apptrol falls behind: godbus's default handler then
+  delivers from goroutines, and an older status could come after a newer one. A player
+  that takes its name a moment before it exports its object is a separate change.
