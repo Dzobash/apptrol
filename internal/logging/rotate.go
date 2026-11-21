@@ -32,13 +32,20 @@ type rotatingFile struct {
 
 	// refMu guards the reference count apart from mu, which is held during
 	// file I/O, so a slow write never blocks a reload (LOG-08, ADR 0008, #250).
+	// Lock order: mu before refMu; mu is never taken while refMu is held.
 	refMu sync.Mutex
 	// refs counts records being written right now (acquire, release); retired
 	// marks a file a reload replaced, closed when the last of them is done;
-	// done marks that close as decided, after which revive fails.
+	// done marks that close as decided (or made), after which revive and
+	// reuse fail.
 	refs    int
 	retired bool
 	done    bool
+	// pending holds limits from a reload that the next write takes, so a
+	// reload never waits for a write in progress (LOG-08, ADR 0008, #250).
+	pending      bool
+	pendingSize  int64
+	pendingFiles int
 }
 
 // maxKept is the highest rotated file number ever cleaned up (config allows 100).
@@ -82,24 +89,45 @@ func (r *rotatingFile) open() error {
 }
 
 // reuse prepares the file for another configuration with the same path
-// (LOG-08): it takes the new limits, makes a pending failed rotation be tried
-// on the next write, and reopens the file if a reopen failed earlier. It
+// (LOG-08): it hands over the new limits, makes a pending failed rotation be
+// tried on the next write, and reopens the file if a reopen failed earlier. It
 // returns os.ErrClosed for a closed file, which the reload then replaces, and
 // the open error for a file that still cannot be opened, which the reload
-// reports while keeping the file for the next write to reopen
-// (ADR 0008, #250).
+// reports while keeping the file for the next write to reopen. While a write
+// is in progress (it may be stuck in the file system), it only hands over the
+// limits and does not wait (ADR 0008, #250).
 func (r *rotatingFile) reuse(maxSize int64, maxFiles int) error {
-	r.mu.Lock()
+	r.refMu.Lock()
+	if r.done {
+		r.refMu.Unlock()
+		return os.ErrClosed
+	}
+	r.pending, r.pendingSize, r.pendingFiles = true, maxSize, maxFiles
+	r.refMu.Unlock()
+	if !r.mu.TryLock() {
+		return nil
+	}
 	defer r.mu.Unlock()
+	r.takePending()
 	if r.closed {
 		return os.ErrClosed
 	}
-	r.maxSize, r.maxFiles = maxSize, maxFiles
-	r.retryAt = 0
 	if r.f == nil {
 		return r.open()
 	}
 	return nil
+}
+
+// takePending applies limits handed over by reuse; r.mu must be held
+// (LOG-08, ADR 0008, #250).
+func (r *rotatingFile) takePending() {
+	r.refMu.Lock()
+	defer r.refMu.Unlock()
+	if r.pending {
+		r.maxSize, r.maxFiles = r.pendingSize, r.pendingFiles
+		r.retryAt = 0
+		r.pending = false
+	}
 }
 
 // Write appends p, rotating first if p would take the file past its limit.
@@ -113,6 +141,7 @@ func (r *rotatingFile) Write(p []byte) (int, error) {
 	if r.closed {
 		return 0, os.ErrClosed
 	}
+	r.takePending()
 	if r.f == nil {
 		if err := r.open(); err != nil {
 			return 0, fmt.Errorf("reopening %s: %w", r.path, err)
@@ -300,6 +329,9 @@ func (r *rotatingFile) Close() error {
 
 func (r *rotatingFile) closeLocked() error {
 	r.closed = true
+	r.refMu.Lock()
+	r.done = true
+	r.refMu.Unlock()
 	if r.f == nil {
 		return nil
 	}

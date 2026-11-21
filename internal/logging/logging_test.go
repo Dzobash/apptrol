@@ -896,3 +896,86 @@ func TestLOG08_ReloadAfterCloseTakesTheDrainingFile(t *testing.T) {
 		t.Errorf("file = %q, want both records", got)
 	}
 }
+
+// A rotation stuck in the file system on a.log blocks no reload: not the one
+// away from it, not the one back to it, and not a later one to a healthy path
+// (LOG-08, ADR 0008, #250).
+func TestLOG08_StuckRotationBlocksNoReload(t *testing.T) {
+	dir := t.TempDir()
+	pathA := filepath.Join(dir, "a.log")
+	m, _ := newManager(t, fileConfig(pathA, 1), true) // every record rotates
+	m.Logger().Info("first")
+	first := m.file
+
+	entered, unblock := make(chan struct{}), make(chan struct{})
+	var once, unblockOnce sync.Once
+	release := func() { unblockOnce.Do(func() { close(unblock) }) }
+	t.Cleanup(release) // before newManager's Close
+	failOn(t, &rename, func(from, to string) error {
+		if from == pathA {
+			once.Do(func() { close(entered) })
+			<-unblock
+		}
+		return os.Rename(from, to)
+	})
+	logged := make(chan struct{})
+	go func() {
+		defer close(logged)
+		m.Logger().Info("stuck")
+	}()
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("rotation did not reach the rename")
+	}
+
+	reconfigureWithin(t, m, fileConfig(filepath.Join(dir, "b.log"), 10<<20))
+	back := fileConfig(pathA, 1)
+	back.File.MaxFiles = 3
+	reconfigureWithin(t, m, back)
+	if m.file != first {
+		t.Error("reload back to a.log opened a second file for it")
+	}
+	reconfigureWithin(t, m, fileConfig(filepath.Join(dir, "c.log"), 10<<20))
+
+	release()
+	<-logged
+	if !strings.Contains(readFile(t, pathA), "stuck") && !strings.Contains(readFile(t, pathA+".1"), "stuck") {
+		t.Error("stuck record lost")
+	}
+}
+
+// Limits a reload hands over while a write is in progress are taken by the
+// next write (LOG-08, ADR 0008, #250).
+func TestLOG08_ReloadHandsLimitsToAWriteInProgress(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "apptrol.log")
+	r, err := openRotatingFile(path, 10<<20, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+
+	r.mu.Lock() // as a write in progress
+	res := make(chan error, 1)
+	go func() { res <- r.reuse(100, 2) }()
+	select {
+	case err := <-res:
+		if err != nil {
+			t.Errorf("reuse = %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		r.mu.Unlock()
+		t.Fatal("reuse waited for the write in progress")
+	}
+	r.mu.Unlock()
+
+	if _, err := r.Write([]byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	r.mu.Lock()
+	size, files := r.maxSize, r.maxFiles
+	r.mu.Unlock()
+	if size != 100 || files != 2 {
+		t.Errorf("limits = %d, %d; want 100, 2 from the reload", size, files)
+	}
+}

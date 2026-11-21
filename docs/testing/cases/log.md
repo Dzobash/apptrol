@@ -41,13 +41,16 @@ Test: in `internal/logging/logging_test.go`:
 `TestLOG08_ReloadBackToAPathTakesItsFileAgain`,
 `TestLOG08_ConcurrentReloadsKeepAWorkingFile`,
 `TestLOG08_StuckWriteDoesNotBlockReload`,
-`TestLOG08_ReloadAfterCloseTakesTheDrainingFile`.
+`TestLOG08_ReloadAfterCloseTakesTheDrainingFile`,
+`TestLOG08_StuckRotationBlocksNoReload`,
+`TestLOG08_ReloadHandsLimitsToAWriteInProgress`.
 
 A reload with the same path reopens a file that could not be reopened. If it still
 cannot be opened, the reload reports it (`could not apply the log settings`), logs to the
 journal meanwhile, and the file comes back with the next record once it can be opened.
 A record being written while a reload moves the file still reaches the old file, which
-is closed after it; the reload does not wait for it, nor for a write that is stuck. A
+is closed after it; the reload does not wait for it, nor for a write that is stuck,
+also when it returns to that file. A
 reload back to that path takes the same file again, and reloads at the same time never
 leave a closed file in use ([ADR 0008](../../adr/0008-logging.md), #250).
 
