@@ -72,8 +72,8 @@ Type: Manual
   (the fixture's path is fixed; `$XDG_STATE_HOME` does not move it)
 
 **Steps**
-- [ ] Run `date +%T` → note the time
-- [ ] Move slider 1 slowly from the bottom to the top and back, again and again, for up to a minute, until `ls -l --time-style=+%T apptrol-test.log.1` shows a time after the noted one → the log has rotated; `apptrol-test.log` has `volume changed` lines with `apptrol.control=slider1`
+- [ ] Run `date '+%F %T'` → note the date and time
+- [ ] Move slider 1 slowly from the bottom to the top and back, again and again, for up to a minute, until `ls -l --time-style='+%F %T' apptrol-test.log.1` shows a date and time after the noted ones → the log has rotated; `apptrol-test.log` has `volume changed` lines with `apptrol.control=slider1`
 - [ ] Run `systemctl --user show -p InvocationID --value apptrol` → an ID (not empty); note it
 - [ ] Run `journalctl --user -u apptrol -n 1 --show-cursor` → the last line is `-- cursor: …`; note the cursor
 - [ ] Run `rm apptrol-test.log` → `ls apptrol-test.log` says it does not exist
@@ -81,7 +81,7 @@ Type: Manual
 - [ ] Move slider 1 a little, then run `grep "volume changed" apptrol-test.log | tail -n 1` → a line with the time of that move
 - [ ] Run `systemctl --user show -p InvocationID --value apptrol` → the same ID as noted: Apptrol was not restarted
 - [ ] Run `journalctl --user -u apptrol --after-cursor "<noted cursor>" | grep -E "Apptrol starting|configuration reloaded"` → no output: no start and no reload since the log was deleted
-- [ ] Run `journalctl --user -u apptrol --after-cursor "<noted cursor>" -p warning` → no warning or error about the log file
+- [ ] Run `journalctl --user -u apptrol --after-cursor "<noted cursor>" | grep -E ': (WARN|ERRO) '` → no warning or error about the log file (no `-p warning` here: with `--after-cursor`, some systemd versions skip the first match)
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
