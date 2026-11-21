@@ -362,6 +362,20 @@ func scanWords(words, trailing []string, start scanState, depth int) (scanState,
 // them as further options and command words for wrap, and merges the resulting
 // state into next (LAUNCH-12, ADR 0022).
 func expandSplitString(wrap, payload string, trailing []string, next *scanState, depth int) string {
+	// Unwrap nested attached split-string prefixes (e.g. "-S-S…sudo" or
+	// "--split-string=--split-string=…sudo") iteratively so arbitrary nesting
+	// never runs into maxScanDepth; each step strictly shortens payload
+	// (LAUNCH-12, QA-08, ADR 0022).
+	spec := wrapperSpecs[wrap]
+	for {
+		trimmed := strings.TrimLeft(payload, " \t\n\r\v\f")
+		inner, has, _, ok := extractSplitString(trimmed, spec)
+		if !ok || !has {
+			payload = trimmed
+			break
+		}
+		payload = inner
+	}
 	if depth >= maxScanDepth {
 		next.addOpt(wrap)
 		return ""
