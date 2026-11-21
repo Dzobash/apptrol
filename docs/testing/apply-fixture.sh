@@ -118,7 +118,9 @@ if [[ $1 == --restore ]]; then
 	stop_mic
 	restore "$config"
 	restore "$state"
-	rm -f -- "$state_dir"/apptrol-test.log* # the log file of the full-layout fixture
+	# The test log files of the full-layout and log-file fixtures. Their path is fixed
+	# in the fixtures (~ is expanded, $XDG_STATE_HOME is not), so clean both places.
+	rm -f -- "$state_dir"/apptrol-test.log* "$HOME"/.local/state/apptrol/apptrol-test.log*
 	systemctl --user start apptrol
 	say "done: Apptrol runs with your own configuration again"
 	exit 0

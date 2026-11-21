@@ -67,13 +67,15 @@ Config: log-file
 Type: Manual
 
 **Setup**
-- [ ] Test tone A plays; a terminal is open in `~/.local/state/apptrol/`
+- [ ] Test tone A plays; a terminal is open in the fixture's log folder: `cd ~/.local/state/apptrol`
+  (the fixture's path is fixed; `$XDG_STATE_HOME` does not move it)
 
 **Steps**
-- [ ] Move slider 1 from the bottom to the top → `ls apptrol-test.log*` shows `apptrol-test.log` and at least `apptrol-test.log.1`; `apptrol-test.log` has `volume changed` lines with `apptrol.control=slider1`
-- [ ] Run `rm apptrol-test.log` → `ls apptrol-test.log*` shows only the rotated files
-- [ ] Move slider 1 from the top to the bottom and back to the top → `ls apptrol-test.log*` shows `apptrol-test.log` again, without a restart or a reload
-- [ ] Move slider 1 a little and run `tail -n 5 apptrol-test.log` → among the last lines are `volume changed` lines with the time of the move
+- [ ] Run `date +%T` → note the time
+- [ ] Move slider 1 slowly from the bottom to the top and back, again and again, for up to a minute, until `ls -l --time-style=+%T apptrol-test.log.1` shows a time after the noted one → the log has rotated; `apptrol-test.log` has `volume changed` lines with `apptrol.control=slider1`
+- [ ] Run `rm apptrol-test.log` → `ls apptrol-test.log` says it does not exist
+- [ ] Move slider 1 slowly up and down again, for up to a minute, until `ls apptrol-test.log` finds the file → it is back, without a restart or a reload
+- [ ] Move slider 1 a little, then run `grep "volume changed" apptrol-test.log | tail -n 1` → a line with the time of that move
 - [ ] Run `journalctl --user -u apptrol --since "5 minutes ago" -p warning` → no warning or error about the log file
 
 **Result:** Pass / Fail / Blocked

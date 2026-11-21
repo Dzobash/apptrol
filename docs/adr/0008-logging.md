@@ -37,8 +37,9 @@ differ: some read `journalctl`, some want a separate file or JSON for log toolin
   ```
   The retry waits for growth, not time, so a lasting failure is not retried on every
   record and the behaviour needs no clock. The rotation renames before it gives up the
-  open file, and fills only the first free archive number, so failed tries cost no
-  archive. A reload with the same path keeps a file that cannot be opened attached
+  open file, and fills only the first free archive number: a failed try costs at most
+  the oldest archive (which that rotation would have dropped anyway), and later tries
+  cost none. A reload with the same path keeps a file that cannot be opened attached
   (with the error and the journal as a fallback until the next reload), so the file
   comes back on its own. A file a reload replaces is closed after the records still
   being written to it, and a reload never waits for a write in progress. Rarer cases
