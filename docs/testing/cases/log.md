@@ -50,9 +50,8 @@ cannot be opened, the reload reports it (`could not apply the log settings`), lo
 journal meanwhile, and the file comes back with the next record once it can be opened.
 A record being written while a reload moves the file still reaches the old file, which
 is closed after it; the reload does not wait for it, nor for a write that is stuck,
-also when it returns to that file. A
-reload back to that path takes the same file again, and reloads at the same time never
-leave a closed file in use ([ADR 0008](../../adr/0008-logging.md), #250).
+also when it returns to that file. A reload back to that path takes the same file
+again, and reloads at the same time never leave a closed file in use ([ADR 0008](../../adr/0008-logging.md), #250).
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
