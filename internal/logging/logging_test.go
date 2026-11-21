@@ -569,7 +569,7 @@ func TestLOG08_ReloadKeepsUnavailableFileForRecovery(t *testing.T) {
 }
 
 // A reload with the same path keeps a file whose reopen failed but now
-// works, and replaces a file that was closed (LOG-08, #250).
+// works, and replaces a file that was closed (LOG-08, ADR 0008, #250).
 func TestLOG08_ReloadRevivesOrReplacesTheSameFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "apptrol.log")
 	cfg := fileConfig(path, 10<<20)

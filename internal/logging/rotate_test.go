@@ -207,7 +207,7 @@ func TestLOG07_FailedRotationKeepsLoggingAndRetriesLater(t *testing.T) {
 
 // When even the reopen fails (the log folder was replaced by a file), records
 // fail, but the next one after the cause is gone opens the file again
-// (LOG-06, LOG-07, #250).
+// (LOG-06, LOG-07, ADR 0008, #250).
 func TestLOG07_ReopensAfterFailedReopen(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "apptrol")
 	path := filepath.Join(dir, "apptrol.log")

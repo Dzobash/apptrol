@@ -130,7 +130,7 @@ func (m *Manager) apply(cfg config.Log, initial bool) error {
 			working++
 		case config.OutputFile:
 			// A handler with an error is a file that cannot be opened now but
-			// stays attached, so the next record can reopen it (#250).
+			// stays attached, so the next record can reopen it (LOG-08, ADR 0008, #250).
 			f, h, err := m.fileHandler(cfg.File)
 			if err != nil {
 				errs = append(errs, err)
@@ -207,7 +207,7 @@ func (m *Manager) fileHandler(fc config.FileOutput) (*rotatingFile, slog.Handler
 	m.mu.RUnlock()
 	if cur == nil || cur.path != fc.Path {
 		// A file for this path still finishing its records from an earlier
-		// reload is taken back instead of opening a second one (#250).
+		// reload is taken back instead of opening a second one (LOG-08, ADR 0008, #250).
 		if d := m.draining[fc.Path]; d != nil && d.revive() {
 			cur = d
 		}
