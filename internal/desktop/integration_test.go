@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -41,10 +42,38 @@ type fakePlayer struct {
 
 func newPlayer(t *testing.T, suffix, identity, desktopEntry, status string) *fakePlayer {
 	t.Helper()
+	conn := connect(t)
+	p := exportPlayer(t, conn, mprisPrefix+suffix, identity, desktopEntry, status)
+	requestName(t, conn, p.name, 0)
+	return p
+}
+
+// connect opens a connection of the test's own to the session bus (MEDIA-01,
+// ADR 0018, #254).
+func connect(t *testing.T) *dbus.Conn {
+	t.Helper()
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = conn.Close() })
+	return conn
+}
+
+// requestName makes conn own name; flags may allow or ask for a handover
+// (MEDIA-01, ADR 0018, #254).
+func requestName(t *testing.T, conn *dbus.Conn, name string, flags dbus.RequestNameFlags) {
+	t.Helper()
+	if reply, err := conn.RequestName(name, flags|dbus.NameFlagDoNotQueue); err != nil || reply != dbus.RequestNameReplyPrimaryOwner {
+		t.Fatalf("RequestName(%s) = %v, %v", name, reply, err)
+	}
+}
+
+// exportPlayer exports the MPRIS object of a player that owns, or will own,
+// name on conn. It sends no PropertiesChanged, as a player starting up does
+// not (MEDIA-01, ADR 0018, #254).
+func exportPlayer(t *testing.T, conn *dbus.Conn, name, identity, desktopEntry, status string) *fakePlayer {
+	t.Helper()
 	root := map[string]*prop.Prop{"Identity": {Value: identity, Emit: prop.EmitConst}}
 	if desktopEntry != "" {
 		root["DesktopEntry"] = &prop.Prop{Value: desktopEntry, Emit: prop.EmitConst}
@@ -56,14 +85,10 @@ func newPlayer(t *testing.T, suffix, identity, desktopEntry, status string) *fak
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := &fakePlayer{conn: conn, props: props, name: mprisPrefix + suffix}
+	p := &fakePlayer{conn: conn, props: props, name: name}
 	if err := conn.Export(playerMethods{p}, mprisPath, ifacePlayer); err != nil {
 		t.Fatal(err)
 	}
-	if reply, err := conn.RequestName(p.name, dbus.NameFlagDoNotQueue); err != nil || reply != dbus.RequestNameReplyPrimaryOwner {
-		t.Fatalf("RequestName(%s) = %v, %v", p.name, reply, err)
-	}
-	t.Cleanup(func() { _ = conn.Close() })
 	return p
 }
 
@@ -434,5 +459,262 @@ func TestIntegration_MEDIA01_ABacklogOfChangesKeepsItsOrder(t *testing.T) {
 		if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: p.name, Status: status}) {
 			t.Fatalf("change %d: %v, want %s", i, ev, status)
 		}
+	}
+}
+
+// waitForLog waits until one log line contains every part (MEDIA-01,
+// ADR 0018, #254).
+func (h *harness) waitForLog(parts ...string) {
+	h.t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for h.count(parts...) == 0 {
+		if time.Now().After(deadline) {
+			h.t.Fatalf("no log line with %q within 5 s; log:\n%s", parts, h.log.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// count returns how many log lines contain every part (MEDIA-01, ADR 0018,
+// #254).
+func (h *harness) count(parts ...string) int {
+	n := 0
+	for line := range strings.Lines(h.log.String()) {
+		if !slices.ContainsFunc(parts, func(p string) bool { return !strings.Contains(line, p) }) {
+			n++
+		}
+	}
+	return n
+}
+
+// longRetries gives a player that is not ready about 5 s of reads, every
+// 100 ms, as long as the tests wait for an event: a slow test machine cannot
+// end the wait before the test exports or closes the player (MEDIA-01,
+// ADR 0018, #254). Call it before runBus, so the cleanup ends the Bus first.
+func longRetries(t *testing.T) {
+	t.Helper()
+	setRetries(t, slices.Repeat([]time.Duration{100 * time.Millisecond}, 50)...)
+}
+
+// setRetries replaces notReadyRetry for one test; call it before runBus
+// (MEDIA-01, ADR 0018, #254).
+func setRetries(t *testing.T, waits ...time.Duration) {
+	t.Helper()
+	old := notReadyRetry
+	notReadyRetry = waits
+	t.Cleanup(func() { notReadyRetry = old })
+}
+
+// A player that owns its name a moment before it exports its object is read
+// again until it answers, at connect and while running (MEDIA-01, ADR 0018,
+// #254). The object comes without a PropertiesChanged, as at a player's start.
+func TestIntegration_MEDIA01_APlayerExportingItsObjectLateIsFound(t *testing.T) {
+	requireBus(t)
+	for _, tc := range []struct{ when, suffix string }{
+		{"at connect", "apptroltest_late_connect"},
+		{"while running", "apptroltest_late_running"},
+	} {
+		t.Run(tc.when, func(t *testing.T) {
+			longRetries(t)
+			name := mprisPrefix + tc.suffix
+			conn := connect(t)
+			if tc.when == "at connect" {
+				requestName(t, conn, name, 0)
+			}
+			h := runBus(t, "")
+			if _, ok := find(h.snapshot().Players, name); ok {
+				t.Fatalf("snapshot contains %s before it is ready", name)
+			}
+			if tc.when == "while running" {
+				requestName(t, conn, name, 0)
+			}
+			h.waitForLog("media player not ready; retrying", name)
+
+			p := exportPlayer(t, conn, name, "Late", "", "Paused")
+			want := mixer.Player{BusName: name, Identity: "Late", Status: "Paused"}
+			if ev := h.next(); ev != (mixer.PlayerAdded{Player: want}) {
+				t.Fatalf("late player: %v, want PlayerAdded %+v; log:\n%s", ev, want, h.log.String())
+			}
+			p.setStatus("Playing")
+			if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: name, Status: "Playing"}) {
+				t.Fatalf("after play: %v", ev)
+			}
+			if h.count("does not answer", name) > 0 {
+				t.Errorf("a late player is logged as not answering:\n%s", h.log.String())
+			}
+		})
+	}
+}
+
+// A status the player sends while it waits is not lost: the player ends with
+// its last status, whether the read or the change comes first (MEDIA-01,
+// ADR 0018, #254).
+func TestIntegration_MEDIA01_AChangeWhileWaitingIsNotLost(t *testing.T) {
+	requireBus(t)
+	longRetries(t)
+	h := runBus(t, "")
+	h.snapshot()
+	name := mprisPrefix + "apptroltest_late_change"
+	conn := connect(t)
+	requestName(t, conn, name, 0)
+	h.waitForLog("media player not ready; retrying", name)
+	p := exportPlayer(t, conn, name, "Late", "", "Paused")
+	p.setStatus("Playing")
+
+	added, ok := h.next().(mixer.PlayerAdded)
+	if !ok || added.Player.BusName != name {
+		t.Fatalf("want PlayerAdded for %s first; log:\n%s", name, h.log.String())
+	}
+	if added.Player.Status == "Paused" {
+		if ev := h.next(); ev != (mixer.PlayerStatusChanged{BusName: name, Status: "Playing"}) {
+			t.Fatalf("after play: %v", ev)
+		}
+	} else if added.Player.Status != "Playing" {
+		t.Fatalf("added with status %q", added.Player.Status)
+	}
+}
+
+// notReadyYet stands in for a player whose object is not there: every
+// Properties.Get answers UnknownObject, as GDBus and Qt do. Only calls from
+// Apptrol's connection (from) are counted: other programs on a shared bus,
+// as in CI, may read players too. onRetry, if set, runs during Apptrol's
+// second read, the first retry, so a test can hold that read open (MEDIA-01,
+// ADR 0018, #254).
+type notReadyYet struct {
+	from    string
+	calls   *atomic.Int32
+	onRetry func()
+}
+
+func (n notReadyYet) Get(sender dbus.Sender, _, _ string) (dbus.Variant, *dbus.Error) {
+	if string(sender) == n.from && n.calls.Add(1) == 2 && n.onRetry != nil {
+		n.onRetry()
+	}
+	return dbus.Variant{}, &dbus.Error{Name: "org.freedesktop.DBus.Error.UnknownObject", Body: []any{"not exported yet"}}
+}
+
+// unique returns the unique name of the Bus's connection, once it is
+// connected (MEDIA-01, ADR 0018, #254).
+func (h *harness) unique() string {
+	h.t.Helper()
+	h.bus.mu.Lock()
+	defer h.bus.mu.Unlock()
+	if h.bus.conn == nil {
+		h.t.Fatal("the Bus is not connected")
+	}
+	return h.bus.conn.Names()[0]
+}
+
+// A player that never exports its object is read len(notReadyRetry) times
+// more, then given up with one warning (MEDIA-01, ADR 0018, #254).
+func TestIntegration_MEDIA01_APlayerThatNeverExportsIsGivenUp(t *testing.T) {
+	requireBus(t)
+	h := runBus(t, "")
+	h.snapshot()
+	name := mprisPrefix + "apptroltest_never"
+	conn := connect(t)
+	calls := &atomic.Int32{}
+	if err := conn.Export(notReadyYet{from: h.unique(), calls: calls}, mprisPath, ifaceProps); err != nil {
+		t.Fatal(err)
+	}
+	requestName(t, conn, name, 0)
+
+	h.waitForLog("media player does not answer; ignoring it", name, "media_player_unreadable")
+	if n := h.count("media player not ready; retrying", name); n != len(notReadyRetry) {
+		t.Errorf("%d retries logged, want %d:\n%s", n, len(notReadyRetry), h.log.String())
+	}
+	// The first read and one per retry were made, not only announced.
+	if n, want := int(calls.Load()), 1+len(notReadyRetry); n != want {
+		t.Errorf("the player was read %d times, want %d", n, want)
+	}
+	if n := h.count("does not answer", name); n != 1 {
+		t.Errorf("warned %d times, want once:\n%s", n, h.log.String())
+	}
+	select {
+	case ev := <-h.events:
+		t.Errorf("event for a player that never answered: %v", ev)
+	default:
+	}
+}
+
+// A player that goes before it is ready ends its wait quietly: no warning,
+// no event (MEDIA-01, ADR 0018, #254).
+func TestIntegration_MEDIA01_APlayerGoneBeforeItIsReadyIsForgotten(t *testing.T) {
+	requireBus(t)
+	longRetries(t)
+	h := runBus(t, "")
+	h.snapshot()
+	name := mprisPrefix + "apptroltest_gone_early"
+	conn := connect(t)
+	requestName(t, conn, name, 0)
+	h.waitForLog("media player not ready; retrying", name)
+	// Released, not disconnected: a read in flight then still gets an answer
+	// (not ready, or no owner), where a closed connection would give NoReply,
+	// which is warned about (a known limit, ADR 0018).
+	if _, err := conn.ReleaseName(name); err != nil {
+		t.Fatal(err)
+	}
+	h.waitForLog("media player gone before it was ready", name)
+
+	select {
+	case ev := <-h.events:
+		t.Errorf("event for a player that was never ready: %v", ev)
+	case <-time.After(500 * time.Millisecond): // five retries' time
+	}
+	if h.count("does not answer", name) > 0 {
+		t.Errorf("a player gone before it was ready is warned about:\n%s", h.log.String())
+	}
+}
+
+// A name handed to a ready program while the first one is still not ready
+// ends the first wait and adds the new owner's player (MEDIA-01, ADR 0018,
+// #254). The handover happens while the first owner holds its first retry
+// open, so the retry cannot reach the new owner before the handover is
+// handled (that order is #277).
+func TestIntegration_MEDIA01_AHandoverWhileWaitingAddsTheNewOwner(t *testing.T) {
+	requireBus(t)
+	// After the held first retry, the next is 1 s away, so the queued
+	// handover is handled before it even when the loop is slow to resume,
+	// and the test watches long enough to see that it never comes.
+	setRetries(t, 50*time.Millisecond, time.Second)
+	h := runBus(t, "")
+	h.snapshot()
+	name := mprisPrefix + "apptroltest_handover"
+	// held has room for the handler's send, so it never blocks there, also
+	// when the test has stopped waiting.
+	held, release := make(chan struct{}, 1), make(chan struct{})
+	var released sync.Once
+	letGo := func() { released.Do(func() { close(release) }) }
+	t.Cleanup(letGo) // a failed test does not leave the handler blocked
+	first := connect(t)
+	// The held retry times out after callTimeout (2 s); the handover below
+	// takes milliseconds.
+	hold := func() { held <- struct{}{}; <-release }
+	if err := first.Export(notReadyYet{from: h.unique(), calls: &atomic.Int32{}, onRetry: hold}, mprisPath, ifaceProps); err != nil {
+		t.Fatal(err)
+	}
+	requestName(t, first, name, dbus.NameFlagAllowReplacement)
+	select {
+	case <-held:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("no retry within 5 s; log:\n%s", h.log.String())
+	}
+
+	second := connect(t)
+	exportPlayer(t, second, name, "Ready", "", "Playing")
+	requestName(t, second, name, dbus.NameFlagReplaceExisting)
+	letGo()
+	want := mixer.Player{BusName: name, Identity: "Ready", Status: "Playing"}
+	if ev := h.next(); ev != (mixer.PlayerAdded{Player: want}) {
+		t.Fatalf("after the handover: %v, want PlayerAdded %+v; log:\n%s", ev, want, h.log.String())
+	}
+	h.waitForLog("media player gone before it was ready", name)
+	select {
+	case ev := <-h.events:
+		t.Errorf("a second event after the handover: %v", ev)
+	case <-time.After(1300 * time.Millisecond): // past the next retry's time
+	}
+	if h.count("does not answer", name) > 0 {
+		t.Errorf("the handed-over name is warned about:\n%s", h.log.String())
 	}
 }

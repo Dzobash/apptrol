@@ -141,3 +141,39 @@ Measured on the reference system (Kubuntu, KDE Plasma, PipeWire) on 2026-10-02:
   signal handler), also when Apptrol falls behind: godbus's default handler then
   delivers from goroutines, and an older status could come after a newer one. A player
   that takes its name a moment before it exports its object is a separate change.
+- 2026-11-22: A player that is ready a moment after taking its name (point 1,
+  MEDIA-01, #254). When the `Identity` read answers that the object, interface or
+  property is not exported yet (`NoSuchObject`, `UnknownObject`, `UnknownInterface`,
+  `UnknownMethod`, GDBus's `InvalidArgs`, `UnknownProperty`, godbus's
+  `InterfaceNotFound` and `PropertyNotFound`), the name is read again after 50, 100,
+  250 and 500 ms, then given up with the usual warning. A timeout is not retried, so a
+  hanging player still costs one timeout (#119). The reads run on the adapter's own
+  loop between signals, not in the background, one waiting player per turn: a read
+  and a signal never overlap, and the signals that came during a read are handled
+  after it, so the last status wins.
+  A name that goes or changes owner while it waits ends its wait (debug
+  `media player gone before it was ready`, or `media player gone` with its
+  `PlayerRemoved` for one that was added before and waits again); the new owner is
+  read from the start.
+  Records, all from the desktop adapter: `media player not ready; retrying` (debug;
+  bus name, `apptrol.retry.delay_s`, `error.type=media_player_unreadable`,
+  `exception.message`), `media player gone before it was ready` (debug; bus name, and
+  the error attributes when a read found the name without an owner), and, after the
+  last read, the existing `media player does not answer; ignoring it` (warn).
+  Known limits, accepted to keep this simple: a player that is not ready by its last
+  retry (the waits add up to about a second; reads of other players can make it
+  later) needs its next start; one whose Player interface comes after its `Identity`
+  has no status until its first change, as before; each retry that then hangs holds
+  the other players' signals for one timeout, as a first read already does; and while a
+  player waits, the media keys' order of players (MEDIA-06) can be off. Two more,
+  agreed with the reviewers: a player found by the startup scan and again by its own
+  queued `NameOwnerChanged` starts its wait again from the first retry, so one that is
+  never ready gets one more series of reads (part of #277); and one that goes during a read can be
+  logged with the warning instead of at debug, as its release is handled after the
+  read. A name handed on between two reads is #277; one program's names counted as
+  separate players is #278.
+
+  ```text
+  x taken ── read: UnknownObject ── wait 50 ms ── read: UnknownObject ── wait 100 ms ── read: OK → added
+             x released while waiting  →  wait ends, no event, no warning
+  ```
