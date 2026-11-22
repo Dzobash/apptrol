@@ -493,19 +493,16 @@ func (h *harness) count(parts ...string) int {
 // ADR 0018, #254). Call it before runBus, so the cleanup ends the Bus first.
 func longRetries(t *testing.T) {
 	t.Helper()
-	old := notReadyRetry
-	notReadyRetry = slices.Repeat([]time.Duration{100 * time.Millisecond}, 50)
-	t.Cleanup(func() { notReadyRetry = old })
+	setRetries(t, slices.Repeat([]time.Duration{100 * time.Millisecond}, 50)...)
 }
 
-// retryWindow is how long all reads of a player that is not ready take, with
-// room for the bus (MEDIA-01, ADR 0018, #254).
-func retryWindow() time.Duration {
-	total := 200 * time.Millisecond
-	for _, d := range notReadyRetry {
-		total += d
-	}
-	return total
+// setRetries replaces notReadyRetry for one test; call it before runBus
+// (MEDIA-01, ADR 0018, #254).
+func setRetries(t *testing.T, waits ...time.Duration) {
+	t.Helper()
+	old := notReadyRetry
+	notReadyRetry = waits
+	t.Cleanup(func() { notReadyRetry = old })
 }
 
 // A player that owns its name a moment before it exports its object is read
@@ -656,10 +653,15 @@ func TestIntegration_MEDIA01_APlayerGoneBeforeItIsReadyIsForgotten(t *testing.T)
 // handled (that order is #277).
 func TestIntegration_MEDIA01_AHandoverWhileWaitingAddsTheNewOwner(t *testing.T) {
 	requireBus(t)
+	// After the held first retry, the next is 5 s away, so the queued
+	// handover is handled before it even when the loop is slow to resume.
+	setRetries(t, 50*time.Millisecond, 5*time.Second)
 	h := runBus(t, "")
 	h.snapshot()
 	name := mprisPrefix + "apptroltest_handover"
-	held, release := make(chan struct{}), make(chan struct{})
+	// held has room for the handler's send, so it never blocks there, also
+	// when the test has stopped waiting.
+	held, release := make(chan struct{}, 1), make(chan struct{})
 	var released sync.Once
 	letGo := func() { released.Do(func() { close(release) }) }
 	t.Cleanup(letGo) // a failed test does not leave the handler blocked
@@ -689,7 +691,7 @@ func TestIntegration_MEDIA01_AHandoverWhileWaitingAddsTheNewOwner(t *testing.T) 
 	select {
 	case ev := <-h.events:
 		t.Errorf("a second event after the handover: %v", ev)
-	case <-time.After(retryWindow()):
+	case <-time.After(300 * time.Millisecond):
 	}
 	if h.count("does not answer", name) > 0 {
 		t.Errorf("the handed-over name is warned about:\n%s", h.log.String())

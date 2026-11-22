@@ -152,7 +152,9 @@ Measured on the reference system (Kubuntu, KDE Plasma, PipeWire) on 2026-10-02:
   and a signal never overlap, and the signals that came during a read are handled
   after it, so the last status wins.
   A name that goes or changes owner while it waits ends its wait (debug
-  `media player gone before it was ready`); the new owner is read from the start.
+  `media player gone before it was ready`, or `media player gone` with its
+  `PlayerRemoved` for one that was added before and waits again); the new owner is
+  read from the start.
   Records, all from the desktop adapter: `media player not ready; retrying` (debug;
   bus name, `apptrol.retry.delay_s`, `error.type=media_player_unreadable`,
   `exception.message`), `media player gone before it was ready` (debug; bus name, and
