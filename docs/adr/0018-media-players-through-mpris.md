@@ -157,9 +157,13 @@ Measured on the reference system (Kubuntu, KDE Plasma, PipeWire) on 2026-10-02:
   a second needs its next start; one whose Player interface comes after its `Identity`
   has no status until its first change, as before; a retry that then hangs holds the
   other players' signals for one timeout, as a first read already does; and while a
-  player waits, the media keys' order of players (MEDIA-06) can be off. A name handed
-  on between two reads is #277; one program's names counted as separate players
-  is #278.
+  player waits, the media keys' order of players (MEDIA-06) can be off. Two more,
+  agreed with the reviewers: a player found by the startup scan and again by its own
+  queued `NameOwnerChanged` starts its wait again, so one that is never ready is read
+  six times instead of five (part of #277); and one that goes during its last read is
+  logged with the warning instead of at debug, as its release is handled after the
+  read. A name handed on between two reads is #277; one program's names counted as
+  separate players is #278.
 
   ```text
   x taken ── read: UnknownObject ── wait 50 ms ── read: UnknownObject ── wait 100 ms ── read: OK → added
