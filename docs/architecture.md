@@ -671,8 +671,10 @@ The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
   `Identity` read answers that the object, interface or property is not there yet,
   the name waits in `pending` and is read again after 50, 100, 250 and 500 ms; then it
   is given up with the usual warning. The reads run on the session's own loop, between
-  signals, driven by one timer, so a read and a signal never overlap; a name that goes
-  or changes owner meanwhile ends its wait quietly (MEDIA-01, ADR 0018, #254).
+  signals, driven by one timer, so a read and a signal never overlap; one waiting player
+  per turn, so a read that times out never holds back the event of one that is ready.
+  A name that goes or changes owner meanwhile ends its wait quietly (MEDIA-01,
+  ADR 0018, #254).
 
   ```
   NameOwnerChanged x ("" → :1.9)  →  read x: UnknownObject  →  pending, retry in 50 ms

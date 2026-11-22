@@ -148,8 +148,9 @@ Measured on the reference system (Kubuntu, KDE Plasma, PipeWire) on 2026-10-02:
   `InterfaceNotFound` and `PropertyNotFound`), the name is read again after 50, 100,
   250 and 500 ms, then given up with the usual warning. A timeout is not retried, so a
   hanging player still costs one timeout (#119). The reads run on the adapter's own
-  loop between signals, not in the background: a read and a signal never overlap, and
-  the signals that came during a read are handled after it, so the last status wins.
+  loop between signals, not in the background, one waiting player per turn: a read
+  and a signal never overlap, and the signals that came during a read are handled
+  after it, so the last status wins.
   A name that goes or changes owner while it waits ends its wait (debug
   `media player gone before it was ready`); the new owner is read from the start.
   Known limits, accepted to keep this simple: a player that is ready only after about

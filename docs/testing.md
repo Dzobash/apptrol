@@ -589,8 +589,11 @@ connect and while running; `AChangeWhileWaitingIsNotLost` plays it right after t
 and checks that it ends *Playing*; `APlayerThatNeverExportsIsGivenUp` counts the retries
 and the one warning; `APlayerGoneBeforeItIsReadyIsForgotten` and
 `AHandoverWhileWaitingAddsTheNewOwner` end the wait without a warning, the second with the
-new owner's player. `TestMEDIA01_OnlyNotReadyAnswersAreReadAgain` checks which D-Bus
-answers lead to another read (MEDIA-01, `make test-desktop`). The automated case is
+new owner's player (MEDIA-01, `make test-desktop`). The unit tests
+`TestMEDIA01_OnlyNotReadyAnswersAreReadAgain` (which D-Bus answers lead to another
+read), `TestMEDIA01_TheEarliestWaitingPlayerIsReadFirst` and
+`TestMEDIA01_AnAddedPlayerThatWaitsAgainIsStillRemoved` run with `make check`. The
+automated case is
 [TC-MEDIA-005](testing/cases/media.md#tc-media-005--a-player-that-is-ready-a-moment-after-taking-its-name-is-found).
 
 ## Manual hardware checklist

@@ -251,7 +251,8 @@ func (b *Bus) session(ctx context.Context, conn *dbus.Conn, out chan<- mixer.Eve
 	defer retry.Stop()
 	for {
 		var due <-chan time.Time // nil, never ready, while no player waits
-		if at, ok := t.nextRetry(); ok {
+		next, at, ok := t.nextRetry()
+		if ok {
 			retry.Reset(time.Until(at))
 			due = retry.C
 		}
@@ -267,7 +268,7 @@ func (b *Bus) session(ctx context.Context, conn *dbus.Conn, out chan<- mixer.Eve
 			}
 			evs = t.signal(sig)
 		case <-due:
-			evs = t.retryDue(time.Now())
+			evs = t.retry(next)
 		}
 		for _, ev := range evs {
 			if !send(ctx, out, ev) {
@@ -314,38 +315,40 @@ type waiting struct {
 	due   time.Time
 }
 
-// newTracker returns an empty tracker for one connection (MEDIA-01).
+// newTracker returns an empty tracker for one connection (MEDIA-01,
+// ADR 0018).
 func newTracker(ctx context.Context, b *Bus, conn *dbus.Conn) *tracker {
 	return &tracker{b: b, conn: conn, ctx: ctx, owners: map[string]map[string]struct{}{},
 		players: map[string]mixer.Player{}, pending: map[string]waiting{}}
 }
 
-// nextRetry returns when the next waiting player is read again, and false
-// while none waits (MEDIA-01, ADR 0018, #254).
-func (t *tracker) nextRetry() (time.Time, bool) {
-	var next time.Time
-	for _, w := range t.pending {
-		if next.IsZero() || w.due.Before(next) {
-			next = w.due
+// nextRetry returns the waiting player that is read again first, by name
+// when two are due at once, and when; false while none waits (MEDIA-01,
+// ADR 0018, #254).
+func (t *tracker) nextRetry() (string, time.Time, bool) {
+	var name string
+	var at time.Time
+	for n, w := range t.pending {
+		if name == "" || w.due.Before(at) || (w.due.Equal(at) && n < name) {
+			name, at = n, w.due
 		}
 	}
-	return next, !next.IsZero()
+	return name, at, name != ""
 }
 
-// retryDue reads again every waiting player whose time has come, by name so
-// the events keep one order (MEDIA-01, ADR 0018, #254).
-func (t *tracker) retryDue(now time.Time) []mixer.Event {
-	var evs []mixer.Event
-	for _, name := range slices.Sorted(maps.Keys(t.pending)) {
-		w := t.pending[name]
-		if w.due.After(now) {
-			continue
-		}
-		if p, ok := t.add(name, w.owner, w.reads); ok {
-			evs = append(evs, mixer.PlayerAdded{Player: p})
-		}
+// retry reads a waiting player again. One per turn of the session loop: the
+// loop sends its event and handles the signals that came meanwhile before the
+// next read, so a read that times out never holds back a player that is ready
+// (MEDIA-01, ADR 0018, #254).
+func (t *tracker) retry(name string) []mixer.Event {
+	w, waits := t.pending[name]
+	if !waits {
+		return nil
 	}
-	return evs
+	if p, ok := t.add(name, w.owner, w.reads); ok {
+		return []mixer.Event{mixer.PlayerAdded{Player: p}}
+	}
+	return nil
 }
 
 // list finds every player with a running owner (MEDIA-01). Names that are
@@ -442,15 +445,17 @@ func (t *tracker) add(name, owner string, reads int) (mixer.Player, bool) {
 
 // remove forgets a player and returns the event for it. Only this name
 // leaves its connection's set: the connection's other players stay followed.
-// A player that was still waiting to be read was never added, so it ends
-// without an event (MEDIA-01, ADR 0018, #254).
+// Its wait ends too. A player that was only waiting was never added, so it
+// ends without an event; one that was added and then read again, while its
+// own queued acquisition was handled, still gets its PlayerRemoved (MEDIA-01,
+// ADR 0018, #254).
 func (t *tracker) remove(name string) []mixer.Event {
-	if _, waits := t.pending[name]; waits {
-		delete(t.pending, name)
-		t.b.log.Debug("media player gone before it was ready", logattr.KeyPlayerBusName, name)
-		return nil
-	}
+	_, waits := t.pending[name]
+	delete(t.pending, name)
 	if _, known := t.players[name]; !known {
+		if waits {
+			t.b.log.Debug("media player gone before it was ready", logattr.KeyPlayerBusName, name)
+		}
 		return nil
 	}
 	delete(t.players, name)

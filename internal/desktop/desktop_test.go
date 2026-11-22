@@ -6,10 +6,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/godbus/dbus/v5"
+
+	"github.com/Dzobash/apptrol/internal/mixer"
 )
 
 func TestDESK01_BusAddress(t *testing.T) {
@@ -66,21 +69,41 @@ func TestMEDIA01_OnlyNotReadyAnswersAreReadAgain(t *testing.T) {
 	}
 }
 
-// The next retry is the earliest one; none while no player waits (MEDIA-01,
-// ADR 0018, #254).
+// The next retry is the earliest one, by name when two are due at once; none
+// while no player waits (MEDIA-01, ADR 0018, #254).
 func TestMEDIA01_TheEarliestWaitingPlayerIsReadFirst(t *testing.T) {
 	tr := newTracker(context.Background(), New(slog.New(slog.DiscardHandler), ""), nil)
-	if _, ok := tr.nextRetry(); ok {
+	if _, _, ok := tr.nextRetry(); ok {
 		t.Error("a retry while no player waits")
 	}
 	now := time.Now()
-	tr.pending["b"] = waiting{due: now.Add(time.Second)}
+	tr.pending["c"] = waiting{due: now.Add(time.Second)}
+	tr.pending["b"] = waiting{due: now.Add(50 * time.Millisecond)}
 	tr.pending["a"] = waiting{due: now.Add(50 * time.Millisecond)}
-	if at, ok := tr.nextRetry(); !ok || !at.Equal(now.Add(50*time.Millisecond)) {
-		t.Errorf("next retry at %v, %v; want the earliest", at, ok)
+	if name, at, ok := tr.nextRetry(); !ok || name != "a" || !at.Equal(now.Add(50*time.Millisecond)) {
+		t.Errorf("next retry %q at %v, %v; want a, the earliest", name, at, ok)
 	}
 	// A waiting player whose name goes is forgotten, without an event.
-	if evs := tr.remove("a"); evs != nil || len(tr.pending) != 1 {
+	if evs := tr.remove("a"); evs != nil || len(tr.pending) != 2 {
 		t.Errorf("remove of a waiting player: %v, pending %v", evs, tr.pending)
+	}
+}
+
+// A player that was added and then waits again, because its own queued
+// acquisition read it once more after the startup scan, still gets its
+// PlayerRemoved when it goes (MEDIA-01, ADR 0018, #254).
+func TestMEDIA01_AnAddedPlayerThatWaitsAgainIsStillRemoved(t *testing.T) {
+	const owner, name = ":1.7", mprisPrefix + "example"
+	tr := newTracker(context.Background(), New(slog.New(slog.DiscardHandler), ""), nil)
+	tr.players[name] = mixer.Player{BusName: name}
+	tr.owners[owner] = map[string]struct{}{name: {}}
+	tr.pending[name] = waiting{owner: owner, reads: 1, due: time.Now()}
+
+	evs := tr.remove(name)
+	if want := []mixer.Event{mixer.PlayerRemoved{BusName: name}}; !slices.Equal(evs, want) {
+		t.Errorf("remove = %v, want %v", evs, want)
+	}
+	if len(tr.pending) != 0 || len(tr.players) != 0 || len(tr.owners) != 0 {
+		t.Errorf("left behind: pending %v, players %v, owners %v", tr.pending, tr.players, tr.owners)
 	}
 }

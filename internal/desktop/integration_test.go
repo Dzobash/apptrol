@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -564,11 +565,18 @@ func TestIntegration_MEDIA01_AChangeWhileWaitingIsNotLost(t *testing.T) {
 }
 
 // notReadyYet stands in for a player whose object is not there: every
-// Properties.Get answers UnknownObject, as GDBus and Qt do (MEDIA-01,
-// ADR 0018, #254).
-type notReadyYet struct{}
+// Properties.Get answers UnknownObject, as GDBus and Qt do. onRetry, if set,
+// runs during the second read, the first retry, so a test can hold that read
+// open (MEDIA-01, ADR 0018, #254).
+type notReadyYet struct {
+	calls   *atomic.Int32
+	onRetry func()
+}
 
-func (notReadyYet) Get(_, _ string) (dbus.Variant, *dbus.Error) {
+func (n notReadyYet) Get(_, _ string) (dbus.Variant, *dbus.Error) {
+	if n.calls.Add(1) == 2 && n.onRetry != nil {
+		n.onRetry()
+	}
 	return dbus.Variant{}, &dbus.Error{Name: "org.freedesktop.DBus.Error.UnknownObject", Body: []any{"not exported yet"}}
 }
 
@@ -580,7 +588,7 @@ func TestIntegration_MEDIA01_APlayerThatNeverExportsIsGivenUp(t *testing.T) {
 	h.snapshot()
 	name := mprisPrefix + "apptroltest_never"
 	conn := connect(t)
-	if err := conn.Export(notReadyYet{}, mprisPath, ifaceProps); err != nil {
+	if err := conn.Export(notReadyYet{calls: &atomic.Int32{}}, mprisPath, ifaceProps); err != nil {
 		t.Fatal(err)
 	}
 	requestName(t, conn, name, 0)
@@ -624,19 +632,31 @@ func TestIntegration_MEDIA01_APlayerGoneBeforeItIsReadyIsForgotten(t *testing.T)
 
 // A name handed to a ready program while the first one is still not ready
 // ends the first wait and adds the new owner's player (MEDIA-01, ADR 0018,
-// #254).
+// #254). The handover happens while the first owner holds its first retry
+// open, so the retry cannot reach the new owner before the handover is
+// handled (that order is #277).
 func TestIntegration_MEDIA01_AHandoverWhileWaitingAddsTheNewOwner(t *testing.T) {
 	requireBus(t)
 	h := runBus(t, "")
 	h.snapshot()
 	name := mprisPrefix + "apptroltest_handover"
+	held, release := make(chan struct{}), make(chan struct{})
 	first := connect(t)
+	hold := func() { held <- struct{}{}; <-release }
+	if err := first.Export(notReadyYet{calls: &atomic.Int32{}, onRetry: hold}, mprisPath, ifaceProps); err != nil {
+		t.Fatal(err)
+	}
 	requestName(t, first, name, dbus.NameFlagAllowReplacement)
-	h.waitForLog("media player not ready; retrying", name)
+	select {
+	case <-held:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("no retry within 5 s; log:\n%s", h.log.String())
+	}
 
 	second := connect(t)
 	exportPlayer(t, second, name, "Ready", "", "Playing")
 	requestName(t, second, name, dbus.NameFlagReplaceExisting)
+	close(release)
 	want := mixer.Player{BusName: name, Identity: "Ready", Status: "Playing"}
 	if ev := h.next(); ev != (mixer.PlayerAdded{Player: want}) {
 		t.Fatalf("after the handover: %v, want PlayerAdded %+v; log:\n%s", ev, want, h.log.String())
