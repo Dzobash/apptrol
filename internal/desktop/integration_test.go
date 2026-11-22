@@ -601,7 +601,8 @@ func TestIntegration_MEDIA01_APlayerThatNeverExportsIsGivenUp(t *testing.T) {
 	h.snapshot()
 	name := mprisPrefix + "apptroltest_never"
 	conn := connect(t)
-	if err := conn.Export(notReadyYet{calls: &atomic.Int32{}}, mprisPath, ifaceProps); err != nil {
+	calls := &atomic.Int32{}
+	if err := conn.Export(notReadyYet{calls: calls}, mprisPath, ifaceProps); err != nil {
 		t.Fatal(err)
 	}
 	requestName(t, conn, name, 0)
@@ -609,6 +610,10 @@ func TestIntegration_MEDIA01_APlayerThatNeverExportsIsGivenUp(t *testing.T) {
 	h.waitForLog("media player does not answer; ignoring it", name, "media_player_unreadable")
 	if n := h.count("media player not ready; retrying", name); n != len(notReadyRetry) {
 		t.Errorf("%d retries logged, want %d:\n%s", n, len(notReadyRetry), h.log.String())
+	}
+	// The first read and one per retry were made, not only announced.
+	if n, want := int(calls.Load()), 1+len(notReadyRetry); n != want {
+		t.Errorf("the player was read %d times, want %d", n, want)
 	}
 	if n := h.count("does not answer", name); n != 1 {
 		t.Errorf("warned %d times, want once:\n%s", n, h.log.String())
@@ -655,7 +660,12 @@ func TestIntegration_MEDIA01_AHandoverWhileWaitingAddsTheNewOwner(t *testing.T) 
 	h.snapshot()
 	name := mprisPrefix + "apptroltest_handover"
 	held, release := make(chan struct{}), make(chan struct{})
+	var released sync.Once
+	letGo := func() { released.Do(func() { close(release) }) }
+	t.Cleanup(letGo) // a failed test does not leave the handler blocked
 	first := connect(t)
+	// The held retry times out after callTimeout (2 s); the handover below
+	// takes milliseconds.
 	hold := func() { held <- struct{}{}; <-release }
 	if err := first.Export(notReadyYet{calls: &atomic.Int32{}, onRetry: hold}, mprisPath, ifaceProps); err != nil {
 		t.Fatal(err)
@@ -670,7 +680,7 @@ func TestIntegration_MEDIA01_AHandoverWhileWaitingAddsTheNewOwner(t *testing.T) 
 	second := connect(t)
 	exportPlayer(t, second, name, "Ready", "", "Playing")
 	requestName(t, second, name, dbus.NameFlagReplaceExisting)
-	close(release)
+	letGo()
 	want := mixer.Player{BusName: name, Identity: "Ready", Status: "Playing"}
 	if ev := h.next(); ev != (mixer.PlayerAdded{Player: want}) {
 		t.Fatalf("after the handover: %v, want PlayerAdded %+v; log:\n%s", ev, want, h.log.String())

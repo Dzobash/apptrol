@@ -423,7 +423,8 @@ func (t *tracker) add(name, owner string, reads int) (mixer.Player, bool) {
 				logattr.KeyRetryDelay, wait.Seconds(), logattr.Error(logattr.ErrPlayerUnreadable, err))
 		case reads > 0 && goneErrors[errorName(err)]:
 			// It went while it waited; its NameOwnerChanged is still queued.
-			t.b.log.Debug("media player gone before it was ready", logattr.KeyPlayerBusName, name)
+			t.b.log.Debug("media player gone before it was ready", logattr.KeyPlayerBusName, name,
+				logattr.Error(logattr.ErrPlayerUnreadable, err))
 		default:
 			t.b.log.Warn("media player does not answer; ignoring it", logattr.KeyPlayerBusName, name,
 				logattr.Error(logattr.ErrPlayerUnreadable, err))

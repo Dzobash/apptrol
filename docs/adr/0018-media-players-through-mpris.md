@@ -153,6 +153,11 @@ Measured on the reference system (Kubuntu, KDE Plasma, PipeWire) on 2026-10-02:
   after it, so the last status wins.
   A name that goes or changes owner while it waits ends its wait (debug
   `media player gone before it was ready`); the new owner is read from the start.
+  Records, all from the desktop adapter: `media player not ready; retrying` (debug;
+  bus name, `apptrol.retry.delay_s`, `error.type=media_player_unreadable`,
+  `exception.message`), `media player gone before it was ready` (debug; bus name, and
+  the error attributes when a read found the name without an owner), and, after the
+  last read, the existing `media player does not answer; ignoring it` (warn).
   Known limits, accepted to keep this simple: a player that is ready only after about
   a second needs its next start; one whose Player interface comes after its `Identity`
   has no status until its first change, as before; each retry that then hangs holds
