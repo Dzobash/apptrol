@@ -32,7 +32,7 @@ Was: H-17
 |---|---|
 | Id and title | `TC-<AREA>-<NNN>`: the area as below, a three-digit number that is never reused. The title says what must hold, not what is done. |
 | `Covers:` | The requirement IDs the case checks, then the phase: `SVC-07, STATE-04 · Phase 1`. A search for a requirement ID then finds the requirement, its Go test and its case. |
-| `Config:` | The [fixture](../fixtures/) the case runs with, applied with `apply-fixture.sh <name>`. Every runtime case names one, so it starts from the same setup on every run. Package-only cases use `none (package check)` because they do not run the service. |
+| `Config:` | The [fixture](../fixtures/) the case runs with, applied with `apply-fixture.sh <name>`. Every runtime case names one, so it starts from the same setup on every run. Package-only cases use `none (package check)` because they do not run the service; automated cases whose Go tests build their own configuration use `none (Go test)`. |
 | `Type:` | `Manual`, or `Automated` for a risk covered by a Go test: then the case has no steps, only `Test:` with the test's name. |
 | `Was:` | The step of the old hardware checklist it replaces, if any (H-00 to H-51). Optional. |
 | Setup | What must be true before the first step, as checkboxes. The fixture is not repeated here. |
@@ -63,7 +63,7 @@ leave audio muted or too loud come first.
 | LED | `led.md` | What the LEDs show |
 | STATE | `state.md` | What is kept across restarts |
 | CFG | `cfg.md` | The configuration: reload, invalid files, `apptrol check` |
-| LOG | `log.md` | Log outputs, levels and records |
+| LOG | [log.md](log.md) | Log outputs, levels and records; so far the log file's recovery after it was deleted, a failed rotation or a reload *(Phase 1.7)* |
 | SVC | [svc.md](svc.md) | The service: start, stop, crash, several users; the Status line *(Phase 1.6)* |
 | MEDIA | [media.md](media.md) | R on app columns and on outputs with `player`, and the media keys *(Phase 1.5)* |
 | LAUNCH | [launch.md](launch.md) | Launcher buttons and the lock screen *(Phase 1.5)* |

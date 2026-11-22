@@ -83,6 +83,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   half-parsed: an app can no longer vanish or come back without its `Exec` or with
   `Hidden=true` unread. The first folder still wins over a rejected file (LAUNCH-02,
   LAUNCH-03, [ADR 0019](docs/adr/0019-launcher-and-column-buttons.md), #260).
+- The log file no longer stops for good after a failed rotation. Deleting `apptrol.log`
+  by hand used to make the next rotation fail, and from then on nothing reached the file
+  until Apptrol was restarted, not even after a config reload. Now a removed file or
+  folder is simply started again; when the old file cannot be moved, Apptrol keeps
+  writing to `apptrol.log` and tries the rotation again later; when the new file cannot
+  be created, each next line tries again; and a reload reopens the file or reports why
+  it cannot. A record written while a reload moves the log file to another path is no
+  longer lost (LOG-07, LOG-08, ADR 0008, #250).
 - A program that owns several media player names on one D-Bus connection keeps all
   of them followed: a playback change now reaches every name, and when one name goes
   the others still get their changes. Before, only the last name found was followed,
