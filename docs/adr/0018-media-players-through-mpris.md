@@ -166,8 +166,8 @@ Measured on the reference system (Kubuntu, KDE Plasma, PipeWire) on 2026-10-02:
   the other players' signals for one timeout, as a first read already does; and while a
   player waits, the media keys' order of players (MEDIA-06) can be off. Two more,
   agreed with the reviewers: a player found by the startup scan and again by its own
-  queued `NameOwnerChanged` starts its wait again, so one that is never ready is read
-  six times instead of five (part of #277); and one that goes during a read can be
+  queued `NameOwnerChanged` starts its wait again from the first retry, so one that is
+  never ready gets one more series of reads (part of #277); and one that goes during a read can be
   logged with the warning instead of at debug, as its release is handled after the
   read. A name handed on between two reads is #277; one program's names counted as
   separate players is #278.

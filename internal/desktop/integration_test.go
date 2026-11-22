@@ -633,7 +633,12 @@ func TestIntegration_MEDIA01_APlayerGoneBeforeItIsReadyIsForgotten(t *testing.T)
 	conn := connect(t)
 	requestName(t, conn, name, 0)
 	h.waitForLog("media player not ready; retrying", name)
-	_ = conn.Close()
+	// Released, not disconnected: a read in flight then still gets an answer
+	// (not ready, or no owner), where a closed connection would give NoReply,
+	// which is warned about (a known limit, ADR 0018).
+	if _, err := conn.ReleaseName(name); err != nil {
+		t.Fatal(err)
+	}
 	h.waitForLog("media player gone before it was ready", name)
 
 	select {
@@ -653,9 +658,10 @@ func TestIntegration_MEDIA01_APlayerGoneBeforeItIsReadyIsForgotten(t *testing.T)
 // handled (that order is #277).
 func TestIntegration_MEDIA01_AHandoverWhileWaitingAddsTheNewOwner(t *testing.T) {
 	requireBus(t)
-	// After the held first retry, the next is 5 s away, so the queued
-	// handover is handled before it even when the loop is slow to resume.
-	setRetries(t, 50*time.Millisecond, 5*time.Second)
+	// After the held first retry, the next is 1 s away, so the queued
+	// handover is handled before it even when the loop is slow to resume,
+	// and the test watches long enough to see that it never comes.
+	setRetries(t, 50*time.Millisecond, time.Second)
 	h := runBus(t, "")
 	h.snapshot()
 	name := mprisPrefix + "apptroltest_handover"
@@ -691,7 +697,7 @@ func TestIntegration_MEDIA01_AHandoverWhileWaitingAddsTheNewOwner(t *testing.T) 
 	select {
 	case ev := <-h.events:
 		t.Errorf("a second event after the handover: %v", ev)
-	case <-time.After(300 * time.Millisecond):
+	case <-time.After(1300 * time.Millisecond): // past the next retry's time
 	}
 	if h.count("does not answer", name) > 0 {
 		t.Errorf("the handed-over name is warned about:\n%s", h.log.String())
