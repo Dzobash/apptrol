@@ -575,19 +575,34 @@ func TestIntegration_MEDIA01_AChangeWhileWaitingIsNotLost(t *testing.T) {
 }
 
 // notReadyYet stands in for a player whose object is not there: every
-// Properties.Get answers UnknownObject, as GDBus and Qt do. onRetry, if set,
-// runs during the second read, the first retry, so a test can hold that read
-// open (MEDIA-01, ADR 0018, #254).
+// Properties.Get answers UnknownObject, as GDBus and Qt do. Only calls from
+// Apptrol's connection (from) are counted: other programs on a shared bus,
+// as in CI, may read players too. onRetry, if set, runs during Apptrol's
+// second read, the first retry, so a test can hold that read open (MEDIA-01,
+// ADR 0018, #254).
 type notReadyYet struct {
+	from    string
 	calls   *atomic.Int32
 	onRetry func()
 }
 
-func (n notReadyYet) Get(_, _ string) (dbus.Variant, *dbus.Error) {
-	if n.calls.Add(1) == 2 && n.onRetry != nil {
+func (n notReadyYet) Get(sender dbus.Sender, _, _ string) (dbus.Variant, *dbus.Error) {
+	if string(sender) == n.from && n.calls.Add(1) == 2 && n.onRetry != nil {
 		n.onRetry()
 	}
 	return dbus.Variant{}, &dbus.Error{Name: "org.freedesktop.DBus.Error.UnknownObject", Body: []any{"not exported yet"}}
+}
+
+// unique returns the unique name of the Bus's connection, once it is
+// connected (MEDIA-01, ADR 0018, #254).
+func (h *harness) unique() string {
+	h.t.Helper()
+	h.bus.mu.Lock()
+	defer h.bus.mu.Unlock()
+	if h.bus.conn == nil {
+		h.t.Fatal("the Bus is not connected")
+	}
+	return h.bus.conn.Names()[0]
 }
 
 // A player that never exports its object is read len(notReadyRetry) times
@@ -599,7 +614,7 @@ func TestIntegration_MEDIA01_APlayerThatNeverExportsIsGivenUp(t *testing.T) {
 	name := mprisPrefix + "apptroltest_never"
 	conn := connect(t)
 	calls := &atomic.Int32{}
-	if err := conn.Export(notReadyYet{calls: calls}, mprisPath, ifaceProps); err != nil {
+	if err := conn.Export(notReadyYet{from: h.unique(), calls: calls}, mprisPath, ifaceProps); err != nil {
 		t.Fatal(err)
 	}
 	requestName(t, conn, name, 0)
@@ -675,7 +690,7 @@ func TestIntegration_MEDIA01_AHandoverWhileWaitingAddsTheNewOwner(t *testing.T) 
 	// The held retry times out after callTimeout (2 s); the handover below
 	// takes milliseconds.
 	hold := func() { held <- struct{}{}; <-release }
-	if err := first.Export(notReadyYet{calls: &atomic.Int32{}, onRetry: hold}, mprisPath, ifaceProps); err != nil {
+	if err := first.Export(notReadyYet{from: h.unique(), calls: &atomic.Int32{}, onRetry: hold}, mprisPath, ifaceProps); err != nil {
 		t.Fatal(err)
 	}
 	requestName(t, first, name, dbus.NameFlagAllowReplacement)
