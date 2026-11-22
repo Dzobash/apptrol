@@ -160,8 +160,9 @@ Measured on the reference system (Kubuntu, KDE Plasma, PipeWire) on 2026-10-02:
   `exception.message`), `media player gone before it was ready` (debug; bus name, and
   the error attributes when a read found the name without an owner), and, after the
   last read, the existing `media player does not answer; ignoring it` (warn).
-  Known limits, accepted to keep this simple: a player that is ready only after about
-  a second needs its next start; one whose Player interface comes after its `Identity`
+  Known limits, accepted to keep this simple: a player that is not ready by its last
+  retry (the waits add up to about a second; reads of other players can make it
+  later) needs its next start; one whose Player interface comes after its `Identity`
   has no status until its first change, as before; each retry that then hangs holds
   the other players' signals for one timeout, as a first read already does; and while a
   player waits, the media keys' order of players (MEDIA-06) can be off. Two more,

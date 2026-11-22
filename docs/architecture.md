@@ -664,9 +664,10 @@ The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
   PropertiesChanged from :1.7 (Paused)   →  a: Paused
   ```
   At connect, the players already running are listed (`ListNames`, then `GetNameOwner`
-  and their properties for each). Every call has its own 2-second timeout, so a player
-  that does not answer is left out (a warning) without using up the time of the players
-  after it (MEDIA-01, #119).
+  and their properties for each). Every player's read (its `Identity`, `DesktopEntry` and
+  `PlaybackStatus` together) and every `GetNameOwner` has its own 2-second timeout, so a
+  player that does not answer is left out (a warning) without using up the time of the
+  players after it (MEDIA-01, #119).
   A player can take its name a moment before it exports its object. When its
   `Identity` read answers that the object, interface or property is not there yet,
   the name waits in `pending` and is read again after 50, 100, 250 and 500 ms; then it
