@@ -64,7 +64,7 @@ How the service is put together. Decisions and their reasons are in
 | `internal/systemd` | The unit's Status line: sends `STATUS=` to systemd through go-systemd's `daemon` package (pure Go, no `sdjournal`, ADR 0017); sends nothing without `NOTIFY_SOCKET` (SVC-13, ADR 0007) |
 | `internal/config` | TOML loading: `[apps]`, `[inputs]` and `[outputs]` into one map of targets, input/output selector validation and monitor warnings (CFG-20, CFG-21), the old `type` form with a warning (ADR 0026); validation (including button rules, blocked commands and overlap warnings), its problems as `config.Problem`; warnings as `config.Warning`; file watching |
 | `internal/state` | Saved state: JSON, atomic, batched writes |
-| `internal/logging` | Log outputs (journald, rotating file) and formats; keeps every record on one line |
+| `internal/logging` | Log outputs (journald, rotating file) and formats; keeps every record on one line; a failed rotation or a removed log file does not end file logging; a file a reload replaces is closed after the records still being written to it, without the reload waiting for them (LOG-07, LOG-08) |
 | `internal/logattr` | Names of log attributes and error types, following the OpenTelemetry conventions (ADR 0016); explained for users in [`log-attributes.md`](log-attributes.md) |
 | `internal/version` | Build information |
 | `examples` | The example configuration, built into the binary for the first start (CFG-09) |
@@ -1026,3 +1026,11 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
   layout references, CLI display and what `Setup` passes to the mixer (CFG-20, OUT-01). Monitor warnings are checked on load,
   in the CLI and on service startup/reload (CFG-21); documentation checks cover device
   discovery instructions (CFG-22). See [configuration cases](testing/cases/cfg.md).
+- `logging`: outputs, formats and levels per requirement ID against temporary files and
+  buffers; rotation by size, also after the log file or its folder was removed and
+  after a rotation that failed (retried once the file has grown by another `max_size`,
+  without removing archives on each try); reloads that keep, reopen or replace the file;
+  a record that is still being written while a reload moves the file and back, a stuck
+  write, reloads at the same time, and a value that reloads while it is formatted
+  (LOG-06, LOG-07, LOG-08, #250). See
+  [logging cases](testing/cases/log.md).

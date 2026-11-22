@@ -43,6 +43,15 @@ type Manager struct {
 	journal bool
 	level   slog.LevelVar
 
+	// applyMu serializes Reconfigure and Close from picking the file to
+	// retiring the old one, so two reloads never install a file the other
+	// retired (LOG-08, ADR 0008, #250).
+	applyMu sync.Mutex
+	// draining holds files a reload replaced while records were still being
+	// written to them, by path, so a reload back to that path takes the same
+	// file again: one file at a time rotates a path. Guarded by applyMu.
+	draining map[string]*rotatingFile
+
 	mu       sync.RWMutex
 	handlers []slog.Handler
 	file     *rotatingFile
@@ -77,20 +86,27 @@ func (m *Manager) Logger() *slog.Logger { return m.logger }
 // cannot be set up, the remaining ones are used and the error is returned.
 func (m *Manager) Reconfigure(cfg config.Log) error { return m.apply(cfg, false) }
 
-// Close flushes and closes the log file, if any.
+// Close flushes and closes the log file, if any; a record still being written
+// finishes first (LOG-08, ADR 0008, #250).
 func (m *Manager) Close() error {
+	m.applyMu.Lock()
+	defer m.applyMu.Unlock()
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	file := m.file
 	m.handlers = nil
-	if m.file != nil {
-		err := m.file.Close()
-		m.file = nil
-		return err
+	m.file = nil
+	m.mu.Unlock()
+	if file == nil {
+		return nil
 	}
-	return nil
+	err := file.retire()
+	m.trackDraining(file, nil)
+	return err
 }
 
 func (m *Manager) apply(cfg config.Log, initial bool) error {
+	m.applyMu.Lock()
+	defer m.applyMu.Unlock()
 	level, err := effectiveLevel(cfg.Level, m.opts.Level)
 	if err != nil {
 		return err
@@ -100,6 +116,7 @@ func (m *Manager) apply(cfg config.Log, initial bool) error {
 		handlers []slog.Handler
 		file     *rotatingFile
 		errs     []error
+		working  int // handlers that can write now
 	)
 	for _, out := range cfg.Outputs {
 		switch out {
@@ -110,19 +127,27 @@ func (m *Manager) apply(cfg config.Log, initial bool) error {
 				continue
 			}
 			handlers = append(handlers, h)
+			working++
 		case config.OutputFile:
+			// A handler with an error is a file that cannot be opened now but
+			// stays attached, so the next record can reopen it (LOG-08, ADR 0008, #250).
 			f, h, err := m.fileHandler(cfg.File)
 			if err != nil {
 				errs = append(errs, err)
+			}
+			if h == nil {
 				continue
 			}
 			file = f
 			handlers = append(handlers, h)
+			if err == nil {
+				working++
+			}
 		default:
 			errs = append(errs, fmt.Errorf("unknown log output %q", out))
 		}
 	}
-	if len(handlers) == 0 {
+	if working == 0 {
 		// Never end up without any output: fall back to journald/terminal.
 		h, err := m.stdoutHandler("text")
 		if err != nil {
@@ -141,12 +166,31 @@ func (m *Manager) apply(cfg config.Log, initial bool) error {
 	m.level.Set(level)
 	m.mu.Unlock()
 
+	// A record still being written to the old file (dynamicHandler.Handle)
+	// finishes before retire closes it, so none is lost (LOG-08, ADR 0008, #250).
 	if old != nil && old != file {
-		if err := old.Close(); err != nil {
+		if err := old.retire(); err != nil {
 			errs = append(errs, fmt.Errorf("closing previous log file: %w", err))
 		}
 	}
+	m.trackDraining(old, file)
 	return errors.Join(errs...)
+}
+
+// trackDraining forgets closed and reused files and remembers old while its
+// last records are still being written (LOG-08, ADR 0008, #250).
+func (m *Manager) trackDraining(old, current *rotatingFile) {
+	for path, f := range m.draining {
+		if f == current || !f.draining() {
+			delete(m.draining, path)
+		}
+	}
+	if old != nil && old != current && old.draining() {
+		if m.draining == nil {
+			m.draining = map[string]*rotatingFile{}
+		}
+		m.draining[old.path] = old
+	}
 }
 
 func (m *Manager) stdoutHandler(format string) (slog.Handler, error) {
@@ -157,15 +201,37 @@ func (m *Manager) stdoutHandler(format string) (slog.Handler, error) {
 }
 
 func (m *Manager) fileHandler(fc config.FileOutput) (*rotatingFile, slog.Handler, error) {
-	// Reuse the open file when the path and limits have not changed.
+	// Reuse the open file when the path has not changed; the limits may.
 	m.mu.RLock()
 	cur := m.file
 	m.mu.RUnlock()
-	var f *rotatingFile
+	if cur == nil || cur.path != fc.Path {
+		// A file for this path still finishing its records from an earlier
+		// reload is taken back instead of opening a second one (LOG-08, ADR 0008, #250).
+		if d := m.draining[fc.Path]; d != nil && d.revive() {
+			cur = d
+		}
+	}
+	// A file whose reopen failed is opened again here. If that still fails,
+	// the file is returned with its handler and the error: the reload reports
+	// it and falls back to the journal, and the next record tries to reopen the
+	// file, so restoring its folder is enough. A closed file is replaced
+	// (LOG-08, ADR 0008, #250).
+	var (
+		f        *rotatingFile
+		reuseErr error
+	)
 	if cur != nil && cur.path == fc.Path {
-		cur.setLimits(fc.MaxSize, fc.MaxFiles)
-		f = cur
-	} else {
+		switch err := cur.reuse(fc.MaxSize, fc.MaxFiles); {
+		case err == nil:
+			f = cur
+		case errors.Is(err, os.ErrClosed):
+			// opened anew below
+		default:
+			f, reuseErr = cur, fmt.Errorf("log file: %w", err)
+		}
+	}
+	if f == nil {
 		var err error
 		f, err = openRotatingFile(fc.Path, fc.MaxSize, fc.MaxFiles)
 		if err != nil {
@@ -176,10 +242,12 @@ func (m *Manager) fileHandler(fc config.FileOutput) (*rotatingFile, slog.Handler
 	if err != nil {
 		if f != cur {
 			_ = f.Close()
+		} else if f != m.file {
+			_ = f.retire() // revived above, but not used after all
 		}
 		return nil, nil, err
 	}
-	return f, h, nil
+	return f, h, reuseErr
 }
 
 // ParseLevel converts a configured level name to a slog level (LOG-02).
@@ -219,11 +287,22 @@ func (h *dynamicHandler) Enabled(_ context.Context, l slog.Level) bool {
 	return l >= h.m.level.Level()
 }
 
+// Handle writes r to every current output. It holds the lock only to pick the
+// outputs, and marks the file as in use until the record is written, so a
+// Reconfigure or Close that replaces the file closes it only after this record,
+// and a slow output or a value that logs or reloads while it is formatted
+// blocks no reload (LOG-08, ADR 0008, #250).
 func (h *dynamicHandler) Handle(ctx context.Context, r slog.Record) error {
 	r = oneLine(r)
 	h.m.mu.RLock()
-	outputs := h.m.handlers
+	outputs, file := h.m.handlers, h.m.file
+	if file != nil {
+		file.acquire()
+	}
 	h.m.mu.RUnlock()
+	if file != nil {
+		defer file.release()
+	}
 
 	var errs []error
 	for _, out := range outputs {

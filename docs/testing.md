@@ -582,6 +582,21 @@ events go unread and checks that every one arrives in order (MEDIA-01, `make tes
 The automated case is
 [TC-MEDIA-004](testing/cases/media.md#tc-media-004--a-program-with-several-player-names-is-followed-under-each).
 
+## Log file
+
+The file output's rotation and reloads (LOG-06, LOG-07, LOG-08,
+[ADR 0008](adr/0008-logging.md), #250) are covered without a running service, with the
+race detector: `TestLOG07_…` in `internal/logging/rotate_test.go` and `TestLOG08_…` in
+`internal/logging/logging_test.go`. They check a deleted log file or folder, a rotation
+that fails and is tried again after another `max_size` or a reload, a failed reopen,
+archives kept on failed tries and trimmed after `max_files` was lowered, and reloads that
+keep, replace, revive or fall back from the file while records are being written or a
+write is stuck. The package variables `openFile` and `rename` let the tests make the
+file system fail on demand. [TC-LOG-001 and TC-LOG-002](testing/cases/log.md) list the
+tests; [TC-LOG-003](testing/cases/log.md#tc-log-003--a-deleted-log-file-comes-back-without-a-restart)
+deletes the log file on an installed candidate, with the `log-file` fixture, and checks
+that it comes back without a restart or reload.
+
 ## Manual hardware checklist
 
 > This checklist is being turned into [test cases](testing/cases/README.md) with fixed

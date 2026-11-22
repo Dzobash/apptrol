@@ -1,0 +1,25 @@
+# Test fixture "log-file": one test tone on slider 1, and a small log file that
+# rotates after a few slider moves.
+# For: the log file's rotation and its recovery after the file was deleted (TC-LOG-003).
+# Applied by docs/testing/apply-fixture.sh; format of 0.2.x (docs/config.md).
+# TestFixturesAreValid in internal/config checks that it loads.
+
+[controller]
+port = "nanoKONTROL2"
+
+[log]
+level   = "debug"                  # every slider step is a line
+outputs = ["journald", "file"]
+
+[log.file]
+path      = "~/.local/state/apptrol/apptrol-test.log"   # removed by apply-fixture.sh --restore
+format    = "text"
+max_size  = "8KB"
+max_files = 2
+
+[apps.tone-a]
+name  = "Test tone A"
+match = ["apptrol-test-a"]         # mpv --audio-client-name=apptrol-test-a
+
+[layouts.default]
+slider1 = "tone-a"
