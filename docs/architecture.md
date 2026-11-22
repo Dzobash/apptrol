@@ -672,8 +672,8 @@ The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
   the name waits in `pending` and is read again after 50, 100, 250 and 500 ms; then it
   is given up with the usual warning. The reads run on the session's own loop, between
   signals, driven by one timer, so a read and a signal never overlap; one waiting player
-  per turn, so events and signals can be handled between two reads (a read that times
-  out can still delay them by one timeout, not by several).
+  per turn, so a ready player's event goes out before the next read starts. Each read
+  that times out still holds the loop for its 2 seconds, as a first read does.
   A name that goes or changes owner meanwhile ends its wait quietly (MEDIA-01,
   ADR 0018, #254).
 

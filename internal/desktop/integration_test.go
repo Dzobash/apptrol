@@ -487,6 +487,17 @@ func (h *harness) count(parts ...string) int {
 	return n
 }
 
+// longRetries gives a player that is not ready about 5 s of reads, every
+// 100 ms, as long as the tests wait for an event: a slow test machine cannot
+// end the wait before the test exports or closes the player (MEDIA-01,
+// ADR 0018, #254). Call it before runBus, so the cleanup ends the Bus first.
+func longRetries(t *testing.T) {
+	t.Helper()
+	old := notReadyRetry
+	notReadyRetry = slices.Repeat([]time.Duration{100 * time.Millisecond}, 50)
+	t.Cleanup(func() { notReadyRetry = old })
+}
+
 // retryWindow is how long all reads of a player that is not ready take, with
 // room for the bus (MEDIA-01, ADR 0018, #254).
 func retryWindow() time.Duration {
@@ -507,6 +518,7 @@ func TestIntegration_MEDIA01_APlayerExportingItsObjectLateIsFound(t *testing.T) 
 		{"while running", "apptroltest_late_running"},
 	} {
 		t.Run(tc.when, func(t *testing.T) {
+			longRetries(t)
 			name := mprisPrefix + tc.suffix
 			conn := connect(t)
 			if tc.when == "at connect" {
@@ -542,6 +554,7 @@ func TestIntegration_MEDIA01_APlayerExportingItsObjectLateIsFound(t *testing.T) 
 // ADR 0018, #254).
 func TestIntegration_MEDIA01_AChangeWhileWaitingIsNotLost(t *testing.T) {
 	requireBus(t)
+	longRetries(t)
 	h := runBus(t, "")
 	h.snapshot()
 	name := mprisPrefix + "apptroltest_late_change"
@@ -611,6 +624,7 @@ func TestIntegration_MEDIA01_APlayerThatNeverExportsIsGivenUp(t *testing.T) {
 // no event (MEDIA-01, ADR 0018, #254).
 func TestIntegration_MEDIA01_APlayerGoneBeforeItIsReadyIsForgotten(t *testing.T) {
 	requireBus(t)
+	longRetries(t)
 	h := runBus(t, "")
 	h.snapshot()
 	name := mprisPrefix + "apptroltest_gone_early"
@@ -623,7 +637,7 @@ func TestIntegration_MEDIA01_APlayerGoneBeforeItIsReadyIsForgotten(t *testing.T)
 	select {
 	case ev := <-h.events:
 		t.Errorf("event for a player that was never ready: %v", ev)
-	case <-time.After(retryWindow()):
+	case <-time.After(500 * time.Millisecond): // five retries' time
 	}
 	if h.count("does not answer", name) > 0 {
 		t.Errorf("a player gone before it was ready is warned about:\n%s", h.log.String())

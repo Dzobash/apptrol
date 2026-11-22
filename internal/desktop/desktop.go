@@ -336,11 +336,12 @@ func (t *tracker) nextRetry() (string, time.Time, bool) {
 	return name, at, name != ""
 }
 
-// retry reads a waiting player again. One per turn of the session loop, so
-// the loop can send its event and handle queued signals between two reads;
-// select picks among ready cases at random, so a read that times out can
-// still delay a signal or another player by one callTimeout, never by
-// several (MEDIA-01, ADR 0018, #254).
+// retry reads a waiting player again, one per turn of the session loop: a
+// ready player's event goes out before the next read starts, and the reads
+// that are due are not done in one batch. Each read that times out still
+// holds the loop for one callTimeout, as a first read does, so while several
+// waiting players hang, a signal or a later player waits for each of them
+// (MEDIA-01, ADR 0018, #254).
 func (t *tracker) retry(name string) []mixer.Event {
 	w, waits := t.pending[name]
 	if !waits {
