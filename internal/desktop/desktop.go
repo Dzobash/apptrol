@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -125,7 +127,11 @@ func (b *Bus) Run(ctx context.Context, out chan<- mixer.Event) error {
 		addr, err := b.busAddress()
 		var conn *dbus.Conn
 		if err == nil {
-			conn, err = dbus.Connect(addr, dbus.WithContext(ctx))
+			// Signals in the order they arrive, also when the session's
+			// channel is full: godbus's default handler then delivers from
+			// goroutines, and a newer status could come before an older one
+			// (MEDIA-01, ADR 0018, #254).
+			conn, err = dbus.Connect(addr, dbus.WithContext(ctx), dbus.WithSignalHandler(dbus.NewSequentialSignalHandler()))
 		}
 		if err != nil {
 			if ctx.Err() != nil {
@@ -179,7 +185,7 @@ func (b *Bus) session(ctx context.Context, conn *dbus.Conn, out chan<- mixer.Eve
 		return fmt.Errorf("subscribe to playback changes: %w", err)
 	}
 
-	t := &tracker{b: b, conn: conn, ctx: ctx, owners: map[string]string{}, players: map[string]mixer.Player{}}
+	t := &tracker{b: b, conn: conn, ctx: ctx, owners: map[string]map[string]struct{}{}, players: map[string]mixer.Player{}}
 	snapshot, err := t.list()
 	if err != nil {
 		return err
@@ -218,12 +224,18 @@ func send(ctx context.Context, out chan<- mixer.Event, ev mixer.Event) bool {
 }
 
 // tracker remembers the players of one connection, so signals become events.
+//
+// One D-Bus connection can own several player names, e.g. a daemon that
+// serves more than one player. They share the object /org/mpris/MediaPlayer2,
+// so its PropertiesChanged carries no player name, only the connection's:
+// owners keeps every name of a connection, and a change reaches all of them
+// (MEDIA-01, ADR 0018, #254).
 type tracker struct {
 	b       *Bus
 	conn    *dbus.Conn
 	ctx     context.Context
-	owners  map[string]string       // unique connection name -> player bus name
-	players map[string]mixer.Player // by bus name
+	owners  map[string]map[string]struct{} // unique connection name -> its player bus names
+	players map[string]mixer.Player        // by bus name
 }
 
 // list finds every player with a running owner (MEDIA-01). Names that are
@@ -290,7 +302,10 @@ func (t *tracker) add(name, owner string) (mixer.Player, bool) {
 	}
 	p.DesktopEntry, _ = get(ifaceRoot, "DesktopEntry") // optional in MPRIS
 	p.Status, _ = get(ifacePlayer, "PlaybackStatus")
-	t.owners[owner] = name
+	if t.owners[owner] == nil {
+		t.owners[owner] = map[string]struct{}{}
+	}
+	t.owners[owner][name] = struct{}{}
 	t.players[name] = p
 	attrs := []any{logattr.KeyPlayerBusName, name, logattr.KeyPlayerIdentity, p.Identity}
 	if p.DesktopEntry != "" {
@@ -300,14 +315,17 @@ func (t *tracker) add(name, owner string) (mixer.Player, bool) {
 	return p, true
 }
 
-// remove forgets a player and returns the event for it.
+// remove forgets a player and returns the event for it. Only this name
+// leaves its connection's set: the connection's other players stay followed
+// (MEDIA-01, ADR 0018, #254).
 func (t *tracker) remove(name string) []mixer.Event {
 	if _, known := t.players[name]; !known {
 		return nil
 	}
 	delete(t.players, name)
-	for owner, n := range t.owners {
-		if n == name {
+	for owner, names := range t.owners {
+		delete(names, name)
+		if len(names) == 0 {
 			delete(t.owners, owner)
 		}
 	}
@@ -334,8 +352,8 @@ func (t *tracker) signal(sig *dbus.Signal) []mixer.Event {
 		}
 		return evs
 	case ifaceProps + ".PropertiesChanged":
-		name, known := t.owners[sig.Sender]
-		if !known {
+		owned := t.owners[sig.Sender]
+		if len(owned) == 0 {
 			return nil
 		}
 		var iface string
@@ -349,15 +367,21 @@ func (t *tracker) signal(sig *dbus.Signal) []mixer.Event {
 			return nil
 		}
 		status, _ := v.Value().(string)
-		p := t.players[name]
-		if status == p.Status {
-			return nil
+		// Every name of the sender shares the object that sent the change
+		// (MEDIA-01, ADR 0018, #254); sorted, so the events keep one order.
+		var evs []mixer.Event
+		for _, name := range slices.Sorted(maps.Keys(owned)) {
+			p := t.players[name]
+			if status == p.Status {
+				continue
+			}
+			p.Status = status
+			t.players[name] = p
+			t.b.log.Debug("playback status changed", logattr.KeyPlayerBusName, name,
+				logattr.KeyPlayerIdentity, p.Identity, logattr.KeyPlayerStatus, status)
+			evs = append(evs, mixer.PlayerStatusChanged{BusName: name, Status: status})
 		}
-		p.Status = status
-		t.players[name] = p
-		t.b.log.Debug("playback status changed", logattr.KeyPlayerBusName, name,
-			logattr.KeyPlayerIdentity, p.Identity, logattr.KeyPlayerStatus, status)
-		return []mixer.Event{mixer.PlayerStatusChanged{BusName: name, Status: status}}
+		return evs
 	}
 	return nil
 }

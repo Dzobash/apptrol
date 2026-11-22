@@ -110,3 +110,10 @@ Type: Manual
 
 **Result:** Pass / Fail / Blocked
 **Notes:**
+
+### TC-MEDIA-004 — A program with several player names is followed under each
+
+Covers: MEDIA-01 · Phase 1.7
+Config: none (private session bus)
+Type: Automated
+Test: `TestIntegration_MEDIA01_OneConnectionWithTwoPlayerNames`, `TestIntegration_MEDIA01_ABacklogOfChangesKeepsItsOrder` (`make test-desktop`)

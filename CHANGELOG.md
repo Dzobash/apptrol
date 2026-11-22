@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0.6.0); layouts move to 0.7.0, setup and tray to 0.8.0 (#245).
 
 ### Fixed
+- Blocked-command validation for launcher `command` entries now skips wrapper options
+  and their arguments (such as `env -i`, `env -u VAR`, `nice -n 10`,
+  `systemd-run --user` and `--`) before checking the wrapped program, while leaning
+  toward blocking on unknown wrapper flags and leaving ordinary arguments of
+  non-wrapper commands allowed (LAUNCH-12,
+  [ADR 0022](docs/adr/0022-launcher-command-safety.md), #259).
 - A controller that stops accepting LED writes no longer blocks Apptrol's event loop
   or its shutdown: every LED write is bounded by a 100 ms write deadline, so a stalled
   controller fails fast, and the failure is logged once per outage instead of once per
@@ -85,6 +91,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   be created, each next line tries again; and a reload reopens the file or reports why
   it cannot. A record written while a reload moves the log file to another path is no
   longer lost (LOG-07, LOG-08, ADR 0008, #250).
+- A program that owns several media player names on one D-Bus connection keeps all
+  of them followed: a playback change now reaches every name, and when one name goes
+  the others still get their changes. Before, only the last name found was followed,
+  and after it went none of them was (MEDIA-01, #254).
+- Playback changes that arrive while Apptrol is busy are handled in the order the
+  players sent them; before, a burst could leave an older status last (MEDIA-01, #254).
 
 ## [0.3.0] - 2026-11-02
 

@@ -574,6 +574,14 @@ naming an output without it (CFG-15). `TestMEDIA12_CheckShowsAnOutputsPlayers` c
 [TC-MEDIA-003](testing/cases/media.md#tc-media-003--r-on-an-output-with-a-player-list-plays-and-pauses-that-player),
 with the `output-player` fixture and a browser video.
 
+One program with several player names (#254): `TestIntegration_MEDIA01_OneConnectionWithTwoPlayerNames`
+checks that a status change reaches every name of the connection and that a released
+name leaves the other followed, with no stray change for the released one;
+`TestIntegration_MEDIA01_ABacklogOfChangesKeepsItsOrder` sends 301 changes while the
+events go unread and checks that every one arrives in order (MEDIA-01, `make test-desktop`).
+The automated case is
+[TC-MEDIA-004](testing/cases/media.md#tc-media-004--a-program-with-several-player-names-is-followed-under-each).
+
 ## Log file
 
 The file output's rotation and reloads (LOG-06, LOG-07, LOG-08,
