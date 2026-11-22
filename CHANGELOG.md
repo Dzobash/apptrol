@@ -89,6 +89,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and after it went none of them was (MEDIA-01, #254).
 - Playback changes that arrive while Apptrol is busy are handled in the order the
   players sent them; before, a burst could leave an older status last (MEDIA-01, #254).
+- A media player that takes its name a moment before it is ready is found: Apptrol
+  asks it again for about a second (`media player not ready; retrying` at debug).
+  Before, R and the media keys ignored it until it restarted (MEDIA-01, #254).
 
 ## [0.3.0] - 2026-11-02
 

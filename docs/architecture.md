@@ -667,6 +667,18 @@ The D-Bus session bus, through `godbus` (ADR 0017, ADR 0018):
   and their properties for each). Every call has its own 2-second timeout, so a player
   that does not answer is left out (a warning) without using up the time of the players
   after it (MEDIA-01, #119).
+  A player can take its name a moment before it exports its object. When its
+  `Identity` read answers that the object, interface or property is not there yet,
+  the name waits in `pending` and is read again after 50, 100, 250 and 500 ms; then it
+  is given up with the usual warning. The reads run on the session's own loop, between
+  signals, driven by one timer, so a read and a signal never overlap; a name that goes
+  or changes owner meanwhile ends its wait quietly (MEDIA-01, ADR 0018, #254).
+
+  ```
+  NameOwnerChanged x ("" → :1.9)  →  read x: UnknownObject  →  pending, retry in 50 ms
+  (other players' signals keep being handled)
+  timer  →  read x: Identity, DesktopEntry, PlaybackStatus  →  PlayerAdded x
+  ```
 - **Commands** (`Play`, `Pause`, `Stop`, `Next`, `Previous`) are sent without waiting;
   a player that refuses is logged when its answer arrives.
 - **LEDs from players:** R and ▶ follow the players' `PlaybackStatus`, which arrives
@@ -966,7 +978,9 @@ warning (`error.type=status_not_sent`); Apptrol runs on. The unit has
 - `desktop`: integration tests in a private session bus with fake media players, locally
   (`make test-desktop`) and in CI; a bus restart and a missing bus included, one
   connection with two player names, and a backlog of changes that must keep its order
-  ([TC-MEDIA-004](testing/cases/media.md#tc-media-004--a-program-with-several-player-names-is-followed-under-each)).
+  ([TC-MEDIA-004](testing/cases/media.md#tc-media-004--a-program-with-several-player-names-is-followed-under-each)),
+  and players that are ready only after taking their name, never, or go first
+  ([TC-MEDIA-005](testing/cases/media.md#tc-media-005--a-player-that-is-ready-a-moment-after-taking-its-name-is-found)).
 - `session`: the same private bus stands in for the system bus, with a fake logind that
   sends the sleep signal and offers a user and a graphical session: wake-ups and their
   repeats, a signal from another program, lock, unlock, another session in front, no

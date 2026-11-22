@@ -37,6 +37,54 @@ const (
 // stop Apptrol from following the others.
 const callTimeout = 2 * time.Second
 
+// notReadyRetry is how long Apptrol waits before each new read of a player
+// that owns its name but has not exported its object yet: about a second in
+// all (MEDIA-01, ADR 0018, #254).
+var notReadyRetry = []time.Duration{50 * time.Millisecond, 100 * time.Millisecond, 250 * time.Millisecond, 500 * time.Millisecond}
+
+// notReadyErrors are the answers of a player whose object, interface or
+// property is not exported yet: godbus answers NoSuchObject, GDBus and Qt
+// UnknownObject or UnknownMethod, godbus's prop package InterfaceNotFound or
+// PropertyNotFound, GDBus InvalidArgs, and others the standard UnknownProperty.
+// Only these are read again; a timeout or any other error is not, so a hanging
+// player still costs one callTimeout (MEDIA-01, ADR 0018, #119, #254).
+var notReadyErrors = map[string]bool{
+	"org.freedesktop.DBus.Error.NoSuchObject":                 true,
+	"org.freedesktop.DBus.Error.UnknownObject":                true,
+	"org.freedesktop.DBus.Error.UnknownInterface":             true,
+	"org.freedesktop.DBus.Error.UnknownMethod":                true,
+	"org.freedesktop.DBus.Error.InvalidArgs":                  true,
+	"org.freedesktop.DBus.Error.UnknownProperty":              true,
+	"org.freedesktop.DBus.Properties.Error.InterfaceNotFound": true,
+	"org.freedesktop.DBus.Properties.Error.PropertyNotFound":  true,
+}
+
+// goneErrors are the bus's answers for a name that nobody owns any more: the
+// player went between two reads, and its NameOwnerChanged is still queued
+// (MEDIA-01, ADR 0018, #254).
+var goneErrors = map[string]bool{
+	"org.freedesktop.DBus.Error.NameHasNoOwner": true,
+	"org.freedesktop.DBus.Error.ServiceUnknown": true,
+}
+
+// errorName returns the D-Bus error name in err, or "" for any other error;
+// godbus returns its error as a value or a pointer (MEDIA-01, ADR 0018, #254).
+func errorName(err error) string {
+	var v dbus.Error
+	if errors.As(err, &v) {
+		return v.Name
+	}
+	var p *dbus.Error
+	if errors.As(err, &p) {
+		return p.Name
+	}
+	return ""
+}
+
+// notReady reports whether err means the player's object is not there yet
+// (MEDIA-01, ADR 0018, #254).
+func notReady(err error) bool { return notReadyErrors[errorName(err)] }
+
 // Bus keeps a connection to the session bus and reports media players.
 type Bus struct {
 	log     *slog.Logger
@@ -185,7 +233,7 @@ func (b *Bus) session(ctx context.Context, conn *dbus.Conn, out chan<- mixer.Eve
 		return fmt.Errorf("subscribe to playback changes: %w", err)
 	}
 
-	t := &tracker{b: b, conn: conn, ctx: ctx, owners: map[string]map[string]struct{}{}, players: map[string]mixer.Player{}}
+	t := newTracker(ctx, b, conn)
 	snapshot, err := t.list()
 	if err != nil {
 		return err
@@ -195,7 +243,19 @@ func (b *Bus) session(ctx context.Context, conn *dbus.Conn, out chan<- mixer.Eve
 		return ctx.Err()
 	}
 
+	// Players that are not ready yet are read again on this loop, between
+	// signals, so a read and a signal never run at the same time (MEDIA-01,
+	// ADR 0018, #254).
+	retry := time.NewTimer(time.Hour)
+	retry.Stop()
+	defer retry.Stop()
 	for {
+		var due <-chan time.Time // nil, never ready, while no player waits
+		if at, ok := t.nextRetry(); ok {
+			retry.Reset(time.Until(at))
+			due = retry.C
+		}
+		var evs []mixer.Event
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -205,10 +265,13 @@ func (b *Bus) session(ctx context.Context, conn *dbus.Conn, out chan<- mixer.Eve
 			if !ok {
 				return errors.New("the session bus closed the connection")
 			}
-			for _, ev := range t.signal(sig) {
-				if !send(ctx, out, ev) {
-					return ctx.Err()
-				}
+			evs = t.signal(sig)
+		case <-due:
+			evs = t.retryDue(time.Now())
+		}
+		for _, ev := range evs {
+			if !send(ctx, out, ev) {
+				return ctx.Err()
 			}
 		}
 	}
@@ -230,12 +293,59 @@ func send(ctx context.Context, out chan<- mixer.Event, ev mixer.Event) bool {
 // so its PropertiesChanged carries no player name, only the connection's:
 // owners keeps every name of a connection, and a change reaches all of them
 // (MEDIA-01, ADR 0018, #254).
+//
+// A player can also own its name a moment before it exports its object:
+// pending keeps such a name until it is read again (MEDIA-01, ADR 0018, #254).
 type tracker struct {
 	b       *Bus
 	conn    *dbus.Conn
 	ctx     context.Context
 	owners  map[string]map[string]struct{} // unique connection name -> its player bus names
 	players map[string]mixer.Player        // by bus name
+	pending map[string]waiting             // by bus name; players not ready yet
+}
+
+// waiting is a player that owns its name but did not answer yet: who owns
+// it, how many reads it had, and when it is read again (MEDIA-01, ADR 0018,
+// #254).
+type waiting struct {
+	owner string
+	reads int
+	due   time.Time
+}
+
+// newTracker returns an empty tracker for one connection (MEDIA-01).
+func newTracker(ctx context.Context, b *Bus, conn *dbus.Conn) *tracker {
+	return &tracker{b: b, conn: conn, ctx: ctx, owners: map[string]map[string]struct{}{},
+		players: map[string]mixer.Player{}, pending: map[string]waiting{}}
+}
+
+// nextRetry returns when the next waiting player is read again, and false
+// while none waits (MEDIA-01, ADR 0018, #254).
+func (t *tracker) nextRetry() (time.Time, bool) {
+	var next time.Time
+	for _, w := range t.pending {
+		if next.IsZero() || w.due.Before(next) {
+			next = w.due
+		}
+	}
+	return next, !next.IsZero()
+}
+
+// retryDue reads again every waiting player whose time has come, by name so
+// the events keep one order (MEDIA-01, ADR 0018, #254).
+func (t *tracker) retryDue(now time.Time) []mixer.Event {
+	var evs []mixer.Event
+	for _, name := range slices.Sorted(maps.Keys(t.pending)) {
+		w := t.pending[name]
+		if w.due.After(now) {
+			continue
+		}
+		if p, ok := t.add(name, w.owner, w.reads); ok {
+			evs = append(evs, mixer.PlayerAdded{Player: p})
+		}
+	}
+	return evs
 }
 
 // list finds every player with a running owner (MEDIA-01). Names that are
@@ -262,7 +372,7 @@ func (t *tracker) list() ([]mixer.Player, error) {
 				logattr.Error(logattr.ErrPlayerUnreadable, err))
 			continue
 		}
-		if p, ok := t.add(name, owner); ok {
+		if p, ok := t.add(name, owner, 0); ok {
 			out = append(out, p)
 		}
 	}
@@ -278,9 +388,13 @@ func (t *tracker) owner(name string) (string, error) {
 	return owner, err
 }
 
-// add reads a player's properties and remembers it. A player that does not
-// answer is logged and left out.
-func (t *tracker) add(name, owner string) (mixer.Player, bool) {
+// add reads a player's properties and remembers it; reads counts the reads
+// before this one. A player whose object is not exported yet waits in pending
+// and is read again after notReadyRetry; one that still does not answer, or
+// does not answer at all, is logged and left out (MEDIA-01, ADR 0018, #119,
+// #254).
+func (t *tracker) add(name, owner string, reads int) (mixer.Player, bool) {
+	delete(t.pending, name)
 	p := mixer.Player{BusName: name}
 	obj := t.conn.Object(name, mprisPath)
 	ctx, cancel := context.WithTimeout(t.ctx, callTimeout)
@@ -296,8 +410,19 @@ func (t *tracker) add(name, owner string) (mixer.Player, bool) {
 	}
 	var err error
 	if p.Identity, err = get(ifaceRoot, "Identity"); err != nil {
-		t.b.log.Warn("media player does not answer; ignoring it", logattr.KeyPlayerBusName, name,
-			logattr.Error(logattr.ErrPlayerUnreadable, err))
+		switch {
+		case notReady(err) && reads < len(notReadyRetry):
+			wait := notReadyRetry[reads]
+			t.pending[name] = waiting{owner: owner, reads: reads + 1, due: time.Now().Add(wait)}
+			t.b.log.Debug("media player not ready; retrying", logattr.KeyPlayerBusName, name,
+				logattr.KeyRetryDelay, wait.Seconds(), logattr.Error(logattr.ErrPlayerUnreadable, err))
+		case reads > 0 && goneErrors[errorName(err)]:
+			// It went while it waited; its NameOwnerChanged is still queued.
+			t.b.log.Debug("media player gone before it was ready", logattr.KeyPlayerBusName, name)
+		default:
+			t.b.log.Warn("media player does not answer; ignoring it", logattr.KeyPlayerBusName, name,
+				logattr.Error(logattr.ErrPlayerUnreadable, err))
+		}
 		return p, false
 	}
 	p.DesktopEntry, _ = get(ifaceRoot, "DesktopEntry") // optional in MPRIS
@@ -316,9 +441,15 @@ func (t *tracker) add(name, owner string) (mixer.Player, bool) {
 }
 
 // remove forgets a player and returns the event for it. Only this name
-// leaves its connection's set: the connection's other players stay followed
-// (MEDIA-01, ADR 0018, #254).
+// leaves its connection's set: the connection's other players stay followed.
+// A player that was still waiting to be read was never added, so it ends
+// without an event (MEDIA-01, ADR 0018, #254).
 func (t *tracker) remove(name string) []mixer.Event {
+	if _, waits := t.pending[name]; waits {
+		delete(t.pending, name)
+		t.b.log.Debug("media player gone before it was ready", logattr.KeyPlayerBusName, name)
+		return nil
+	}
 	if _, known := t.players[name]; !known {
 		return nil
 	}
@@ -346,7 +477,7 @@ func (t *tracker) signal(sig *dbus.Signal) []mixer.Event {
 			evs = t.remove(name)
 		}
 		if newOwner != "" {
-			if p, ok := t.add(name, newOwner); ok {
+			if p, ok := t.add(name, newOwner, 0); ok {
 				evs = append(evs, mixer.PlayerAdded{Player: p})
 			}
 		}

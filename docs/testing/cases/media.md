@@ -117,3 +117,10 @@ Covers: MEDIA-01 · Phase 1.7
 Config: none (private session bus)
 Type: Automated
 Test: `TestIntegration_MEDIA01_OneConnectionWithTwoPlayerNames`, `TestIntegration_MEDIA01_ABacklogOfChangesKeepsItsOrder` (`make test-desktop`)
+
+### TC-MEDIA-005 — A player that is ready a moment after taking its name is found
+
+Covers: MEDIA-01 · Phase 1.7
+Config: none (private session bus)
+Type: Automated
+Test: `TestIntegration_MEDIA01_APlayerExportingItsObjectLateIsFound`, `TestIntegration_MEDIA01_AChangeWhileWaitingIsNotLost`, `TestIntegration_MEDIA01_APlayerThatNeverExportsIsGivenUp`, `TestIntegration_MEDIA01_APlayerGoneBeforeItIsReadyIsForgotten`, `TestIntegration_MEDIA01_AHandoverWhileWaitingAddsTheNewOwner` (`make test-desktop`)

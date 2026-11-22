@@ -582,6 +582,17 @@ events go unread and checks that every one arrives in order (MEDIA-01, `make tes
 The automated case is
 [TC-MEDIA-004](testing/cases/media.md#tc-media-004--a-program-with-several-player-names-is-followed-under-each).
 
+A player that is ready a moment after taking its name (#254):
+`TestIntegration_MEDIA01_APlayerExportingItsObjectLateIsFound` takes a name, exports the
+object only after Apptrol's first read failed, and checks that the player is added, at
+connect and while running; `AChangeWhileWaitingIsNotLost` plays it right after the export
+and checks that it ends *Playing*; `APlayerThatNeverExportsIsGivenUp` counts the retries
+and the one warning; `APlayerGoneBeforeItIsReadyIsForgotten` and
+`AHandoverWhileWaitingAddsTheNewOwner` end the wait without a warning, the second with the
+new owner's player. `TestMEDIA01_OnlyNotReadyAnswersAreReadAgain` checks which D-Bus
+answers lead to another read (MEDIA-01, `make test-desktop`). The automated case is
+[TC-MEDIA-005](testing/cases/media.md#tc-media-005--a-player-that-is-ready-a-moment-after-taking-its-name-is-found).
+
 ## Manual hardware checklist
 
 > This checklist is being turned into [test cases](testing/cases/README.md) with fixed
