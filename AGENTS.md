@@ -266,12 +266,14 @@ from one to another.
   permissions need the owner's OK first: ask, with the reason and what it costs.
 - **Waiting and small jobs stay cheap.** Waiting on something that changes nothing (CI,
   a long read-only check) runs in the background, so the chat stays free: say so in one
-  line, no need to ask. Running in the background does not make a command allowed; only
-  the commands in [Boundaries](#boundaries) › Commands you may run yourself run without
-  asking. A small helper job that needs an agent (e.g. summing up check
-  results) runs on a small model, Claude **Haiku 5.5** or GPT **6-Luna**; plans, code
-  and PR reviews follow the table in [Review](#review). Anything that changes something
-  (push, merge, issues, edits) still needs the owner's OK.
+  line, no need to ask. Start a CI watch only once the required checks are listed
+  ([Publish](#publish) › Check that CI started). Running in the background does not
+  make a command allowed; only the commands in [Boundaries](#boundaries) › Commands you
+  may run yourself run without asking. A small helper job that needs an agent (e.g.
+  summing up check results) runs on a small model, Claude **Haiku 5.5** or GPT
+  **6-Luna**; plans, code and PR reviews follow the table in [Review](#review).
+  Anything that changes something (push, merge, issues, edits) still needs the owner's
+  OK.
   ```
   just waiting (CI, a long check)  →  background command   no model tokens
   a small job                      →  Haiku 5.5 or GPT-6-Luna
@@ -450,6 +452,43 @@ from one to another.
 - **Draft until ready.** After clean local review, open the PR as a draft
   (`gh pr create --draft`). CI runs on GitHub; keep the PR draft until all of
   [Ready](#ready) holds.
+- **Before pushing, check for conflicts with `main`.** After the clean local round,
+  `git fetch origin` and compare:
+  ```
+  git diff --name-only origin/main...HEAD   files your branch changed
+  git diff --name-only HEAD...origin/main   files main changed since your branch began
+  ```
+  No file on both lists → push; `main` having moved is no reason to merge. A file on
+  both (often CHANGELOG.md) → look at main's changes to it
+  (`git diff HEAD...origin/main -- <file>`). Same lines as yours → bring `main` in:
+  `git pull --no-rebase --no-commit origin main`, resolve, commit with your
+  `Co-Authored-By:` line, a new local round, then push. This is a first check only
+  (a renamed file can slip through); GitHub's `CONFLICTING` after the push decides.
+- **Check that CI started; never wait without a limit.** The required checks start
+  when the draft PR opens and on every later push, and take a few seconds to appear.
+  Before you start a watch or end your turn, look yourself:
+  ```
+  gh pr checks <n> --required
+    fewer than 8 listed (or none)  → look again within a minute; still fewer:
+      gh pr view <n> --json mergeable
+        CONFLICTING  → bring main in as above
+        UNKNOWN      → GitHub is still working it out; look once more
+        else, or UNKNOWN again → tell the owner which checks are missing
+                                 and what mergeable said
+    all 8 listed:
+      all passed                → done
+      failed/cancelled/skipped  → find out why; fix commit + local round only
+                                  if the cause is in the repository
+      some pending              → start a watch, then look once more: a check
+                                  can finish before the watch begins
+  ```
+  The 8 are named in [CONTRIBUTING.md](CONTRIBUTING.md#branches-and-pull-requests);
+  start no watch while any is missing. Without `--required`, CodeQL makes a stuck PR
+  look busy: GitHub skips CI while a PR has a conflict. Our limit is 30 minutes, but
+  T3 Code's PR watch wakes only on later changes and has no timer, so nothing wakes
+  you at the deadline. When you end your turn with checks pending, give the owner the
+  deadline as their cue ("8 required checks pending since 15:40; no news by 16:10 →
+  ask me to look"). Write "CI is running" only after `gh pr checks` shows it.
 - **Carry the local review evidence into the PR description:** the exact commit,
   reviewer's tool and model, clean verdict and validation limits. Record the review
   route as [Review](#review) requires, and update the evidence after each new reviewed
@@ -468,6 +507,7 @@ from one to another.
   ```
   ✓ the PR's current commit has a clean local round, recorded in its description (Review, Publish)
   ✓ the 8 required checks are green on that commit (CONTRIBUTING.md › Branches and pull requests)
+  ✓ no conflict with main (gh pr view <n> --json mergeable says MERGEABLE)
   ✓ any other failing check is explained in the PR
   ✓ no open findings
   ```
