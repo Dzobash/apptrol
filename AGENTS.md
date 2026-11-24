@@ -269,10 +269,11 @@ from one to another.
   line, no need to ask. Start a CI watch only once the required checks are listed
   ([Publish](#publish) › Check that CI started). Running in the background does not
   make a command allowed; only the commands in [Boundaries](#boundaries) › Commands you
-  may run yourself run without asking. A small helper job that needs an agent (e.g. summing up check
-  results) runs on a small model, Claude **Haiku 5.5** or GPT **6-Luna**; plans, code
-  and PR reviews follow the table in [Review](#review). Anything that changes something
-  (push, merge, issues, edits) still needs the owner's OK.
+  may run yourself run without asking. A small helper job that needs an agent (e.g.
+  summing up check results) runs on a small model, Claude **Haiku 5.5** or GPT
+  **6-Luna**; plans, code and PR reviews follow the table in [Review](#review).
+  Anything that changes something (push, merge, issues, edits) still needs the owner's
+  OK.
   ```
   just waiting (CI, a long check)  →  background command   no model tokens
   a small job                      →  Haiku 5.5 or GPT-6-Luna
@@ -461,25 +462,30 @@ from one to another.
   both (often CHANGELOG.md) → look at main's changes to it
   (`git diff HEAD...origin/main -- <file>`). Same lines as yours → bring `main` in:
   `git pull --no-rebase --no-commit origin main`, resolve, commit with your
-  `Co-Authored-By:` line, a new local round, then push.
+  `Co-Authored-By:` line, a new local round, then push. This is a first check only
+  (a renamed file can slip through); GitHub's `CONFLICTING` after the push decides.
 - **Check that CI started; never wait without a limit.** The required checks start
-  when the draft PR opens and on every later push. Before you start a watch or end
-  your turn, look yourself:
+  when the draft PR opens and on every later push, and take a few seconds to appear.
+  Before you start a watch or end your turn, look yourself:
   ```
   gh pr checks <n> --required
-    all passed      → done
-    some pending    → a watch is fine; CI takes about 3 minutes
-    one failed      → fix commit, local round, push
-    some missing    → they did not start; find out why:
+    all 8 listed, passed      → done
+    some pending              → a watch is fine; CI takes about 3 minutes
+    failed/cancelled/skipped  → find out why; fix commit + local round only if
+                                the cause is in the repository
+    fewer than 8 listed       → look again within a minute; still missing:
   gh pr view <n> --json mergeable
-    CONFLICTING     → bring main in as above
-    UNKNOWN         → GitHub is still working it out; look once more
-    MERGEABLE       → tell the owner (a workflow did not start)
+    CONFLICTING               → bring main in as above
+    UNKNOWN                   → GitHub is still working it out; look once more
+    MERGEABLE                 → tell the owner (a workflow did not start)
   ```
+  The 8 are named in [CONTRIBUTING.md](CONTRIBUTING.md#branches-and-pull-requests).
   Without `--required`, CodeQL makes a stuck PR look busy: GitHub skips CI while a
   PR has a conflict. T3 Code's PR watch wakes only on later changes and has no time
-  limit. Still pending after 30 minutes (the longest job's limit) → tell the owner.
-  Write "CI is running" only after `gh pr checks` shows it.
+  limit, so our limit is 30 minutes: when you end your turn with checks pending, say
+  so with the time ("8 required checks pending since 15:40, watching"), so the owner
+  knows when to ask. Still pending after 30 minutes → tell the owner. Write "CI is
+  running" only after `gh pr checks` shows it.
 - **Carry the local review evidence into the PR description:** the exact commit,
   reviewer's tool and model, clean verdict and validation limits. Record the review
   route as [Review](#review) requires, and update the evidence after each new reviewed
