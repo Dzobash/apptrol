@@ -469,23 +469,26 @@ from one to another.
   Before you start a watch or end your turn, look yourself:
   ```
   gh pr checks <n> --required
-    all 8 listed, passed      → done
-    some pending              → a watch is fine; CI takes about 3 minutes
-    failed/cancelled/skipped  → find out why; fix commit + local round only if
-                                the cause is in the repository
-    fewer than 8 listed       → look again within a minute; still missing:
-  gh pr view <n> --json mergeable
-    CONFLICTING               → bring main in as above
-    UNKNOWN                   → GitHub is still working it out; look once more
-    MERGEABLE                 → tell the owner (a workflow did not start)
+    fewer than 8 listed (or none)  → look again within a minute; still fewer:
+      gh pr view <n> --json mergeable
+        CONFLICTING  → bring main in as above
+        UNKNOWN      → GitHub is still working it out; look once more
+        MERGEABLE    → tell the owner (a workflow did not start)
+    all 8 listed:
+      all passed                → done
+      failed/cancelled/skipped  → find out why; fix commit + local round only
+                                  if the cause is in the repository
+      some pending              → start a watch, then look once more: a check
+                                  can finish before the watch begins
   ```
-  The 8 are named in [CONTRIBUTING.md](CONTRIBUTING.md#branches-and-pull-requests).
-  Without `--required`, CodeQL makes a stuck PR look busy: GitHub skips CI while a
-  PR has a conflict. T3 Code's PR watch wakes only on later changes and has no time
-  limit, so our limit is 30 minutes: when you end your turn with checks pending, say
-  so with the time ("8 required checks pending since 15:40, watching"), so the owner
-  knows when to ask. Still pending after 30 minutes → tell the owner. Write "CI is
-  running" only after `gh pr checks` shows it.
+  The 8 are named in [CONTRIBUTING.md](CONTRIBUTING.md#branches-and-pull-requests);
+  start no watch while any is missing. Without `--required`, CodeQL makes a stuck PR
+  look busy: GitHub skips CI while a PR has a conflict. T3 Code's PR watch wakes only
+  on later changes and has no time limit, so our limit is 30 minutes. When you end
+  your turn with checks pending, give the owner the deadline ("8 required checks
+  pending since 15:40, watching until 16:10; no news by then → ask me to look"). Still
+  pending after 30 minutes → tell the owner. Write "CI is running" only after
+  `gh pr checks` shows it.
 - **Carry the local review evidence into the PR description:** the exact commit,
   reviewer's tool and model, clean verdict and validation limits. Record the review
   route as [Review](#review) requires, and update the evidence after each new reviewed
