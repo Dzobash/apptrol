@@ -473,7 +473,8 @@ from one to another.
       gh pr view <n> --json mergeable
         CONFLICTING  → bring main in as above
         UNKNOWN      → GitHub is still working it out; look once more
-        MERGEABLE    → tell the owner (a workflow did not start)
+        else, or UNKNOWN again → tell the owner which checks are missing
+                                 and what mergeable said
     all 8 listed:
       all passed                → done
       failed/cancelled/skipped  → find out why; fix commit + local round only
@@ -483,12 +484,11 @@ from one to another.
   ```
   The 8 are named in [CONTRIBUTING.md](CONTRIBUTING.md#branches-and-pull-requests);
   start no watch while any is missing. Without `--required`, CodeQL makes a stuck PR
-  look busy: GitHub skips CI while a PR has a conflict. T3 Code's PR watch wakes only
-  on later changes and has no time limit, so our limit is 30 minutes. When you end
-  your turn with checks pending, give the owner the deadline ("8 required checks
-  pending since 15:40, watching until 16:10; no news by then → ask me to look"). Still
-  pending after 30 minutes → tell the owner. Write "CI is running" only after
-  `gh pr checks` shows it.
+  look busy: GitHub skips CI while a PR has a conflict. Our limit is 30 minutes, but
+  T3 Code's PR watch wakes only on later changes and has no timer, so nothing wakes
+  you at the deadline. When you end your turn with checks pending, give the owner the
+  deadline as their cue ("8 required checks pending since 15:40; no news by 16:10 →
+  ask me to look"). Write "CI is running" only after `gh pr checks` shows it.
 - **Carry the local review evidence into the PR description:** the exact commit,
   reviewer's tool and model, clean verdict and validation limits. Record the review
   route as [Review](#review) requires, and update the evidence after each new reviewed
